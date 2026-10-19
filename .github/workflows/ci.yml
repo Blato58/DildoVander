@@ -152,6 +152,10 @@ jobs:
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
       - name: Check whitespace
         run: git diff --check HEAD^ HEAD
+      - name: Verify Vapour Chrome design integrity
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_design_system.py'
+          python3 scripts/check_design_system.py
 
   tracking:
     name: Project tracking (${{ matrix.os }})

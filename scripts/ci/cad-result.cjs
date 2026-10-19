@@ -56,14 +56,21 @@ function readCurrentTree() {
   });
 }
 
-async function authenticatedBuiltSha(github, repo, run, currentInventory) {
+function cadReference(repo, run) {
   // For a reusable workflow, head_sha is the PR source head, not the executed
   // merge tree. Only GitHub's referenced workflow SHA authenticates that tree.
   const canonicalPath = `${repo.owner}/${repo.repo}/${cadWorkflow}@`;
   const references = run.referenced_workflows?.filter(workflow =>
     typeof workflow.path === 'string' && workflow.path.startsWith(canonicalPath));
   if (references?.length !== 1 || !/^[a-f0-9]{40}$/.test(references[0].sha)) return;
-  const sha = references[0].sha;
+  const match = /^refs\/pull\/([1-9][0-9]*)\/merge$/.exec(references[0].ref);
+  const number = match && Number(match[1]);
+  if (!Number.isSafeInteger(number)) return;
+  return { sha: references[0].sha, number };
+}
+
+async function authenticatedBuiltSha(github, repo, reference, currentInventory) {
+  const sha = reference.sha;
   const { data: commit } = await github.rest.git.getCommit({ ...repo, commit_sha: sha });
   if (commit.sha !== sha || !/^[a-f0-9]{40}$/.test(commit.tree?.sha)) return;
   const { data: tree } = await github.rest.git.getTree({
@@ -84,30 +91,32 @@ function isAncestorOfHead(sha) {
 }
 
 async function prProvenance({ github, context }, repo, run, currentInventory, isAncestor, promote) {
-  if (run.event !== 'pull_request' || run.path !== '.github/workflows/ci.yml'
-    || !Array.isArray(run.pull_requests)) return;
   const canonical = `${repo.owner}/${repo.repo}`;
+  if (run.event !== 'pull_request' || run.path !== '.github/workflows/ci.yml'
+    || run.repository?.full_name !== canonical) return;
+  const reference = cadReference(repo, run);
+  if (!reference) return;
+  // GitHub can clear pull_requests after merge. The executed reusable workflow's
+  // server-supplied merge ref still binds the result to its original PR.
+  if (run.pull_requests !== undefined && (!Array.isArray(run.pull_requests)
+    || (run.pull_requests.length > 0 && !run.pull_requests.some(pr => pr.number === reference.number)))) return;
   if (promote) {
-    if (run.repository?.full_name !== canonical) return;
-    for (const reference of run.pull_requests.slice(0, 10)) {
-      if (!Number.isSafeInteger(reference.number) || reference.number <= 0) continue;
-      const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: reference.number });
-      if (pr.number !== reference.number || pr.merged !== true || pr.base?.ref !== 'main'
-        || pr.base.repo?.full_name !== canonical || !/^[a-f0-9]{40}$/.test(pr.merge_commit_sha)
-        || typeof pr.head?.repo?.full_name !== 'string' || !pr.head.repo.full_name
-        || pr.head.repo.full_name !== run.head_repository?.full_name
-        || await isAncestor(pr.merge_commit_sha) !== true) continue;
-      const builtSha = await authenticatedBuiltSha(github, repo, run, currentInventory);
-      if (builtSha) return { scope: 'merged-pr', number: pr.number, mergeSha: pr.merge_commit_sha, builtSha };
-    }
+    const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: reference.number });
+    if (pr.number !== reference.number || pr.merged !== true || pr.base?.ref !== 'main'
+      || pr.base.repo?.full_name !== canonical || !/^[a-f0-9]{40}$/.test(pr.merge_commit_sha)
+      || typeof pr.head?.repo?.full_name !== 'string' || !pr.head.repo.full_name
+      || pr.head.repo.full_name !== run.head_repository?.full_name
+      || await isAncestor(pr.merge_commit_sha) !== true) return;
+    const builtSha = await authenticatedBuiltSha(github, repo, reference, currentInventory);
+    if (builtSha) return { scope: 'merged-pr', number: pr.number, mergeSha: pr.merge_commit_sha, builtSha };
     return;
   }
   const pr = context.payload?.pull_request;
   if (context.eventName !== 'pull_request' || !Number.isSafeInteger(pr?.number) || pr.number <= 0
     || typeof pr.head?.repo?.full_name !== 'string' || !pr.head.repo.full_name
     || run.head_repository?.full_name !== pr.head.repo.full_name
-    || !run.pull_requests.some(reference => reference.number === pr.number)) return;
-  const builtSha = await authenticatedBuiltSha(github, repo, run, currentInventory);
+    || reference.number !== pr.number) return;
+  const builtSha = await authenticatedBuiltSha(github, repo, reference, currentInventory);
   if (builtSha) return { scope: 'same-pr', number: pr.number, builtSha };
 }
 

@@ -1,6 +1,6 @@
 ---
 name: dildovander-ui
-description: Apply the shared Arcane Workshop design system to DildoVander mobile UI, simulator, Workshop viewer, and public project overview while preserving device contracts and generated artifact provenance.
+description: Design, redesign or improve any DildoVander UI, navigation, dashboard, mobile layout, viewer or public page using Vapour Chrome; route design and browser tools automatically while preserving device contracts and generated provenance.
 ---
 
 # DildoVander UI
@@ -12,7 +12,8 @@ repository-relative; locate the repository from this tracked skill rather
 than assuming a checkout or runtime. Verify manifests, locks, routes, state
 owners, styling and scripts in this branch before choosing checks.
 
-Use `kufr/design-system/arcane-workshop.css` as the shared entry point. Reuse
+Vapour Chrome is authoritative for new and modified UI. The existing filename
+`kufr/design-system/arcane-workshop.css` remains the shared entry point. Reuse
 canonical `--aw-*` tokens and `aw-*` components; add local layout styles only
 where the owning view needs them. Fonts are self-hosted with OFL licenses.
 Keep offline generated viewers self-contained using their real generation
@@ -20,12 +21,13 @@ path; never patch a generated viewer or ZIP as the only source change.
 
 ## Character and workflow
 
-Build one cohesive Arcane Workshop across mobile, Simulation Lab, CAD Workshop
-and the project overview: theatrical craft, original magic and restrained
-humor, grounded in the existing 80/15/5 guidance. Use the actual workshop,
-suitcase, wands and mechanical ritual as context. Make hierarchy, composition
-and useful interaction carry that identity; do not add decorative clutter
-over telemetry. Keep action names, errors, Stop and safety language literal.
+Build one cohesive Vapour Chrome across mobile, simulator, CAD viewer, public
+pickup and service tools. Canonical primitives are Vapour Mist #EEF1F5,
+Chrome Midnight #1B2430, Steel Grey #8A94A6 and Digital Periwinkle #B8C0FF.
+Use semantic roles, Inter UI/headings and IBM Plex Mono for technical values.
+Steel and periwinkle need accessible derived text shades on light surfaces.
+Keep theatrical personality in content and artwork; interface chrome stays
+precise, calm and useful. Keep action names, errors, Stop and safety literal.
 
 For a substantive UI change, complete this loop; scale each step to the task:
 
@@ -70,3 +72,14 @@ or simulator changes. It anchors checks to source without promising unimplemente
 controls or physical behavior. Shared CSS and effect data do not imply a shared
 rendering engine. Follow the actual consumers and test each affected one.
 Web checks do not establish signed iPhone, firmware-on-board or physical acceptance.
+
+## Discovery and integrity
+
+Ordinary requests to improve UI, navigation, a mobile layout, viewer, website or
+dashboard should select this project skill without requiring a named invocation.
+Use the installed design plugins, never duplicate or modify their packages.
+`PRODUCT.md` records product facts; `DESIGN.md` points to the canonical system.
+Run `python scripts/check_design_system.py` after shared UI/guidance changes.
+Weekly maintenance reads `.codex/environment/README.md`: report token, theme,
+accessibility or design-tool drift; repair only guidance/config defects in its
+existing scope. It must not redesign applications or regenerate CAD automatically.

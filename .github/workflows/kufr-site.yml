@@ -1,4 +1,4 @@
-name: Build Arcane Workshop site
+name: Build Vapour Chrome site
 
 on:
   workflow_call:

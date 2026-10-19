@@ -108,10 +108,17 @@ export class DebugPanel {
     this.element.hidden = true;
     this.element.setAttribute('role', 'tabpanel');
     this.element.setAttribute('aria-labelledby', 'tab-debug');
+    this.element.tabIndex = -1;
     this.element.innerHTML = `
-      <div class="debug-heading"><div><span class="eyebrow">SERVIS A TESTOVÁNÍ</span><h1>Debug</h1></div>
+      <div class="debug-heading"><div><h1>Diagnostika</h1></div>
         <button type="button" class="stop" data-debug="esp-stop" disabled>Stop kufru</button></div>
       <p>Záložka sleduje existující spojení. Pro pozorování není nutné převzít řízení.</p>
+      <nav class="section-nav" aria-label="Přejít v diagnostice">
+        <a href="#esp-heading">Kufr</a><a href="#server-heading">Server</a>
+        <a href="#server-log-heading">Log serveru</a><a href="#evening-heading">Večery</a>
+        <a href="#voice-heading">Hlas</a><a href="#debug-conversation-heading">Zkušební rozhovor</a>
+        <a href="#log-heading">Log aplikace</a>
+      </nav>
       <p data-voice-error role="alert" hidden></p>
       <section class="debug-card" aria-labelledby="esp-heading"><h2 id="esp-heading">Běh ESP</h2>
         <p data-source></p><dl class="debug-metrics"></dl>

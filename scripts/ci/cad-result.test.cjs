@@ -75,10 +75,11 @@ test('different manufacturing key can seed part exports but never exact acceptan
 function prFixture() {
   const f = fixture({
     event: 'pull_request', head_branch: 'feature', path: '.github/workflows/ci.yml',
+    repository: { full_name: 'Blato58/DildoVander' },
     pull_requests: [{ number: 123 }], head_sha: 'b'.repeat(40),
     referenced_workflows: [{
-      path: 'Blato58/DildoVander/.github/workflows/kufr-cad.yml@refs/pull/123/merge',
-      sha: 'c'.repeat(40),
+      path: `Blato58/DildoVander/.github/workflows/kufr-cad.yml@${'c'.repeat(40)}`,
+      ref: 'refs/pull/123/merge', sha: 'c'.repeat(40),
     }],
   });
   f.artifact.name = `cad-pr-result-v1-${key}`;
@@ -201,7 +202,9 @@ test('fork PR may reuse its own verified source but its result never enters main
 
 test('missing, ambiguous, malformed or truncated source metadata is a safe miss', async () => {
   for (const change of [
-    f => { delete f.run.pull_requests; },
+    f => { f.run.pull_requests = null; },
+    f => { delete f.run.repository; },
+    f => { f.run.repository.full_name = 'fork/DildoVander'; },
     f => { delete f.options.context.payload.pull_request.head; },
     f => { delete f.run.referenced_workflows; },
     f => { f.run.referenced_workflows.push(f.run.referenced_workflows[0]); },
@@ -283,7 +286,7 @@ test('main promotion rejects unmerged, unrelated, malformed and non-ancestor ser
     f => { delete f.mergedPr.merge_commit_sha; },
     f => { delete f.run.repository; },
     f => { f.run.repository.full_name = 'fork/DildoVander'; },
-    f => { f.run.pull_requests = []; },
+    f => { f.run.pull_requests = [{ number: 456 }]; },
     f => { f.settings.isAncestor = () => false; },
     f => { f.settings.isAncestor = () => { throw Error('missing history'); }; },
     f => { f.options.github.rest.pulls.get = () => { throw Error('unavailable'); }; },
@@ -336,4 +339,46 @@ test('force bypasses merged-PR discovery, server queries, tree reads and ancestr
   f.settings.isAncestor = () => { throw Error('unexpected ancestry'); };
   await resolve(f.options, { ...f.settings, force: true });
   assert.deepEqual(f.outputs, {});
+});
+
+test('server workflow merge ref binds same-PR and main results when pull_requests is empty or absent', async () => {
+  for (const createFixture of [prFixture, promotionFixture]) {
+    for (const missing of [false, true]) {
+      const f = createFixture();
+      if (missing) delete f.run.pull_requests;
+      else f.run.pull_requests = [];
+      await resolve(f.options, f.settings);
+      assert.equal(f.outputs['artifact-id'], '8');
+      assert.equal(f.outputs['source-pr'], '123');
+      assert.equal(f.outputs.scope, createFixture === prFixture ? 'same-pr' : 'merged-pr');
+    }
+  }
+});
+
+test('missing, malformed, mismatched or ambiguous canonical workflow refs reject both PR trust paths', async () => {
+  for (const createFixture of [prFixture, promotionFixture]) {
+    for (const change of [
+      f => { delete f.run.referenced_workflows[0].ref; },
+      f => { f.run.referenced_workflows[0].ref = 'refs/heads/main'; },
+      f => { f.run.referenced_workflows[0].ref = 'refs/pull/123/head'; },
+      f => { f.run.referenced_workflows[0].ref = 'refs/pull/0/merge'; },
+      f => { f.run.referenced_workflows[0].ref = 'refs/pull/0123/merge'; },
+      f => { f.run.referenced_workflows[0].ref = 'refs/pull/9007199254740992/merge'; },
+      f => { f.run.referenced_workflows[0].ref = 'refs/pull/456/merge'; },
+      f => { f.run.referenced_workflows.push({ ...f.run.referenced_workflows[0] }); },
+      f => { f.run.pull_requests = [{ number: 456 }]; },
+      f => { delete f.run.repository; },
+      f => { f.run.repository.full_name = 'fork/DildoVander'; },
+    ]) {
+      const f = createFixture();
+      change(f);
+      await resolve(f.options, f.settings);
+      assert.deepEqual(f.outputs, {});
+    }
+  }
+  const f = prFixture();
+  f.run.pull_requests = [];
+  f.run.referenced_workflows[0].ref = 'refs/pull/456/merge';
+  await resolve(f.options, f.settings);
+  assert.deepEqual(f.outputs, {}, 'same-PR payload must match reference even without pull_requests');
 });

@@ -1,4 +1,9 @@
-# Specifikace obrazovek
+# Specifikace obrazovek Vapour Chrome
+
+Společný základ: Inter pro celé UI, IBM Plex Mono pro technické údaje,
+klidná Midnight/Mist plocha a Periwinkle výběr. Tmavé téma je výchozí,
+světlé používá stejné komponenty s odvozenými sémantickými barvami.
+[Náhled systému](mockups/index.html) ukazuje obě témata vedle sebe.
 
 ## Desktop Workshop
 

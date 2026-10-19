@@ -20,21 +20,21 @@
   "acceptance": [
     {
       "id": "IMPACT",
-      "revision": 2,
+      "revision": 3,
       "expected": "Unrelated software/docs and reviewed viewer edits skip CAD setup/generation/verification; mechanical/shared/unknown inputs select required checks and explicit force remains available.",
       "requiredEvidenceKinds": [
         "unit"
       ],
       "appliesTo": {
-        "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+        "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
       },
       "evidenceRefs": [
-        "KUFR-CAD-INCREMENTAL-optimized-local"
+        "KUFR-CAD-INCREMENTAL-merged-local"
       ]
     },
     {
       "id": "REUSE",
-      "revision": 2,
+      "revision": 3,
       "expected": "Trusted content-bound results skip unchanged work, corrupt/untrusted results never supply acceptance, per-part exports and validation-only generation reuse preserve mandatory mechanical gates.",
       "requiredEvidenceKinds": [
         "unit",
@@ -42,30 +42,30 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+        "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
       },
       "evidenceRefs": [
-        "KUFR-CAD-INCREMENTAL-optimized-local",
-        "KUFR-CAD-INCREMENTAL-optimized-review"
+        "KUFR-CAD-INCREMENTAL-merged-local",
+        "KUFR-CAD-INCREMENTAL-merged-review"
       ]
     },
     {
       "id": "HOSTED",
-      "revision": 2,
+      "revision": 3,
       "expected": "Hosted required CI passes and canonical main result is reusable before CAD installation with provenance and complete output inventory checks.",
       "requiredEvidenceKinds": [
         "integration"
       ],
       "appliesTo": {
-        "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+        "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
       },
       "evidenceRefs": []
     }
   ],
   "blockers": [],
   "implementedSubject": {
-    "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+    "artifactDigest": "802ae634db8be76f6cd1eab1f685fb88cfb284b3a15a62dd02129a765596a306"
   },
-  "currentNote": "f248123e8a96e9f389fcff963a7741a0e77228ff pushed/remote verified, PR210. FirstCI39178824484 typed input failure fixed. FollowupCI39179540290 partial native run deliberately cancelled to finalize authenticated PR-to-main promotion and mesh-independent part keys. Final pinned112, CI Python46 and Node61 checks pass; independent review has no remaining findings. No deployment/release/hardware mutation.",
+  "currentNote": "b587bd2ba39c1119bf13b5a5caebc5db3589329f pushed/remote verified. Concurrent main209 ea63d4c integrated; preserved UI and rendered STATUS conflict. Fixed real empty historical PR metadata binding. Final merged pinned114/Node63/CI26/web20 checks and independent delta review pass. PR210 hosted run pending; no deployment/release/hardware mutation.",
   "nextAction": "Run final PR CI, verify tracking-only PR result reuse, merge after all reviews/checks, then confirm canonical main promotion without duplicate CAD."
 }

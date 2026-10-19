@@ -1,5 +1,11 @@
 # Mobilní ovládání kufru
 
+Rozhraní Vapour Chrome používá sdílené tokeny `kufr/design-system/`. Spodní navigace
+odděluje Ovládání, Síť kufru a Diagnostiku; Stop zůstává v horní liště i při posunu.
+Přepínač světlého/tmavého vzhledu ukládá pouze preferenci `aw-theme`. První párování
+vede přes BLE v Síti kufru, ruční LAN údaje jsou pod rozbalovacím ovládáním.
+Webové harnessy nadále představují syntetický důkaz, nikoli ověření na iPhonu.
+
 > **D167 – Dance for me:** panel v Ovládání spouští náhodnou vlastní
 > skladbu ze SD kufru a ukazuje soubor, BPM, průběh a srozumitelné chyby.
 > Zastavit tanec ukončí show, Stop kufru také zachová bezpečnostní zotavení.
@@ -536,19 +542,20 @@ experimentální API. Deklarace `vite/client` pokrývají import CSS a assetů.
 
 Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
 
-Vzhled **Arcane Workshop** používá společné tokeny a lokálně balené fonty z
-`../design-system/arcane-workshop.css`. Ovládání, Debug a Síť kufru zachovávají
+Vzhled **Vapour Chrome** používá společné tokeny a lokálně balené fonty Inter
+a IBM Plex Mono z `../design-system/arcane-workshop.css`. Ovládání, Diagnostika a Síť kufru zachovávají
 stávající funkce; hlas a textový rozhovor zůstávají v Ovládání. Horní lišta
-ukazuje Stop kufru (ve vývoji Stop simulace) také při přepnutí do Debug nebo
+ukazuje Stop kufru (ve vývoji Stop simulace) také při přepnutí do Diagnostiky nebo
 Síť kufru. Používá stejný povel a stejnou dostupnost podle přijatého stavu,
 nepřidává potvrzení a neobchází zotavení. Instalační Safari stránka sdílí vzhled
 přes `/design-system/arcane-workshop.css` a má samostatný CSS fallback.
 
-Horní přepínače Ovládání/Debug/Síť kufru respektují iOS safe area. Viewport má
-`viewport-fit=cover`; sticky lišta přidává `safe-area-inset-top` k hornímu
-odsazení a boční insets k minimálním okrajům. Hodnoty dodává WebKit podle
-zařízení a orientace, takže výřez nepřekrývá taby ani po scrollování.
-Ve webovém režimu s nulovými insets zůstává původní odsazení.
+Spodní navigace Ovládání/Síť kufru/Diagnostika a horní lišta respektují iOS safe
+area. Viewport má `viewport-fit=cover`; horní lišta přidává `safe-area-inset-top`
+k odsazení, spodní navigace používá `safe-area-inset-bottom` a obsah má rezervu
+pod posledním ovládacím prvkem. Boční insets chrání okraje v orientaci na šířku.
+Hodnoty dodává WebKit podle zařízení a orientace. Ve webovém režimu s nulovými
+insets zůstává základní odsazení.
 
 ## Etapy a vzdálený iOS build
 

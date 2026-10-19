@@ -1,8 +1,8 @@
 /* Static key-screen composition. Shared tokens/components own its visual language. */
-.aw-workshop-topbar { display: flex; align-items: center; gap: 32px; padding: 24px; background: var(--aw-surface); border-bottom: 1px solid var(--aw-border-subtle); flex-wrap: wrap; }
+.aw-workshop-topbar { display: flex; align-items: center; gap: 32px; padding: 24px; background: var(--aw-void); border-bottom: 1px solid var(--aw-border-subtle); flex-wrap: wrap; }
 .aw-workshop-brand { display: flex; align-items: center; gap: 12px; font: 600 1.125rem var(--aw-font-display); text-decoration: none; }
-.aw-workshop-brand > span:first-child { font-size: 2rem; }
-.aw-workshop-brand small { display: block; font: .625rem var(--aw-font-ui); letter-spacing: .2em; margin-top: 4px; }
+.aw-workshop-brand > span:first-child { display: grid; place-items: center; width: 40px; height: 40px; font: 500 .8125rem var(--aw-font-mono); color: var(--aw-on-accent); background: var(--aw-accent); border-radius: 6px; }
+.aw-workshop-brand small { display: block; font: .6875rem var(--aw-font-ui); letter-spacing: .1em; color: var(--aw-muted); margin-top: 4px; }
 .aw-workshop-project { padding-left: 24px; border-left: 1px solid var(--aw-border-subtle); }
 .aw-workshop-project h1 { font-size: 1.5rem; margin: 0; }
 .aw-workshop-project .aw-eyebrow { margin-bottom: 4px; }
@@ -23,13 +23,13 @@
 .aw-workshop-panel-body summary:focus-visible { outline: 3px solid var(--aw-info); outline-offset: 4px; }
 .aw-workshop-layers { display: grid; gap: 8px; margin: 8px 0 24px; }
 .aw-workshop-layers label { display: flex; align-items: center; gap: 8px; min-height: var(--aw-touch); color: var(--aw-muted); }
-.aw-workshop-layers input { width: 20px; height: 20px; accent-color: var(--aw-brass); }
+.aw-workshop-layers input { width: 20px; height: 20px; accent-color: var(--aw-accent); }
 .aw-workshop-tree-heading { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 8px; }
 .aw-workshop-tree ul { list-style: none; padding: 0; margin: 0 0 8px; }
 .aw-workshop-tree li { padding: 12px; min-height: var(--aw-touch); margin-left: 12px; color: var(--aw-muted); overflow-wrap: anywhere; }
-.aw-workshop-tree li.is-selected { color: var(--aw-brass); background: var(--aw-elevated); border-left: 2px solid var(--aw-brass); border-radius: var(--aw-radius-control); }
+.aw-workshop-tree li.is-selected { color: var(--aw-accent); background: var(--aw-accent-soft); font-weight: 600; border-radius: var(--aw-radius-control); }
 .aw-workshop-tree li small { display: block; margin-top: 4px; color: var(--aw-muted); }
-.aw-workshop-viewport { display: flex; flex-direction: column; min-width: 0; padding: 24px; background: radial-gradient(ellipse at 50% 55%, #D9B7770C, transparent 62%), var(--aw-void); }
+.aw-workshop-viewport { display: flex; flex-direction: column; min-width: 0; padding: 24px; background: var(--aw-void); }
 .aw-workshop-viewport-heading { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .aw-workshop-viewport-heading .aw-eyebrow { margin-bottom: 8px; }
 .aw-workshop-viewport-heading h2 { font-weight: 500; color: var(--aw-muted); }
@@ -38,13 +38,13 @@
 .aw-workshop-view-controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 16px 0 24px; }
 .aw-workshop-view-controls .aw-button { font-size: .8125rem; }
 .aw-workshop-viewport-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
-.aw-workshop-object-title { margin-top: 24px !important; font: 600 1.25rem var(--aw-font-display); color: var(--aw-brass); }
+.aw-workshop-object-title { margin-top: 24px !important; font: 600 1.25rem var(--aw-font-display); color: var(--aw-accent); }
 .aw-workshop-connections { list-style: none; margin: 0 0 24px; padding: 0; }
 .aw-workshop-connections li { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--aw-border-subtle); }
 .aw-workshop-motion { padding: 24px; background: var(--aw-surface); border-top: 1px solid var(--aw-border); }
 .aw-workshop-motion-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .aw-workshop-phases { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); list-style: none; gap: 4px; margin: 0; padding: 0; }
-.aw-workshop-phases li { padding: 12px 8px; text-align: center; font: .75rem var(--aw-font-mono); color: var(--aw-muted); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-control); background: var(--aw-elevated); overflow-wrap: anywhere; }
+.aw-workshop-phases li { min-height: 52px; padding: 12px 8px; text-align: center; font: .75rem var(--aw-font-mono); color: var(--aw-muted); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-control); background: var(--aw-elevated); overflow-wrap: anywhere; }
 .aw-workshop-motion > p { margin: 16px 0 0; font-size: .8125rem; }
 @media (max-width: 1100px) {
   .aw-workshop-columns { grid-template-columns: 248px minmax(0, 1fr); }

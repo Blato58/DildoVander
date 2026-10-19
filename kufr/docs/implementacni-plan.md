@@ -343,13 +343,13 @@ Capacitor 8 podporuje iOS 15+ a vyžaduje Xcode 26.0+; jeho CLI vyžaduje Node 2
 
 ## 3. Komponenty, nasazení a vertical slices
 
-Od 10. 10. 2026 sjednocuje všechna UI [Arcane Workshop](../design-system/README.md).
+Od rozhodnutí majitele 19. 10. 2026 sjednocuje všechna UI [Vapour Chrome](../design-system/README.md).
 Sdílené CSS tokeny, komponentové a přístupnostní kontrakty se používají ve
 stávajících frameworcích; nemění lokální řízení, BLE, Keychain, kamerový souhlas
 ani rozdíl pozorování/simulace/fyzického stavu. Tři ilustrační mockupy a přesné
 specifikace obrazovek jsou součástí design systému. Nové Home/Control/Voice/Service,
 AI Studio a Show Mode jsou navazující rozšíření funkcí, nikoli už existující
-obrazovky; současné Ovládání/Debug/Síť kufru zůstávají funkčně zachované.
+obrazovky; současné Ovládání/Diagnostika/Síť kufru zachovávají své smlouvy a bezpečnostní brány.
 
 Majitel 10. 10. autorizoval automatické publikování [veřejného webu](../web/README.md)
 po relevantním merge do `main`: rozcestník, ověřený F2 viewer a celý ZIP, webový

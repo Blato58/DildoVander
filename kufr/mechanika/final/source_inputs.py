@@ -13,7 +13,7 @@ LOCAL_FILES = frozenset({"fit-debug.json", ".gitignore", ".DS_Store", ".coverage
 # Geometry generation, effects layout, assembly instructions and verification
 # remain manufacturing inputs even when their output is visible in the viewer.
 PRESENTATION_SOURCES = frozenset({
-    "viewer_document.py", "viewer_style.py", "viewer.js", "viewer-template.html",
+    "viewer_document.py", "viewer_style.py", "refresh_viewer.py", "viewer.js", "viewer-template.html",
     "viewer-workshop.css", "workshop-design-system.css", "show_timeline.js",
     "twin_media.js", "twin_media.css", "twin_viewer.js", "twin-viewer.css",
     "README.md", "VIEWER.md", "test_viewer_document.py", "test_viewer_style.py",

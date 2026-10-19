@@ -198,8 +198,8 @@
     const panel = document.createElement('section');
     panel.id = 'twin-panel'; panel.className = 'twin-panel aw-root';
     panel.setAttribute('aria-label', 'Digital Twin runtime');
-    panel.innerHTML = `<details id="twin-details"><summary>Digital Twin · runtime / záznam</summary>
-      <p>Plný snapshot core. LED je přijatý GRB frame, servo kalibrovaný odhad; fyzické ověření unavailable.</p>
+    panel.innerHTML = `<details id="twin-details"><summary>Digital Twin</summary><div class="twin-body"><header class="twin-heading"><span class="eyebrow">RUNTIME / REPLAY</span><h2>Digitální dvojče</h2></header>
+      <p class="twin-intro">Plný snapshot core. LED z přijatého GRB frame, servo jako kalibrovaný odhad. Fyzické ověření není dostupné.</p><h3>Zdroj a připojení</h3>
       <form id="twin-session" ${local ? '' : 'hidden'}><label>Twin server · stejný origin<input id="twin-base" type="url" readonly autocomplete="off"></label><label>Scoped Twin session credential<input id="twin-credential" type="password" autocomplete="off"></label><button>Připojit session</button></form>
       ${offline ? '<p>Offline export podporuje záznam a návrh. Pro session otevřete soukromý /twin na originu serveru; cross-origin cookie není podporována.</p>' : ''}
       <div class="twin-row"><label>Zdroj<select id="twin-source"><option value="">Návrhový náhled</option></select></label><button id="twin-refresh" type="button">Načíst zdroje</button></div>
@@ -216,15 +216,15 @@
         <button id="twin-pause">Pozastavit clock</button><button id="twin-resume">Pokračovat clock</button><button id="twin-step">Krok 250 ms</button>
         <label>Fault<select id="twin-fault"><option>none</option><option>servo</option><option>led</option><option>journal</option><option>jam</option></select></label><button id="twin-inject">Vložit fault</button>
       </div>
-      <p id="twin-capabilities"></p><p id="twin-selection"></p>
+      <p id="twin-capabilities" class="twin-capabilities"></p><h3>Události a výběr</h3><p id="twin-selection"></p>
       <p id="twin-audio-status"></p>
       <p id="twin-trace-status"></p>
       <ol id="twin-trace" tabindex="0" aria-label="Doložené runtime události"></ol>
-      <div class="twin-row"><button id="twin-export">Exportovat záznam</button><label>Import záznamu<input id="twin-import" type="file" accept="application/json,.json"></label></div>
+      <h3>Záznam a přehrávání</h3><div class="twin-row"><button id="twin-export">Exportovat záznam</button><label>Import záznamu<input id="twin-import" type="file" accept="application/json,.json"></label></div>
       <div id="twin-replay" hidden><label>Snapshot záznamu<input id="twin-seek" type="range" min="0" max="0" value="0"></label><button id="twin-play">Přehrát záznam</button><label>Rychlost replay<select id="twin-replay-speed"><option>0.25</option><option selected>1</option><option>4</option></select></label><output id="twin-record-time"></output><button id="twin-exit-replay">Zavřít záznam</button></div>
       <p id="twin-recording-status"></p>
-    </details>`;
-    document.body.append(panel);
+    </div></details>`;
+    (document.getElementById('workspace-dock') || document.body).append(panel);
     const badge = document.createElement('div'); badge.id = 'twin-badge'; badge.className = 'twin-badge aw-root';
     badge.setAttribute('role', 'status'); document.body.append(badge);
     const get = id => document.getElementById(id);
@@ -252,6 +252,7 @@
       badge.textContent = !active ? 'NÁVRHOVÝ NÁHLED · bez runtime' :
         `${replay ? 'REPLAY · ' : ''}${sourceMode} · ${selectedProfile} · ${replay ? 'HISTORIE' : status.toUpperCase()} · ${snapshot?.source.instanceId || projection.instanceId || 'čekání'} · ${cadState}`;
       badge.dataset.status = status;
+      badge.hidden = !active;
       get('twin-warning').textContent = projection.compatibility();
       get('twin-error').textContent = failure;
       get('twin-capabilities').textContent = `Session: ${role}. Profile: ${selectedProfile}${selectedProfile === 'integration' ? ' · wall-clock; fake clock unavailable; návrh vybírá skutečný backend' : selectedProfile === 'deterministic' ? ' · injected fake clock; syntetický vstup' : ''}. Capabilities: ${(snapshot?.capabilities || remoteCapabilities).join(', ') || 'unavailable'}. ${commandNotice} ${replay ? 'Historický záznam; žádné povely.' : ''}`;
