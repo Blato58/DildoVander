@@ -86,13 +86,15 @@
       "appliesTo": {
         "iosArtifactDigest": "d7012db3036515f573b2c29e19657bd0e36facf47155910140cc68cbdbd9ec9b"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "KUFR-APPLICATION-native-v2"
+      ]
     }
   ],
   "blockers": [
     {
       "id": "SIGNED-NATIVE",
-      "problem": "Signed iPhone associated-domain passkeys, Keychain resume/switching, actual native public/media behavior and physical BLE possession are not accepted. Merged Swift source awaits fresh macOS software CI; earlier native evidence remains immutable.",
+      "problem": "Current source-v7 passed macOS native harnesses and unsigned iOS Simulator build in CI39202887317. Signed iPhone associated-domain passkeys, Keychain resume/switching, actual public/media runtime and physical BLE possession remain unaccepted.",
       "severity": "high",
       "blocks": [
         "NATIVE"
@@ -101,7 +103,7 @@
     }
   ],
   "nextAction": "Verify signed iPhone associated-domain passkeys, Keychain resume/switching, native public model/media and physical pairing on the authorized installation. Source handoff uses PR218 CI/review gates; production activation remains separate.",
-  "currentNote": "Integration8b9fc55b31e5502e8ce0f727032957d9449e763d pushed and remoteverified. PR218 fresh review found Workshop account-loss retention; source-v7 closes that and siblingauthorizedobservation caches, with22Vue+39media regressions, final251app tests/build and realHTTPS/account/application/media/offline browsersPASS. Backend digest unchanged; independent boundedreviewclean. Newnative/LinuxCI and finalPRreview remain required afterpush. No production/provider/hardware action.",
+  "currentNote": "Implementationeb9336132735a7d988270deb18abf2e980afa5a6 pushed and remoteverified. PR218 current Codex review completed with no findings; all relevant threads resolved. Final251app tests/build and HTTPS/account/application/media/offline checks passed. CurrentCI39202887317 native/backend/web/site/tracking/host checks passed; manufacturing firmware/CAD still pending at this observation. No production/provider/hardware action.",
   "implementedSubject": {
     "applicationArtifactDigest": "e7b13293f289dee99c6f85810300fa523bdb368e851af5702fe93014df5b7af0",
     "backendArtifactDigest": "28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c",
