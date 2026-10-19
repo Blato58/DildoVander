@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-DEPENDABOT-MOBILE-196",
+  "initiative": "KUFR",
+  "title": "Dependabot PR 196 mobile dependency and native pin alignment",
+  "state": "active",
+  "priority": "P2",
+  "sequence": 36,
+  "scope": [
+    "kufr/mobilni-aplikace",
+    "docs/project"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "PINS",
+      "revision": 1,
+      "expected": "Capacitor npm core/CLI/iOS, generated Package.swift and tracked native lock use 8.5.3; Vite dependency group remains consistent and lock provenance is explicit.",
+      "requiredEvidenceKinds": [
+        "source_review"
+      ],
+      "appliesTo": {
+        "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+      },
+      "evidenceRefs": [
+        "KUFR-DEPENDABOT-MOBILE-196-local-20261019-source"
+      ]
+    },
+    {
+      "id": "LOCAL",
+      "revision": 1,
+      "expected": "Mobile/contract tests, production web build, real Capacitor sync and relevant packaging/site checks pass for the dependency update.",
+      "requiredEvidenceKinds": [
+        "unit"
+      ],
+      "appliesTo": {
+        "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+      },
+      "evidenceRefs": [
+        "KUFR-DEPENDABOT-MOBILE-196-local-20261019-tests"
+      ]
+    },
+    {
+      "id": "NATIVE",
+      "revision": 1,
+      "expected": "Required macOS PR CI resolves Swift packages and passes native tests plus unsigned iOS Simulator build for this dependency update.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [],
+  "implementedSubject": {
+    "artifactDigest": "7faa569a50fb3bd6fafe6398c5e4b1c7b04514cae9ced69d2cc90caa94543eb0"
+  },
+  "currentNote": "Review comment4281160615 fixed: actual cap sync generated Capacitor8.5.3 manifest; lock uses upstream tag SHA, stale optional originHash removed. Windows local checks passed. Commit/push result pending.",
+  "nextAction": "Push the verified dependency fix, obtain independent correctness review and required macOS CI result; parent resolves review and merges PR196."
+}
