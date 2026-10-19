@@ -116,6 +116,14 @@ class PublicWorkflowTests(unittest.TestCase):
         self.assertEqual(json.loads(result), [True, True, False, False, False, False, False])
         self.assertIn("steps.accepted.outputs.hit != 'true'", condition)
         self.assertIn("name: cad-pr-result-v1-${{ steps.cad-key.outputs.key }}", source)
+        # Ordinary hits do not upload duplicates, while authenticated promotion
+        # must retain the result in the canonical main trust domain.
+        promotion_script = ("const check=new Function('github','steps','return ('+process.argv[1]+')'); "
+                            "const github=JSON.parse(process.argv[2]); "
+                            "process.stdout.write(JSON.stringify(['merged-pr','main','same-pr'].map(scope=>!!check(github,"
+                            "{accepted:{outputs:{hit:'true'}},trusted:{outputs:{scope}}}))));")
+        promoted = subprocess.check_output(['node', '-e', promotion_script, condition, json.dumps(cases[0])], text=True)
+        self.assertEqual(json.loads(promoted), [True, False, False])
 
     def test_signing_requires_canonical_main_dispatch_and_separate_environment(self):
         source = (WORKFLOWS / 'kufr-ios-sign.yml').read_text()

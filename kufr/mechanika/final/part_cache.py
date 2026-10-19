@@ -126,7 +126,17 @@ class PartExportCache:
         # an on-disk source edit. BREP serialization does not tessellate a shape.
         stream = BytesIO()
         shape = part.shape if printed is None else printed
-        if not shape.exportBrep(stream) or not stream.getbuffer().nbytes:
+        # CAD exporters attach tessellation to native shared shapes. Exclude
+        # that mutable mesh state, or a previous cache miss changes later keys.
+        clean = shape.copy(mesh=False)
+        pending = [clean]
+        while pending:
+            component = pending.pop()
+            # OCC also changes its memoized Checked flag during meshing. It is
+            # not geometry; normalize only the independent copy's check state.
+            component.wrapped.Checked(False)
+            pending.extend(component)
+        if not clean.exportBrep(stream) or not stream.getbuffer().nbytes:
             raise ValueError("Cannot fingerprint printable CAD geometry")
         shape_sha256 = hashlib.sha256(stream.getbuffer()).hexdigest()
         recipe = {"group": self.groups[owner], "part": part.name,

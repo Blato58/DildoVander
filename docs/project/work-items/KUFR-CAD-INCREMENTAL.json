@@ -6,37 +6,66 @@
   "state": "active",
   "priority": "P1",
   "sequence": 30,
-  "scope": ["scripts/ci", ".github/actions/verified-cad", ".github/workflows", "kufr/mechanika/final", "kufr/web/build-site.py", "kufr/web/test_site.py", "AGENTS.md", ".agents/skills/dildovander-ui/references/acceptance.md"],
+  "scope": [
+    "scripts/ci",
+    ".github/actions/verified-cad",
+    ".github/workflows",
+    "kufr/mechanika/final",
+    "kufr/web/build-site.py",
+    "kufr/web/test_site.py",
+    "AGENTS.md",
+    ".agents/skills/dildovander-ui/references/acceptance.md"
+  ],
   "dependencies": [],
   "acceptance": [
     {
       "id": "IMPACT",
-      "revision": 1,
+      "revision": 2,
       "expected": "Unrelated software/docs and reviewed viewer edits skip CAD setup/generation/verification; mechanical/shared/unknown inputs select required checks and explicit force remains available.",
-      "requiredEvidenceKinds": ["unit"],
-      "appliesTo": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
-      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-final-local"]
+      "requiredEvidenceKinds": [
+        "unit"
+      ],
+      "appliesTo": {
+        "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+      },
+      "evidenceRefs": [
+        "KUFR-CAD-INCREMENTAL-optimized-local"
+      ]
     },
     {
       "id": "REUSE",
-      "revision": 1,
+      "revision": 2,
       "expected": "Trusted content-bound results skip unchanged work, corrupt/untrusted results never supply acceptance, per-part exports and validation-only generation reuse preserve mandatory mechanical gates.",
-      "requiredEvidenceKinds": ["unit", "source_review"],
+      "requiredEvidenceKinds": [
+        "unit",
+        "source_review"
+      ],
       "rule": "allOf",
-      "appliesTo": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
-      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-final-local", "KUFR-CAD-INCREMENTAL-final-review"]
+      "appliesTo": {
+        "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+      },
+      "evidenceRefs": [
+        "KUFR-CAD-INCREMENTAL-optimized-local",
+        "KUFR-CAD-INCREMENTAL-optimized-review"
+      ]
     },
     {
       "id": "HOSTED",
-      "revision": 1,
+      "revision": 2,
       "expected": "Hosted required CI passes and canonical main result is reusable before CAD installation with provenance and complete output inventory checks.",
-      "requiredEvidenceKinds": ["integration"],
-      "appliesTo": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+      },
       "evidenceRefs": []
     }
   ],
   "blockers": [],
-  "implementedSubject": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
-  "currentNote": "Initial slice20988630ee1e2b9f5fc2e43e0307e6d221615b90 pushed and remote SHA verified; PR210. First CI39178824484 failed before CAD setup on typed input; fixed with a regression. Runtime review4309345959 fixed; isolated PR reuse hardened against cross-job forgery. Final local checks/review pass; hosted rerun pending. No deployment/release/hardware mutation.",
-  "nextAction": "Push the verified slice, inspect PR checks/reviews, then verify canonical main artifact reuse before closing hosted acceptance."
+  "implementedSubject": {
+    "artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"
+  },
+  "currentNote": "f248123e8a96e9f389fcff963a7741a0e77228ff pushed/remote verified, PR210. FirstCI39178824484 typed input failure fixed. FollowupCI39179540290 partial native run deliberately cancelled to finalize authenticated PR-to-main promotion and mesh-independent part keys. Final pinned112, CI Python46 and Node61 checks pass; independent review has no remaining findings. No deployment/release/hardware mutation.",
+  "nextAction": "Run final PR CI, verify tracking-only PR result reuse, merge after all reviews/checks, then confirm canonical main promotion without duplicate CAD."
 }

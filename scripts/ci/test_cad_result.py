@@ -124,6 +124,27 @@ class TrustedResultTests(unittest.TestCase):
             refresh.assert_not_called()
         self.assertTrue((self.out / 'verification.json').exists())
 
+    def test_promotion_preserves_original_validation_and_records_server_provenance(self):
+        environment = {'CAD_SOURCE_RUN': '123', 'CAD_SOURCE_ARTIFACT': '456', 'CAD_SOURCE_PR': '42',
+                       'CAD_SOURCE_MERGE': 'a' * 40, 'CAD_SOURCE_BUILT': 'b' * 40, 'CAD_MAIN_SHA': 'c' * 40}
+        before = cad_result.digest(self.out / cad_result.RECEIPT)
+        report = (self.out / 'verification.json').read_bytes()
+        cad_result.promote(self.out, self.identity, self.sources, environment)
+        saved = cad_result.read_receipt(self.out)
+        self.assertEqual(saved['runtime'], self.runtime)
+        self.assertEqual(saved['promotion']['original_receipt_sha256'], before)
+        self.assertFalse(saved['promotion']['mechanical_validation_performed'])
+        self.assertEqual(saved['promotion']['main_sha'], 'c' * 40)
+        self.assertEqual((self.out / 'verification.json').read_bytes(), report)
+
+    def test_promotion_rejects_missing_metadata_or_nonexact_identity(self):
+        before = (self.out / cad_result.RECEIPT).read_bytes()
+        for identity, sources in [(self.identity, self.sources), ({'other': True}, self.sources),
+                                  (self.identity, {'different.py': 'a' * 64})]:
+            with self.subTest(identity=identity), self.assertRaises(ValueError):
+                cad_result.promote(self.out, identity, sources, {})
+        self.assertEqual((self.out / cad_result.RECEIPT).read_bytes(), before)
+
 
 if __name__ == '__main__':
     unittest.main()

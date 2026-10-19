@@ -171,9 +171,43 @@ def output(name, value):
             stream.write(f'{name}={value}\n')
 
 
+def promote(out, identity, sources, environment):
+    """Record server-authenticated source promotion; preserve original acceptance.
+
+    Only the composite's merged-pr state may invoke this after whole-run source
+    equality and the full receipt checks. These fields are diagnostics, never
+    a replacement for the resolver's independent GitHub provenance checks.
+    """
+    saved = read_receipt(out)
+    if saved['inputs'] != identity or saved['sources'] != sources:
+        raise ValueError('Promotion requires an exact current CAD result')
+    provenance = {}
+    for field in ('RUN', 'ARTIFACT', 'PR'):
+        value = environment.get('CAD_SOURCE_' + field, '')
+        if not re.fullmatch('[1-9][0-9]*', value):
+            raise ValueError('Missing promotion source ' + field)
+        provenance[field.lower()] = value
+    for field, variable in (('merge_sha', 'CAD_SOURCE_MERGE'),
+                            ('executed_sha', 'CAD_SOURCE_BUILT'),
+                            ('main_sha', 'CAD_MAIN_SHA')):
+        value = environment.get(variable, '')
+        if not re.fullmatch('[a-f0-9]{40}', value):
+            raise ValueError('Missing promotion source ' + field)
+        provenance[field] = value
+    provenance['original_receipt_sha256'] = digest(out / RECEIPT)
+    provenance['mechanical_validation_performed'] = False
+    provenance['basis'] = 'Merged PR; complete executed source tree matches canonical main; accepted bytes verified'
+    saved['promotion'] = provenance
+    temporary = out / '.trusted-result.tmp'
+    temporary.write_text(json.dumps(saved, sort_keys=True) + '\n', encoding='utf-8')
+    temporary.replace(out / RECEIPT)
+    read_receipt(out)
+    print('CAD result promoted: original hosted validation retained; no duplicate CAD execution.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('key', 'restore', 'publish', 'discard'))
+    parser.add_argument('command', choices=('key', 'restore', 'publish', 'discard', 'promote'))
     args = parser.parse_args()
     out = FINAL / 'exports'
     if args.command == 'discard':
@@ -187,7 +221,9 @@ def main():
             shutil.rmtree(out)
         return
     identity, sources = inputs()
-    if args.command == 'key':
+    if args.command == 'promote':
+        promote(out, identity, sources, os.environ)
+    elif args.command == 'key':
         output('key', key(identity))
     elif args.command == 'restore':
         try:

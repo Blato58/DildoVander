@@ -38,6 +38,17 @@ runs:
       if: steps.download.outcome == 'success'
       shell: bash
       run: python3 scripts/ci/cad_result.py restore
+    - name: Authenticate merged PR verification as a main result
+      if: steps.accepted.outputs.hit == 'true' && steps.trusted.outputs.scope == 'merged-pr'
+      shell: bash
+      env:
+        CAD_SOURCE_RUN: ${{ steps.trusted.outputs.run-id }}
+        CAD_SOURCE_ARTIFACT: ${{ steps.trusted.outputs.artifact-id }}
+        CAD_SOURCE_PR: ${{ steps.trusted.outputs.source-pr }}
+        CAD_SOURCE_MERGE: ${{ steps.trusted.outputs.source-merge-sha }}
+        CAD_SOURCE_BUILT: ${{ steps.trusted.outputs.source-built-sha }}
+        CAD_MAIN_SHA: ${{ github.sha }}
+      run: python3 scripts/ci/cad_result.py promote
     - name: Discard missing or invalid restored output staging
       if: steps.accepted.outputs.hit != 'true' && steps.accepted.outputs.artifact-valid != 'true'
       shell: bash
@@ -70,7 +81,7 @@ runs:
         xvfb-run -a python scripts/ci/cad_cache.py "${force[@]}"
         xvfb-run -a python scripts/ci/cad_result.py publish
     - name: Retain verified results only from canonical main
-      if: steps.accepted.outputs.hit != 'true' && github.repository == 'Blato58/DildoVander' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number))
+      if: (steps.accepted.outputs.hit != 'true' || steps.trusted.outputs.scope == 'merged-pr') && github.repository == 'Blato58/DildoVander' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number))
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: cad-result-v1-${{ steps.cad-key.outputs.key }}
@@ -95,11 +106,18 @@ runs:
         CAD_FORCE: ${{ inputs.force }}
         CAD_JOB_STATUS: ${{ job.status }}
         CAD_ARTIFACT_ID: ${{ steps.trusted.outputs.artifact-id }}
+        CAD_SOURCE_SCOPE: ${{ steps.trusted.outputs.scope }}
+        CAD_SOURCE_RUN: ${{ steps.trusted.outputs.run-id }}
+        CAD_SOURCE_PR: ${{ steps.trusted.outputs.source-pr }}
       run: |
         {
           echo '### CAD manufacturing'
           echo "- Trusted CAD artifact: ${CAD_ARTIFACT_ID:-none}"
+          echo "- Verification source: ${CAD_SOURCE_SCOPE:-fresh}; original run: ${CAD_SOURCE_RUN:-current}"
           echo "- Verified result reused: ${CAD_HIT:-false}; force: $CAD_FORCE"
+          if [[ "$CAD_HIT" == true && "$CAD_SOURCE_SCOPE" == merged-pr ]]; then
+            echo "- Promoted verified PR #$CAD_SOURCE_PR result to main after server merge and source-tree authentication; original CAD verification retained."
+          fi
           if [[ "$CAD_HIT" == true ]]; then
             echo '- CAD setup, generation, renders and mechanical re-verification skipped: identical manufacturing inputs and verified bytes.'
           else

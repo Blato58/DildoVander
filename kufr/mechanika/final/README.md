@@ -135,8 +135,10 @@ Chybějící, změněný nebo neúplný výstup vyvolá plnou regeneraci.
 Firmware choreografie a JavaScriptové testy se kontrolují při každém běhu.
 V CI se ověřený výsledek obnovuje z neměnného artefaktu úspěšného běhu
 na `main`; původ a všechny bytes se kontrolují před použitím. Oddělené PR
-artefakty se mohou použít pouze ve stejném PR po ověření skutečného stromu
-úspěšného běhu. Nikdy nevstupují do cache `main`. Cache není součástí výrobního ZIPu.
+artefakty se mohou použít ve stejném PR po ověření skutečného stromu
+úspěšného běhu. Po potvrzeném merge může `main` tentýž výsledek převzít
+pouze se shodou celého spustitelného stromu, přesných vstupů a bytes; provenience
+zachová původní ověření. Cache není součástí výrobního ZIPu.
 
 Pro vynucení všech testů a generování použít `-Force` (přímo v Pythonu
 `python regenerate.py --force`). Současné regenerace ve stejné složce
@@ -176,6 +178,11 @@ skutečného Git stromu všech spustitelných vstupů celého běhu. Výjimkou j
 jen konkrétní pasivní tracking JSON a STATUS; kód jiného CI jobu se také
 porovnává, protože identita artefaktu sama neurčuje jeho nahrávající job.
 Neúplná provenience nebo změna těchto vstupů znamená bezpečný cache miss.
+Po merge tato kontrola navíc ověří serverový stav PR, cílový `main` a předka
+aktuální větve. Výsledek se potom publikuje jako main artefakt s vazbou na
+původní run, artefakt, spouštěný strom a receipt. Nevykazuje nové mechanické
+ověření; odstraňuje duplicitní plný běh PR → push. Nesloučené nebo zdrojově
+odlišné PR se do main cache nepřenáší.
 
 Při skutečné CAD změně se z důvěryhodného předchozího výsledku mohou převzít
 jednotlivé nezměněné STL/STEP/surové 3MF. Jejich cache v

@@ -56,35 +56,66 @@ function readCurrentTree() {
   });
 }
 
-async function matchesPrSources({ github, context }, repo, run, currentInventory) {
-  const pullRequest = context.payload?.pull_request;
-  if (context.eventName !== 'pull_request' || !Number.isSafeInteger(pullRequest?.number)
-    || pullRequest.number <= 0 || typeof pullRequest.head?.repo?.full_name !== 'string'
-    || !pullRequest.head.repo.full_name
-    || run.event !== 'pull_request' || run.path !== '.github/workflows/ci.yml'
-    || run.head_repository?.full_name !== pullRequest.head.repo.full_name
-    || !Array.isArray(run.pull_requests)
-    || !run.pull_requests.some(pr => pr.number === pullRequest.number)) return false;
-
+async function authenticatedBuiltSha(github, repo, run, currentInventory) {
   // For a reusable workflow, head_sha is the PR source head, not the executed
   // merge tree. Only GitHub's referenced workflow SHA authenticates that tree.
   const canonicalPath = `${repo.owner}/${repo.repo}/${cadWorkflow}@`;
   const references = run.referenced_workflows?.filter(workflow =>
     typeof workflow.path === 'string' && workflow.path.startsWith(canonicalPath));
-  if (references?.length !== 1 || !/^[a-f0-9]{40}$/.test(references[0].sha)) return false;
+  if (references?.length !== 1 || !/^[a-f0-9]{40}$/.test(references[0].sha)) return;
   const sha = references[0].sha;
   const { data: commit } = await github.rest.git.getCommit({ ...repo, commit_sha: sha });
-  if (commit.sha !== sha || !/^[a-f0-9]{40}$/.test(commit.tree?.sha)) return false;
+  if (commit.sha !== sha || !/^[a-f0-9]{40}$/.test(commit.tree?.sha)) return;
   const { data: tree } = await github.rest.git.getTree({
     ...repo, tree_sha: commit.tree.sha, recursive: 'true',
   });
-  if (tree.truncated !== false || tree.sha !== commit.tree.sha) return false;
-  return JSON.stringify(sourceInventory(tree.tree)) === JSON.stringify(await currentInventory());
+  if (tree.truncated !== false || tree.sha !== commit.tree.sha) return;
+  if (JSON.stringify(sourceInventory(tree.tree)) === JSON.stringify(await currentInventory())) return sha;
 }
 
-// Main and PR artifacts have separate trust domains. PR results additionally
-// require the same PR and independently authenticated executable/source bytes.
-async function resolve({ github, context, core }, { key, force = false, readTree = readCurrentTree }) {
+function isAncestorOfHead(sha) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { stdio: 'pipe' });
+    return true;
+  } catch (error) {
+    if (error.status === 1) return false;
+    throw error;
+  }
+}
+
+async function prProvenance({ github, context }, repo, run, currentInventory, isAncestor, promote) {
+  if (run.event !== 'pull_request' || run.path !== '.github/workflows/ci.yml'
+    || !Array.isArray(run.pull_requests)) return;
+  const canonical = `${repo.owner}/${repo.repo}`;
+  if (promote) {
+    if (run.repository?.full_name !== canonical) return;
+    for (const reference of run.pull_requests.slice(0, 10)) {
+      if (!Number.isSafeInteger(reference.number) || reference.number <= 0) continue;
+      const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: reference.number });
+      if (pr.number !== reference.number || pr.merged !== true || pr.base?.ref !== 'main'
+        || pr.base.repo?.full_name !== canonical || !/^[a-f0-9]{40}$/.test(pr.merge_commit_sha)
+        || typeof pr.head?.repo?.full_name !== 'string' || !pr.head.repo.full_name
+        || pr.head.repo.full_name !== run.head_repository?.full_name
+        || await isAncestor(pr.merge_commit_sha) !== true) continue;
+      const builtSha = await authenticatedBuiltSha(github, repo, run, currentInventory);
+      if (builtSha) return { scope: 'merged-pr', number: pr.number, mergeSha: pr.merge_commit_sha, builtSha };
+    }
+    return;
+  }
+  const pr = context.payload?.pull_request;
+  if (context.eventName !== 'pull_request' || !Number.isSafeInteger(pr?.number) || pr.number <= 0
+    || typeof pr.head?.repo?.full_name !== 'string' || !pr.head.repo.full_name
+    || run.head_repository?.full_name !== pr.head.repo.full_name
+    || !run.pull_requests.some(reference => reference.number === pr.number)) return;
+  const builtSha = await authenticatedBuiltSha(github, repo, run, currentInventory);
+  if (builtSha) return { scope: 'same-pr', number: pr.number, builtSha };
+}
+
+// PR results require independently authenticated source bytes. Promotion into
+// main additionally requires a server-confirmed merge already in this history.
+async function resolve({ github, context, core }, {
+  key, force = false, readTree = readCurrentTree, isAncestor = isAncestorOfHead,
+}) {
   if (!/^[a-f0-9]{64}$/.test(key)) throw new Error('Invalid CAD result key');
   if (force) return;
   const repo = { owner: context.repo.owner, repo: context.repo.repo };
@@ -99,18 +130,22 @@ async function resolve({ github, context, core }, { key, force = false, readTree
     return;
   }
   const isPr = context.eventName === 'pull_request';
+  const promote = canonical === 'Blato58/DildoVander' && context.ref === 'refs/heads/main'
+    && ['push', 'workflow_dispatch'].includes(context.eventName);
   const candidates = (Array.isArray(artifacts) ? artifacts : []).filter(artifact =>
     artifact.expired === false && Number.isSafeInteger(artifact.id) && artifact.id > 0
     && typeof artifact.name === 'string' && (/^cad-result-v1-[a-f0-9]{64}$/.test(artifact.name)
-      || (isPr && artifact.name === `${prPrefix}${key}`)));
+      || ((isPr || promote) && artifact.name === `${prPrefix}${key}`)));
   const exact = artifact => [mainPrefix, prPrefix].some(prefix => artifact.name === `${prefix}${key}`);
-  candidates.sort((a, b) => Number(exact(b)) - Number(exact(a)) || b.id - a.id);
+  const priority = artifact => exact(artifact) ? (artifact.name.startsWith(mainPrefix) ? 2 : 1) : 0;
+  candidates.sort((a, b) => priority(b) - priority(a) || b.id - a.id);
   let inventory;
   const currentInventory = async () => inventory ??= sourceInventory(await readTree());
   for (const artifact of candidates.slice(0, 20)) {
     const id = artifact.workflow_run?.id;
     if (!Number.isSafeInteger(id) || id <= 0) continue;
     let trusted = false;
+    let provenance = { scope: 'main' };
     try {
       const { data: run } = await github.rest.actions.getWorkflowRun({ ...repo, run_id: id });
       if (run.status !== 'completed' || run.conclusion !== 'success') continue;
@@ -120,7 +155,8 @@ async function resolve({ github, context, core }, { key, force = false, readTree
           && ['push', 'workflow_dispatch'].includes(run.event)
           && [cadWorkflow, '.github/workflows/ci.yml'].includes(run.path);
       } else {
-        trusted = await matchesPrSources({ github, context }, repo, run, currentInventory);
+        provenance = await prProvenance({ github, context }, repo, run, currentInventory, isAncestor, promote);
+        trusted = Boolean(provenance);
       }
     } catch {
       // Missing metadata, inaccessible merge commits and truncated trees are misses.
@@ -130,7 +166,11 @@ async function resolve({ github, context, core }, { key, force = false, readTree
     core.setOutput('artifact-id', String(artifact.id));
     core.setOutput('run-id', String(id));
     core.setOutput('exact', String(exact(artifact)));
-    core.info(`CAD trusted result: ${artifact.name.startsWith(prPrefix) ? 'same PR' : 'main'} run ${id}, artifact ${artifact.id}`);
+    core.setOutput('scope', provenance.scope);
+    if (provenance.number) core.setOutput('source-pr', String(provenance.number));
+    if (provenance.mergeSha) core.setOutput('source-merge-sha', provenance.mergeSha);
+    if (provenance.builtSha) core.setOutput('source-built-sha', provenance.builtSha);
+    core.info(`CAD trusted result: ${provenance.scope} run ${id}, artifact ${artifact.id}`);
     return;
   }
   core.info('CAD trusted result: no eligible successful artifact; safe miss');

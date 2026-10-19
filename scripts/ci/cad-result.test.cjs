@@ -187,7 +187,7 @@ test('fork PR may reuse its own verified source but its result never enters main
   f.options.context.payload.pull_request.head.repo.full_name = 'fork/DildoVander';
   await resolve(f.options, f.settings);
   assert.equal(f.outputs['artifact-id'], '8');
-  delete f.outputs['artifact-id']; delete f.outputs['run-id']; delete f.outputs.exact;
+  for (const name of Object.keys(f.outputs)) delete f.outputs[name];
   f.options.context.eventName = 'push';
   f.options.context.ref = 'refs/heads/main';
   await resolve(f.options, f.settings);
@@ -231,6 +231,109 @@ test('force bypasses PR provenance and tree reads', async () => {
   const f = prFixture();
   f.options.github.rest.actions.listArtifactsForRepo = () => { throw Error('unexpected lookup'); };
   f.settings.readTree = () => { throw Error('unexpected git'); };
+  await resolve(f.options, { ...f.settings, force: true });
+  assert.deepEqual(f.outputs, {});
+});
+
+function promotionFixture() {
+  const f = prFixture();
+  f.options.context.eventName = 'push';
+  f.options.context.ref = 'refs/heads/main';
+  f.run.repository = { full_name: 'Blato58/DildoVander' };
+  f.mergedPr = {
+    number: 123, merged: true, merge_commit_sha: 'f'.repeat(40),
+    base: { ref: 'main', repo: { full_name: 'Blato58/DildoVander' } },
+    head: { repo: { full_name: 'Blato58/DildoVander' } },
+  };
+  f.options.github.rest.pulls = {
+    get: async args => {
+      assert.equal(args.pull_number, 123);
+      return { data: f.mergedPr };
+    },
+  };
+  f.settings.isAncestor = async sha => {
+    assert.equal(sha, f.mergedPr.merge_commit_sha);
+    return true;
+  };
+  return f;
+}
+
+test('main promotes content-identical merged PR with server provenance across tracking changes', async () => {
+  for (const eventName of ['push', 'workflow_dispatch']) {
+    const f = promotionFixture();
+    f.options.context.eventName = eventName;
+    f.currentTree.find(entry => entry.path === 'docs/project/STATUS.md').sha = 'f'.repeat(40);
+    await resolve(f.options, f.settings);
+    assert.deepEqual(f.outputs, {
+      'artifact-id': '8', 'run-id': '7', exact: 'true', scope: 'merged-pr',
+      'source-pr': '123', 'source-merge-sha': 'f'.repeat(40), 'source-built-sha': 'c'.repeat(40),
+    });
+  }
+});
+
+test('main promotion rejects unmerged, unrelated, malformed and non-ancestor server PRs', async () => {
+  for (const change of [
+    f => { f.mergedPr.merged = false; },
+    f => { delete f.mergedPr.merged; },
+    f => { f.mergedPr.number = 456; },
+    f => { f.mergedPr.base.ref = 'release'; },
+    f => { f.mergedPr.base.repo.full_name = 'fork/DildoVander'; },
+    f => { f.mergedPr.head.repo.full_name = 'fork/DildoVander'; },
+    f => { f.mergedPr.merge_commit_sha = 'invalid'; },
+    f => { delete f.mergedPr.merge_commit_sha; },
+    f => { delete f.run.repository; },
+    f => { f.run.repository.full_name = 'fork/DildoVander'; },
+    f => { f.run.pull_requests = []; },
+    f => { f.settings.isAncestor = () => false; },
+    f => { f.settings.isAncestor = () => { throw Error('missing history'); }; },
+    f => { f.options.github.rest.pulls.get = () => { throw Error('unavailable'); }; },
+  ]) {
+    const f = promotionFixture();
+    change(f);
+    await resolve(f.options, f.settings);
+    assert.deepEqual(f.outputs, {});
+  }
+});
+
+test('main promotion rejects wrong current context, missing actual tree, key and different code or modes', async () => {
+  for (const change of [
+    f => { f.options.context.ref = 'refs/heads/feature'; },
+    f => { f.options.context.eventName = 'merge_group'; },
+    f => { f.options.context.repo.owner = 'fork'; },
+    f => { f.artifact.name = `cad-pr-result-v1-${'b'.repeat(64)}`; },
+    f => { delete f.run.referenced_workflows; },
+    f => { delete f.tree.tree; },
+    f => { f.tree.truncated = true; },
+    f => { f.currentTree.find(entry => entry.path.endsWith('generate.py')).sha = 'f'.repeat(40); },
+    f => { f.currentTree.find(entry => entry.path === 'kufr/backend-tests/Tests.cs').sha = 'f'.repeat(40); },
+    f => { f.currentTree.find(entry => entry.path.endsWith('generate.py')).mode = '100755'; },
+    f => { f.currentTree.find(entry => entry.path === 'docs/project/STATUS.md').mode = '100755'; },
+  ]) {
+    const f = promotionFixture();
+    change(f);
+    await resolve(f.options, f.settings);
+    assert.deepEqual(f.outputs, {});
+  }
+});
+
+test('canonical exact main result takes priority over a newer merged-PR artifact', async () => {
+  const f = promotionFixture();
+  const main = fixture();
+  main.artifact.id = 1;
+  main.artifact.workflow_run.id = 2;
+  f.options.github.rest.actions.listArtifactsForRepo = async () => ({ data: { artifacts: [f.artifact, main.artifact] } });
+  f.options.github.rest.actions.getWorkflowRun = async args => ({ data: args.run_id === 2 ? main.run : f.run });
+  f.options.github.rest.pulls.get = () => { throw Error('main hit must not query PR'); };
+  await resolve(f.options, f.settings);
+  assert.deepEqual(f.outputs, { 'artifact-id': '1', 'run-id': '2', exact: 'true', scope: 'main' });
+});
+
+test('force bypasses merged-PR discovery, server queries, tree reads and ancestry', async () => {
+  const f = promotionFixture();
+  f.options.github.rest.actions.listArtifactsForRepo = () => { throw Error('unexpected lookup'); };
+  f.options.github.rest.pulls.get = () => { throw Error('unexpected PR lookup'); };
+  f.settings.readTree = () => { throw Error('unexpected git'); };
+  f.settings.isAncestor = () => { throw Error('unexpected ancestry'); };
   await resolve(f.options, { ...f.settings, force: true });
   assert.deepEqual(f.outputs, {});
 });

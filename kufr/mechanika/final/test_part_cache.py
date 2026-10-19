@@ -15,10 +15,19 @@ import part_cache
 class ShapeStub:
     def __init__(self, content=b"BREP geometry"):
         self.content = content
+        self.wrapped = SimpleNamespace(Checked=lambda value: None)
 
     def exportBrep(self, stream):
         stream.write(self.content)
         return bool(self.content)
+
+    def copy(self, mesh=False):
+        if mesh:
+            raise ValueError("Cache identity must not include tessellation")
+        return ShapeStub(self.content)
+
+    def __iter__(self):
+        return iter(())
 
 
 class PartCacheTests(unittest.TestCase):
@@ -329,9 +338,13 @@ class PartCacheTests(unittest.TestCase):
                         cwd=self.root, text=True, timeout=120).strip() for _ in range(2)]
         self.assertEqual(fingerprints[0], fingerprints[1])
         self.part.shape = cq.Solid.makeBox(3, 4, 5)
+        checked = [face.wrapped.Checked() for face in self.part.shape.Faces()]
+        unmeshed_key = self.cache().key("layout", self.part)
+        self.assertEqual([face.wrapped.Checked() for face in self.part.shape.Faces()], checked)
         for suffix in part_cache.FORMATS:
             cq.exporters.export(self.part.shape, str(self.out / suffix / ("plate." + suffix)))
         cache, key = self.publish()
+        self.assertEqual(key, unmeshed_key, "Native tessellation must not invalidate identical geometry")
         original = {suffix: (self.out / suffix / ("plate." + suffix)).read_bytes()
                     for suffix in part_cache.FORMATS}
         self.erase_exports()
