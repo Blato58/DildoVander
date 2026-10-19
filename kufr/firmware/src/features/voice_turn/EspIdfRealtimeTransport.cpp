@@ -12,7 +12,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "../backend_access/NetworkSettings.h"
+#include "NetworkSettings.h"
 #include "../conversation/ConversationStartCodec.h"
 
 namespace {

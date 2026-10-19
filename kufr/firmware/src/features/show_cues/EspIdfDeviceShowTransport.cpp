@@ -7,7 +7,7 @@
 #include "esp_http_client.h"
 #include "esp_memory_utils.h"
 #include "esp_timer.h"
-#include "../backend_access/NetworkSettings.h"
+#include "NetworkSettings.h"
 
 namespace {
 uint64_t NowMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }

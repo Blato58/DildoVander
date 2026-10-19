@@ -2,7 +2,7 @@
 
 #include "TwinTelemetry.h"
 #include "../backend_access/EspIdfStationNetwork.h"
-#include "../provisioning/DeviceIdentity.h"
+#include "DeviceIdentity.h"
 
 class EspIdfTwinTelemetry final {
  public:

@@ -19,7 +19,7 @@
 #include "../local_control/LocalConversationNetworkPort.h"
 #include "../local_control/LocalConversationReplyPort.h"
 #include "../wand_presentation/WandPresentation.h"
-#include "../provisioning/DeviceIdentity.h"
+#include "DeviceIdentity.h"
 #include "../show_cues/DeviceShowCue.h"
 #include "../show_cues/BorrowedShowToken.h"
 

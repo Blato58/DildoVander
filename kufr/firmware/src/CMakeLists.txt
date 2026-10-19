@@ -1,3 +1,7 @@
+get_filename_component(sdkconfig_name "${SDKCONFIG}" NAME)
+string(REGEX REPLACE "^sdkconfig\\." "" KUFR_PLATFORMIO_ENV "${sdkconfig_name}")
+
+if(KUFR_PLATFORMIO_ENV STREQUAL "production")
 idf_component_register(
     SRCS
         "features/network_provisioning/NetworkProfiles.cpp"
@@ -14,7 +18,7 @@ idf_component_register(
         "features/costume_photo/CostumePhoto.cpp"
         "features/costume_photo/EspIdfCostumeCamera.cpp"
         "features/costume_photo/EspIdfCostumeUpload.cpp"
-        "espidf_main.cpp"
+        "production/main.cpp"
         "features/physical_effects/PhysicalEffects.cpp"
         "features/physical_effects/PhysicalPresentation.cpp"
         "features/physical_effects/PresentationDiagnostics.cpp"
@@ -41,7 +45,6 @@ idf_component_register(
         "features/backend_access/EspIdfTrustedTimeStore.cpp"
         "features/backend_access/EspIdfWifiStation.cpp"
         "features/backend_access/EspIdfStationNetwork.cpp"
-        "features/backend_access/NetworkSettings.cpp"
         "features/backend_access/ReconnectPolicy.cpp"
         "features/backend_access/TokenResponseParser.cpp"
         "features/backend_access/TrustedTime.cpp"
@@ -82,8 +85,6 @@ idf_component_register(
         "features/local_control/LocalBearerAuthenticator.cpp"
         "features/local_control/LocalConversationGateway.cpp"
         "features/local_control/LocalSocketAdmission.cpp"
-        "features/provisioning/DeviceIdentity.cpp"
-        "features/provisioning/EspIdfProvisioningStorage.cpp"
         "features/provisioning/EspIdfLocalPairingStorage.cpp"
         "features/provisioning/EspIdfPairingRandom.cpp"
         "features/provisioning/EspIdfLocalTlsStorage.cpp"
@@ -96,13 +97,41 @@ idf_component_register(
         "features/wand_selection/SelectionSequence.cpp"
         "features/wand_presentation/WandPresentation.cpp"
     INCLUDE_DIRS "."
-    REQUIRES app_update protocomm cjson fatfs sdmmc esp_driver_sdmmc esp_driver_i2c esp_driver_rmt esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash
+    REQUIRES app_update protocomm cjson fatfs sdmmc esp_driver_sdmmc esp_driver_i2c esp_driver_rmt esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash device_configuration
 )
 
-execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-    OUTPUT_VARIABLE KUFR_BUILD_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(NOT KUFR_BUILD_ID MATCHES "^[0-9a-f]+$" OR NOT KUFR_BUILD_ID)
-    message(FATAL_ERROR "Firmware requires a Git build identity")
-endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     KUFR_FIRMWARE_VERSION="${PROJECT_VER}" KUFR_FIRMWARE_BUILD_ID="${KUFR_BUILD_ID}")
+elseif(KUFR_PLATFORMIO_ENV STREQUAL "diag-board-memory")
+    idf_component_register(
+        SRCS "diagnostics/board-memory/main.c"
+        INCLUDE_DIRS "."
+        REQUIRES esp_psram esp_hw_support spi_flash heap freertos log esp_system
+    )
+elseif(KUFR_PLATFORMIO_ENV STREQUAL "diag-hardware-service")
+    idf_component_register(
+        SRCS "diagnostics/hardware-service/main.cpp"
+        INCLUDE_DIRS "." "diagnostics/hardware-service"
+        REQUIRES nvs_flash log
+    )
+elseif(KUFR_PLATFORMIO_ENV STREQUAL "diag-network-service")
+    idf_component_register(
+        SRCS "diagnostics/network-service/main.cpp"
+        INCLUDE_DIRS "."
+        REQUIRES esp_driver_usb_serial_jtag esp_timer nvs_flash mbedtls espressif__cjson device_configuration
+    )
+elseif(KUFR_PLATFORMIO_ENV STREQUAL "diag-pca9685-logic")
+    idf_component_register(
+        SRCS "diagnostics/pca9685-logic/main.c"
+        INCLUDE_DIRS "."
+        REQUIRES esp_driver_i2c freertos log
+    )
+elseif(KUFR_PLATFORMIO_ENV STREQUAL "diag-servo-bench")
+    idf_component_register(
+        SRCS "diagnostics/servo-bench/main.cpp"
+        INCLUDE_DIRS "."
+        REQUIRES esp_driver_i2c esp_driver_uart esp_timer freertos
+    )
+else()
+    message(FATAL_ERROR "No source set for PlatformIO environment: ${KUFR_PLATFORMIO_ENV}")
+endif()

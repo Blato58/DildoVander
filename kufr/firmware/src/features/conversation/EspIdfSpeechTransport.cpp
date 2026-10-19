@@ -8,7 +8,7 @@
 #include "esp_http_client.h"
 #include "esp_timer.h"
 
-#include "../backend_access/NetworkSettings.h"
+#include "NetworkSettings.h"
 #include "ConversationStartCodec.h"
 #include "OperationAcceptedCodec.h"
 
