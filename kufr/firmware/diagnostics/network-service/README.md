@@ -1,6 +1,7 @@
 # Physical USB network/identity service
 
-This separate ESP-IDF 6.1 image initializes only NVS and the ESP32-S3 native USB
+This separately flashable ESP-IDF 6.1 image is the `diag-network-service`
+environment in the unified PlatformIO project. It initializes only NVS and the ESP32-S3 native USB
 Serial/JTAG peripheral. It never starts Wi-Fi/BLE, drives actuator GPIO, enables
 actuator power, erases NVS, prints credentials, or embeds supplied secrets in its
 application binary. The main application has no permanent serial provisioning
@@ -12,16 +13,16 @@ partition layout. The software cannot measure the rocker or disconnected power;
 the typed physical confirmation is an operator assertion. UART bridge ports are
 not supported by this service image.
 
-Build without uploading:
+Build from `kufr/firmware` without uploading:
 
 ```powershell
-cd kufr/firmware/diagnostics/network-service
-pio run
-python -m unittest discover -p 'test_*.py'
+pio run -e diag-network-service
+python -m unittest discover -s diagnostics/network-service -p 'test_*.py'
 ```
 
 Installation is a separately authorized physical operation. Flash this service
-image using the standard PlatformIO upload only after confirming its partition
+image with `pio run -e diag-network-service -t upload --upload-port COM8`
+only after confirming its partition
 layout matches the installed firmware. Do not use erase-flash. If the current
 partition layout differs, follow the controlled initial installation/migration
 procedure in the parent firmware OTA documentation, including backups.
@@ -29,7 +30,7 @@ procedure in the parent firmware OTA documentation, including backups.
 Run the existing PlatformIO Python environment interactively after installation:
 
 ```powershell
-& "$env:USERPROFILE\.platformio\penv\Scripts\python.exe" provision.py --port COM8 --receipt "$env:USERPROFILE\DildoVander-private\kufr-setup.json"
+& "$env:USERPROFILE\.platformio\penv\Scripts\python.exe" diagnostics/network-service/provision.py --port COM8 --receipt "$env:USERPROFILE\DildoVander-private\kufr-setup.json"
 ```
 
 Use the native USB COM port. The service publishes only readiness and a fixed

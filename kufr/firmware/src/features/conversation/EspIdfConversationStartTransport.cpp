@@ -5,7 +5,7 @@
 
 #include "esp_crt_bundle.h"
 
-#include "../backend_access/NetworkSettings.h"
+#include "NetworkSettings.h"
 
 namespace {
 

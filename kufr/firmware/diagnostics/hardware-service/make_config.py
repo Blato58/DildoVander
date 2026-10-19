@@ -40,7 +40,12 @@ def generate(config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config", type=Path)
-    parser.add_argument("--output", type=Path, default=Path(__file__).parent / "src/service_config.h")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(__file__).resolve().parents[2]
+        / "src/diagnostics/hardware-service/service_config.h",
+    )
     args = parser.parse_args()
     content = generate(json.loads(args.config.read_text(encoding="utf-8")))
     args.output.write_text(content, encoding="utf-8")

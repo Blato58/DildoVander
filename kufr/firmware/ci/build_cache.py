@@ -12,7 +12,7 @@ nodes = [
     if str(node).replace("\\", "/").endswith("/EspIdfBackendNetwork.cpp.o")
 ]
 network_source = Path(env.subst("$PROJECT_SRC_DIR")) / "features/backend_access/EspIdfBackendNetwork.cpp"
-if network_source.is_file() and len(nodes) != 1:
+if env.subst("$PIOENV") == "production" and network_source.is_file() and len(nodes) != 1:
     raise ValueError("Backend network timestamp object is missing from the build graph")
 for path in (
     "$BUILD_DIR/esp_app_format/esp_app_desc.c.o",

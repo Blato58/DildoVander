@@ -173,7 +173,7 @@ Z kořene repozitáře:
 python kufr/firmware/diagnostics/servo-bench/tests/run_tests.py
 node --test kufr/firmware/diagnostics/servo-bench/web/tests/*.test.mjs
 python -B -m unittest discover -s kufr/firmware/diagnostics/servo-bench/web/tests -p 'test_*.py' -v
-pio run -d kufr/firmware/diagnostics/servo-bench -j 2
+pio run -d kufr/firmware -e diag-servo-bench -j 2
 ```
 
 Sestavení nic nenahrává. Před případným nahráním odpoj napájení serv,
@@ -188,8 +188,8 @@ partition table a aplikaci; samotný program NVS neinicializuje.
 Po autorizaci nahrání, z kořene a se správným portem:
 
 ```powershell
-pio run -d kufr/firmware/diagnostics/servo-bench -j 2 --target upload --upload-port COM7
-pio device monitor -d kufr/firmware/diagnostics/servo-bench --port COM7 --baud 115200
+pio run -d kufr/firmware -e diag-servo-bench -j 2 -t upload --upload-port COM7
+pio device monitor -d kufr/firmware -e diag-servo-bench --port COM7 --baud 115200
 ```
 
 ## První pohyb

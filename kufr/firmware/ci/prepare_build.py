@@ -78,9 +78,10 @@ def cache_namespace(firmware, core):
     digest = hashlib.sha256(f"v2:{PLATFORMIO_VERSION}:{sys.implementation.cache_tag}".encode())
     paths = set()
     for pattern in (
-        "platformio.ini", "dependencies.lock", "sdkconfig.defaults", "src/idf_component.yml",
-        "diagnostics/*/platformio.ini", "diagnostics/*/dependencies.lock",
-        "diagnostics/*/sdkconfig.defaults", "diagnostics/*/src/idf_component.yml",
+        "platformio.ini", "CMakeLists.txt", "dependencies.lock", "sdkconfig.defaults",
+        "src/CMakeLists.txt", "src/**/idf_component.yml",
+        "lib/**/CMakeLists.txt", "lib/**/idf_component.yml",
+        "diagnostics/*/sdkconfig.defaults",
     ):
         paths.update(firmware.glob(pattern))
     manifests = list(core.glob("platforms/*/platform.json")) + list(core.glob("packages/*/package.json"))

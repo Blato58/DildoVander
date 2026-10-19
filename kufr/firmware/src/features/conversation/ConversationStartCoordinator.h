@@ -6,7 +6,7 @@
 
 #include "ConversationStartPort.h"
 #include "../backend_access/DeviceTokenSession.h"
-#include "../provisioning/DeviceIdentity.h"
+#include "DeviceIdentity.h"
 
 enum class ConversationStartOutcome {
   Started,

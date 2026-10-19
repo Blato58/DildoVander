@@ -1,7 +1,7 @@
 #include <cassert>
 #include <cstring>
 #include "../src/features/network_provisioning/NetworkProfiles.h"
-#include "../src/features/backend_access/NetworkSettings.h"
+#include "../lib/device_configuration/include/NetworkSettings.h"
 
 class Storage final : public NetworkProfileStorage {
  public:

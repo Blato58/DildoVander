@@ -1,6 +1,7 @@
 # USB-only board memory diagnostic
 
-Standalone ESP-IDF project for the delivered ESP32-S3 N16R8 board. It does not
+Separately flashable ESP-IDF firmware in the unified PlatformIO project for
+the delivered ESP32-S3 N16R8 board. It does not
 include the suitcase application, Wi-Fi, audio, camera, SD, provisioning or
 actuator drivers. Keep all external components and external power disconnected;
 place the board on a nonconductive surface and use only the USB-UART connector.
@@ -8,12 +9,12 @@ Firmware replacement requires the owner's authorization.
 
 ## Build and upload
 
-From this directory, use the existing PlatformIO installation:
+From `kufr/firmware`, use the existing PlatformIO installation:
 
 ```powershell
-pio run
-pio run --target upload --upload-port COM7
-pio device monitor --port COM7 --baud 115200
+pio run -e diag-board-memory
+pio run -e diag-board-memory -t upload --upload-port COM7
+pio device monitor -e diag-board-memory --port COM7 --baud 115200
 ```
 
 `COM7` was the delivered board's UART bridge on 2 October 2026; recheck the port

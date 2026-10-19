@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "../src/features/backend_access/NetworkSettings.h"
+#include "../lib/device_configuration/include/NetworkSettings.h"
 #include "../src/features/backend_access/BuildDate.h"
 #include "../src/features/backend_access/ReconnectPolicy.h"
 #include "../src/features/backend_access/TrustedTime.h"

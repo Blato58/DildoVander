@@ -20,14 +20,15 @@ Revizi zvýšit při změně kabeláže nebo pulzů. Credentialy sem nepatří.
 | `rest_us` / `raised_us` | Individuální odlišné pulzy 500–2500 µs pro oba dorazy |
 | `travel_ms` | Změřený pohyb s rezervou v rozsahu 20–3000 ms; čas je odhad polohy, není zpětná vazba |
 
-Z tohoto adresáře:
+Z kořene `kufr/firmware`:
 
 ```sh
-python make_config.py service_config.json
-pio run
+python diagnostics/hardware-service/make_config.py diagnostics/hardware-service/service_config.json
+pio run -e diag-hardware-service
 ```
 
-Generátor validuje JSON a vytvoří ignorovaný `src/service_config.h`.
+Generátor validuje JSON a vytvoří ignorovaný
+`src/diagnostics/hardware-service/service_config.h`.
 Build nic nezapisuje do desky. Servisní obraz nejdřív uloží vypnuté flags,
 potom kalibrace a nakonec požadované flags. Při chybě zápisu nespoléhat
 na NVS a nechat pohony fyzicky odpojené. Potom obnovit aplikační obraz
