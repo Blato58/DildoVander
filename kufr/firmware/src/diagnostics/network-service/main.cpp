@@ -9,9 +9,9 @@
 #include "nvs_flash.h"
 #include "mbedtls/pk.h"
 #include "psa/crypto.h"
-#include "features/backend_access/NetworkSettings.h"
-#include "features/provisioning/DeviceIdentity.h"
-#include "features/provisioning/EspIdfProvisioningStorage.h"
+#include "NetworkSettings.h"
+#include "DeviceIdentity.h"
+#include "EspIdfProvisioningStorage.h"
 
 namespace {
 constexpr size_t MaximumFrame = 4096;

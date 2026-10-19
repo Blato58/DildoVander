@@ -94,7 +94,7 @@ class CadImpactTests(unittest.TestCase):
 
     def test_unrelated_projects_and_generic_documentation_do_not_need_cad(self):
         paths = ["README.md", "docs/technical-note.md", "kufr/docs/dv01.md",
-                 "kufr/backend/Program.cs", "kufr/firmware/src/main.cpp",
+                 "kufr/backend/Program.cs", "kufr/firmware/src/production/main.cpp",
                  "kufr/mobilni-aplikace/src/styles.css", "kufr/web/build-site.py",
                  "kufr/design-system/tokens/colors.css", FINAL + "viewer.js", FINAL + "refresh_viewer.py"]
         self.assertFalse(requires_manufacturing(paths))

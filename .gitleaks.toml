@@ -75,3 +75,21 @@ commits = ["e5dc9e3df11c7ece97de70afa924357b00d86176"]
 paths = ['''^kufr/mobilni-aplikace/ios/App/App/KufrIdentityPlugin\.swift$''']
 regexTarget = "line"
 regexes = ['''^\s*let permitted = \["accept", "content-type", "x-dv10-csrf", "idempotency-key", "x-dv10-consent"\]\s*$''']
+
+[[allowlists]]
+description = "Reviewed Vue migration TypeScript guest HTTP header declaration"
+targetRules = ["generic-api-key"]
+condition = "AND"
+commits = ["d96ff01ac21f4d0a088739a93e811189cdaa5e3e"]
+paths = ['''^kufr/mobilni-aplikace/src/features/archive/nativeGuest\.ts$''']
+regexTarget = "line"
+regexes = ['''^\s*'idempotency-key',\r?\n\s*'x-dv10-consent',\s*$''']
+
+[[allowlists]]
+description = "Reviewed Vue migration Swift guest HTTP header declaration"
+targetRules = ["generic-api-key"]
+condition = "AND"
+commits = ["d96ff01ac21f4d0a088739a93e811189cdaa5e3e"]
+paths = ['''^kufr/mobilni-aplikace/ios/App/App/AccountTransportPolicy\.swift$''']
+regexTarget = "line"
+regexes = ['''^\s*return \["accept", "content-type", "x-dv10-csrf", "idempotency-key", "x-dv10-consent"\]\.contains\(key\)\s*$''']

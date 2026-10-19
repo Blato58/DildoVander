@@ -1,4 +1,4 @@
-#include "../src/PcaRegisters.h"
+#include "../../../src/diagnostics/servo-bench/PcaRegisters.h"
 #include <cassert>
 #include <cstdio>
 #include <string>

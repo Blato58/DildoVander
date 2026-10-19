@@ -35,7 +35,7 @@
 
 ## Firmware kufru
 
-- Rozvíjej firmware po vertical slices v `src/features/<funkce>/`. Drž rozhodování funkce a její adaptéry pohromadě; `src/espidf_main.cpp` skládá funkce a řídicí úlohu. Časované efekty řiď bez blokování řídicí smyčky.
+- Rozvíjej firmware po vertical slices v `src/features/<funkce>/`. Drž rozhodování funkce a její adaptéry pohromadě; `src/production/main.cpp` skládá produkční funkce a řídicí úlohu. Samostatné diagnostické aplikace patří do `src/diagnostics/<name>/`; všechny buildy používají `firmware/platformio.ini`. Časované efekty řiď bez blokování řídicí smyčky.
 - `wand_selection/SelectionSequence` je čistá C++ posloupnost pro výběr přihrádky 1–6. ESP-IDF používá port fyzických efektů B-effects; hostitelský test ani build neprokazují ověřené ovládání LED, motorů nebo serv na desce.
 - Pinová mapa dodaná k projektu je v `kufr/docs/pin-mapa-esp32-s3.md`. Rozlišuj popisky obrázku, předběžná přidělení externích pinů A/B v plánu a skutečně změřené zapojení; před nahráním firmwaru ověř revizi desky a vlastnosti flash, PSRAM a USB.
 - Při zapojování fyzických efektů dodrž návrh napájení: změř 5V výstup měniče před připojením ESP32, omez jas RGB zpočátku přibližně na 25 %, spouštěj nejvýše jeden vibrační motor a neudržuj motor zapnutý při pohybu serva. Skutečné limity potvrď měřením prototypu.

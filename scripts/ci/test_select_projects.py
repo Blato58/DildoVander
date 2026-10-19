@@ -22,7 +22,7 @@ class ProjectSelectionTests(unittest.TestCase):
 
     def test_each_project_and_real_build_inputs(self):
         for paths, expected in [
-            (["kufr/firmware/src/espidf_main.cpp", "docs/a.md"], {"firmware"}),
+            (["kufr/firmware/src/production/main.cpp", "docs/a.md"], {"firmware"}),
             (["kufr/firmware/src/CMakeLists.txt"], {"firmware"}),
             (["kufr/backend-tests/Program.cs"], {"backend"}),
             (["kufr/global.json", "kufr/Directory.Build.props"], {"backend"}),
@@ -31,7 +31,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/mobilni-aplikace/ios/App/App/KufrDebugPlugin.swift"], {"web", "ios", "site"}),
             (["kufr/mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
-            (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
+            (["kufr/firmware/src/production/main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
             (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site", "cad"}),
             (["kufr/design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
             (["kufr/web/build-site.py"], {"site"}),
@@ -95,7 +95,7 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected("kufr/mechanika/final/new-mechanism.py"), {"site", "cad"})
         self.assertEqual(self.selected("kufr/simulator/dashboard-ui.js"), {"site"})
         self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/panel.css"), {"site"})
-        self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/src/main.cpp"), {"firmware"})
+        self.assertEqual(self.selected("kufr/firmware/src/diagnostics/servo-bench/main.cpp"), {"firmware"})
 
     def test_presentation_policy_matches_the_pr_selector(self):
         from cad_impact import SOURCE_POLICY

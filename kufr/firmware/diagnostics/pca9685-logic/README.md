@@ -1,6 +1,7 @@
 # PCA9685 logic diagnostic
 
-Standalone ESP-IDF diagnostic for the delivered ESP32-S3 N16R8. It does
+Independently flashable ESP-IDF diagnostic environment for the delivered
+ESP32-S3 N16R8. It does
 not run the suitcase application or enable any actuator. USB-UART powers
 the ESP32; only the following four wires may be connected to the PCA9685:
 
@@ -30,14 +31,17 @@ Measured acceptance remains in the [implementation status](../../../docs/stav-im
 After a full VCC power cycle the expected MODE1/MODE2 defaults are 0x11/0x04;
 different stable values require interpretation and are not rejected by this test.
 
-Build from this directory with `pio run -j 2`. Upload, when explicitly
-authorized, with `pio run -j 2 --target upload --upload-port COM7`, then
-capture UART at 115200 baud. Confirm the target board before upload and
+From `kufr/firmware`, build with `pio run -e diag-pca9685-logic -j 2`.
+Upload, when explicitly authorized, with
+`pio run -e diag-pca9685-logic -j 2 -t upload --upload-port COM7`, then
+capture UART at 115200 baud using
+`pio device monitor -e diag-pca9685-logic --port COM7 --baud 115200`.
+Confirm the target board before upload and
 preserve the previous application images. After the diagnostic, restore
 the existing application from this directory:
 
 ```text
-pio run -d ../.. -e esp32-s3-idf -j 2 --target upload --upload-port COM7
+pio run -e production -j 2 -t upload --upload-port COM7
 ```
 
 The main image includes the PCA actuator driver; motion requires verified wiring and calibration.

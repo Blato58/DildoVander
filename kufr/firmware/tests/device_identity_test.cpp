@@ -4,7 +4,7 @@
 #include <array>
 #include <string>
 
-#include "../src/features/provisioning/DeviceIdentity.h"
+#include "../lib/device_configuration/include/DeviceIdentity.h"
 
 namespace {
 

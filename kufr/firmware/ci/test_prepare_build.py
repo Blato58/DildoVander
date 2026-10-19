@@ -78,6 +78,40 @@ class TimestampCacheTests(unittest.TestCase):
                 self.assertEqual(refreshed, [network] + descriptors)
                 self.assertEqual(uncached, refreshed)
 
+    def test_production_requires_backend_network_timestamp_object(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source_root = Path(directory) / "src"
+            network_source = source_root / "features/backend_access/EspIdfBackendNetwork.cpp"
+            network_source.parent.mkdir(parents=True)
+            network_source.write_text("")
+            env = Mock()
+            env.get.return_value = []
+            env.Flatten.return_value = []
+            env.subst.side_effect = lambda key: (
+                "production" if key == "$PIOENV" else str(source_root)
+            )
+            with self.assertRaisesRegex(ValueError, "Backend network timestamp object"):
+                runpy.run_path(str(Path(__file__).with_name("build_cache.py")), {
+                    "env": env, "Import": Mock()
+                })
+
+    def test_diagnostic_does_not_require_production_network_object(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source_root = Path(directory) / "src"
+            network_source = source_root / "features/backend_access/EspIdfBackendNetwork.cpp"
+            network_source.parent.mkdir(parents=True)
+            network_source.write_text("")
+            env = Mock()
+            env.get.return_value = []
+            env.Flatten.return_value = []
+            env.subst.side_effect = lambda key: (
+                "diag-board-memory" if key == "$PIOENV" else str(source_root)
+            )
+            env.File.return_value.has_builder.return_value = True
+            runpy.run_path(str(Path(__file__).with_name("build_cache.py")), {
+                "env": env, "Import": Mock()
+            })
+
     def test_missing_descriptor_builder_rejects_stale_cache_configuration(self):
         env = Mock()
         env.get.return_value = []

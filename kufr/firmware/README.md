@@ -1,5 +1,57 @@
 # Firmware AI kufru
 
+## Jeden PlatformIO projekt
+
+Production i pět samostatně flashovatelných diagnostik sdílí tento projekt
+ESP-IDF 6.1 / PlatformIO 7.1.3. Spouštěj příkazy z `kufr/firmware`; každý
+environment má vlastní `src/` entry point, SDK konfiguraci a výstup
+`.pio/build/<environment>/`. `pio run` sestaví pouze výchozí `production`.
+Diagnostiky nejsou automatickým vstupem OTA/release obrazu.
+
+```sh
+# Build production
+pio run
+
+# Build one diagnostic
+pio run -e diag-servo-bench
+
+# Build all six environments
+pio run -e production \
+  -e diag-board-memory \
+  -e diag-hardware-service \
+  -e diag-network-service \
+  -e diag-pca9685-logic \
+  -e diag-servo-bench
+
+# Upload one diagnostic or production only after explicit authorization
+pio run -e diag-servo-bench -t upload
+pio run -e production -t upload
+
+# Monitor one environment
+pio device monitor -e diag-servo-bench
+```
+
+V PowerShellu nahraď zpětná lomítka pro pokračování řádku zpětným apostrofem:
+
+```powershell
+pio run -e production `
+  -e diag-board-memory `
+  -e diag-hardware-service `
+  -e diag-network-service `
+  -e diag-pca9685-logic `
+  -e diag-servo-bench
+```
+
+Pro novou diagnostiku přidej jediný `main.cpp`/`main.c` do
+`src/diagnostics/<name>/`, samostatný environment s jeho filtrem do
+`platformio.ini`, SDK defaults do `diagnostics/<name>/sdkconfig.defaults`
+a přesný seznam zdrojů/dependencies do environment větve `src/CMakeLists.txt`.
+PlatformIO 7.1.3 hlásí, že ESP-IDF sestavení `build_src_filter` nepoužívá;
+skutečný výběr a izolaci entry pointu proto vynucuje CMake. Sdílené ESP-IDF
+komponenty patří do `lib/`; produkční zdroje ani jiné diagnostiky nepřidávej
+jako dependencies. Hostitelské automatické testy zůstávají v `tests/` a
+diagnostické obrazy zůstávají v `src/diagnostics/`.
+
 ## Kontrakt rozhovoru po GPT-OVERHAUL
 
 Aktuální firmware podporuje přímo backendové audio enginy `gpt-live`
@@ -322,7 +374,7 @@ desce. Majitel potvrdil připojený stav na iPhonu. Přesný build a rozsah zapi
 [stav implementace](../docs/stav-implementace.md).
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs src/features/backend_access/EspIdfTokenExchangeTransport.cpp src/features/backend_access/NetworkSettings.cpp src/features/backend_access/TokenResponseParser.cpp tests/espidf_token_exchange_transport_test.cpp -o <docasna-slozka>/token-transport-test
+g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs -I lib/device_configuration/include src/features/backend_access/EspIdfTokenExchangeTransport.cpp lib/device_configuration/NetworkSettings.cpp src/features/backend_access/TokenResponseParser.cpp tests/espidf_token_exchange_transport_test.cpp -o <docasna-slozka>/token-transport-test
 ```
 
 Vzniklý executable spustit; stejnou regresi spouští firmware CI.
@@ -422,7 +474,7 @@ Host ověření (stejné příkazy běží v existujícím firmware CI):
 
 ```sh
 g++ -std=c++14 -Wall -Wextra -Werror src/features/costume_photo/CostumePhoto.cpp src/features/local_control/LocalControlCodec.cpp src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp tests/costume_photo_test.cpp -o <docasna-slozka>/costume-photo-test
-g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs src/features/costume_photo/CostumePhoto.cpp src/features/costume_photo/EspIdfCostumeUpload.cpp src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/backend_access/NetworkSettings.cpp src/features/provisioning/DeviceIdentity.cpp tests/espidf_costume_upload_test.cpp -o <docasna-slozka>/costume-upload-test
+g++ -std=c++14 -Wall -Wextra -Werror -I tests/speech_stubs -I lib/device_configuration/include src/features/costume_photo/CostumePhoto.cpp src/features/costume_photo/EspIdfCostumeUpload.cpp src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/backend_access/DeviceTokenSession.cpp lib/device_configuration/NetworkSettings.cpp lib/device_configuration/DeviceIdentity.cpp tests/espidf_costume_upload_test.cpp -o <docasna-slozka>/costume-upload-test
 g++ -std=c++14 -Wall -Wextra -Werror -I tests/camera_stubs src/features/costume_photo/CostumePhoto.cpp src/features/costume_photo/EspIdfCostumeCamera.cpp src/features/conversation/ConversationSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/TurnPollGuard.cpp tests/espidf_costume_camera_test.cpp -o <docasna-slozka>/costume-camera-test
 ```
 
@@ -445,7 +497,8 @@ sekvence vyžadují skutečná měření; host testy/build nejsou AEC akceptace.
 
 ## První test logiky PCA9685
 
-Samostatný [PCA9685 logic diagnostic](diagnostics/pca9685-logic/README.md)
+Samostatný firmware `diag-pca9685-logic`
+([návod](diagnostics/pca9685-logic/README.md))
 kontroluje pouze ACK na 0x40 a stabilní čtení MODE1/MODE2 přes GPIO1/14.
 Používá USB-UART a čtyři logické propoje s VCC 3V3; servo V+, OE, pohony
 a externí napájení musí zůstat odpojené. Nevytváří PWM ani nemění hodnoty
@@ -455,7 +508,8 @@ Skutečný výsledek a hranice akceptace vede D124 ve
 
 ## První pohyb volného serva
 
-Samostatný [servo-bench](diagnostics/servo-bench/README.md) používá stejnou
+Samostatný firmware `diag-servo-bench`
+([návod](diagnostics/servo-bench/README.md)) používá stejnou
 I2C sběrnici a oddělené 5V napájení PCA V+. Tato varianta testu neřídí OE
 ani GPIO2: Stop i timeout zapisují FULL_OFF všech kanálů přímo do PCA.
 Po úspěšném startu má PWM vypnuté; explicitní `arm` a `pulse 0 1500` povolí
@@ -466,7 +520,8 @@ přestat; vypni 5V pohony fyzickým vypínačem. Provozní B-effects používá 
 
 ## První aplikační boot na desce (D123)
 
-Současný `esp32-s3-idf` byl 2. 10. 2026 nahrán přes USB-UART na doručený
+Obraz tehdy sestavovaný v environmentu `esp32-s3-idf` byl 2. 10. 2026
+nahrán přes USB-UART na doručený
 N16R8 a prošel dva 30s boot záznamy. Prázdná NVS ponechává síť/identitu
 nenastavenou a audio profil A vypnutý; control loop běží offline.
 Pohony mají stále pouze logging port, kalibraci 0 a zavřenou inspection
@@ -476,7 +531,8 @@ Zdrojový commit, hash obrazu, logy a další krok sestavování jsou v
 
 ## První USB test doručené desky (D122)
 
-Samostatný [diagnostický projekt](diagnostics/board-memory/README.md) ověřuje
+Samostatná aplikace `diag-board-memory`
+([návod](diagnostics/board-memory/README.md)) ověřuje
 boot, kapacitu flash a PSRAM a čtení/zápis 7 MiB PSRAM na ESP32-S3 N16R8.
 Sestavuje se odděleně od aplikace kufru; nepoužívá síť, audio ani pohony.
 Deska musí mít pouze USB-UART napájení a odpojené externí komponenty.
@@ -526,9 +582,9 @@ nahráním ověřit revizi skutečné desky, typ flash/PSRAM a USB rozhraní.
 PlatformIO používá připnutou platformu Espressif 32 7.1.3. Zvolená tabulka
 oddílů dává ze 16 MB flash každému ze dvou OTA slotů 6,25 MiB pro aplikaci.
 
-Výchozí sestavení `pio run` používá **ESP-IDF 6.1** v profilu
-`esp32-s3-idf`, jediném aplikačním profilu kufru;
-samostatné paměťové USB ověření vede D122 a první offline aplikační
+Výchozí sestavení `pio run` používá produkční environment `production` na
+**ESP-IDF 6.1**; dalších pět environmentů jsou nezávislé diagnostické obrazy.
+Samostatné paměťové USB ověření vede D122 a první offline aplikační
 flash/boot D123. Síť a skutečné periferie tím nejsou ověřené.
 Podrobný postup a skutečně provedené kontroly jsou ve
 [stavu implementace](../docs/stav-implementace.md). ESP-IDF smyčka spojuje
@@ -553,15 +609,15 @@ práci a fyzickou akceptaci; inzerce sama neobchází kalibraci ani inspection.
 ## Architektura
 
 Firmware roste po vertical slices. Každá funkce drží své rozhodování a své
-vstupní/výstupní porty pohromadě. `espidf_main.cpp` jen skládá instance a volá je
-ve smyčce s časováním bez `delay()`. ESP-IDF `espidf_main.cpp` skládá stejné
+vstupní/výstupní porty pohromadě. `src/production/main.cpp` jen skládá instance a volá je
+ve smyčce s časováním bez `delay()`. ESP-IDF `src/production/main.cpp` skládá stejné
 bezpečnostní jádro nad FreeRTOS smyčkou. Nezavádíme globální vrstvu
 service/repository ani společné rozhraní pro každou periferii předtím, než
 bude potřeba.
 
 ```text
 src/
-  espidf_main.cpp                           IDF smyčka s gated fyzickým portem
+  src/production/main.cpp                           IDF smyčka s gated fyzickým portem
   features/
     safety/
       SafetyPort.h                          požadavky na vypnutí/pohony
@@ -921,7 +977,7 @@ Celý canonical PCM16 WAV ověří před prvními PCM vzorky. Budoucí playback
 vlastník čte jen omezené bloky a při Stop/expiraci zastaví také svůj DMA výstup.
 
 Tyto třídy jsou sestavené a hostitelsky testované, ale nejsou připojené do
-současného `RunTurn`/`espidf_main.cpp`. Současný textový start má stále audio
+současného `RunTurn`/`src/production/main.cpp`. Současný textový start má stále audio
 souhlas false. Navazující runtime musí mít skutečný consent/capture/playback
 port a ověřenou PSRAM; jejich fyzický vstup a I2S piny závisejí na B1/E5.
 Tento build neprokazuje, že kufr mluví. Backend provider příprava je v
@@ -931,7 +987,7 @@ Hostitelské testy (stejné příkazy používá firmware CI, výstup mimo repoz
 
 ```text
 g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/SpeechAudioBuffer.cpp src/features/conversation/SpeechOperationCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationStartCodec.cpp tests/speech_audio_buffer_test.cpp -o <docasna-slozka>/speech-audio-test
-g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/speech_stubs src/features/conversation/EspIdfSpeechTransport.cpp src/features/conversation/SpeechAudioBuffer.cpp src/features/conversation/SpeechOperationCodec.cpp src/features/conversation/OperationAcceptedCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationStartCodec.cpp src/features/backend_access/NetworkSettings.cpp tests/espidf_speech_transport_test.cpp -o <docasna-slozka>/speech-transport-test
+g++ -std=c++14 -Wall -Wextra -Werror -pthread -I tests/speech_stubs -I lib/device_configuration/include src/features/conversation/EspIdfSpeechTransport.cpp src/features/conversation/SpeechAudioBuffer.cpp src/features/conversation/SpeechOperationCodec.cpp src/features/conversation/OperationAcceptedCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationStartCodec.cpp lib/device_configuration/NetworkSettings.cpp tests/espidf_speech_transport_test.cpp -o <docasna-slozka>/speech-transport-test
 g++ -std=c++14 -Wall -Wextra -Werror -pthread src/features/conversation/SpeechOutputCoordinator.cpp src/features/conversation/SpeechAudioBuffer.cpp src/features/conversation/SpeechOperationCodec.cpp src/features/conversation/TurnPollGuard.cpp src/features/conversation/TurnPollSchedule.cpp src/features/conversation/ConversationRuntimeState.cpp src/features/conversation/ConversationStartCodec.cpp tests/speech_output_coordinator_test.cpp -o <docasna-slozka>/speech-output-test
 ```
 
@@ -945,7 +1001,7 @@ polohu. Úspěch dovolí další cyklus bez ručního resetu. Stop, timeout nebo
 selhání portu vypne pohony a zablokuje další cyklus do kontroly polohy.
 Rozhraní `WandPresentationPort` vyžaduje kalibraci, bezpečnostní větev,
 journal a publikaci stavu od skutečného adaptéru. `PhysicalPresentation` se
-skládá v `espidf_main.cpp` a používá kalibrovaný časový model pohybu D156.
+skládá v `src/production/main.cpp` a používá kalibrovaný časový model pohybu D156.
 Polohový senzor není součástí sestavy; časované dokončení není změřená poloha.
 `DeviceControlRuntime` má pro budoucí port autonomní transakci bez ručního
 lease: před zdvihem ověří přesný snapshot a trvale otevře journal, čímž
@@ -990,7 +1046,7 @@ Výchozí profil používá PlatformIO `espressif32@7.1.3`, připnutý ESP-IDF 6
 výstup, NVS journal a provisionovanou identitu; skládá WSS řízení, síťovou
 úlohu a fyzický adaptér profilu B. Pohony, audio a volitelná kamera mají
 samostatné servisní brány popsané výše. Safety smyčka používá monotónní čas
-nezávisle na HTTPS operacích. Jediný aplikační vstup je `espidf_main.cpp`.
+nezávisle na HTTPS operacích. Jediný aplikační vstup je `src/production/main.cpp`.
 Před Wi-Fi krátce zapne interní zdroj entropie, vytvoří jediné `bootId` pro
 `DeviceControl` i backendového klienta a zdroj opět vypne. Stejné ID nyní čte místní WSS vrstva; skutečný běh RNG na desce zatím nebyl ověřen.
 Skutečný výsledek sestavení a mezery akceptace jsou ve stavu implementace.
@@ -1053,21 +1109,21 @@ Pokrývá restart s otevřeným záznamem, společné uzavření s maskou, chyby
 Formát identity a servisní bránu lze hostitelsky ověřit samostatně:
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp tests/device_identity_test.cpp -o <docasna-slozka>/device_identity_test
+g++ -std=c++14 -Wall -Wextra -Werror -I lib/device_configuration/include lib/device_configuration/DeviceIdentity.cpp tests/device_identity_test.cpp -o <docasna-slozka>/device_identity_test
 <docasna-slozka>/device_identity_test
 ```
 
 Stav tokenu a parser omezené HTTP odpovědi:
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/backend_access/TokenResponseParser.cpp tests/device_token_session_test.cpp -o <docasna-slozka>/device_token_session_test
+g++ -std=c++14 -Wall -Wextra -Werror -I lib/device_configuration/include lib/device_configuration/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/backend_access/TokenResponseParser.cpp tests/device_token_session_test.cpp -o <docasna-slozka>/device_token_session_test
 <docasna-slozka>/device_token_session_test
 ```
 
 Validace servisní sítě, časové brány a odstupů reconnectu:
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror src/features/backend_access/BuildDate.cpp src/features/backend_access/NetworkSettings.cpp src/features/backend_access/ReconnectPolicy.cpp src/features/backend_access/TrustedTime.cpp tests/network_settings_test.cpp -o <docasna-slozka>/network_settings_test
+g++ -std=c++14 -Wall -Wextra -Werror -I lib/device_configuration/include src/features/backend_access/BuildDate.cpp lib/device_configuration/NetworkSettings.cpp src/features/backend_access/ReconnectPolicy.cpp src/features/backend_access/TrustedTime.cpp tests/network_settings_test.cpp -o <docasna-slozka>/network_settings_test
 <docasna-slozka>/network_settings_test
 ```
 
@@ -1088,7 +1144,7 @@ g++ -std=c++14 -Wall -Wextra -Werror src/features/conversation/ConversationStart
 Jednorázové obnovení tokenu a opakování založení sezení:
 
 ```text
-g++ -std=c++14 -Wall -Wextra -Werror src/features/provisioning/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationStartCoordinator.cpp tests/conversation_start_coordinator_test.cpp -o <docasna-slozka>/conversation_start_coordinator_test
+g++ -std=c++14 -Wall -Wextra -Werror -I lib/device_configuration/include lib/device_configuration/DeviceIdentity.cpp src/features/backend_access/DeviceTokenSession.cpp src/features/conversation/ConversationStartCodec.cpp src/features/conversation/ConversationStartCoordinator.cpp tests/conversation_start_coordinator_test.cpp -o <docasna-slozka>/conversation_start_coordinator_test
 <docasna-slozka>/conversation_start_coordinator_test
 ```
 
@@ -1249,7 +1305,7 @@ však aktivní STA pro RNG. Native Keychain/pairing/WSS klient je v E10.1–3;
 servisní AP, čtení QR kamerou a skutečný USB
 zápis po fyzické bráně zůstávají navazující části; žádná identita není v image.
 
-D99 skládá boot-lifetime runtime v `espidf_main.cpp`. `EspIdfStationNetwork`
+D99 skládá boot-lifetime runtime v `src/production/main.cpp`. `EspIdfStationNetwork`
 načte nastavení jednou, vlastní STA/netif a v samostatné úloze opakuje připojení.
 Backend na tuto síť pouze odkazuje; porucha identity/času/tokenu/WAN ji nezničí.
 Server se aktivuje po IP a zdravých provisionovaných identitách, zůstává během

@@ -4,7 +4,7 @@
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_timer.h"
-#include "../backend_access/NetworkSettings.h"
+#include "NetworkSettings.h"
 #include "../conversation/ConversationStartCodec.h"
 
 namespace {

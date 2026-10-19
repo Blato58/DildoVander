@@ -10,9 +10,9 @@ core-dump partition remains intact. SD is a separate card, not reduced flash.
 Build from the repository root:
 
 ```powershell
-pio run -d kufr/firmware -e esp32-s3-idf
+pio run -d kufr/firmware -e production
 $firmwareVersion = python kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --local
-python kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version $firmwareVersion
+python kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/production/firmware.bin --version $firmwareVersion
 ```
 
 `version.txt` supplies the reviewed baseline and version policy. `0.1.1+ci`
@@ -29,8 +29,8 @@ the partition layout, image chip/flash target and embedded version in CI.
 Before initial USB installation confirm the actual N16R8 board, detach actuator
 power, identify the correct port and privately back up the whole flash/NVS with
 the installed esptool. Save bootloader/partitions/NVS backup hashes. Do not run
-erase-flash. For the identical documented partition layout, `pio run -d
-kufr/firmware -e esp32-s3-idf -t upload --upload-port COM8` installs bootloader,
+erase-flash. For the identical documented partition layout,
+`pio run -d kufr/firmware -e production -t upload --upload-port COM8` installs bootloader,
 table and app using the generated flash arguments. Examine those arguments
 before upload: no NVS erase/write is allowed. A different installed layout needs
 a separate controlled backup/migration; a partition-table change is not normal OTA.
@@ -97,7 +97,7 @@ For an offline/local package with a signing key kept outside source:
 
 ```powershell
 $firmwareVersion = python kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --local
-python kufr/firmware/tools/ota_release.py package --binary kufr/firmware/.pio/build/esp32-s3-idf/firmware.bin --version $firmwareVersion --build-id GIT_40_HEX --channel development --key C:/private/nonproduction-key.pem --out C:/private/new-ota-package
+python kufr/firmware/tools/ota_release.py package --binary kufr/firmware/.pio/build/production/firmware.bin --version $firmwareVersion --build-id GIT_40_HEX --channel development --key C:/private/nonproduction-key.pem --out C:/private/new-ota-package
 python kufr/firmware/tools/ota_release.py verify --out C:/private/new-ota-package
 ```
 

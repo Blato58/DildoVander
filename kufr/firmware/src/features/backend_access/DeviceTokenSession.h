@@ -5,7 +5,7 @@
 #include <string>
 
 #include "TokenExchangePort.h"
-#include "../provisioning/DeviceIdentity.h"
+#include "DeviceIdentity.h"
 
 class DeviceTokenSession final {
  public:
