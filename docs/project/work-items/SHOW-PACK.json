@@ -144,7 +144,7 @@
     }
   ],
   "blockers": [],
-  "currentNote": "PR219: opraveny oba Live nálezy, neznámý katalog odmítnut před zápisem a odstraněny čtyři příčiny selhání prvního CI. V2 přesně identifikuje ověřené opravené zdroje; úplný backend/HTTP a9host kontrol prošly. Původní implementace d897d6f8150902242dc30413a5b81f0b8398784d byla push ověřena; opravy čekají na následný push/CI. Nativní iOS CI splněno samostatným receipt. Nahrávky, provider a fyzická akceptace zůstávají SHOW-PACK-OPERATIONS; deploy, podpis a flash neproběhly.",
+  "currentNote": "PR219: finální opravy commit bbfb65d355f047daea1c3224ee6eb3e83dbb268f; Push-CurrentBranch.ps1 ověřil stejný SHA na origin/codex/show-pack. Oba GitHub Live nálezy 4310206609/4310206616 opraveny a regresně ověřeny; nezávislé finální review bez nálezu. Úplný backend/HTTP a9host kontrol prošly, secret scan273commitů bez nálezu. V2 identifikuje přesných1016zdrojů. Nativní iOS CI splněno samostatným receipt; nové CI ověřuje opravenou větev před merge. Nahrávky, provider a fyzická akceptace zůstávají SHOW-PACK-OPERATIONS; deploy, podpis a flash neproběhly.",
   "implementedSubject": {
     "artifactDigest": "8bf7d44c4982a31ec36d4d6e79a61e8f6a89ded51f4d62db0dcaeb051b5ece72",
     "policyVersion": "show-pack-2026.10.19.1"
