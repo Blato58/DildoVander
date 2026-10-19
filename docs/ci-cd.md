@@ -26,6 +26,43 @@ zverejneni vypne controller. Fork PR se nemeni.
 | `reuse-build.yml` | Overeni aktualniho main artefaktu pred podpisem |
 | `kufr-ios-sign.yml` | Rucni podepsane Ad Hoc IPA na macOS |
 | `pr-sync.yml` | API-only synchronizace vlastnich PR za private podminky |
+| `dependabot-generate.yml` | Read-only regenerace NuGet lockfiles a nativnich Capacitor pinu |
+| `dependabot-publish.yml` | Overeny API-only commit generovanych souboru do Dependabot vetve |
+
+### Generovane zavislosti v Dependabot PR
+
+NuGet konfigurace zahrnuje backend i jeho testovaci projekt ve stejne skupine.
+Po otevreni nebo aktualizaci vlastniho Dependabot PR generator obnovi oba
+`packages.lock.json` prikazem `dotnet restore` nad testovacim projektem a overi
+`--locked-mode`. Zachovava oba deklarovane Linux/Windows runtime grafy.
+Zmena presne verze Capacitor core/CLI/iOS spusti na macOS `cap update ios`
+a skutecny `xcodebuild -resolvePackageDependencies`; vysledkem jsou
+`Package.swift` a `Package.resolved`. Samotna zmena Vite macOS generator nespousti.
+
+Generator ma pouze read-only token, nepouziva cache ani produkcni secrets
+a checkoutuje nemenny overeny PR head bez ulozenych credentials.
+Oddeleny `workflow_run` publisher spousti jen duveryhodny kod `main`, znovu
+overi puvodniho Dependabot autora, vlastni repozitar, povolene zmeny manifestu,
+identity artefaktu a aktualni head/base. Z artefaktu prijima pouze povolene
+generovane soubory; jejich obsah nespousti. Zapis do vetve je nonforce commit
+nad overenym headem. Pri soubeznem posunu se stary vysledek nepouzije.
+
+Po zmene publisher vyvola `ci.yml` s presnym novym head/base SHA, protoze commit
+pres `GITHUB_TOKEN` sam dalsi workflow nespousti. Opakovani po selhani dispatch
+umi dokoncit CI bez dalsiho commitu. Shodne vystupy jinak zadny commit netvori.
+Bezne PR CI nadale provadi locked restore, nativni testy a Simulator build;
+generator tato overeni nenahrazuje. Workflow nemeni fork PR ani lidske PR.
+
+Read-only zkouska je rucni dispatch generatoru na `main` s `pr_number`;
+volitelna `revision` musi byt skutecnym commitem daneho Dependabot PR.
+Lze tak reprodukovat i puvodni chybu uz slouceneho PR. Rucni beh nikdy nepise
+do vetve ani nespousti publisher. Selhani je videt v prislusnem Actions behu;
+po oprave generator opakuj. Zastaveni automatizace znamena vypnout obe tato
+workflow; existujici locked-mode a nativni PR kontroly zustavaji aktivni.
+
+Navrh vychazi z [pravidel GitHub tokenu](https://docs.github.com/en/actions/concepts/security/github_token)
+a [bezpecnostnich hranic Actions](https://docs.github.com/en/actions/reference/security/secure-use).
+Nepotrebuje `pull_request_target` ani vyjimku z jeho vychozi event policy.
 
 PR zmeny mobilu, backendu, kontraktu a verejneho webu nespousteji CAD regeneraci.
 Samostatny job `cad` je povinny pro zmeny `kufr/mechanika/final/`, sdileneho

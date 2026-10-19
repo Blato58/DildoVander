@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-DEPENDABOT-SYNC-local-review",
+  "observedAtUtc": "2026-10-19T06:06:14.180247Z",
+  "kind": "source_review",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-SYNC",
+      "criterionId": "POLICY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "environment": "Windows task checkout; Node25.9/npm11.12/Python3.14/.NET10.0.303; isolated synthetic package restore fixture.",
+  "method": "Independent Sol6.1 reviewer inspected generator, API controller, workflows and trust-boundary regression policy; ran focused20Node/10Python plus9public workflow tests and native consistency test.",
+  "observation": "No actionable findings. Trusted-main API publisher never executes PR content, producer/artifact/head identities checked, nonforce publication protects concurrent updates, recovery dispatch does not replay old artifacts. Live existing open PR run metadata corroborates workflow path/head/PR-association shape. Final native guard changes no rendered UI.",
+  "limitations": [
+    "No hosted native generation or live bot-branch publication observed yet. Unit API publication/recovery uses fixtures; postmerge read-only macOS rehearsal remains pending.",
+    "Broad local scripts/ci Python suite encountered existing Windows POSIX executable-mode mismatch in unchanged test_package.py; focused changed tests pass. Hosted Linux CI remains authoritative for that platform check.",
+    "Source identity is SHA256 of sorted scoped UTF8 path+NUL+staged Git blob bytes+NUL. No deployment, signing or paid provider calls."
+  ]
+}
