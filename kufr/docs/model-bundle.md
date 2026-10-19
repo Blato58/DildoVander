@@ -117,7 +117,8 @@ exports and unbound evidence. UI-only changes and a later app Git revision do no
 invalidate the model proof. Certification adds a report and changes the bundle
 identity while preserving model bytes. Publication remains separate. Legacy
 manufacturing inventory/archive verification is preserved; app builds never
-import its validators. This task exercised synthetic proof tests, not actual CAD.
+import its validators. Local Windows checks exercised synthetic proof tests;
+actual CAD verification is recorded separately from completed CI.
 
 Downloads use independent `/downloads/index.json` metadata. The Workshop shows
 immutable same-origin data/archive links with version, SHA-256 and evidence limits.

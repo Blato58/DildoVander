@@ -16,7 +16,7 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 | Area | Actual checks and boundary |
 | --- | --- |
-| Shared Vue application | `npm ci`, `npm test`, `npm run build` on Node 24.21.0; 88 Node regressions and 111 Vue tests passed. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
+| Shared Vue application | `npm ci`, `npm test`, `npm run build` on Node 24.21.0; final 88 Node regressions and 122 Vue tests passed. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
 | Rendered application | `npm run test:browser`: shared navigation, direct reload, legacy destinations, unknown routes, early private claim capture, explicit demo, focus across heartbeats, stale confirmation, Stop, theme, keyboard, 1440/390/320 px layouts and 200% text. The shell measures the bottom navigation so enlarged labels do not conceal the end of the page. |
 | Accounts | `npm run test:accounts:fixture`: actual HTTPS backend, controlled private owner delivery, Chrome virtual WebAuthn authenticator, real passkey verifier and naming, invitation/replay denial, Viewer authorization, logout and safe return. A held real logout response proves that a new sign-in waits for its cookie update. Fixture configuration excludes providers; its normal shutdown removes its private temporary database and keys. |
 | Backend | Build with zero warnings/errors; default regression and `--identity`, `--keepsake`, `--model-releases`, `--twin`, `--twin-media`. Tests cover real P256 WebAuthn, roles/grants/CSRF/origins, concurrency, recovery, last-owner/key rules, migration/backup restoration, private archive tickets/assets and revocation. |
@@ -49,9 +49,10 @@ including non-`.json` assets. They do not execute Foundation TLS/delegate behavi
 
 ## Unverified boundaries
 
-- Windows cannot run Xcode or the Swift harnesses. The configured macOS workflow
-  checks native transport, Debug, BLE policy, Identity and the unsigned iOS
-  Simulator build. Its result must be recorded separately from local web tests.
+- Windows cannot run Xcode or the Swift harnesses. The macOS job in PR run
+  `39196137977` passed native transport, Debug, BLE policy, Identity and the
+  unsigned iOS Simulator build. `KUFR-APPLICATION-native-v1` records that software
+  result separately; signed-device acceptance remains inconclusive.
 - Actual passkey associated domains, signing, Keychain upgrade/resume behavior,
   physical BLE possession, LAN reachability, iPhone audio/camera and real hardware
   remain device acceptance steps. Browser and portable C++ tests do not prove them.
@@ -65,9 +66,10 @@ including non-`.json` assets. They do not execute Foundation TLS/delegate behavi
   app and rollback configuration are reviewed together. Published historical
   archives remain immutable. Bound offline ZIP publication is rejected; the
   verified standalone offline HTML command remains available.
-- Automatic approval review rejected recursive cleanup of one interrupted,
-  isolated test directory under Windows Temp, without a detailed reason. That
-  directory contains synthetic test state; later fixtures verify normal cleanup.
+- Automatic approval review rejected cleanup of one interrupted, isolated test
+  directory under Windows Temp, including a bounded individual-file attempt,
+  with the stated reason `blocked by policy`. That directory contains synthetic
+  test state; later fixtures verify normal cleanup. No cleanup bypass was used.
 
 Production activation, credential rotation, paid calls, signing and flashing
 require their existing authorization boundaries. No such action is implied by

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "artifactId": "KUFR-APPLICATION-source-v5",
+  "observedAtUtc": "2026-10-19T03:51:14.369372+00:00",
+  "baseArtifact": "docs/project/artifacts/KUFR-APPLICATION-source-v4.json",
+  "baseCommit": "9afff2fa0497a566e2250e9ec4ba4b8e0af3f58c",
+  "method": "Canonical source-v4 inventory with exactly one replaced test record; recomputed sorted component record digests using the same SHA-256 canonical JSON method. No application/backend/native implementation bytes changed.",
+  "changedFiles": [
+    {
+      "path": "scripts/ci/test_secret_scan.py",
+      "sha256": "a98fd9b098432098d6331489ca05ba3c1406a6c72cd1b1db931452eac097bdec",
+      "bytes": 16064,
+      "mode": "100644",
+      "normalization": "utf8-lf"
+    }
+  ],
+  "components": {
+    "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
+    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
+    "releaseArtifactDigest": "1874b31b332e00686f4aa68630f60286a94c05ebdab34119655e9f2a4e58d71f",
+    "iosArtifactDigest": "4ad457aaf15a2b4c9daab9d58125f7bd10dfdac5c912aa7dc9b1134563689419"
+  },
+  "artifactDigest": "7879cd696a7d3f50ef2e8f2f38b1c03983b65256443656d41e7bc938e542a9b3",
+  "changeReason": "Make secret-scanner regression self-contained under a shallow checkout; production policy and detectors unchanged. STATUS input JSON is physically normalized to tracked LF before rendering."
+}

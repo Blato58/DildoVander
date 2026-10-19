@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-releases-v4",
+  "observedAtUtc": "2026-10-19T03:51:14.369372+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
+    "releaseArtifactDigest": "1874b31b332e00686f4aa68630f60286a94c05ebdab34119655e9f2a4e58d71f"
+  },
+  "method": "Python deployment unittest discovery; compiled test_site/test_site_inputs; CI select/site workflow/ui boundary/cad impact; focused model/source/packaging fixture tests; routing and generated compatibility example checks; pinned Gitleaks8.30.1 full-history scan and negative integration regressions.; pinned Gitleaks8.30.1 self-contained regression suite plus an actual depth1 file clone; no-binary repository-check mode.",
+  "environment": "Windows 11 checkout; existing Node24.21.0, Chrome/Edge Playwright, .NET10; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts.",
+    "Full local packaging suite12 ran6pass/6environment errors before target verification: cadquery unavailable. Complete Linux CAD/site rerun is required and recorded separately; no local CAD generation claimed.",
+    "Atomic symlinks, actual nginx/TLS/VPS and first schema1->2 cutover remain separate deployment checks. Bound offline ZIP fails closed; standalone maintained HTML supported.",
+    "Additional broad repository unittest discovery on Windows ran85 tests with15 skips and1 unchanged POSIX executable-mode assertion failure (0666 vs0755); Linux CI remains required. Tracking58tests passed. No permission assertion was weakened."
+  ],
+  "observation": "PASS deployment35 (1Windows skip), legacy12 (3Windows skips), compiled site5+inputs1 against46-file dist; selectors15/site-workflow9/boundary2/cad-impact9 and14entrypoint boundary check; focused model generation/source/export13; exact immutable-route JSON MIME and generated compatibility16; pinned secret scan15 regressions, full-history0findings. Legacy subprocess imports correct retained publisher and emits explicit startup error; synthetic packaging fixtures now carry exact generation receipt without weakening production verifier. Independent model/publication implementation unchanged outside fixtures/MIME. Final shallow-checkout correction:16/16 pinned binary tests and3/3 no-binary repository checks passed; historical object absence asserted in real depth1 clone. Production scan policy unchanged. STATUS JSON LF normalization corrects cross-platform raw-input digest; tracking validate/render verified.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v4.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v3.json",
+    "kufr/docs/application-verification.md",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v5.json"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-releases-v3"
+  ],
+  "supersedesReason": "Only secret-scan test fixture changed to support shallow checkout. App/backend/native/runtime and maintained offline cores are byte-identical to source-v4; explicit source delta proves transfer."
+}

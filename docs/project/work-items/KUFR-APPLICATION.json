@@ -68,12 +68,12 @@
       "rule": "allOf",
       "appliesTo": {
         "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
-        "releaseArtifactDigest": "dd3e19fff5ef30c5af5f8c91f674bf7d261a87f11faa3fd691acb54ac131c378"
+        "releaseArtifactDigest": "1874b31b332e00686f4aa68630f60286a94c05ebdab34119655e9f2a4e58d71f"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-releases-v3",
-        "KUFR-APPLICATION-browser-v4",
-        "KUFR-APPLICATION-review-v4"
+        "KUFR-APPLICATION-releases-v4",
+        "KUFR-APPLICATION-browser-v5",
+        "KUFR-APPLICATION-review-v5"
       ]
     },
     {
@@ -86,26 +86,28 @@
       "appliesTo": {
         "iosArtifactDigest": "4ad457aaf15a2b4c9daab9d58125f7bd10dfdac5c912aa7dc9b1134563689419"
       },
-      "evidenceRefs": []
+      "evidenceRefs": [
+        "KUFR-APPLICATION-native-v1"
+      ]
     }
   ],
   "blockers": [
     {
       "id": "SIGNED-NATIVE",
-      "problem": "Windows checkout cannot establish signed iPhone passkey, associated-domain and physical BLE acceptance.",
+      "problem": "Signed iPhone associated-domain passkeys, Keychain resume/switching, actual native public/media behavior and physical BLE possession are not yet accepted; macOS native software checks passed.",
       "severity": "high",
       "blocks": [
         "NATIVE"
       ],
-      "unblockCondition": "Run the configured macOS native checks and verify associated-domain sign-in, resume, switching and physical pairing on the authorized signed iPhone installation."
+      "unblockCondition": "Verify those behaviors on the authorized signed iPhone installation against the canonical HTTPS associated domain and the physical suitcase; retain the successful macOS CI software evidence."
     }
   ],
-  "nextAction": "Run the prepared macOS native harnesses and unsigned Simulator build through PR CI, resolve review findings, then verify signed iPhone associated-domain passkeys, resume/switching and physical pairing with the authorized installation. Production activation remains separate.",
-  "currentNote": "Verified implementation e5dc9e3 and approved main integration edf2238 pushed on origin/codex/unified-vue-application; PR218. Production CSP, native public model/MIME, iOS15 HTTP/actor, Linux fixture and narrow secret-scan corrections now verified locally on source-v4; new macOS/Linux CI pending. Backend digest unchanged. No production/provider/hardware action.",
+  "nextAction": "Verify signed iPhone associated-domain passkeys, Keychain resume/switching, native public model/media and physical pairing on the authorized installation. Source handoff uses PR218 CI/review gates; production activation remains separate.",
+  "currentNote": "Application fix9afff2fa0497a566e2250e9ec4ba4b8e0af3f58c pushed and verified; PR218. macOS native harnesses and unsigned Simulator build passed. source-v5 records the self-contained shallow-checkout regression and LF STATUS correction; production app/backend/iOS bytes are unchanged. Current CI and review outcomes are retained on PR218. No production/provider/hardware action.",
   "implementedSubject": {
     "applicationArtifactDigest": "552896ed47cfc10ac13de112ef9e7b1eab248ca51d82d77fcd40e6743dbbefd2",
     "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
-    "releaseArtifactDigest": "dd3e19fff5ef30c5af5f8c91f674bf7d261a87f11faa3fd691acb54ac131c378",
+    "releaseArtifactDigest": "1874b31b332e00686f4aa68630f60286a94c05ebdab34119655e9f2a4e58d71f",
     "iosArtifactDigest": "4ad457aaf15a2b4c9daab9d58125f7bd10dfdac5c912aa7dc9b1134563689419"
   }
 }

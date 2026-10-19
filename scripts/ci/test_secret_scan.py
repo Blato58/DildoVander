@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -21,24 +22,62 @@ INVENTORY_PATHS = (
     "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release.json",
 )
 HISTORICAL_HEADER_COMMIT = "e5dc9e3df11c7ece97de70afa924357b00d86176"
-HISTORICAL_HEADER_LINES = (
-    ("kufr/mobilni-aplikace/src/features/archive/nativeGuest.ts", 59),
-    ("kufr/mobilni-aplikace/ios/App/App/KufrIdentityPlugin.swift", 180),
+EXPECTED_HEADER_NAMES = (
+    "accept",
+    "content-type",
+    "x-dv10-csrf",
+    "idempotency-key",
+    "x-dv10-consent",
 )
+# These immutable statement fixtures are self-contained. Repository-check jobs
+# use shallow checkouts; only the separate scanner job needs checkout ancestry.
+HISTORICAL_HEADER_STATEMENTS = {
+    "kufr/mobilni-aplikace/src/features/archive/nativeGuest.ts":
+        "if (![" + ", ".join(repr(name) for name in EXPECTED_HEADER_NAMES)
+        + "].includes(name)) throw new GuestError(400);",
+    "kufr/mobilni-aplikace/ios/App/App/KufrIdentityPlugin.swift":
+        "let permitted = " + json.dumps(EXPECTED_HEADER_NAMES),
+}
 
 
 def historical_header_statements():
-    statements = {}
-    for path, line in HISTORICAL_HEADER_LINES:
-        source = subprocess.check_output(
-            ["git", "-C", str(ROOT), "show", HISTORICAL_HEADER_COMMIT + ":" + path],
-            text=True, encoding="utf-8",
-        )
-        statements[path] = source.splitlines()[line - 1].strip()
-    return statements
+    return dict(HISTORICAL_HEADER_STATEMENTS)
 
 
 class SecretScanWorkflowTests(unittest.TestCase):
+    def test_shallow_checkout_runs_without_historical_objects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            seed = Path(directory) / "seed"
+            seed.mkdir()
+            for relative in (".gitleaks.toml", ".github/workflows/ci.yml", "scripts/ci/test_secret_scan.py"):
+                destination = seed / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, destination)
+            def git(*args):
+                return subprocess.check_output(["git", "-C", str(seed), *args], text=True).strip()
+            git("init", "--quiet", "--initial-branch=main")
+            git("config", "user.email", "scan-fixture@localhost")
+            git("config", "user.name", "Scan fixture")
+            git("add", ".")
+            git("commit", "--quiet", "-m", "Fixture source")
+            (seed / "marker.txt").write_text("Second fixture commit\n", encoding="utf-8")
+            git("add", ".")
+            git("commit", "--quiet", "-m", "Fixture tip")
+            shallow = Path(directory) / "shallow"
+            subprocess.run(["git", "clone", "--quiet", "--depth=1", seed.as_uri(), str(shallow)], check=True, capture_output=True, text=True)
+            is_shallow = subprocess.check_output(["git", "-C", str(shallow), "rev-parse", "--is-shallow-repository"], text=True).strip()
+            self.assertEqual("true", is_shallow)
+            historical = subprocess.run(["git", "-C", str(shallow), "cat-file", "-e", HISTORICAL_HEADER_COMMIT], capture_output=True, text=True)
+            self.assertNotEqual(0, historical.returncode)
+            environment = dict(os.environ)
+            if BINARY:
+                environment["GITLEAKS_BINARY"] = BINARY
+            # Select header cases only, so this subprocess never recurses into
+            # its shallow-checkout proof. All binary negatives run when present.
+            result = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "scripts/ci", "-p", "test_secret_scan.py", "-k", "header"],
+                                    cwd=shallow, env=environment, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+
     def test_workflow_scans_checkout_ancestry_and_runs_binary_regressions(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         job = workflow.split("  secret-scan:\n", 1)[1].split("\n  changes:", 1)[0]
