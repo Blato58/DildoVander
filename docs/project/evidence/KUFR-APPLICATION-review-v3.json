@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-review-v3",
+  "observedAtUtc": "2026-10-19T03:28:54.453277+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
+    "releaseArtifactDigest": "9b69b23d50554d62735fd40e4246fd920ee3cfed27a0fdf6930763bcde5f05f4"
+  },
+  "method": "Parent combined diff inspection and repeated independent Sol6.1/high bounded source reviews of authorization/privacy/concurrency, native transport, model validation/certification/publication, release handoff and final auth ordering. Reviewers performed no writes/builds/index changes.",
+  "environment": "Windows 11 checkout, pinned Node24.21.0, Chrome via Playwright, .NET10, MSVC portable C++; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts.",
+    "Read-only source review is not signed iOS or physical acceptance. Native compilation/build will be recorded from macOS CI separately."
+  ],
+  "observation": "No unresolved actionable source finding at freeze. Resolved findings: scoped accountCSRF/forwarded headers, guest fragment lifecycle/cache fences, strictCSP standalone validator, bound model/proof canonical hashes and consumer validation parity, account archive asset/ticket boundaries, recent-auth recovery, exact native route/header policies, bound ZIP contents, dotted96char source IDs, shared CAD policy/validation-only certificate retirement, credential naming, actual UI logout generation+cookie ordering and lifecycle refresh. Parent actual browser delayed-cookie regression subsequently passed. Native Debug remains bound to original native account cookie/session, not raw human bearer credentials; failed old-account cleanup stays visible and is never retried as another user. Final deterministic EOF normalization is validated by strict contract parity and exact unchanged45-file runtime inventory; prior runtime/browser/backend/release checks transfer through this explicit proof. No controller, C#, UI, native or mechanical source changed. Final independent package review parsed both locks against e5dc9 and approved main7916723: no removed packages; every changed SQLite dependency/hash/Linux+Windows runtime entry matches main exactly; EF/Identity10.0.12 minimums permit resolved SQLite10.0.13 patch, OpenAI2.14 unchanged. No actionable finding. Parent new-binary real HTTPS account browser subsequently passed.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v3.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-review-v2"
+  ],
+  "supersedesReason": "Preserve approved main SQLite10.0.13/SQLitePCLRaw2.1.13 upgrade; only backend project/2locks changed. Both declared runtime locks regenerated/locked identical; build/Identity+real HTTPS account browser passed. App/release/iOS source digests unchanged."
+}

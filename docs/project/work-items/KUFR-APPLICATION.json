@@ -33,8 +33,8 @@
       },
       "evidenceRefs": [
         "KUFR-APPLICATION-unit-v2",
-        "KUFR-APPLICATION-browser-v2",
-        "KUFR-APPLICATION-review-v2"
+        "KUFR-APPLICATION-browser-v3",
+        "KUFR-APPLICATION-review-v3"
       ]
     },
     {
@@ -48,12 +48,12 @@
       "rule": "allOf",
       "appliesTo": {
         "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
-        "backendArtifactDigest": "d73c4f1c766513f77f26fe74082c83e2ac5cbee9fff3d785c25e80490070cf8f"
+        "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-identity-v2",
-        "KUFR-APPLICATION-browser-v2",
-        "KUFR-APPLICATION-review-v2"
+        "KUFR-APPLICATION-identity-v3",
+        "KUFR-APPLICATION-browser-v3",
+        "KUFR-APPLICATION-review-v3"
       ]
     },
     {
@@ -72,8 +72,8 @@
       },
       "evidenceRefs": [
         "KUFR-APPLICATION-releases-v2",
-        "KUFR-APPLICATION-browser-v2",
-        "KUFR-APPLICATION-review-v2"
+        "KUFR-APPLICATION-browser-v3",
+        "KUFR-APPLICATION-review-v3"
       ]
     },
     {
@@ -101,10 +101,10 @@
     }
   ],
   "nextAction": "Run the prepared macOS native harnesses and unsigned Simulator build through PR CI, resolve review findings, then verify signed iPhone associated-domain passkeys, resume/switching and physical pairing with the authorized installation. Production activation remains separate.",
-  "currentNote": "Repository implementation and isolated software verification complete against component source digests. Shared app+identity+release checks passed; native acceptance remains explicit. No production/provider/hardware action. Public branch commit and verified push will be recorded after source handoff.",
+  "currentNote": "Implementation commit e5dc9e3df11c7ece97de70afa924357b00d86176 pushed and verified on origin/codex/unified-vue-application; PR218 opened. Approved main SQLite update integrated and real account/storage checks rerun. Shared app/release/iOS digests unchanged. macOS CI and signed-device acceptance remain separate. No production/provider/hardware action.",
   "implementedSubject": {
     "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
-    "backendArtifactDigest": "d73c4f1c766513f77f26fe74082c83e2ac5cbee9fff3d785c25e80490070cf8f",
+    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
     "releaseArtifactDigest": "9b69b23d50554d62735fd40e4246fd920ee3cfed27a0fdf6930763bcde5f05f4",
     "iosArtifactDigest": "0b0becfa6130daafb669ef6ee1b342c9034d5f140f5f06c97a9c78dff0aba9bc"
   }

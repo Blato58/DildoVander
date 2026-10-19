@@ -133,9 +133,11 @@ Tento automatický poloduplex neumožňuje přerušit mluvící kufr.
 NDJSON a malé binární HTTPS požadavky fungují přes stávající proxy;
 veřejný WebSocket upgrade není potřebný. Starý `/realtime-turns` je PTT záloha.
 Při změně NuGet závislostí na Windows regeneruj CI lockfiles přes
-`dotnet restore kufr/backend-tests/BackendTests.csproj -r linux-x64 -p:RuntimeIdentifier=linux-x64 -p:SelfContained=true --force-evaluate`
-z kořene. Explicitní singular `RuntimeIdentifier` zabrání přidání hostitelského
-win-x64; povinné linuxové CI pak používá locked restore bez změny lockfile.
+`dotnet restore kufr/backend-tests/BackendTests.csproj -p:SelfContained=true --force-evaluate`
+z kořene. Regeneruj oba lockfiles společně a zachovej deklarované
+`RuntimeIdentifiers` (`linux-x64;win-x64`); nepřepisuj je singular
+`RuntimeIdentifier`. Potom ověř stejný restore s `--locked-mode` místo
+`--force-evaluate`, jak jej používá povinné linuxové CI.
 
 Vstup obsahuje korelaci textového tahu, `opening`, `text`, `wav`, `voice`
 (`cedar`, `marin`, `coral`) a `speed` 0.8–1.2. Opening má prázdný text a
@@ -332,7 +334,7 @@ Test je samostatný proces, vytvoří dočasný SQLite soubor a nepotřebuje
 poskytovatele AI.
 Samostatný C# test s řízeným časem ověřuje expiraci tokenu/sezení a retry.
 Používá dočasný SQLite soubor a ověřuje také atomický souběh rezervací a
-znovuotevření po restartu. `Microsoft.Data.Sqlite` je připnutý na `10.0.12`.
+znovuotevření po restartu. `Microsoft.Data.Sqlite` je připnutý na `10.0.13`.
 
 Zařízení se registrují mimo HTTP API konfigurací `Devices__0__DeviceId`
 a `Devices__0__CredentialSha256` (64 hex znaků SHA-256 přesného UTF-8 textu

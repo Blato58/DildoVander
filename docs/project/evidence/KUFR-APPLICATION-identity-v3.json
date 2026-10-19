@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-identity-v3",
+  "observedAtUtc": "2026-10-19T03:28:54.453277+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b"
+  },
+  "method": "dotnet build kufr/backend-tests/BackendTests.csproj --no-restore; dotnet run --project kufr/backend-tests/BackendTests.csproj --no-build -- --identity; real HTTPS accounts browser fixture as recorded in browser receipt. Latest SQLite merge: dotnet restore kufr/backend-tests/BackendTests.csproj -p:SelfContained=true --force-evaluate; same command --locked-mode; build; --identity; npm run test:accounts:fixture against rebuilt DLL.",
+  "environment": "Windows 11 checkout, pinned Node24.21.0, Chrome via Playwright, .NET10, MSVC portable C++; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts.",
+    "Native bridge code was source-reviewed; Swift execution is pending macOS CI. Cross-tab authentication ordering is outside the module-local logout guarantee."
+  ],
+  "observation": "Final build0warnings/errors and identity suite PASS. Actual P256 WebAuthn assertions; controlled enrollment/invitation/recovery, last-owner/key constraints, recent-auth confirmation, own-key naming/cross-account404, grant+session revocation, origin/CSRF, exact device/read-v-operate evening API, simulator media authorization, persistent SQLite versioned upgrade/passkey-session-grant preservation/private backup restore/newer-schema rejection, target-bound archive ticket replay/expiry/concurrent consumption/A-B asset isolation/revocation race. --identity also ran model store/API regressions. Earlier full default backend, --keepsake, --twin and --twin-media passed before final bounded naming/recovery change; their dated scope is retained. Final deterministic EOF normalization is validated by strict contract parity and exact unchanged45-file runtime inventory; prior runtime/browser/backend/release checks transfer through this explicit proof. No controller, C#, UI, native or mechanical source changed. Approved main package upgrade preserved; EF/Identity10.0.12/OpenAI2.14 unchanged. Both Linux/Windows runtime graphs present and locked restore byte-identical. Current build0warnings/errors, Identity persistence/backup/concurrency/security suite and real HTTPS owner/Viewer/passkey naming/delayed logout-cookie browser all PASS. App/release/iOS source bytes unchanged, so their existing browser/offline checks transfer through exact matching component digests.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v3.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v2.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-identity-v2"
+  ],
+  "supersedesReason": "Preserve approved main SQLite10.0.13/SQLitePCLRaw2.1.13 upgrade; only backend project/2locks changed. Both declared runtime locks regenerated/locked identical; build/Identity+real HTTPS account browser passed. App/release/iOS source digests unchanged."
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-DEPENDABOT-BACKEND-198-hosted-20261019",
+  "observedAtUtc": "2026-10-19T02:47:27.813828Z",
+  "kind": "integration",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "e63e765a5b4de8c62a1fa66bc87437294ecb8ab0eac56468cbaf3614ae573b8d"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-BACKEND-198",
+      "criterionId": "LOCKS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "environment": "GitHub Ubuntu24 backend CI39191280477, job117864557543; finalhead84a4a14c6fafcc9527e37fe721686a1d8f6be0f9. Linux+Windows tracking checks passed.",
+  "method": "Read completed final CI job/step conclusions; reread PR reviews, inline comments and Codex status immediately before exact-head squash merge; fetch main and compare full Git tree with tested head.",
+  "observation": "Required CI success. Locked restore, Linux Release build, default backend plus twin/twin-media suites, self-contained publish, HTTP smoke, isolated guest integration, interactive-client offline tests, deployment configuration tests and package/provenance steps all passed. No deploy artifact uploaded by this PR run. Review4281143370 fixed and resolved; independent final correctness review clean. PR198 merged027bc431970dcb493fb1615d9950f502e94159b8; fetched main tree exactly equals tested head: b22b1d6be4bd08e1a2d8b827e3681e1daa34242c. PR196 already merged4850660 with successful macOS native acceptance; post-merge open PR query returned none.",
+  "limitations": [
+    "No production deployment/database exercise, paid AI call, signing or physical-device acceptance.",
+    "Historical local receipt and closure snapshot remain unchanged; this new receipt records final hosted/merge evidence."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/39191280477",
+    "https://github.com/Blato58/DildoVander/pull/198"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-browser-v3",
+  "observedAtUtc": "2026-10-19T03:28:54.453277+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+    "backendArtifactDigest": "cc055d8afc3ed31a473702312cb8c7212b2fbac716f67af16504bfb014f6d79b",
+    "releaseArtifactDigest": "9b69b23d50554d62735fd40e4246fd920ee3cfed27a0fdf6930763bcde5f05f4"
+  },
+  "method": "npm run test:browser; KUFR_TESTS_DLL=kufr/backend-tests/bin/Debug/net10.0/BackendTests.dll npm run test:accounts:fixture; PLAYWRIGHT_CHANNEL=chrome node tests/workshop-offline.browser.mjs; PLAYWRIGHT_CHANNEL=chrome node tests/workshop-media.browser.mjs. Latest SQLite merge: dotnet restore kufr/backend-tests/BackendTests.csproj -p:SelfContained=true --force-evaluate; same command --locked-mode; build; --identity; npm run test:accounts:fixture against rebuilt DLL.",
+  "environment": "Windows 11 checkout, pinned Node24.21.0, Chrome via Playwright, .NET10, MSVC portable C++; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts.",
+    "Fake browser camera/microphone and synthetic models are explicitly labelled; software drain is not measured sound.",
+    "One earlier interrupted isolated fixture remains in Windows Temp: automatic approval review rejected recursive cleanup without a detailed reason. Subsequent normal fixture cleanup is asserted."
+  ],
+  "observation": "PASS compiled shell navigation/reload/deep links/legacy/notfound; private fragment stripped before import and absent from request URLs; explicit demo emits zero real commands, focus persists, stale confirmation invalidated, Stop, themes, keyboard,1440/390/320 layouts and200%text. Real HTTPS owner bootstrap/passkey/signup+signin/naming, single-use Viewer invitation/admin403, held real DELETE expiry Set-Cookie blocks new auth until settlement then new cookie works, logout and safe return archive, replay denied. Fixture actual database/key root cleanup asserted. Offline file:// networking disabled, desktop/mobile rich synthetic geometry and overlays/assembly/cameras/cable motion,0requests/0pageerrors. Synthetic media2PCMframes/1photo/softwaredrain/0external/0errors. Final deterministic EOF normalization is validated by strict contract parity and exact unchanged45-file runtime inventory; prior runtime/browser/backend/release checks transfer through this explicit proof. No controller, C#, UI, native or mechanical source changed. Approved main package upgrade preserved; EF/Identity10.0.12/OpenAI2.14 unchanged. Both Linux/Windows runtime graphs present and locked restore byte-identical. Current build0warnings/errors, Identity persistence/backup/concurrency/security suite and real HTTPS owner/Viewer/passkey naming/delayed logout-cookie browser all PASS. App/release/iOS source bytes unchanged, so their existing browser/offline checks transfer through exact matching component digests.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v3.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v2.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-browser-v2"
+  ],
+  "supersedesReason": "Preserve approved main SQLite10.0.13/SQLitePCLRaw2.1.13 upgrade; only backend project/2locks changed. Both declared runtime locks regenerated/locked identical; build/Identity+real HTTPS account browser passed. App/release/iOS source digests unchanged."
+}
