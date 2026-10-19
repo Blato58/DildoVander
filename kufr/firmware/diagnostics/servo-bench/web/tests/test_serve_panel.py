@@ -37,6 +37,8 @@ class PanelTests(unittest.TestCase):
         for path, expected in [
             ("/", b"Servo bench"),
             ("/controller.mjs", b"BenchController"),
+            ("/panel-ui.mjs", b"mountBenchUi"),
+            ("/design-system/ui.js", b"export function button"),
             ("/design-system/arcane-workshop.css", b"palette.css"),
         ]:
             response = self.get(path)

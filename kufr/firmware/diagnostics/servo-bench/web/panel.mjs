@@ -3,10 +3,13 @@ import { SerialTransport, flushStopBeforeClose } from "./serial.mjs";
 import { registerBenchTools } from "./mcp.mjs";
 import { ManualProfiles, canSaveTarget } from "./profiles.mjs";
 import { AutoCalibration } from "./auto-calibration.mjs";
+import { mountBenchUi, statusBadge, notice, emptyState } from "./panel-ui.mjs";
+
+mountBenchUi(document);
 
 const elements = Object.fromEntries([
   "connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm", "pulse",
-  "stop", "state", "error", "readback", "log", "mcp",
+  "stop", "state", "error", "readback", "log", "log-empty", "mcp",
   "calibration-support", "cal-width", "cal-duration", "cal-range", "cal-minus", "cal-plus",
   "cal-1200", "cal-1500", "cal-1800", "cal-arm", "cal-move", "cal-validation", "profile-title",
   "profile-label", "profile-save-label", "profile-values", "profile-min", "profile-center", "profile-max",
@@ -62,6 +65,7 @@ function log(line) {
   if (logLines.length > 200) logLines.shift();
   // Do not change scroll position or focus while the operator reads history.
   elements.log.textContent = logLines.join("\n");
+  elements["log-empty"].hidden = logLines.length > 0;
 }
 
 function render(state, capabilities) {
@@ -69,21 +73,28 @@ function render(state, capabilities) {
   elements.connect.disabled = !supported || connecting || closing || state.connected;
   elements.connect.textContent = connecting ? "Připojuji…" : "Připojit USB";
   elements.disconnect.disabled = !state.connected || closing;
-  elements.connection.textContent = state.connected ? "USB připojeno · CH343 · 115200 baud" :
-    connecting ? "Výběr a otevření USB…" : "Odpojeno · log a registry jsou historické";
+  elements.connection.innerHTML = statusBadge({
+    label: state.connected ? "USB připojeno · CH343 · 115200 baud" :
+      connecting ? "Výběr a otevření USB…" : "Odpojeno · log a registry jsou historické",
+    tone: state.connected ? "success" : connecting ? "info" : "neutral",
+  });
   elements.arm.disabled = automatic || !capabilities.arm || closing;
   elements.pulse.disabled = automatic || !capabilities.pulse || closing;
   elements.stop.disabled = !capabilities.stop || closing;
   elements.noise.disabled = !capabilities.stop || closing;
   elements.channel.disabled = automatic || !!state.pending || state.writing || !!state.armedUntil || closing;
   elements["pulse-width"].disabled = elements.channel.disabled;
-  elements.state.textContent = state.message;
-  elements.error.textContent = state.error;
+  elements.state.innerHTML = statusBadge({ label: state.message, tone: state.fault ? "danger" : state.pending ? "info" : "neutral" });
+  elements.error.innerHTML = state.error
+    ? notice({ title: "Pokus nelze dokončit", message: state.error, tone: "danger" }) : "";
   elements.error.hidden = !state.error;
   const readback = state.readback;
-  elements.readback.textContent = readback ?
-    `${state.connected ? "Poslední přijaté čtení" : "Historické čtení"}: kanál ${readback.channel}, MODE1 ${readback.mode1}, MODE2 ${readback.mode2}, PRE_SCALE ${readback.prescale}, ON ${readback.on}, OFF ${readback.off}, FULL_ON ${Number(readback.fullOn)}, FULL_OFF ${Number(readback.fullOff)}, očekávané OFF ${readback.expectedOff}; ${readback.match ? "registry odpovídají zápisu" : "NESHODA registrů"}. Poloha serva není měřena.` :
-    "Zatím žádné čtení. Registr není měření polohy serva.";
+  if (readback) {
+    elements.readback.textContent =
+      `${state.connected ? "Poslední přijaté čtení" : "Historické čtení"}: kanál ${readback.channel}, MODE1 ${readback.mode1}, MODE2 ${readback.mode2}, PRE_SCALE ${readback.prescale}, ON ${readback.on}, OFF ${readback.off}, FULL_ON ${Number(readback.fullOn)}, FULL_OFF ${Number(readback.fullOff)}, očekávané OFF ${readback.expectedOff}; ${readback.match ? "registry odpovídají zápisu" : "NESHODA registrů"}. Poloha serva není měřena.`;
+  } else {
+    elements.readback.innerHTML = emptyState({ title: "Zatím žádné čtení", message: "Připojte USB a vyčkejte na čtení. Registr není měření polohy serva." });
+  }
   renderCalibration(state, capabilities);
   renderAuto();
 }

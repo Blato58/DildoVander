@@ -129,14 +129,17 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   const observers = new Set();
   const dashboardHtml = await readFile(new URL('./dashboard.html', import.meta.url));
   const dashboardScript = await readFile(new URL('./dashboard.js', import.meta.url));
+  const dashboardUiScript = await readFile(new URL('./dashboard-ui.js', import.meta.url));
   // Only these public assets are exposed; request paths never become file paths.
   const designAssetFiles = [
     ['arcane-workshop.css', 'text/css; charset=utf-8'],
+    ['ui.js', 'text/javascript; charset=utf-8'],
     ['tokens/palette.css', 'text/css; charset=utf-8'],
     ['tokens/typography.css', 'text/css; charset=utf-8'],
     ['tokens/layout.css', 'text/css; charset=utf-8'],
     ['tokens/motion.css', 'text/css; charset=utf-8'],
     ['components/patterns.css', 'text/css; charset=utf-8'],
+    ['components/framework.css', 'text/css; charset=utf-8'],
     ['fonts/cinzel.ttf', 'font/ttf'],
     ['fonts/inter.ttf', 'font/ttf'],
     ['fonts/ibmplexmono.ttf', 'font/ttf'],
@@ -517,6 +520,9 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
         'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'",
       });
       response.end(dashboardHtml);
+    } else if (request.url === '/simulator/dashboard-ui.js') {
+      response.writeHead(200, { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' });
+      response.end(dashboardUiScript);
     } else if (request.url === '/simulator/dashboard.js') {
       response.writeHead(200, { ...headers, 'Content-Type': 'text/javascript; charset=utf-8' });
       response.end(dashboardScript);

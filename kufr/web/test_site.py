@@ -277,12 +277,13 @@ class PublicReadbackTests(unittest.TestCase):
             (final / 'viewer.html').write_text('viewer')
             (final / 'F2-kouzelny-kufr.zip').write_bytes(b'zip')
             design = repo / 'kufr/design-system'
-            design.mkdir(parents=True)
-            (design / 'arcane-workshop.css').write_text('css')
+            shutil.copytree(Path(__file__).resolve().parents[1] / 'design-system', design,
+                            ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
             simulator = repo / 'kufr/simulator'
             simulator.mkdir()
             (simulator / 'dashboard.html').write_text('<body class="aw-root">dashboard</body>')
             (simulator / 'dashboard.js').write_text('script')
+            (simulator / 'dashboard-ui.js').write_text('shared rendering')
             web = repo / 'kufr/web'
             web.mkdir()
             (web / 'index.html').write_text('__REVISION__ __PACKAGE_NAME__')

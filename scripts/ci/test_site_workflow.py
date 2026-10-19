@@ -77,13 +77,15 @@ class PublicWorkflowTests(unittest.TestCase):
         self.assertNotIn('if:', verify_block)
         workflow = (WORKFLOWS / 'kufr-cad.yml').read_text()
         self.assertIn('branches: [main]', workflow)
-        for path in ['kufr/mechanika/final/**', 'kufr/design-system/**',
+        for path in ['kufr/mechanika/final/**',
                      'kufr/docs/zapojeni-potvrzeneho-hardwaru.md',
                      'kufr/mechanika/rozmery-nakoupenych-soucastek.md',
                      'scripts/ci/install-cad-slicer.sh', '.github/actions/verified-cad/**',
                      'kufr/mobilni-aplikace/.nvmrc']:
             with self.subTest(input=path):
                 self.assertIn("- '" + path + "'", workflow)
+        self.assertNotIn("- 'kufr/design-system/**'", workflow)
+        self.assertIn("- '!kufr/mechanika/final/viewer.js'", workflow)
         self.assertNotIn('upload-artifact', workflow)
         self.assertIn('uses: ./.github/actions/verified-cad', workflow)
         self.assertIn('group: cad-${{ github.event_name }}-${{ github.ref }}', workflow)

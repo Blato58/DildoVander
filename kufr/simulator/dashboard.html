@@ -23,7 +23,7 @@
     .lab h2 { font-size: 1.125rem; margin: 0 0 20px; font-weight: 600; }
     .lab h3 { font-size: .875rem; margin: 24px 0 12px; font-weight: 600; }
     .connection-indicator { gap: 8px; font-size: .8125rem; margin-bottom: 24px; color: var(--aw-muted); }
-    .connection-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
+    .connection-dot { display: none; width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
     [data-connection='connected'] .connection-indicator { color: var(--aw-success); }
     [data-connection='connecting'] .connection-indicator { color: var(--aw-info); }
     .connect { display: grid; gap: 12px; }
@@ -48,15 +48,14 @@
     .slots li { padding: 16px; min-height: 116px; background: var(--aw-surface); border-radius: 12px; }
     .slot-number { font: 400 1.5rem/1 var(--aw-font-mono); color: var(--aw-accent); }
     .slot-label { display: block; margin-top: 12px; color: var(--aw-muted); font-size: .6875rem; }
-    .slot-state { display: block; font-size: .8125rem; font-weight: 550; color: var(--aw-success); }
-    .slots .unavailable .slot-state { color: var(--aw-muted); }
+    .slot-state { display: block; margin-top: 4px; }
     .slots .unknown { background: transparent; border: 1px dashed var(--aw-border-subtle); }
     .slots .unknown .slot-number, .slots .unknown .slot-state, [data-model-current='false'] .slot-state { color: var(--aw-muted); }
     .compartment-help { font-size: .75rem; color: var(--aw-muted); margin: 12px 0 0; }
     .event-panel { margin-top: 40px; padding-top: 28px; border-top: 1px solid var(--aw-border-subtle); }
     .timeline-tools { justify-content: space-between; margin: 20px 0 12px; align-items: end; }
-    .timeline-filter { flex: 1; max-width: 360px; min-width: min(100%, 200px); }
-    .timeline-filter .aw-input { width: 100%; min-height: 44px; }
+    #timeline-tools .aw-field { flex: 1; max-width: 360px; min-width: min(100%, 200px); }
+    #timeline-tools .aw-input { width: 100%; min-height: 44px; }
     .event-count { color: var(--aw-muted); font-size: .75rem; }
     .timeline { list-style: none; padding: 0; margin: 0; max-height: 384px; overflow: auto; scrollbar-color: var(--aw-border) transparent; }
     .timeline li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--aw-border-subtle); font-size: .875rem; }
@@ -67,7 +66,7 @@
     .lab-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
     @media (min-width: 1200px) { .slots { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
     @media (max-width: 860px) { .lab { padding: 24px; } .lab-workspace { grid-template-columns: 1fr; gap: 32px; } .connection-panel { border-right: 0; border-bottom: 1px solid var(--aw-border-subtle); padding: 0 0 28px; } .connect { grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; } .connection-boundary { display: none; } .connection-help { margin-bottom: 0; } }
-    @media (max-width: 520px) { .lab { padding: 20px 16px 32px; } .lab-header { gap: 16px; } .lab-brand { font-size: .875rem; } .lab-actions { gap: 8px; } .lab-intro { padding: 28px 0 24px; } .connect { grid-template-columns: 1fr 1fr; } .connect label { grid-column: 1 / -1; } .simulation-notice { margin-bottom: 24px; } .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } .facts { gap: 12px; } .timeline-tools { align-items: stretch; } .timeline-filter { max-width: none; } .timeline li { grid-template-columns: 70px minmax(0, 1fr); gap: 12px; } .event-panel { margin-top: 32px; } }
+    @media (max-width: 520px) { .lab { padding: 20px 16px 32px; } .lab-header { gap: 16px; } .lab-brand { font-size: .875rem; } .lab-actions { gap: 8px; } .lab-intro { padding: 28px 0 24px; } .connect { grid-template-columns: 1fr 1fr; } .connect .aw-field { grid-column: 1 / -1; } .simulation-notice { margin-bottom: 24px; } .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } .facts { gap: 12px; } .timeline-tools { align-items: stretch; } #timeline-tools .aw-field { max-width: none; } .timeline li { grid-template-columns: 70px minmax(0, 1fr); gap: 12px; } .event-panel { margin-top: 32px; } }
   </style>
   <script type="module" src="/simulator/dashboard.js"></script>
 </head>
@@ -75,7 +74,7 @@
   <main class="lab">
     <header class="lab-header">
       <div class="lab-brand"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 10h22v17H5zM12 10V5h8v5M5 16h22M11 14v4m10-4v4"/></svg>DildoVander <span class="aw-muted">/ Lab</span></div>
-      <div class="lab-actions"><span class="aw-badge aw-badge--warning">SIMULACE</span><button id="theme-toggle" type="button" class="aw-button aw-button--secondary theme-toggle" aria-pressed="false">Světlý režim</button></div>
+      <div class="lab-actions"><span class="aw-badge aw-badge--warning">SIMULACE</span><span id="theme-control"></span></div>
     </header>
     <div class="lab-intro"><h1>Simulation Lab</h1><p>Sledujte průběh výběru, dostupnost přihrádek a události hostitelského modelu na jednom místě.</p></div>
     <div class="simulation-notice"><strong>Pouze pozorování. Bez fyzických pohonů.</strong><span>Události popisují požadavky modelu; nepotvrzují změřenou polohu ani skutečný pohyb.</span></div>
@@ -83,13 +82,9 @@
       <aside class="connection-panel" aria-labelledby="connection-heading">
         <h2 id="connection-heading">Místní připojení</h2>
         <div class="connection-indicator"><span class="connection-dot" aria-hidden="true"></span><span id="connection-status" role="status">Nepřipojeno</span></div>
-        <div class="connect">
-          <label for="token" class="aw-field">Testovací bearer token<input id="token" class="aw-input" type="password" autocomplete="off" spellcheck="false" aria-describedby="token-help connection-error"></label>
-          <button id="connect" class="aw-button" type="button">Připojit pozorování</button>
-          <button id="disconnect" type="button" class="aw-button aw-button--secondary" disabled>Odpojit</button>
-        </div>
+        <div id="connection-controls" class="connect"></div>
         <p id="token-help" class="connection-help">Token zůstává jen v paměti stránky. Po zahájení spojení se pole vymaže.</p>
-        <p id="connection-error" class="error" role="alert"></p>
+        <div id="connection-error" class="error"></div>
         <p id="static-preview-help" class="aw-notice" hidden>Veřejný náhled nepřijímá tokeny. Pro skutečná data spusťte <a href="https://github.com/Blato58/DildoVander/blob/main/kufr/simulator/README.md">místní simulátor</a>.</p>
         <div class="connection-boundary"><strong>Pozorovatel modelu</strong><p>Tento pohled nezískává ruční lease a nevydává povely pohonům. Výběr a Stop patří do ovladače simulátoru.</p></div>
       </aside>
@@ -104,8 +99,8 @@
         <section class="event-panel" aria-labelledby="timeline-heading">
           <div class="section-heading"><h2 id="timeline-heading">Události modelu</h2><span id="event-count" class="event-count" role="status">0 událostí · nejvýše 100</span></div>
           <p id="event-announcement" class="lab-sr-only" aria-live="polite" aria-relevant="additions"></p>
-          <div class="timeline-tools"><label class="aw-field timeline-filter" for="event-filter">Filtrovat události<input class="aw-input" id="event-filter" type="search" placeholder="Název nebo číslo přihrádky" autocomplete="off"></label><button id="clear-events" class="aw-button aw-button--secondary" type="button" disabled>Vymazat zobrazení</button></div>
-          <p id="timeline-empty" class="timeline-empty">Po připojení se zde zobrazí události. Nejnovější budou nahoře.</p>
+          <div id="timeline-tools" class="timeline-tools"></div>
+          <div id="timeline-empty" class="timeline-empty"></div>
           <ol id="timeline" class="timeline" tabindex="0" aria-label="Časová osa událostí modelu, nejnovější nahoře"></ol>
         </section>
       </div>

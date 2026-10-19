@@ -1,3 +1,4 @@
+import { button, field } from '../../../../design-system/ui.js';
 import { registerPlugin } from '@capacitor/core';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 import { DebugJournal, type DebugCategory, type DebugCode } from './DebugJournal';
@@ -111,7 +112,7 @@ export class DebugPanel {
     this.element.tabIndex = -1;
     this.element.innerHTML = `
       <div class="debug-heading"><div><h1>Diagnostika</h1></div>
-        <button type="button" class="stop" data-debug="esp-stop" disabled>Stop kufru</button></div>
+        ${button({ label: "Stop kufru", variant: 'danger', disabled: true, attributes: {"data-debug": "esp-stop"} })}</div>
       <p>Záložka sleduje existující spojení. Pro pozorování není nutné převzít řízení.</p>
       <nav class="section-nav" aria-label="Přejít v diagnostice">
         <a href="#esp-heading">Kufr</a><a href="#server-heading">Server</a>
@@ -119,7 +120,7 @@ export class DebugPanel {
         <a href="#voice-heading">Hlas</a><a href="#debug-conversation-heading">Zkušební rozhovor</a>
         <a href="#log-heading">Log aplikace</a>
       </nav>
-      <p data-voice-error role="alert" hidden></p>
+      <p class="aw-notice aw-notice--danger" data-voice-error role="alert" hidden></p>
       <section class="debug-card" aria-labelledby="esp-heading"><h2 id="esp-heading">Běh ESP</h2>
         <p data-source></p><dl class="debug-metrics"></dl>
         <p data-freshness></p>
@@ -129,30 +130,30 @@ export class DebugPanel {
           Změny lze použít mezi rozhovory.
           AI testy čerpají OpenAI účet až při spuštění.</p>
         <div class="actions">
-          <button type="button" data-debug="configure">Nastavit serverový / testovací přístup</button>
-          <button type="button" data-debug="forget-profile">Zapomenout uložený přístup</button>
-          <button type="button" data-debug="server-inspect">Obnovit stav serveru</button>
-          <label>Dialog <select aria-label="Režim dialogu" data-server="dialog">
-            <option value="fake">Fake</option><option value="responses">AI · Sol</option></select></label>
-          <label>Hlas <select aria-label="Režim hlasu" data-server="voice">
-            <option value="fake">Fake · tiché WAV</option><option value="openai">AI · STT / TTS</option></select></label>
-          <label>Personalita <select aria-label="Personalita kufru" data-server="personality">
-            <option value="">Nejprve obnovte stav serveru</option></select></label>
-          <button type="button" class="primary" data-debug="server-apply">Použít nastavení serveru</button>
+          ${button({ label: "Nastavit serverový / testovací přístup", attributes: {"data-debug": "configure"} })}
+          ${button({ label: "Zapomenout uložený přístup", attributes: {"data-debug": "forget-profile"} })}
+          ${button({ label: "Obnovit stav serveru", attributes: {"data-debug": "server-inspect"} })}
+          ${field({ id: 'server-dialog-mode', label: "Dialog", control: `<select class="aw-input" aria-label="Režim dialogu" data-server="dialog">
+            <option value="fake">Fake</option><option value="responses">AI · Sol</option></select>` })}
+          ${field({ id: 'server-voice-mode', label: "Hlas", control: `<select class="aw-input" aria-label="Režim hlasu" data-server="voice">
+            <option value="fake">Fake · tiché WAV</option><option value="openai">AI · STT / TTS</option></select>` })}
+          ${field({ id: 'server-personality', label: "Personalita", control: `<select class="aw-input" aria-label="Personalita kufru" data-server="personality">
+            <option value="">Nejprve obnovte stav serveru</option></select>` })}
+          ${button({ label: "Použít nastavení serveru", variant: 'primary', attributes: {"data-debug": "server-apply"} })}
         </div>
         <fieldset class="aw-field"><legend>DV01 · dospělá roast postava</legend>
           <label><input type="checkbox" data-character="enabled"> Zapnout pro další rozhovory</label>
-          <label>Hostitelský tón <select data-character="tone" aria-label="Hostitelský tón DV01">
+          ${field({ id: 'character-tone', label: "Hostitelský tón", control: `<select class="aw-input" data-character="tone" aria-label="Hostitelský tón DV01">
             <option value="Reserved">Reserved</option><option value="Dry">Dry · bez nadávek</option>
-            <option value="Adult" selected>Adult · ostrý roast</option><option value="Chaos">Chaos · absurdní roast</option></select></label>
-          <label>Finále <select data-character="finale" aria-label="Publikační profil finále DV01">
+            <option value="Adult" selected>Adult · ostrý roast</option><option value="Chaos">Chaos · absurdní roast</option></select>` })}
+          ${field({ id: 'character-finale', label: "Finále", control: `<select class="aw-input" data-character="finale" aria-label="Publikační profil finále DV01">
             <option value="Blocked">Blokované · bez fyzického reveal</option>
-            <option value="Limited">Omezené · bez vysloveného názvu hůlky</option></select></label>
+            <option value="Limited">Omezené · bez vysloveného názvu hůlky</option></select>` })}
           <p class="footnote">Pojmenované finále a roast fotografie čekají na samostatné ověření. Změna platí pro nové session;
             ukončení živého rozhovoru a nouzový Stop používejte přes stávající ovládání.
             DV01 vyžaduje personalitu ollivander-trunk a backendový AutonomousActor. DV01 přepis se nepřenáší do paměti dalšího hosta.</p>
-          <div class="actions"><button type="button" data-debug="character-apply">Použít DV01 pro nové rozhovory</button>
-            <button type="button" data-debug="character-reset">Resetovat anonymní pestrost</button></div>
+          <div class="actions">${button({ label: "Použít DV01 pro nové rozhovory", attributes: {"data-debug": "character-apply"} })}
+            ${button({ label: "Resetovat anonymní pestrost", attributes: {"data-debug": "character-reset"} })}</div>
         </fieldset>
         <p data-personality-description></p>
         <p data-server-status role="status"></p>
@@ -161,10 +162,10 @@ export class DebugPanel {
       <section class="debug-card" aria-labelledby="server-log-heading"><h2 id="server-log-heading">Log serveru</h2>
         <p>Technické události serveru za posledních 24 hodin, nejvýše 5000 záznamů.
           Zobrazení obsahuje posledních 200 událostí vybraného filtru.</p>
-        <div class="actions"><label>Úroveň <select data-server-log-level aria-label="Úroveň serverového logu">
-          <option value="info">Všechny</option><option value="warning">Varování a chyby</option><option value="error">Chyby</option></select></label>
-          <button type="button" data-debug="logs-refresh">Načíst nové logy</button>
-          <button type="button" data-debug="logs-export">Sdílet serverový log JSON</button></div>
+        <div class="actions">${field({ id: 'server-log-level', label: "Úroveň", control: `<select class="aw-input" data-server-log-level aria-label="Úroveň serverového logu">
+          <option value="info">Všechny</option><option value="warning">Varování a chyby</option><option value="error">Chyby</option></select>` })}
+          ${button({ label: "Načíst nové logy", attributes: {"data-debug": "logs-refresh"} })}
+          ${button({ label: "Sdílet serverový log JSON", attributes: {"data-debug": "logs-export"} })}</div>
         <label><input type="checkbox" data-server-log-live> Automaticky obnovovat každé 2 sekundy</label>
         <p data-server-log-status role="status"></p>
         <ol class="debug-log" data-server-log-list aria-label="Události serveru"></ol>
@@ -173,13 +174,13 @@ export class DebugPanel {
       <section class="debug-card" aria-labelledby="evening-heading"><h2 id="evening-heading">Večery a paměť rozhovorů</h2>
         <p>Nový večer začne s prázdnou pamětí. Přepnutím obnovíte paměť vybraného večera;
           předchozí večery zůstanou uložené. Změny jsou dostupné mezi rozhovory.</p>
-        <div class="actions"><button type="button" data-debug="evenings-inspect">Obnovit seznam večerů</button></div>
+        <div class="actions">${button({ label: "Obnovit seznam večerů", attributes: {"data-debug": "evenings-inspect"} })}</div>
         <p data-evening-status role="status"></p>
-        <label>Uložený večer <select data-evening-selection aria-label="Uložený večer"></select></label>
-        <div class="actions"><button type="button" data-debug="evening-activate">Přepnout aktivní večer</button></div>
-        <label>Jméno nového večera <input type="text" data-evening-name aria-label="Jméno nového večera"
-          maxlength="160" placeholder="Například páteční oslava" autocomplete="off"></label>
-        <div class="actions"><button type="button" class="primary" data-debug="evening-create">Založit a aktivovat nový večer</button></div>
+        ${field({ id: 'saved-evening', label: "Uložený večer", control: `<select class="aw-input" data-evening-selection aria-label="Uložený večer"></select>` })}
+        <div class="actions">${button({ label: "Přepnout aktivní večer", attributes: {"data-debug": "evening-activate"} })}</div>
+        ${field({ id: 'new-evening-name', label: "Jméno nového večera", control: `<input class="aw-input" type="text" data-evening-name aria-label="Jméno nového večera"
+          maxlength="160" placeholder="Například páteční oslava" autocomplete="off">` })}
+        <div class="actions">${button({ label: "Založit a aktivovat nový večer", variant: 'primary', attributes: {"data-debug": "evening-create"} })}</div>
         <p class="footnote">Seznam patří nastavené testovací identitě. Obsah rozhovorů se zde nestahuje
           a založení ani přepnutí samo nevolá AI.</p>
       </section>
@@ -188,11 +189,11 @@ export class DebugPanel {
           Vyžaduje samostatné testovací device ID a credential backendu; místní párovací token sem nepatří.
           Replika se může uložit do paměti testovacího večera a test čerpá OpenAI účet.</p>
         <div class="actions">
-          <button type="button" data-debug="system">Test reproduktoru telefonu</button>
-          <button type="button" data-debug="inspect">Ověřit backend</button>
-          <button type="button" class="primary" data-debug="ai">Test AI hlasu</button>
-          <button type="button" data-debug="fake">Test fake audio toku</button>
-          <button type="button" data-debug="voice-stop">Zastavit hlas</button>
+          ${button({ label: "Test reproduktoru telefonu", attributes: {"data-debug": "system"} })}
+          ${button({ label: "Ověřit backend", attributes: {"data-debug": "inspect"} })}
+          ${button({ label: "Test AI hlasu", variant: 'primary', attributes: {"data-debug": "ai"} })}
+          ${button({ label: "Test fake audio toku", attributes: {"data-debug": "fake"} })}
+          ${button({ label: "Zastavit hlas", attributes: {"data-debug": "voice-stop"} })}
         </div>
         <p data-voice-status role="status"></p>
         <p class="footnote">Systémový hlas telefonu není AI TTS. Fake backend vrací tiché testovací WAV.
@@ -208,44 +209,44 @@ export class DebugPanel {
           </div>
         </fieldset>
         <div class="debug-conversation-options">
-          <label>Tok <select data-conversation-engine aria-label="Tok AI rozhovoru">
+          ${field({ id: 'conversation-engine', label: "Tok", control: `<select class="aw-input" data-conversation-engine aria-label="Tok AI rozhovoru">
             <option value="realtime" selected>Realtime · bez tlačítek</option>
             <option value="gpt-live">GPT-Live + Sol · test kvality</option>
             <option value="realtime-ptt">Realtime · ruční nahrávání</option>
-            <option value="chained">Řetězený · kompatibilní</option></select></label>
-          <label>Hlas <select data-conversation-voice aria-label="Hlas zkušebního rozhovoru">
+            <option value="chained">Řetězený · kompatibilní</option></select>` })}
+          ${field({ id: 'conversation-voice', label: "Hlas", control: `<select class="aw-input" data-conversation-voice aria-label="Hlas zkušebního rozhovoru">
             <option value="cedar" selected>Cedar</option><option value="marin">Marin</option>
-            <option value="onyx">Onyx</option><option value="coral">Coral</option></select></label>
-          <label>Tempo <select data-conversation-speed aria-label="Tempo zkušebního rozhovoru">
+            <option value="onyx">Onyx</option><option value="coral">Coral</option></select>` })}
+          ${field({ id: 'conversation-speed', label: "Tempo", control: `<select class="aw-input" data-conversation-speed aria-label="Tempo zkušebního rozhovoru">
             <option value="0.9">0,9×</option><option value="1">1×</option>
-            <option value="1.1" selected>1,1×</option><option value="1.2">1,2×</option></select></label>
+            <option value="1.1" selected>1,1×</option><option value="1.2">1,2×</option></select>` })}
         </div>
         <fieldset data-costume-controls><legend>Volitelná nápověda kostýmu</legend>
           <p>Fotku pořizujte jen se souhlasem hosta. Potvrzením „Použít fotku“ souhlasíte s jejím předáním
             serveru a OpenAI pro tento rozhovor. Fotka se neukládá do galerie ani paměti večera.</p>
-          <div class="actions"><button type="button" data-debug="costume-photo">Se souhlasem vyfotit kostým</button>
-            <button type="button" data-debug="costume-discard">Zrušit fotku</button></div>
+          <div class="actions">${button({ label: "Se souhlasem vyfotit kostým", attributes: {"data-debug": "costume-photo"} })}
+            ${button({ label: "Zrušit fotku", attributes: {"data-debug": "costume-discard"} })}</div>
           <p data-costume-status role="status"></p>
-          <label>Ruční popis nebo oprava odhadu <input type="text" data-costume-description maxlength="240"
-            autocomplete="off" placeholder="Například čaroděj s modrým pláštěm"></label>
+          ${field({ id: 'costume-description', label: "Ruční popis nebo oprava odhadu", control: `<input class="aw-input" type="text" data-costume-description maxlength="240"
+            autocomplete="off" placeholder="Například čaroděj s modrým pláštěm">` })}
           <p class="footnote">Popis má přednost před fotkou. Vzhled je nejistá nápověda; neověřuje identitu.
             Po chybě fotky rozhovor pokračuje. Běžný přepis se dál ukládá do paměti večera.</p>
         </fieldset>
         <div class="actions">
-          <button type="button" class="primary" data-debug="conversation-ai">Otestovat personalitu · AI</button>
-          <button type="button" data-debug="conversation-fake">Otestovat personalitu · fake</button>
-          <button type="button" class="stop" data-debug="conversation-stop">Ukončit a smazat rozhovor</button>
+          ${button({ label: "Otestovat personalitu · AI", variant: 'primary', attributes: {"data-debug": "conversation-ai"} })}
+          ${button({ label: "Otestovat personalitu · fake", attributes: {"data-debug": "conversation-fake"} })}
+          ${button({ label: "Ukončit a smazat rozhovor", variant: 'danger', attributes: {"data-debug": "conversation-stop"} })}
         </div>
         <p data-conversation-status role="status"></p>
         <p data-conversation-error role="alert" hidden></p>
         <p data-conversation-audio class="footnote" hidden></p>
         <ol class="debug-transcript" data-conversation-transcript aria-label="Přepis zkušebního rozhovoru"></ol>
         <div data-answer-controls><label class="debug-answer-label" for="debug-answer">Vaše odpověď</label>
-        <textarea id="debug-answer" data-conversation-answer maxlength="1000" rows="3"
+        <textarea class="aw-input" id="debug-answer" data-conversation-answer maxlength="1000" rows="3"
           placeholder="Napište vlastní odpověď"></textarea>
         <div class="actions">
-          <button type="button" class="primary" data-debug="conversation-send">Odeslat odpověď</button>
-          <button type="button" data-debug="conversation-record">Začít nahrávat odpověď</button>
+          ${button({ label: "Odeslat odpověď", variant: 'primary', attributes: {"data-debug": "conversation-send"} })}
+          ${button({ label: "Začít nahrávat odpověď", attributes: {"data-debug": "conversation-record"} })}
         </div>
         </div>
         <p class="footnote">V Realtime a GPT-Live stačí spustit rozhovor a povolit mikrofon. Realtime poslouchá mezi replikami;
@@ -257,12 +258,12 @@ export class DebugPanel {
       <section class="debug-card" aria-labelledby="log-heading"><h2 id="log-heading">Log aplikace</h2>
         <p>Posledních 200 změn stavu a hlasových akcí v paměti. Nejde o sériový log ESP.
           Rozhovory, audio ani přístupová tajemství se nezapisují.</p>
-        <div class="actions"><label>Filtr <select aria-label="Filtr logu">
+        <div class="actions">${field({ id: 'application-log-filter', label: "Filtr", control: `<select class="aw-input" aria-label="Filtr logu">
           <option value="all">Vše</option><option value="device">ESP / simulátor</option>
-          <option value="voice">Hlas</option><option value="app">Aplikace</option></select></label>
-          <button type="button" data-debug="pause" aria-pressed="false">Pozastavit zobrazení</button>
-          <button type="button" data-debug="clear">Vymazat log</button>
-          <button type="button" data-debug="export">Exportovat log JSON</button></div>
+          <option value="voice">Hlas</option><option value="app">Aplikace</option></select>` })}
+          ${button({ label: "Pozastavit zobrazení", attributes: {"data-debug": "pause", "aria-pressed": "false"} })}
+          ${button({ label: "Vymazat log", attributes: {"data-debug": "clear"} })}
+          ${button({ label: "Exportovat log JSON", attributes: {"data-debug": "export"} })}</div>
         <p data-log-count></p><ol class="debug-log" aria-label="Diagnostické události"></ol>
       </section>`;
     this.element.addEventListener('change', event => {

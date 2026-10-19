@@ -120,6 +120,7 @@
   }
 
   function mount(document, container, transport) {
+    const { button } = root.VapourUI;
     const section = document.createElement('section'); section.className='twin-media'; section.id='twin-media';
     section.setAttribute('aria-labelledby','twin-media-heading');
     section.innerHTML=`<h3 id="twin-media-heading">Normální AI kufr · browser HAL</h3>
@@ -130,20 +131,20 @@
         <label>Rychlost<select data-media-speed><option>0.8</option><option selected>1</option><option>1.2</option></select></label>
         <label>Prezentace<select data-media-variant><option>main</option><option>short</option></select></label>
         <label class="twin-media-checkbox"><input data-media-consent type="checkbox"> Souhlasím s jednou náhledovou fotkou</label>
-        <button data-media-save>Uložit nastavení</button><button data-media-reload type="button">Načíst nastavení</button>
+        ${button({"label": "Uložit nastavení", "attributes": {"data-media-save": ""}, "type": "submit"})}${button({"label": "Načíst nastavení", "attributes": {"data-media-reload": ""}})}
         <p data-media-revision></p>
       </form></details>
       <div class="twin-media-devices"><label>Mikrofon<select data-media-mic-device><option value="">Systémový mikrofon</option></select></label>
         <label>Reproduktor<select data-media-speaker-device><option value="">Systémový výstup</option></select></label>
         <label>Kamera<select data-media-camera-device><option value="">Systémová kamera</option></select></label>
-        <button data-media-devices>Načíst lokální zařízení</button><button data-media-mic>Aktivovat mikrofon</button><button data-media-speaker>Aktivovat reproduktor</button>
+        ${button({"label": "Načíst lokální zařízení", "attributes": {"data-media-devices": ""}})}${button({"label": "Aktivovat mikrofon", "attributes": {"data-media-mic": ""}})}${button({"label": "Aktivovat reproduktor", "attributes": {"data-media-speaker": ""}})}
       </div>
-      <div class="twin-media-actions"><button data-media-start>Spustit rozhovor</button><button data-media-stop class="aw-button aw-button--danger">Stop médií</button></div>
+      <div class="twin-media-actions">${button({"label": "Spustit rozhovor", "attributes": {"data-media-start": ""}, "variant": "primary"})}${button({"label": "Stop médií", "attributes": {"data-media-stop": ""}, "variant": "danger"})}</div>
       <p>Zvuk ukazuje software enqueue/drain evidence, nikoli potvrzení slyšitelnosti. Rozhoduje nativní core.</p>
       <div data-media-photo hidden><p>Nativní core žádá jednu fotku. Aktivujte kameru, prohlédněte náhled a výslovně přijměte.</p>
-        <button data-media-camera>Aktivovat kameru</button><video data-media-video autoplay playsinline muted></video>
-        <button data-media-capture>Pořídit náhled</button><img data-media-preview alt="Lokální náhled fotky před předáním" hidden>
-        <button data-media-accept>Přijmout a předat jednu fotku</button><button data-media-retake>Vymazat náhled</button><button data-media-skip-photo>Pokračovat bez fotky</button></div>
+        ${button({"label": "Aktivovat kameru", "attributes": {"data-media-camera": ""}})}<video data-media-video autoplay playsinline muted></video>
+        ${button({"label": "Pořídit náhled", "attributes": {"data-media-capture": ""}})}<img data-media-preview alt="Lokální náhled fotky před předáním" hidden>
+        ${button({"label": "Přijmout a předat jednu fotku", "attributes": {"data-media-accept": ""}, "variant": "primary"})}${button({"label": "Vymazat náhled", "attributes": {"data-media-retake": ""}})}${button({"label": "Pokračovat bez fotky", "attributes": {"data-media-skip-photo": ""}})}</div>
       <ol data-media-dialogue aria-label="Transientní nativní dialog" tabindex="0"></ol>`;
     container.append(section);
     const get=key=>section.querySelector(`[data-media-${key}]`);

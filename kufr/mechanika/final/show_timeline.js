@@ -215,17 +215,15 @@
       previousTime = root.performance.now();
       root.requestAnimationFrame(timestamp => frame(timestamp, generation));
     };
-    function close() { stop(); get('show-inspector').hidden = true; get('show-open').setAttribute('aria-expanded', 'false'); get('show-open').focus(); }
-    get('show-open').onclick = () => { get('show-inspector').hidden = false; get('show-open').setAttribute('aria-expanded', 'true'); get('show-close').focus(); };
-    get('show-close').onclick = close;
-    get('show-inspector').addEventListener('keydown', event => {
-      if (event.key === 'Escape') close();
-      if (event.key !== 'Tab') return;
-      const controls = Array.from(get('show-inspector').querySelectorAll('button:not([disabled]),select,input:not([disabled]),summary,[tabindex="0"]'));
-      const first = controls[0], last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    const inspector = root.VapourUI.bindDialog(get('show-inspector'), {
+      initialFocus: get('show-close'),
+      onClose: () => { stop(); get('show-open').setAttribute('aria-expanded', 'false'); },
     });
+    get('show-open').onclick = () => {
+      inspector.open(get('show-open'));
+      get('show-open').setAttribute('aria-expanded', 'true');
+    };
+    get('show-close').onclick = () => inspector.close();
     render();
   }
   const api = { parseTrace, compatibility, diffTraces, mount, MAX_BYTES, MAX_EVENTS };

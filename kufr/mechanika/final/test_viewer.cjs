@@ -16,6 +16,7 @@ class Element {
   addEventListener(name, callback) { this.listeners[name] = callback; }
   fire(name, event = {}) { this.listeners[name]?.({preventDefault() {}, ...event}); }
   setAttribute(name, value) { this.attributes[name] = value; }
+  set innerHTML(value) { this.textContent = value.replace(/<[^>]*>/g, ''); }
   getAttribute(name) { return this.attributes[name]; }
   append(node) { node.parent = this; this.children.push(node); }
   add(node) { this.append(node); }
@@ -101,6 +102,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     Option:class {constructor(text,value) {this.textContent = text; this.value = value;}},
     requestAnimationFrame:callback => frames.push(callback),
   };
+  require('./ui_test_runtime.cjs')(context);
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'viewer.js'),'utf8'), context);
   const flush = () => { let count=0; while (frames.length) { if (++count>1000) throw new Error('Animation did not finish'); clockNow+=100; frames.shift()(clockNow); } };
   const frame = (timestamp,liveNow=timestamp) => { if (Number.isFinite(liveNow)) clockNow=liveNow; const pending = frames.splice(0); for (const callback of pending) callback(timestamp); };
@@ -684,6 +686,9 @@ test('offline home resolves inside complete package while hosted viewer links to
 test('workshop template retains all source viewer IDs once and exposes self-contained stylesheet placeholders', () => {
   const template=fs.readFileSync(path.join(__dirname,'viewer-template.html'),'utf8');
   const ids=[...template.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);
+  const uiSource=fs.readFileSync(path.join(__dirname,'viewer_ui.js'),'utf8');
+  ids.push(...[...uiSource.matchAll(/id: '([^']+)'/g)].map(match=>match[1]));
+  ids.push(...[...uiSource.matchAll(/\['([^']+)', '[^']+', '(?:operation|service|transport|assembly)'\]/g)].map(match=>match[1]));
   assert.equal(new Set(ids).size,ids.length,'Duplicate DOM IDs break viewer handlers');
   const script=fs.readFileSync(path.join(__dirname,'viewer.js'),'utf8');
   for (const match of script.matchAll(/el\('([^']+)'\)/g)) assert.ok(ids.includes(match[1]),'Missing element '+match[1]);

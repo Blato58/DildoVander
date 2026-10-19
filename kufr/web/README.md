@@ -10,6 +10,10 @@ pozorovací konzole. Veřejný web neposkytuje simulátoru WSS facade ani token.
 jeho runtime soubory včetně `theme.js`, veřejný přehled večera a společný
 lokální design systém do téhož inventáře. Vzhled Vapour Chrome používá
 historický vstup `arcane-workshop.css` a sémantické `--aw-*` tokeny.
+Soukromý portál i veřejný přehled používají nativní komponenty z
+`/design-system/ui.js` pro hlášení, stav, výběr hůlky a akce. Builder ověřuje
+přítomnost společného runtime a generovaných tokenů i v samostatném balíčku
+`--keepsake-only`; chybějící framework odmítne před publikací.
 Volba vzhledu respektuje systémové nastavení (bez preference je tmavý)
 a umožňuje světlý či tmavý režim pomocí `data-theme`. Změna platí jen pro
 aktuální stránku; preference se neukládá do úložiště prohlížeče.

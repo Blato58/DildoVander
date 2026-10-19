@@ -33,7 +33,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
             (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site", "cad"}),
-            (["kufr/design-system/tokens/colors.css"], {"web", "ios", "site", "cad"}),
+            (["kufr/design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
             (["kufr/web/index.html"], {"site"}),
         ]:
             with self.subTest(paths=paths):
@@ -50,7 +50,9 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
-        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository", "cad"})
+        # This wrapper/filter is covered by repository/actionlint checks. Actual
+        # manufacturing commands live in the separately selected verified-cad action.
+        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios.yml"), {"repository", "ios"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
 
@@ -66,9 +68,27 @@ class ProjectSelectionTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn("cad", self.selected(path))
         for path in ["kufr/mobilni-aplikace/src/main.ts", "kufr/web/index.html",
-                     "kufr/contracts/package-lock.json", "kufr/backend/Program.cs"]:
+                     "kufr/contracts/package-lock.json", "kufr/backend/Program.cs",
+                     "kufr/design-system/tokens.json", "kufr/design-system/ui.js",
+                     "kufr/mechanika/final/viewer.js", "kufr/mechanika/final/viewer_document.py",
+                     "kufr/mechanika/final/viewer-workshop.css"]:
             with self.subTest(path=path):
                 self.assertNotIn("cad", self.selected(path))
+
+    def test_ui_inputs_keep_real_consumers_and_unknown_mechanics_conservative(self):
+        self.assertEqual(self.selected("kufr/design-system/tokens.json"),
+                         {"repository", "backend", "web", "ios", "site"})
+        self.assertEqual(self.selected("kufr/mechanika/final/viewer.js"), {"site"})
+        self.assertEqual(self.selected("kufr/mechanika/final/new-mechanism.py"), {"site", "cad"})
+        self.assertEqual(self.selected("kufr/simulator/dashboard-ui.js"), {"site"})
+        self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/panel.css"), {"site"})
+        self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/src/main.cpp"), {"firmware"})
+
+    def test_main_cad_workflow_exclusions_match_the_pr_selector(self):
+        from select_projects import VIEWER_UI_FILES
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/kufr-cad.yml').read_text()
+        for name in VIEWER_UI_FILES:
+            self.assertIn("- '!kufr/mechanika/final/" + name + "'", workflow)
 
     def test_recovery_site_covers_cad_without_a_duplicate_job(self):
         self.assertFalse(select_recovery_projects("all")["cad"])

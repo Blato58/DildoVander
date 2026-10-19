@@ -5,6 +5,7 @@ import base64
 import mimetypes
 from pathlib import Path
 import re
+from viewer_runtime import snapshot_runtime
 
 
 ROOT = Path(__file__).resolve().parent
@@ -44,6 +45,9 @@ def flatten_stylesheet(path: Path, root: Path, ancestors: tuple[Path, ...] = ())
 
 
 def snapshot_styles() -> Path:
+    # F2 source hashes call this before capture. Refresh both canonical assets
+    # here so a later HTML render cannot change the accepted source snapshot.
+    snapshot_runtime()
     if SHARED_ENTRY.is_file():
         content = "/* Generated shared Vapour Chrome styles; retained for standalone regeneration. */\n"
         content += flatten_stylesheet(SHARED_ENTRY, SHARED_ENTRY.parent)

@@ -1,0 +1,6 @@
+.aw-main { max-width: 1080px; }
+.aw-header { margin-bottom: 0; }
+.playground-wands { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--aw-space-3); }
+.aw-dialog:not([open]) { display: none; }
+#field { max-width: 32rem; }
+@media (max-width: 680px) { .playground-wands { grid-template-columns: minmax(0, 1fr); } }

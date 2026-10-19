@@ -1,16 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
+import { mountBenchUi } from "../panel-ui.mjs";
 
-const ids = ["connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm",
+const ids = ["connection-actions", "pulse-actions", "calibration-actions", "auto-actions", "stop-actions", "calibration-fields", "log-empty", "connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm",
   "pulse", "stop", "state", "error", "readback", "log", "mcp",
   "calibration-support", "cal-width", "cal-duration", "cal-range", "cal-minus", "cal-plus", "cal-1200", "cal-1500", "cal-1800",
   "cal-arm", "cal-move", "cal-validation", "profile-title", "profile-label", "profile-save-label", "profile-values",
   "profile-min", "profile-center", "profile-max", "profile-status", "profile-error", "profile-export", "profile-json", "profile-clear", "cal-state",
   "auto-context", "auto-min", "auto-max", "auto-state", "auto-candidate", "auto-save", "noise", "noise-warning"];
 
+test("shared markup preserves every panel hook and calibrated input boundary", async () => {
+  const fragments = [];
+  mountBenchUi({ getElementById: () => ({ set innerHTML(markup) { fragments.push(markup); } }) });
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const rendered = html + fragments.join("");
+  for (const id of ids) {
+    assert.equal([...rendered.matchAll(new RegExp(`\\bid="${id}"`, "g"))].length, 1, `unique control hook ${id}`);
+  }
+  assert.match(fragments.join(""), /min="1000" max="2000"/);
+  assert.match(fragments.join(""), /min="500" max="3000"/);
+  assert.match(fragments.join(""), /id="stop" disabled>Stop<\/button>/);
+});
+
 function fakePage(serial, modelContext, localStorage) {
   const elements = Object.fromEntries(ids.map(id => [id, {
-    disabled: false, value: id === "channel" ? "0" : "1500", textContent: "", hidden: false,
+    get textContent() { return this._text || ""; },
+    set textContent(value) { this._text = value; },
+    set innerHTML(value) { this.markup = value; this._text = value.replace(/<[^>]*>/g, ""); },
+    disabled: false, value: id === "channel" ? "0" : "1500", hidden: false,
     listeners: {}, addEventListener(event, listener) { this.listeners[event] = listener; },
     async click() { if (!this.disabled) await this.listeners.click?.(); },
   }]));
