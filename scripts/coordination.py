@@ -368,8 +368,8 @@ def main():
                           Path(args.body_file).read_text(encoding='utf-8'), args.acceptance_verified)
     else:
         claims = [claim for claim in discover(client)['activeClaims'] if claim['issue'] == args.issue]
-        if len(claims) != 1 or claims[0]['session'] != args.session:
-            raise CoordinationError('Release requires this session as sole task claimant')
+        if len([claim for claim in claims if claim['session'] == args.session]) != 1:
+            raise CoordinationError('Release requires this session to have an active claim')
         event = {'kind': args.kind, 'session': args.session,
                  'utc': datetime.now(timezone.utc).isoformat(),
                  'message': Path(args.body_file).read_text(encoding='utf-8')}
@@ -383,7 +383,7 @@ def main():
                 Path(args.body_file).read_text(encoding='utf-8'),
                 f'https://github.com/Blato58/DildoVander/pull/{args.pull_request}')
         else:
-            next_status = 'In Review' if args.kind == 'DONE' else 'Ready'
+            next_status = 'Blocked' if len(claims) > 1 else ('In Review' if args.kind == 'DONE' else 'Ready')
             result['project'] = project.update(item, next_status, '',
                                                Path(args.body_file).read_text(encoding='utf-8'))
     print(json.dumps(result, ensure_ascii=True, indent=2))

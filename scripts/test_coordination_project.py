@@ -160,6 +160,15 @@ class CommandTests(TestCase):
                 self.invoke(args)
             self.assertEqual('In Review', self.board.update.call_args.args[1])
 
+    def test_contended_claim_can_be_released_without_claiming_readiness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory)/'evidence.txt'
+            evidence.write_text('Releasing my colliding claim; reconcile the other session.')
+            claims = [{'issue': 2, 'session': 'A'}, {'issue': 2, 'session': 'B'}]
+            with mock.patch.object(c, 'discover', return_value={'activeClaims': claims}):
+                self.invoke(['release', '2', '--session', 'A', '--kind', 'HANDOFF', '--body-file', str(evidence)])
+            self.assertEqual('Blocked', self.board.update.call_args.args[1])
+
 
 if __name__ == '__main__':
     main()
