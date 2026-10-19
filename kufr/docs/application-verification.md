@@ -1,9 +1,11 @@
 # Unified application verification
 
 Repository implementation and isolated verification, 19 October 2026. Current
-source identity and acceptance are recorded in the `KUFR-APPLICATION` work item
-and its receipts under `docs/project/`. This document does not establish a
-production installation or signed-device acceptance.
+delivery and remaining acceptance are recorded in [Issue #227](https://github.com/Blato58/DildoVander/issues/227)
+and [implementation PR #218](https://github.com/Blato58/DildoVander/pull/218).
+The `KUFR-APPLICATION` records under `docs/project/` are dated historical
+snapshots with their original source scope; they are no longer a live tracker.
+This document does not establish production or signed-device acceptance.
 
 The [architecture and migration map](application-architecture.md) describes the
 single entry, routes, source ownership and compatibility URLs. The practical

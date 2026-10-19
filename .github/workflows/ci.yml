@@ -159,41 +159,6 @@ jobs:
           python3 -m unittest discover -s scripts -p 'test_design_system.py'
           python3 scripts/check_design_system.py
 
-  tracking:
-    name: Project tracking (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, windows-2025]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Test tracking and validate the committed snapshot
-        shell: python
-        env:
-          PYTHONUTF8: '1'
-          TRACKING_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.expected_base_sha }}
-        run: |
-          import os
-          import subprocess
-          import sys
-
-          baseline = os.environ.get('TRACKING_BASE_SHA') or 'HEAD^'
-          commands = [
-              ['--version'],
-              ['-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_project_status.py'],
-              ['scripts/project_status.py', 'validate', '--base', baseline],
-              ['scripts/project_status.py', 'verify-evidence'],
-              ['scripts/project_status.py', 'migration-check'],
-              ['scripts/project_status.py', 'render', '--check'],
-          ]
-          for command in commands:
-              subprocess.run([sys.executable, *command], check=True)
-
   backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -236,14 +201,13 @@ jobs:
   required:
     name: CI required
     if: always()
-    needs: [secret-scan, changes, repository, tracking, backend, firmware, web, ios, ai-eval, site, cad]
+    needs: [secret-scan, changes, repository, backend, firmware, web, ios, ai-eval, site, cad]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     env:
       RESULTS: ${{ toJSON(needs) }}
       SELECTED_PROJECTS: ${{ toJSON(needs.changes.outputs) }}
       SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
-      TRACKING_RESULT: ${{ needs.tracking.result }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -252,10 +216,6 @@ jobs:
         run: |
           if [ "$SECRET_SCAN_RESULT" != success ]; then
             echo 'Secret scan did not succeed' >&2
-            exit 1
-          fi
-          if [ "$TRACKING_RESULT" != success ]; then
-            echo 'Project tracking checks did not succeed' >&2
             exit 1
           fi
           python3 scripts/ci/select_projects.py check

@@ -1,8 +1,10 @@
 # One DildoVander application
 
-Repository architecture, 2026-10-19. Acceptance and environment limits are
-recorded in `docs/project/work-items/KUFR-APPLICATION.json`; never infer signed
-device or production acceptance from this document.
+Repository architecture, 2026-10-19. Current delivery and environment limits are
+recorded in [Issue #227](https://github.com/Blato58/DildoVander/issues/227) and
+[PR #218](https://github.com/Blato58/DildoVander/pull/218). The former
+`KUFR-APPLICATION` work item is a historical snapshot. Never infer signed-device
+or production acceptance from this document.
 
 The application source is `kufr/mobilni-aplikace`: Vue 3 SFCs, TypeScript,
 Vite, Vue Router, and the existing Capacitor Swift adapters. Hosted and iOS
