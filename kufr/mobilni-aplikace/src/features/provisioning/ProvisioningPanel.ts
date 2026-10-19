@@ -40,7 +40,7 @@ export class ProvisioningPanel {
           převezmou automaticky; přístup zůstane v Keychain tohoto iPhonu i při aktualizaci aplikace.</p>
         ${button({ label: "Spárovat ovládání přes Wi-Fi", disabled: true, attributes: {"data-ble": "pair-local"} })}
         <ul class="ble-devices" aria-label="Nalezené BLE kufry"></ul>
-        <p class="status" role="status" aria-live="polite">${nativeMode ? 'Vyhledejte zapnutý kufr.' : 'BLE provisioning je dostupný v nativní iPhone aplikaci. Web nemá přístup k Bluetooth.'}</p>
+        <p class="status" data-provisioning-status role="status" aria-live="polite">${nativeMode ? 'Vyhledejte zapnutý kufr.' : 'BLE provisioning je dostupný v nativní iPhone aplikaci. Web nemá přístup k Bluetooth.'}</p>
         <dl class="debug-metrics ble-metrics" hidden>
           <div><dt>Zařízení / firmware</dt><dd data-metric="device"></dd></div>
           <div><dt>Wi-Fi / výsledek</dt><dd data-metric="network"></dd></div>
@@ -149,7 +149,7 @@ export class ProvisioningPanel {
     this.busy = busy;
     if (status) this.connected = true;
     else if (!busy && message) this.connected = false;
-    const messageElement = this.element.querySelector<HTMLElement>('[role="status"]')!;
+    const messageElement = this.element.querySelector<HTMLElement>('[data-provisioning-status]')!;
     if (message && messageElement.textContent !== message) messageElement.textContent = message;
     const metrics = this.element.querySelector<HTMLElement>('.ble-metrics')!;
     if (metrics.hidden === this.connected) metrics.hidden = !this.connected;

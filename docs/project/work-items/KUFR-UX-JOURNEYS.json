@@ -29,19 +29,19 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "034418017fd2c17d29f50563c33ceac548a9ea56ef8b560e006094241635f1b9"
+        "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
       },
       "evidenceRefs": [
-        "KUFR-UX-JOURNEYS-unit-v2",
-        "KUFR-UX-JOURNEYS-browser-v2",
-        "KUFR-UX-JOURNEYS-source-review-v2"
+        "KUFR-UX-JOURNEYS-unit-v3",
+        "KUFR-UX-JOURNEYS-browser-v3",
+        "KUFR-UX-JOURNEYS-source-review-v3"
       ]
     }
   ],
   "blockers": [],
-  "nextAction": "Pushnout korekce integračních testů/tracking, nechat projít aktuální CI včetně Swift/iOS Simulator a všechna review PR213, poté ověřit autorizovaný merge na main.",
-  "currentNote": "Implementace 8626459 a integrace main c802aa0 byly ověřeně pushnuté; PR213 je otevřený. Lokální software/browser a nezávislé review prošly. První CI potvrdilo repository/backend/web/site, odhalilo checksum STATUS po normalizaci LF a pre-existing native test race. Opravený checksum je ověřený nad staged Git archive; test Peer je izolovaný MainActor, produkční native kód beze změny. Čeká nové CI a dokončení review. Source digest 034418017fd2c17d29f50563c33ceac548a9ea56ef8b560e006094241635f1b9.",
+  "nextAction": "Pushnout opravu review4309547041, ověřit aktuální CI a všechna review/vlákna PR213, poté autorizovaný merge na main a závěrečný CI/Git receipt.",
+  "currentNote": "PR213: d28f357 úspěšně prošel všemi požadovanými CI včetně Swift a nepodepsaného iOS Simulatoru. Review4309547041 správně odhalilo kolizi LAN/BLE statusu po vnoření nastavení. Opravený vlastní BLE hook a regrese discovery/pair/network zachovávají LAN zprávu; mobile 80 testů/build a nezávislá rodičovská kontrola prošly. Čeká push opravy, aktuální CI/review a merge. Source digest dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749.",
   "implementedSubject": {
-    "artifactDigest": "034418017fd2c17d29f50563c33ceac548a9ea56ef8b560e006094241635f1b9"
+    "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
   }
 }

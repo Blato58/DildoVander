@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UX-JOURNEYS-source-review-v3",
+  "kind": "source_review",
+  "observedAtUtc": "2026-10-19T01:09:01.540378+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UX-JOURNEYS",
+      "criterionId": "ACTIVE-JOURNEYS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Independent Sol6.1/high read-only correctness review against ec9ebd2 plus bounded final integration and screenshot review; parent independently inspected combined diff and rendered consumers. Impeccable detect --json over changed UI targets, generated token/import integrity checks and actual package/offline tests.",
+  "environment": "Windows local checkout; existing locked npm dependencies; Edge real browser with confined loopback/file and synthetic fixtures; no provider or actuator calls.",
+  "observation": "Parent independently verified and fixed GitHub review4309547041 in PR213: moving LAN settings inside the device preparation panel made a broad role=status query overwrite LAN feedback. BLE now uses its own data-provisioning-status hook; remaining selectors are feature-owned and have no LAN collisions. Two new regression cases exercise discovery, pairing, network acceptance/refusal and LAN preservation; 80 mobile tests and build pass. Earlier independent Sol review and screenshots remain applicable to unchanged runtime paths. The pre-existing native test Peer race fix passed actual Swift and unsigned Simulator CI at d28f357. The old GitHub thread will be resolved only after this tested correction is pushed; the latest review is still required before merge. Current complete source digest dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749, 56 sorted changed source paths from ec9ebd2 excluding docs/project; UTF8 path+NUL+LF-normalized bytes+NUL.",
+  "limitations": [
+    "Software and labelled synthetic browser evidence only. No signed iPhone, VoiceOver, physical suitcase/servo, real audio/camera, production deployment or paid provider acceptance.",
+    "UI-only offline viewer was generated through preview_ui_fixture.py/render_document with explicit synthetic geometry and guide steps. No CAD/STL/manufacturing ZIP regeneration or physical assembly acceptance.",
+    "Backend API/persistence, native adapters and firmware command/controller semantics are unchanged. Existing consent, static public evening QR, manual-only archive deletion and actuator gates are preserved.",
+    "Native Swift/iOS Simulator CI and GitHub delivery are assessed separately after push. Three existing Windows-dependent web tests skip; they are not counted as passed."
+  ],
+  "supersedes": [
+    "KUFR-UX-JOURNEYS-source-review-v2"
+  ],
+  "supersedesReason": "PR review found a valid nested feedback ownership defect. The dedicated BLE hook and regression tests are verified; all other runtime/style/build inputs are unchanged, supporting explicit transfer of prior evidence."
+}
