@@ -80,25 +80,30 @@ async function main() {
     assert.equal(postStop.snapshot.model.slots[2].position, 1, 'Stop did not auto-lower');
     assert.equal(postStop.snapshot.reported.needsRecovery, true);
     await command({ action: 'release' });
-    await login(credentials.integration);
-    await command({ action: 'stop' }, 'sim-integration');
-    await command({ action: 'inspect' }, 'sim-integration');
     const integration = [];
-    for (let index = 0; index < 8; index++) {
-      const result = await command({ action: 'integrationText', operationId: crypto.randomUUID(),
-        text: 'Synthetic software test answer ' + index }, 'sim-integration');
-      integration.push(result.code);
-      if (result.code === 'integration-presentation-admitted') break;
+    const integrationSkipped = process.env.KUFR_TEST_SKIP_INTEGRATION === 'true';
+    if (!integrationSkipped) {
+      await login(credentials.integration);
+      const settings = await (await context.request.get(origin + '/v1/twin/instances/sim-integration/settings')).json();
+      assert.equal(settings.engine, 'fake', 'integration browser acceptance must never call a paid provider');
+      await command({ action: 'stop' }, 'sim-integration');
+      await command({ action: 'inspect' }, 'sim-integration');
+      for (let index = 0; index < 8; index++) {
+        const result = await command({ action: 'integrationText', operationId: crypto.randomUUID(),
+          text: 'Synthetic software test answer ' + index }, 'sim-integration');
+        integration.push(result.code);
+        if (result.code === 'integration-presentation-admitted') break;
+      }
+      assert(integration.includes('integration-presentation-admitted'), 'production backend fake conversation admitted presentation');
+      await command({ action: 'release' }, 'sim-integration');
     }
-    assert(integration.includes('integration-presentation-admitted'), 'production backend fake conversation admitted presentation');
-    await command({ action: 'release' }, 'sim-integration');
     assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(output, 'browser-result.json'), JSON.stringify({
       origin, viewport: [1400, 900], mobileViewport: [390, 844], matrices: changes,
-      bootPreserved: true, stopNoAutoLower: true, integration, pageErrors: errors,
+      bootPreserved: true, stopNoAutoLower: true, integration, integrationSkipped, pageErrors: errors,
       physicalVerification: 'unavailable'
     }, null, 2));
-    console.log('PASS browser: native input -> tray_3 GPU movement 16mm, reload, mobile, Stop and isolated production backend integration');
+    console.log('PASS browser: native input -> tray_3 GPU movement 16mm, reload, mobile, Stop; integration ' + (integrationSkipped ? 'explicitly skipped' : 'fake backend passed'));
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

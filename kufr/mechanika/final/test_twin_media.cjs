@@ -64,7 +64,7 @@ function mounted() {
     atob:text=>Buffer.from(text,'base64').toString('binary'),crypto:{randomUUID:()=>BOOT},
     Option:function(text,value){this.textContent=text;this.value=value;},
     addEventListener:(name,callback)=>events.set(name,callback),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
-  context.window=context;vm.runInNewContext(fs.readFileSync(require.resolve('./twin_media.js'),'utf8'),context);
+  context.window=context;require('./ui_test_runtime.cjs')(context);vm.runInNewContext(fs.readFileSync(require.resolve('./twin_media.js'),'utf8'),context);
   const api=context.TwinMedia.mount(document,new Element(),{request:async(id,path,options={})=>{
     const request={id,path,...options};requests.push(request);
     if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;await pending.promise;}
@@ -88,6 +88,15 @@ test('PCM conversion is signed16 little-endian and capture queue is bounded to40
   const queue=new media.CaptureQueue();queue.push(new Uint8Array(9600));queue.push(new Uint8Array(9600));
   assert.throws(()=>queue.push(new Uint8Array(2)),/400 ms/);assert.equal(queue.take().length,9600);assert.equal(queue.bytes,9600);
   assert.throws(()=>media.decimal('01'));
+});
+test('capture trimming retains the newest samples across queue parts',()=>{
+  const queue=new media.CaptureQueue();
+  queue.push(Uint8Array.from([1,2,3,4]));queue.push(Uint8Array.from([5,6,7,8]));
+  assert.equal(queue.trim(6),2);assert.equal(queue.bytes,6);
+  assert.deepEqual(queue.parts.map(part=>[...part]),[[3,4],[5,6,7,8]]);
+  assert.equal(queue.trim(2),4);assert.deepEqual(queue.parts.map(part=>[...part]),[[7,8]]);
+  assert.equal(queue.trim(4),0);assert.equal(queue.trim(0),2);assert.equal(queue.bytes,0);
+  assert.deepEqual(queue.parts,[]);
 });
 test('settings preserve exact revisions, reject invalid gpt speed and never expose extra fields',()=>{
   const result=media.settings({...configuration,providerKey:'secret'});assert.equal(result.revision,'9007199254740993');assert.equal(result.providerKey,undefined);
@@ -128,14 +137,68 @@ test('actual activation/start handlers send native admission only, input begins 
   assert.equal(input.headers['Input-Sequence'],'0');assert.equal(input.headers['Media-Epoch'],'9007199254740993');assert.equal(input.headers['Boot-Id'],BOOT);
   assert.equal(input.headers.deviceId,undefined);
 });
-test('in-flight plus queued capture cannot exceed400ms and overflow immediately closes local devices',async()=>{
+test('slow microphone upload keeps400ms of newest audio without cancelling the session',async()=>{
   const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();await app.api.handle(output('listening'));
   const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
-  app.worklets[0].port.onmessage({data:new Float32Array(4800)});assert.equal(app.api.state().captureBytes,19200);
-  app.worklets[0].port.onmessage({data:new Float32Array(128)});await app.flush();
+  app.worklets[0].port.onmessage({data:new Float32Array(4800).fill(.25)});assert.equal(app.api.state().captureBytes,19200);
+  for(let i=0;i<40;i++) {
+    app.worklets[0].port.onmessage({data:new Float32Array(128).fill(-.5)});
+    assert.equal(app.api.state().captureBytes,19200);
+  }
+  await app.flush();assert.ok(app.api.state().actor);assert.equal(app.streams[0].getTracks()[0].stopped,false);
+  assert.match(app.get('status').textContent,/zvuku byla přeskočena/);assert.equal(app.get('error').textContent,'');
+  assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,0);finish();await app.flush();
+  const inputs=app.requests.filter(item=>item.path==='/media/input');assert.equal(inputs.length,2);
+  assert.equal(inputs[1].headers['Input-Sequence'],'1');
+  assert.deepEqual(inputs[1].body,media.pcm16(new Float32Array(4800).fill(-.5)));
+  assert.equal(app.api.state().captureBytes,0);
+});
+
+test('oversized capture callbacks retain only the newest400ms before sending',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();await app.api.handle(output('listening'));
+  const samples=new Float32Array(14400);samples.fill(.25,4800,9600);samples.fill(-.5,9600);
+  app.worklets[0].port.onmessage({data:samples});await app.flush();
+  const inputs=app.requests.filter(item=>item.path==='/media/input');assert.equal(inputs.length,2);
+  assert.deepEqual(inputs[0].body,media.pcm16(samples.subarray(4800,9600)));
+  assert.deepEqual(inputs[1].body,media.pcm16(samples.subarray(9600)));
+  assert.ok(app.api.state().actor);assert.equal(app.api.state().captureBytes,0);
+});
+
+test('retired in-flight microphone epoch waits for a newer gate without cancelling voice or replaying the block',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('listening'));
+  const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  app.worklets[0].port.onmessage({data:new Float32Array(4800)});
+  app.worklets[0].port.onmessage({data:new Float32Array(128)});
+  finish.reject(Object.assign(new Error('retired microphone gate'),{status:409,code:'media-input-retired'}));await app.flush();
+  assert.ok(app.api.state().actor);assert.equal(app.api.state().mic,true);assert.equal(app.api.state().captureBytes,0);
+  assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,0);
+  app.setMediaState({...output('listening'),active:true});await app.poll();
+  await app.api.handle(output('listening','2'));app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  assert.equal(app.requests.filter(item=>item.path==='/media/input').length,1,'stale state/FIFO cannot reopen rejected gate');
+  await app.api.handle(output('listening','3',{inputEpoch:'3'}));
+  app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  const inputs=app.requests.filter(item=>item.path==='/media/input');assert.equal(inputs.length,2);
+  assert.equal(inputs[1].headers['Input-Epoch'],'3');assert.equal(inputs[1].headers['Input-Sequence'],'0');
+  assert.equal(app.get('error').textContent,'');
+});
+
+test('current gate sequence errors remain fatal and are never retried as retired audio',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();await app.api.handle(output('listening'));
+  const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  finish.reject(Object.assign(new Error('invalid microphone sequence'),{status:409,code:'media-input-sequence-mismatch'}));await app.flush();
+  assert.equal(app.api.state().actor,null);assert.equal(app.requests.filter(item=>item.path==='/media/input').length,1);
+  assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,1);
+});
+
+test('transport failure after capture shedding still cancels and closes local microphone',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();await app.api.handle(output('listening'));
+  const finish=app.hold('/media/input');app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  app.worklets[0].port.onmessage({data:new Float32Array(5000)});
+  finish.reject(new Error('upload disconnected'));await app.flush();
   assert.equal(app.api.state().actor,null);assert.equal(app.streams[0].getTracks()[0].stopped,true);
-  assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,1);finish();await app.flush();
-  assert.equal(app.requests.filter(item=>item.path==='/media/input').length,1);
+  assert.equal(app.api.state().captureBytes,0);assert.equal(app.requests.filter(item=>item.path==='/media/input').length,1);
+  assert.equal(app.requests.filter(item=>item.path==='/media/cancel').length,1);
 });
 test('PCM enqueue sends no ACK before actual end; drain confirms consumed bytes not audible sound',async()=>{
   const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
@@ -146,6 +209,19 @@ test('PCM enqueue sends no ACK before actual end; drain confirms consumed bytes 
   const acknowledgements=app.requests.filter(item=>item.path==='/media/played').map(item=>JSON.parse(item.body));
   assert.equal(acknowledgements.length,2);assert.equal(acknowledgements[0].drained,false);assert.equal(acknowledgements[1].drained,true);
   assert.equal(acknowledgements[1].pcmBytes,'4');assert.equal(acknowledgements[1].outputEpoch,'1');
+});
+test('coalesced32KiB PCM preserves exact cumulative drain across monotonic sequence gaps',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('pcm','10',{byteLength:32768,pcmBase64:Buffer.alloc(32768).toString('base64'),pcmBytes:'32768'}));
+  await app.api.handle(output('pcm','20',{byteLength:9600,pcmBase64:Buffer.alloc(9600).toString('base64'),pcmBytes:'42368'}));
+  await app.api.handle(output('drain','21',{pcmBytes:'42368',drainedRequested:true}));
+  assert.equal(app.requests.filter(item=>item.path==='/media/played').length,0);
+  app.contexts[0].nodes[0].finish();await app.flush();
+  const first=app.requests.filter(item=>item.path==='/media/played').map(item=>JSON.parse(item.body));
+  assert.equal(first.length,1);assert.equal(first[0].pcmBytes,'32768');assert.equal(first[0].drained,false);
+  app.contexts[0].nodes[1].finish();await app.flush();
+  const acknowledgements=app.requests.filter(item=>item.path==='/media/played').map(item=>JSON.parse(item.body));
+  assert.equal(acknowledgements.length,3);assert.equal(acknowledgements[2].pcmBytes,'42368');assert.equal(acknowledgements[2].sequence,'21');assert.equal(acknowledgements[2].drained,true);
 });
 test('cancel and suspended context never acknowledge scheduled output; old epoch callbacks cannot revive',async()=>{
   const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();

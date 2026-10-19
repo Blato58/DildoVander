@@ -21,4 +21,4 @@ Veřejný [3D Workshop](https://2.28.202.220/workshop/) a celý aktuální ZIP
 publikuje automaticky workflow `kufr-site-deploy.yml` po změně příslušných
 zdrojů v `main`. Nasazení regeneruje a kontroluje všechny zdroje a exporty;
 postup a rollback popisuje [veřejný web](../web/README.md). Vzhled vieweru
-určuje společný [Arcane Workshop](../design-system/README.md).
+určuje společný [Vapour Chrome](../design-system/README.md).

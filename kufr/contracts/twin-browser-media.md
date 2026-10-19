@@ -113,6 +113,14 @@ access settings writes or media payloads. Only one media actor owns an instance.
  262144 bytes, with current session/epoch headers; native validates it.
 - POST `.../media/played`: session/epoch/outputEpoch/sequence/pcmBytes/drained.
 
+Browser capture keeps at most400ms of PCM including the current HTTP upload.
+When network jitter fills that allowance, it discards the oldest **unsent**
+samples and retains the newest audio with a visible warning. This avoids ending
+the conversation for a transient backlog; some speech can be lost. Submitted
+blocks remain sequential, are never replayed, and still count toward the bound.
+Transport failures and invalid sequences retain their normal cancellation rules;
+the native400ms queue and epoch/gate validation are unchanged.
+
 The browser removes JPEG APP metadata and comments from its canvas output,
 retaining only thumbnail-free canonical JFIF and the original encoded scan and
 tables. This adapts browser ICC metadata to the existing firmware photo policy;

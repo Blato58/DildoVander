@@ -6,6 +6,7 @@
 - `obludarium/firmware/` je oddělený projekt PlatformIO pro Arduino Nano; neměň ho při práci na kufru bez zadání, které se ho týká.
 - Architekturu, kontrakty, závislosti a kritéria etap určuje [implementační plán](kufr/docs/implementacni-plan.md). Aktuální práci, blokace a ověření vede [generovaný STATUS](docs/project/STATUS.md). README jsou přehled a návod pro aktuálně existující kód, nikoli alternativní roadmapa.
 - Pro zapojení a napájení čti `kufr/docs/efekty-a-napajeni.md`, pro podkladovou pinovou mapu `kufr/docs/pin-mapa-esp32-s3.md` a pro omezení kamery `kufr/docs/kamera.md`. Předběžné profily A/B a bezpečnostní obvod jsou v kapitolách 8 a 10 plánu.
+- Je-li přítomná `.codex/personal-routing.md`, načti ji jako doplněk aktuálních tracked pokynů. Přípravu lokálního kontextu nového worktree popisuje [.codex/environment/README.md](.codex/environment/README.md); Windows checkout, Cloud a VPS nejsou zaměnitelné prostředí.
 
 ## Jak začít nebo pokračovat v implementaci
 
@@ -60,15 +61,41 @@
 - Pro každou změnu uživatelského rozhraní v tomto repozitáři načti tracked skill
   [.agents/skills/dildovander-ui/SKILL.md](.agents/skills/dildovander-ui/SKILL.md).
   Platí pro mobilní aplikaci, simulátor, Workshop/CAD viewer i veřejný přehled.
-- Zdrojem sdíleného vzhledu je [Arcane Workshop](kufr/design-system/README.md):
+- Zdrojem sdíleného vzhledu je [Vapour Chrome](kufr/design-system/README.md):
   používej jeho tokeny, komponenty a pravidla přístupnosti. Lokální styl řeší
   rozložení konkrétního UI; nevytvářej další nezávislou paletu ani fontové CDN.
+- Před novou komponentou prohlédni `kufr/design-system/ui.js` a jeho interaktivní
+  `playground/`; sdílej vykonatelný renderer a chování, ne kopii HTML/CSS.
+  Zdrojem tokenů je `tokens.json`, výstupy generuje `scripts/generate_design_tokens.py`.
+  Platformové a balicí hranice popisuje [UI architektura](kufr/design-system/architecture.md).
+  Zachovej vlastnictví autorizace a zařízeníových stavů ve funkci; iOS Capacitor
+  spotřebovává stejný UI bundle. UI-only změny ověř cíleně bez regenerace CAD.
+- Kanonické barvy jsou `#EEF1F5`, `#1B2430`, `#8A94A6`, `#B8C0FF`.
+  Používej sémantické tokeny, přístupné kontrasty a společné komponenty.
+  Jméno vstupu `arcane-workshop.css` a prefixy `aw-*` zůstávají kompatibilním API,
+  nikoli starou vizuální identitou. Nové i upravované UI patří do Vapour Chrome.
+- Při požadavcích typu „vylepši UI“, „uprav navigaci“, „mobilní layout“ nebo
+  „nový web/dashboard“ vyber podle rozsahu instalované Impeccable, Product Design,
+  frontend-quality-workflow a browser-validation. Discovery je modelové rozhodnutí;
+  významné změny vyžadují skutečný render v desktopové i mobilní šířce.
 - Ilustrace a simulace musí zůstat jasně označené. Vzhled nemění autorizaci,
   bezpečnostní brány, smlouvy ani důkazní hranici hardware/iPhone. Generovaný
   viewer upravuj ve zdroji a přegeneruj skutečným postupem.
+- U významnější UI změny projdi Understand → Explore → Design → Implement → Render → Inspect → Refine → Validate podle skillu. Akceptaci CAD ovládání a simulátoru načti podle rozsahu z jeho [cílených kontrol](.agents/skills/dildovander-ui/references/acceptance.md); nevyžaduj všechny nástroje pro drobnou úpravu.
 
 ## Sestavení a ověření
 
+- CAD není součást běžného software buildu. Backend, firmware, mobilní UX a
+  nesouvisející dokumentace nespouštějí CAD, slicer ani rendery. Dopad určuje
+  `scripts/ci/cad_impact.py` se sdílenou politikou `source_inputs.py`; neznámé
+  mechanické vstupy posuzuj konzervativně. Viewer HTML/CSS/JS ověř cílenými
+  testy bez regenerace geometrie. Podrobnosti a příkazy jsou v
+  [CAD README](kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
+- Pro mechanické změny použij běžnou inkrementální `Regenerate.ps1` a zachovej
+  kontroly kolizí, montáže a tisku. Ověřené nezměněné výsledky lze znovu použít
+  jen se shodou vstupů a ověřenými bytes/proveniencí. `-Force` a kompletní
+  regeneraci použij pouze na výslovné zadání nebo se zdůvodněním závislosti;
+  samotné PR, změna větve nebo nový Codex task nejsou důvodem.
 - V `kufr/firmware/` spusť `pio run`. Čistou posloupnost lze testovat hostitelským C++ kompilátorem podle příkazu v `kufr/firmware/README.md`; testy jsou v `kufr/firmware/tests/`.
 - V `kufr/mobilni-aplikace/` je lockfile: pro reprodukovatelnou instalaci použij `npm ci`, pro kontrolu `npm test` a `npm run build` (`tsc --noEmit && vite build`). Aplikace obsahuje LAN ovládání ESP32 a nativní backend Debug; browser ani simulátor neprokazují akceptaci na iPhonu. Nativní testy a podpis ověř existujícím macOS workflow výše.
 - V `obludarium/firmware/` je sestavovací příkaz `pio run`; projekt je zatím jen startovní kostra.

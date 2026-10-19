@@ -1,4 +1,6 @@
+import { button } from '../../../../design-system/ui.js';
 import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
+import { liveActionBlocker } from '../device_connection/OperatorReadiness';
 
 interface DanceConnection { startDance(): boolean; stopDance(): boolean; }
 
@@ -8,7 +10,6 @@ export class DancePanel {
     this.element.className = 'conversation-panel dance-panel';
     this.element.setAttribute('aria-label', 'Dance for me');
     this.element.innerHTML = `
-      <span class="eyebrow">HUDBA A EFEKTY</span>
       <h2>Dance for me</h2>
       <p>Kufr náhodně vybere jednu z nastavených skladeb na SD kartě, přehraje ji
          svým reproduktorem a roztančí světla a krátké vibrace podle jejího tempa.</p>
@@ -17,9 +18,10 @@ export class DancePanel {
         <progress aria-label="Průběh skladby" max="1" value="0"></progress>
         <span data-dance-time></span>
       </div>
+      <p class="availability-blocker" data-dance-availability></p>
       <div class="actions">
-        <button type="button" class="primary" data-dance="start" disabled>Dance for me</button>
-        <button type="button" data-dance="stop" disabled>Zastavit tanec</button>
+        ${button({ label: "Dance for me", variant: 'primary', disabled: true, attributes: {"data-dance": "start"} })}
+        ${button({ label: "Zastavit tanec", disabled: true, attributes: {"data-dance": "stop"} })}
       </div>
       <p role="status" aria-live="polite"></p>
       <p class="footnote">Pro tanec uvolněte ruční řízení a ukončete rozhovor.
@@ -31,6 +33,9 @@ export class DancePanel {
   update(snapshot: DeviceSnapshot): void {
     const dance = snapshot.dance;
     const native = snapshot.source === 'native-device';
+    const blocker = this.element.querySelector<HTMLElement>('[data-dance-availability]')!;
+    blocker.textContent = liveActionBlocker(snapshot, 'dance');
+    blocker.hidden = !blocker.textContent;
     const start = this.element.querySelector<HTMLButtonElement>('[data-dance="start"]')!;
     start.disabled = !native || dance?.canStart !== true || snapshot.busy;
     start.setAttribute('aria-busy', String(dance?.pending === true));

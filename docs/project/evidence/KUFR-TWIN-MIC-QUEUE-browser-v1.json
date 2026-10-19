@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-TWIN-MIC-QUEUE-browser-v1",
+  "observedAtUtc": "2026-10-15T15:27:34.195030+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-TWIN-MIC-QUEUE",
+      "criterionId": "CAPTURE",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "b8e9c881e7f6329e2bc86c760cd8de40c993a04cb4142245fb501c24f9b0c53a"
+  },
+  "method": "PLAYWRIGHT_MODULE_PATH=bundled/playwright PLAYWRIGHT_CHANNEL=chrome node --test kufr/mechanika/final/test_twin_media_browser.cjs; render_document(payload_from_v16) then local Chrome offline load",
+  "environment": "Windows; Node.js; installed Chrome with fake media devices; no provider requests",
+  "limitations": [
+    "No deployment, paid AI, physical microphone/acoustic or hardware acceptance.",
+    "Persistent slow transport can lose speech; the visible warning discloses dropped unsent samples.",
+    "Offline generated viewer and browser HAL fixture are separate software checks, not a full real-provider voice session."
+  ],
+  "observation": "2 Chrome fake-device tests passed. First microphone upload delayed600ms; warning visible, actor remains alive, capture<=19200B, sequential200ms input recovers; zero cancels before normal completion. JPEG/PCM drain and390/320/1280px checks pass. Regenerated actual CAD viewer opens offline1280x900 with updated capture module and zero page errors.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-source-v1.json"
+  ]
+}

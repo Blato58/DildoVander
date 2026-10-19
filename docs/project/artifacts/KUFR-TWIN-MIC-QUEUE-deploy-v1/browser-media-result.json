@@ -1,0 +1,109 @@
+{
+  "expectedBuildId": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
+  "instanceId": "sim-integration",
+  "providerMode": "fake",
+  "fakeBrowserDevices": true,
+  "delayRequestedMs": 600,
+  "settingsRestored": true,
+  "controlsReleased": true,
+  "browserClosed": true,
+  "optionalActiveReload": "not_run",
+  "stage": "verification_complete",
+  "buildId": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
+  "cadRevision": "eb942d229435984eaeaecd47661ebaf37e1f87c3587bad5ef64ec15cb206387c",
+  "bootId": "be475a52-9068-42e4-9606-b172f1082445",
+  "cad": {
+    "revision": "eb942d229435984eaeaecd47661ebaf37e1f87c3587bad5ef64ec15cb206387c",
+    "hardwareProfile": "B-effects",
+    "trays": 6
+  },
+  "jitterWarningWhileActive": true,
+  "nativeCompleted": true,
+  "normalCompletionCancelCount": 0,
+  "delayActualMs": 603.2000000178814,
+  "captureMaximumBytes": 19200,
+  "microphoneInputs": [
+    {
+      "epoch": "1",
+      "sequence": "0",
+      "status": 204,
+      "acceptedBytes": 9600
+    },
+    {
+      "epoch": "1",
+      "sequence": "1",
+      "status": 409,
+      "acceptedBytes": 0,
+      "retired": true
+    },
+    {
+      "epoch": "3",
+      "sequence": "0",
+      "status": 204,
+      "acceptedBytes": 9600
+    },
+    {
+      "epoch": "5",
+      "sequence": "0",
+      "status": 204,
+      "acceptedBytes": 9600
+    },
+    {
+      "epoch": "7",
+      "sequence": "0",
+      "status": 204,
+      "acceptedBytes": 9600
+    }
+  ],
+  "photoAcceptedBytes": 3920,
+  "photoFallback": false,
+  "pcmFrameBytes": [
+    4800,
+    4800,
+    4800,
+    4800,
+    4800
+  ],
+  "drainCount": 5,
+  "cumulativeDrainedBytes": 24000,
+  "pageErrorCount": 0,
+  "physicalVerification": "unavailable",
+  "reloadNoReplay": true,
+  "desktopViewport": [
+    1400,
+    900
+  ],
+  "mobileViewport": [
+    390,
+    844
+  ],
+  "passed": true,
+  "primaryError": null,
+  "cleanupErrors": [],
+  "normalCompleteObserved": true,
+  "drains": [
+    {
+      "pcmBytes": "4800"
+    },
+    {
+      "pcmBytes": "9600"
+    },
+    {
+      "pcmBytes": "14400"
+    },
+    {
+      "pcmBytes": "19200"
+    },
+    {
+      "pcmBytes": "24000"
+    }
+  ],
+  "photos": [
+    {
+      "status": 204,
+      "acceptedBytes": 3920
+    }
+  ],
+  "startCount": 1,
+  "cancelCount": 0
+}

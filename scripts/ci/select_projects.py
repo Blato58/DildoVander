@@ -7,6 +7,8 @@ from pathlib import PurePosixPath
 import re
 import subprocess
 
+from cad_impact import classify_path, impact_plan
+
 
 PROJECTS = ("repository", "backend", "firmware", "web", "ios", "ai-eval", "site", "cad")
 BUILD_WORKFLOWS = {
@@ -17,29 +19,16 @@ BUILD_WORKFLOWS = {
     ".github/workflows/kufr-ios-sign.yml": "ios",
     ".github/workflows/kufr-ai-eval.yml": "ai-eval",
     ".github/workflows/kufr-site.yml": "site",
-    ".github/workflows/kufr-cad.yml": "cad",
 }
-
-CAD_INPUTS = {
-    "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
-    "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
-    "scripts/ci/install-cad-slicer.sh",
-    "scripts/ci/cad_cache.py",
-    "scripts/ci/test_cad_cache.py",
-    "kufr/mobilni-aplikace/.nvmrc",
-}
-
 
 def select_projects(paths):
     selected = dict.fromkeys(PROJECTS, False)
     for path in paths:
         parts = PurePosixPath(path).parts
-        cad_input = path.startswith((
-            "kufr/mechanika/final/", "kufr/design-system/", ".github/actions/verified-cad/",
-        )) or path in CAD_INPUTS
-        if not cad_input and ("docs" in parts or PurePosixPath(path).suffix.lower() in {".md", ".mdx", ".rst"}):
+        cad_impact = classify_path(path)
+        if cad_impact == "none" and ("docs" in parts or PurePosixPath(path).suffix.lower() in {".md", ".mdx", ".rst"}):
             continue
-        if cad_input:
+        if cad_impact == "manufacturing":
             selected["cad"] = True
         if path.startswith((".github/", "scripts/ci/")):
             selected["repository"] = True
@@ -52,7 +41,9 @@ def select_projects(paths):
             "kufr/global.json", "kufr/Directory.Build.props", "NuGet.Config"
         }:
             selected["backend"] = True
-        if path.startswith("kufr/firmware/"):
+        if path.startswith("kufr/firmware/diagnostics/servo-bench/web/") or path == "kufr/firmware/diagnostics/servo-bench/tools/serve_panel.py":
+            selected["site"] = True
+        elif path.startswith("kufr/firmware/"):
             selected["firmware"] = True
         if path.startswith("kufr/mobilni-aplikace/"):
             selected["web"] = True
@@ -61,14 +52,25 @@ def select_projects(paths):
         if path.startswith(("kufr/web/", "kufr/mechanika/", "kufr/design-system/")):
             selected["site"] = True
         if path.startswith("kufr/design-system/"):
+            selected["repository"] = True
             selected["web"] = True
             selected["ios"] = True
+            # The self-contained archival card consumes generated C# tokens.
+            if path.endswith("tokens.json"):
+                selected["backend"] = True
+        if path in {"scripts/generate_design_tokens.py", "scripts/check_design_system.py",
+                    "scripts/test_design_system.py"}:
+            selected["repository"] = True
         if path.startswith("kufr/ai-eval/"):
             selected["ai-eval"] = True
         if path.startswith("kufr/contracts/"):
             for name in ("backend", "firmware", "web", "ios", "site"):
                 selected[name] = True
-        if path.startswith("kufr/simulator/"):
+        if path.startswith("kufr/simulator/") and PurePosixPath(path).name in {
+            "dashboard.html", "dashboard.js", "dashboard-ui.js", "verify-dashboard.mjs",
+        }:
+            selected["site"] = True
+        elif path.startswith("kufr/simulator/"):
             selected["firmware"] = selected["web"] = selected["ios"] = True
             if PurePosixPath(path).name.startswith("dashboard"):
                 selected["site"] = True
@@ -98,12 +100,37 @@ def check_results(selected, jobs):
         raise ValueError("Unexpected CI results: " + ", ".join(failed))
 
 
-def select_recovery_projects(project):
+def select_recovery_projects(project, force_cad=False):
     selected = {name: project in ("all", name) for name in PROJECTS}
     # Recovery site builds already run full CAD verification before packaging.
     if project == "all":
         selected["cad"] = False
+    if force_cad and not selected["site"]:
+        selected["cad"] = True
     return selected
+
+
+def write_cad_summary(paths, selected, recovery=None):
+    destination = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not destination:
+        return
+    plan = impact_plan(paths)
+    causes = plan["causes"]["manufacturing"]
+    with open(destination, "a", encoding="utf-8") as summary:
+        summary.write("### CAD impact\n\n")
+        summary.write(f"- Manufacturing job selected: {str(selected['cad']).lower()}\n")
+        if recovery:
+            summary.write(f"- Explicit recovery scope: {recovery}; site recovery verifies manufacturing once.\n")
+        elif causes:
+            summary.write("- Affected owners: " + ", ".join(plan["owners"]) + "\n")
+            for cause in causes[:12]:
+                summary.write("- Input: " + json.dumps(cause["path"], ensure_ascii=True) + "\n")
+            if len(causes) > 12:
+                summary.write(f"- {len(causes) - 12} additional manufacturing inputs.\n")
+        else:
+            summary.write("- No manufacturing dependency changed; CAD setup, geometry, renders, slicer and mechanical verification skipped.\n")
+        if plan["causes"]["viewer"]:
+            summary.write(f"- Viewer inputs: {len(plan['causes']['viewer'])}; focused viewer checks apply.\n")
 
 
 def main():
@@ -112,15 +139,19 @@ def main():
     parser.add_argument("--base")
     parser.add_argument("--head")
     parser.add_argument("--project", choices=("all",) + PROJECTS)
+    parser.add_argument("--force-cad", action="store_true")
     args = parser.parse_args()
     if args.mode == "check":
         check_results(json.loads(os.environ["SELECTED_PROJECTS"]), json.loads(os.environ["RESULTS"]))
         print("Every selected project passed; unrelated projects were skipped")
         return
+    paths = []
     if args.project:
-        selected = select_recovery_projects(args.project)
+        selected = select_recovery_projects(args.project, args.force_cad)
     else:
-        selected = select_projects(changed_paths(args.base, args.head))
+        paths = changed_paths(args.base, args.head)
+        selected = select_projects(paths)
+    write_cad_summary(paths, selected, args.project)
     print(json.dumps(selected, sort_keys=True))
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:

@@ -13,6 +13,11 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 BINARY = os.environ.get("GITLEAKS_BINARY") or shutil.which("gitleaks")
 SCAN_COMMAND = '"$RUNNER_TEMP/gitleaks" git --config=.gitleaks.toml --redact=100 --no-banner --log-opts=HEAD'
+INVENTORY_PATHS = (
+    "docs/project/evidence/fixture.json",
+    "docs/project/artifacts/fixture.json",
+    "docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release.json",
+)
 
 
 class SecretScanWorkflowTests(unittest.TestCase):
@@ -67,8 +72,8 @@ class SecretScanIntegrationTests(unittest.TestCase):
 
     def test_file_hashes_survive_new_commits_and_squash_without_exceptions(self):
         digest = hashlib.sha256(b"synthetic compiled file bytes").hexdigest()
-        for folder in ("evidence", "artifacts"):
-            self.write(f"docs/project/{folder}/fixture.json", json.dumps({
+        for path in INVENTORY_PATHS:
+            self.write(path, json.dumps({
                 "assembly_access.py": digest,
                 "kufr/backend/DeviceAccessTokenService.cs": digest,
                 "Microsoft.AspNetCore.Authentication.BearerToken.dll": digest,
@@ -96,8 +101,8 @@ class SecretScanIntegrationTests(unittest.TestCase):
 
     def test_real_detectors_still_block_secrets_in_allowed_files(self):
         token = self.synthetic_token()
-        for folder in ("evidence", "artifacts"):
-            self.write(f"docs/project/{folder}/fixture.json", json.dumps({
+        for path in INVENTORY_PATHS:
+            self.write(path, json.dumps({
                 "api_key": hashlib.sha256(b"synthetic secret value").hexdigest(),
                 "access.py": token,
             }, indent=2))
@@ -109,20 +114,31 @@ class SecretScanIntegrationTests(unittest.TestCase):
         findings = self.scan(1)
         self.assertIn("github-pat", {finding["RuleID"] for finding in findings})
         self.assertIn("generic-api-key", {finding["RuleID"] for finding in findings})
-        self.assertEqual(5, len({finding["File"] for finding in findings}))
+        self.assertEqual(6, len({finding["File"] for finding in findings}))
+        for path in INVENTORY_PATHS:
+            self.assertEqual({"github-pat", "generic-api-key"},
+                             {finding["RuleID"] for finding in findings if finding["File"] == path})
 
     def test_hash_exception_requires_inventory_path(self):
         digest = hashlib.sha256(b"synthetic bytes").hexdigest()
         self.write("settings.json", json.dumps({"assembly_access.py": digest}, indent=2))
+        self.write("docs/project/artifacts/other/nested.json",
+                   json.dumps({"assembly_access.py": digest}, indent=2))
         self.commit("Hash outside inventory")
-        self.assertTrue(self.scan(1))
+        findings = self.scan(1)
+        self.assertEqual({"settings.json", "docs/project/artifacts/other/nested.json"},
+                         {finding["File"] for finding in findings})
 
     def test_inventory_exception_does_not_suppress_provider_specific_detector(self):
         digest = hashlib.sha256(b"synthetic Sentry-shaped token").hexdigest()
-        self.write("docs/project/evidence/fixture.json", json.dumps({"sentry_api_key.py": digest}, indent=2))
+        for path in INVENTORY_PATHS:
+            self.write(path, json.dumps({"sentry_api_key.py": digest}, indent=2))
         self.commit("Synthetic provider token matching inventory format")
         findings = self.scan(1)
         self.assertIn("sentry-access-token", {finding["RuleID"] for finding in findings})
+        for path in INVENTORY_PATHS:
+            self.assertIn("sentry-access-token",
+                          {finding["RuleID"] for finding in findings if finding["File"] == path})
 
     def test_regression_source_only_allows_the_reviewed_non_secret_values(self):
         path = "scripts/ci/test_secret_scan.py"

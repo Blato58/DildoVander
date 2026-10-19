@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-19T01:33:53Z",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "0315ccb8e1afc7c73b7b9f0464cc9b041aef1404287f9f2fcda5a5b8cbdf11b3"
+  },
+  "environment": "Windows task checkout integrated origin/main b703ce3886636159fb602b48384fe2ebbbdb6a2f; Python3.14/Node/actionlint.",
+  "limitations": [
+    "New policy hosted acceptance pending. Earlier full native run39181940875 passed previous source identity; it is not reused as current acceptance.",
+    "Digest: sorted27 nontracking paths differing from origin/main b703ce3, UTF-8 path+NUL+staged Git blob bytes+NUL."
+  ],
+  "evidenceId": "KUFR-CAD-INCREMENTAL-inheritance-local",
+  "kind": "unit",
+  "claims": [
+    {
+      "workItemId": "KUFR-CAD-INCREMENTAL",
+      "criterionId": "IMPACT",
+      "criterionRevision": 5,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-CAD-INCREMENTAL",
+      "criterionId": "REUSE",
+      "criterionRevision": 5,
+      "result": "pass"
+    }
+  ],
+  "method": "Current Node CI68, viewer122, CAD policy/result28, selector13, workflow9, refresh18, viewer Python12, web23(3platform skips), token/integrity/actionlint checks passed.",
+  "observation": "Exact proof remains fast path. Fallback verifies server merge parents, original base -> canonical main -> checkout ancestry, and each differing path tested==originalbase and current==canonicalmain. Own PR drift/modes/symlinks/missing metadata reject. Proof fields and full output integrity retained. Prior pinned environment was archived externally; current CAD-free tests passed with default Python without reinstall."
+}

@@ -17,7 +17,7 @@
   "acceptance": [
     {
       "id": "HOST",
-      "revision": 4,
+      "revision": 7,
       "expected": "Dlouhodobý Linux host skutečných runtime ownerů včetně sdíleného VoiceWorkflow a RealtimeSessionEngine; šest slotů/variant, Stop, journal a izolované textové/hlasové vstupy.",
       "requiredEvidenceKinds": [
         "unit",
@@ -26,18 +26,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+        "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
         "policyVersion": "twin-v2"
       },
       "evidenceRefs": [
-        "KUFR-TWIN-unit-v4",
-        "KUFR-TWIN-integration-v4",
-        "KUFR-TWIN-source_review-v4"
+        "KUFR-TWIN-unit-v7",
+        "KUFR-TWIN-integration-v7",
+        "KUFR-TWIN-source_review-v7"
       ]
     },
     {
       "id": "VIEWER",
-      "revision": 4,
+      "revision": 7,
       "expected": "Společný generovaný CAD mapping, pohyb správného dílu z native výstupů, mobil, browser media HAL a bounded replay bez povelů.",
       "requiredEvidenceKinds": [
         "unit",
@@ -46,17 +46,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+        "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
         "policyVersion": "twin-v2"
       },
       "evidenceRefs": [
-        "KUFR-TWIN-unit-v4",
-        "KUFR-TWIN-source_review-v4"
+        "KUFR-TWIN-unit-v7",
+        "KUFR-TWIN-source_review-v7",
+        "KUFR-TWIN-browser-v7"
       ]
     },
     {
       "id": "LIVE",
-      "revision": 4,
+      "revision": 7,
       "expected": "Firmware snapshot a bounded odchozí autentizovaný transport; syntetický producent ověří VPS cestu.",
       "requiredEvidenceKinds": [
         "unit",
@@ -65,18 +66,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+        "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
         "policyVersion": "twin-v2"
       },
       "evidenceRefs": [
-        "KUFR-TWIN-unit-v4",
-        "KUFR-TWIN-integration-v4",
-        "KUFR-TWIN-source_review-v4"
+        "KUFR-TWIN-unit-v7",
+        "KUFR-TWIN-integration-v7",
+        "KUFR-TWIN-source_review-v7"
       ]
     },
     {
       "id": "ISOLATION",
-      "revision": 4,
+      "revision": 7,
       "expected": "Negativní HTTP testy observe/control/ingest a media ownership; přesné epochy/decimal strings, Stop fences, privacy a izolované AI sessions/data.",
       "requiredEvidenceKinds": [
         "integration",
@@ -84,28 +85,28 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+        "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
         "policyVersion": "twin-v2"
       },
       "evidenceRefs": [
-        "KUFR-TWIN-integration-v4",
-        "KUFR-TWIN-source_review-v4"
+        "KUFR-TWIN-integration-v7",
+        "KUFR-TWIN-source_review-v7"
       ]
     },
     {
       "id": "DEPLOY",
-      "revision": 4,
+      "revision": 7,
       "expected": "Ověřený immutable Linux release, oddělená VPS služba, chráněný viewer/ingest, server-only reuse schváleného provider klíče a rollback.",
       "requiredEvidenceKinds": [
         "production_deploy"
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+        "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
         "policyVersion": "twin-v2"
       },
       "evidenceRefs": [
-        "KUFR-TWIN-production_deploy-v4"
+        "KUFR-TWIN-production_deploy-v7"
       ]
     },
     {
@@ -124,7 +125,7 @@
     },
     {
       "id": "MEDIA",
-      "revision": 4,
+      "revision": 7,
       "expected": "Sdílený produkční Realtime/session workflow pro ESP i Linux; browser mikrofon, PCM playback/drain a JPEG kamera jako virtuální HAL; nastavení AI/hlas/kamera na stránce s oddělenými oprávněními a epoch cancellation.",
       "requiredEvidenceKinds": [
         "integration",
@@ -132,11 +133,12 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+        "artifactDigest": "741947360f86ac8802eb1bcab9f832027bce6d7872c3a1cf1a3b66bcf41c9e38",
         "policyVersion": "twin-v2"
       },
       "evidenceRefs": [
-        "KUFR-TWIN-integration-v4"
+        "KUFR-TWIN-integration-v7",
+        "KUFR-TWIN-browser-v7"
       ]
     }
   ],
@@ -151,14 +153,14 @@
       "unblockCondition": "Identifikovaná bezpečná sestava, kalibrace a samostatně autorizovaný fyzický běh s build/wiring/mechanics identitami."
     }
   ],
-  "nextAction": "Majitel ověří aktuální VPS viewer, browser kameru/mikrofon/reproduktor a aktivní reload; placená provider a fyzická ESP akceptace zůstávají samostatné.",
+  "nextAction": "V17 is deployed and verified for microphone jitter with fake media/provider; owner may reload the viewer and use existing settings. Physical and real-provider acceptance remain separate.",
   "relatedItems": [
     "DV02",
     "KUFR-E5"
   ],
   "implementedSubject": {
-    "artifactDigest": "ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c",
+    "artifactDigest": "a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148",
     "policyVersion": "twin-v2"
   },
-  "currentNote": "VPS twin-20261014-v12 / build ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c. Keepalive pagehide cancellation and bounded owner/boot/operation admission tombstones implemented;98JS+2realChrome HAL, full offline backend and scoped twin/media regressions passed. Full latest VPS camera E2E stopped after synthetic video track ended (truthful photo_failed); active reload part not reached. V11 full CAD/media browser proof retained with original identity/date. Owner explicitly requests merge/deploy without remaining browser checks and will verify their browser. No paid provider or physical ESP test. PR193 review P2 unload cancellation fixed; commit/push/merge recorded after publication. Verified cancellation slice commit977cb5f7a77a77140db47d18c8c9ee2eea2fb5ef pushed through Push-CurrentBranch.ps1; remoteHEAD verified."
+  "currentNote": "2026-10-15: v17 is active, build a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148. Source fix merged through PR202 (68967546cffa0179fb8959dfdc7a677f029a6157); user-authorized deployment and scoped603ms browser regression passed in KUFR-TWIN-MIC-DEPLOY. Original settings/credentials preserved, native idle after cleanup. Historical acceptance snapshots remain unchanged."
 }

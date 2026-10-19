@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UI-FRAMEWORK-source-review-v4",
+  "kind": "source_review",
+  "observedAtUtc": "2026-10-19T00:22:37.069918+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "67367221f323070f5227292479ffbfa428997450bf27360436c2d1fb213a546e"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UI-FRAMEWORK",
+      "criterionId": "SHARED-UI",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "method": "Independent Sol6.1/high read-only combined diff review, integration review and final narrow delta review; parent combined source/packaging and rendering inspection.",
+  "environment": "Windows11 local checkout; locked existing dependencies; pinned Node24.21.0 for simulator/browser and selected final checks; Python3.14.4; .NET10.0.401; synthetic loopback/file browser fixtures only.",
+  "observation": "Independent Sol6.1/high review of entire original runtime diff plus each integration delta has no open actionable issue. Final review specifically inspected generated script-only iOS publisher, fresh token+component CSS flattening, import confinement/cycles/URL rejection, Python repr-generated block, unchanged version/manifest/IPA validation and atomic publication, native XML root/color targeting and CRLF preservation, matching integrity reader. Private deploy workflow was inspected read-only by mobile worker: it executes a single Python helper with no design-system directory; isolated-copy test preserves that contract. Parent reviewed final diff, metadata drift guard, generated derivatives, real screenshots and actual CLI results. No private deployment, signing or provider action occurred. Final source identity 67367221f323070f5227292479ffbfa428997450bf27360436c2d1fb213a546e: 102 sorted repository-relative changed source paths excluding docs/project, each UTF8 path+NUL+LF-normalized file bytes+NUL relative to a4d9f32862e263e6c45d87a227fe8f4d24ea401d.",
+  "limitations": [
+    "No signed iPhone, VoiceOver, actual installation/audio/camera/hardware, production deployment or paid provider acceptance. Native storyboard layout/signing/provisioning and device contracts unchanged; RGB validation is not an iPhone screenshot.",
+    "Offline installer intentionally uses canonical system font fallbacks if its optional same-origin stylesheet is unavailable; the online stylesheet supplies locally hosted Inter. Generated CSS is embedded in the existing standalone Python helper, no sibling deployment dependency.",
+    "No CAD geometry/STL regeneration/full manufacturing ZIP was performed for this task. Synthetic UI/ZIP fixtures are labelled; literal file loading proves viewer UI packaging only.",
+    "Three existing Windows-dependent web test skips and the broader scripts/ci pre-existing Unix executable-mode failure remain as documented in earlier receipts. Targeted modified checks pass. Exact-root C# Roslyn reports no solution; actual offline .NET keepsake suite passed with no compiler-reference completeness claim.",
+    "Final GitHub CI/review for the new source is assessed separately before merge. Earlier Linux site/browser, web, backend, iOS and host-test jobs passed; its firmware job was canceled when baseline PR209 merged and PR211 retargeted main, invalidating that old-base run."
+  ],
+  "supersedes": [
+    "KUFR-UI-FRAMEWORK-source-review-v3"
+  ],
+  "supersedesReason": "Final inventory added the real generated iOS installer, native launch background binding and runtime theme metadata consumption. These affected paths were re-tested and independently reviewed; unchanged subsystem evidence transfers explicitly as described. Current criterion revision3 binds the new exact source identity; historical closure and original receipts remain unchanged."
+}

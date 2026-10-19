@@ -1,5 +1,27 @@
 # Mobilní ovládání kufru
 
+Rozhraní Vapour Chrome používá sdílené tokeny a komponenty `kufr/design-system/`. Spodní navigace
+odděluje **Provoz**, **Kufr** a **Diagnostiku**; Stop zůstává v horní liště i při posunu.
+Provoz nejprve ukazuje stav spojení, ručního řízení a přihrádek a jeden další krok.
+Živý provoz odděluje hlas kufru, tanec a text pomocí klávesnicově ovladatelných záložek;
+ruční ovládání má samostatný pohled. Přepnutí pohledu neruší probíhající akci ani textový koncept.
+Snapshot zachovává focus dostupné ruční akce; zneplatněné potvrzení přesune focus na aktuální stav.
+
+Kufr soustředí připojení uloženého zařízení i první párování přes BLE; ruční LAN údaje
+jsou pod rozbalovacím ovládáním. Diagnostika rozděluje technické úlohy do rozbalovacích sekcí.
+Stav a ukončení zkušebního rozhovoru na telefonu zůstávají dostupné i se zavřenou sekcí.
+Zkušební backendový rozhovor má vlastní ukončení a zůstává oddělený od hlasu a Stop kufru.
+Přepínač světlého/tmavého vzhledu ukládá pouze preferenci `aw-theme`.
+Webové harnessy nadále představují syntetický důkaz, nikoli ověření na iPhonu.
+
+Panely ovládání, hlasu, tance, sítě i diagnostiky importují vykreslovací funkce
+z [`ui.js`](../design-system/ui.js): tlačítka, označená pole, stavové štítky,
+upozornění, prázdné výsledky a karty přihrádek. Sdílený `bindTabs` řídí klávesnici,
+focus a ARIA navigaci; vlastníci panelů dál řídí obnovování a nativní spojení.
+Stejný webový bundle běží v prohlížeči i v Capacitor WKWebView na iOS.
+Lokální `style.css` skládá mobilní rozložení a safe area; vzhled a stavy prvků
+patří do sdíleného systému. Swift bridge nadále vlastní Bluetooth, Keychain a WSS.
+
 > **D167 – Dance for me:** panel v Ovládání spouští náhodnou vlastní
 > skladbu ze SD kufru a ukazuje soubor, BPM, průběh a srozumitelné chyby.
 > Zastavit tanec ukončí show, Stop kufru také zachová bezpečnostní zotavení.
@@ -536,19 +558,23 @@ experimentální API. Deklarace `vite/client` pokrývají import CSS a assetů.
 
 Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
 
-Vzhled **Arcane Workshop** používá společné tokeny a lokálně balené fonty z
-`../design-system/arcane-workshop.css`. Ovládání, Debug a Síť kufru zachovávají
+Vzhled **Vapour Chrome** používá společné tokeny a lokálně balené fonty Inter
+a IBM Plex Mono z `../design-system/arcane-workshop.css`. Ovládání, Diagnostika a Síť kufru zachovávají
 stávající funkce; hlas a textový rozhovor zůstávají v Ovládání. Horní lišta
-ukazuje Stop kufru (ve vývoji Stop simulace) také při přepnutí do Debug nebo
+ukazuje Stop kufru (ve vývoji Stop simulace) také při přepnutí do Diagnostiky nebo
 Síť kufru. Používá stejný povel a stejnou dostupnost podle přijatého stavu,
 nepřidává potvrzení a neobchází zotavení. Instalační Safari stránka sdílí vzhled
-přes `/design-system/arcane-workshop.css` a má samostatný CSS fallback.
+přes generovaný canonical CSS blok vložený přímo do samostatného publisheru;
+`/design-system/arcane-workshop.css` dodává lokální fonty při připojení. Archiv
+offline používá společné systémové fontové fallbacky. Blok se generuje z
+`tokens.json` a skutečných sdílených komponent, paletu ručně nekopírujte.
 
-Horní přepínače Ovládání/Debug/Síť kufru respektují iOS safe area. Viewport má
-`viewport-fit=cover`; sticky lišta přidává `safe-area-inset-top` k hornímu
-odsazení a boční insets k minimálním okrajům. Hodnoty dodává WebKit podle
-zařízení a orientace, takže výřez nepřekrývá taby ani po scrollování.
-Ve webovém režimu s nulovými insets zůstává původní odsazení.
+Spodní navigace Ovládání/Síť kufru/Diagnostika a horní lišta respektují iOS safe
+area. Viewport má `viewport-fit=cover`; horní lišta přidává `safe-area-inset-top`
+k odsazení, spodní navigace používá `safe-area-inset-bottom` a obsah má rezervu
+pod posledním ovládacím prvkem. Boční insets chrání okraje v orientaci na šířku.
+Hodnoty dodává WebKit podle zařízení a orientace. Ve webovém režimu s nulovými
+insets zůstává základní odsazení.
 
 ## Etapy a vzdálený iOS build
 

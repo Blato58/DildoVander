@@ -1,0 +1,33 @@
+/* Shared renderer states; visual primitives continue to live in patterns.css. */
+.aw-button { min-width: var(--aw-touch); }
+.aw-button--small { min-height: var(--aw-control-height-small); padding-inline: var(--aw-space-3); }
+.aw-button--ghost { color: var(--aw-accent); background: transparent; border-color: transparent; }
+.aw-button--ghost:hover { background: var(--aw-elevated); }
+.aw-button:disabled, .aw-wand-card:disabled { color: var(--aw-disabled-foreground); background: var(--aw-disabled-background); border-color: var(--aw-border-subtle); opacity: var(--aw-disabled-opacity); cursor: not-allowed; filter: none; }
+.aw-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.aw-notice { display: grid; gap: var(--aw-space-2); }
+.aw-notice p { margin: 0; overflow-wrap: anywhere; }
+.aw-notice-detail { font-size: var(--aw-text-small); }
+.aw-notice-action { display: flex; flex-wrap: wrap; gap: var(--aw-space-2); padding-top: var(--aw-space-1); }
+.aw-notice-action > * { max-width: 100%; white-space: normal; }
+.aw-root summary { min-height: var(--aw-touch); padding-block: var(--aw-space-3); cursor: pointer; }
+.aw-root :is([id], button, input, select, textarea, summary, [tabindex]) { scroll-margin-block: var(--aw-space-6); }
+.aw-notice > :last-child, .aw-field > p { margin: 0; }
+.aw-notice--neutral { border-color: var(--aw-border); }
+.aw-field { display: grid; gap: var(--aw-space-2); min-width: 0; }
+.aw-field > label { font-size: var(--aw-text-label); font-weight: 600; }
+.aw-field-description { color: var(--aw-muted); font-size: var(--aw-text-small); }
+.aw-field :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+.aw-empty-action { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--aw-space-2); }
+.aw-wand-card { display: flex; align-items: center; gap: var(--aw-space-4); width: 100%; min-height: var(--aw-touch); text-align: left; color: var(--aw-ivory); cursor: pointer; }
+.aw-wand-card:is(article) { cursor: default; }
+button.aw-wand-card:hover:not(:disabled) { border-color: var(--aw-accent); }
+.aw-wand-card[aria-pressed='true'], .aw-wand-card[data-selected='true'] { border-color: var(--aw-accent); background: var(--aw-accent-soft); }
+.aw-wand-copy { display: grid; gap: var(--aw-space-1); min-width: 0; overflow-wrap: anywhere; }
+.aw-wand-number { color: var(--aw-accent); }
+.aw-wand-image { width: 64px; height: 64px; object-fit: contain; flex-shrink: 0; border-radius: var(--aw-radius-control); }
+.aw-tabs { display: flex; gap: var(--aw-space-2); overflow-x: auto; }
+.aw-tabs [role='tab'] { flex-shrink: 0; }
+.aw-tabs [aria-selected='true'] { background: var(--aw-accent-soft); border-color: var(--aw-accent); color: var(--aw-accent); }
+.aw-dialog { width: min(calc(100% - 2 * var(--aw-space-4)), var(--aw-dialog-max)); max-height: calc(100dvh - 2 * var(--aw-space-4)); padding: var(--aw-space-6); color: var(--aw-ivory); background: var(--aw-surface); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-card); box-shadow: var(--aw-shadow); }
+.aw-dialog::backdrop { background: var(--aw-overlay); }

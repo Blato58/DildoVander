@@ -2,13 +2,24 @@
 
 Viewer je samostatný offline WebGL dokument. Neposílá příkazy do kufru,
 nespouští AI a nepředstavuje fyzickou přejímku ani důkaz montovatelnosti.
-Používá zdrojový [Arcane Workshop](../../design-system/README.md), bez npm
+Používá zdrojový [Vapour Chrome](../../design-system/README.md), bez npm
 závislostí a bez síťového načítání fontů.
+
+## Assembly Studio
+
+Rozhraní používá sdílený Vapour Chrome: tmavé výchozí téma, přepnutí na
+světlý vzhled, Inter pro ovládání a IBM Plex Mono pro identifikátory a měření.
+Téma se ukládá jen lokálně; nemění materiály ani barvy fyzických součástí.
+Pracovní režimy jsou v horní liště, panely a digitální dvojče v dolní liště.
+Na desktopu jsou díly a detail vedle modelu. Vyhledávání **Najít díl** filtruje
+název, popis a CAD ID, otevírá odpovídající skupiny a nemění viditelnost modelu.
+Prázdný výsledek poskytne konkrétní pokyn. Rozměry a kabeláž zůstávají
+v inspekci; vrstvy jsou sbalitelné. WebGL chyba má viditelné vysvětlení.
 
 ## Model a panely
 
-Model vyplňuje volný prostor obrazovky. Na telefonu lišta **Díly**, **Simulace**
-a **Detaily** otevírá sbalitelné panely; otevřený panel má vlastní scroll.
+Model vyplňuje volný prostor obrazovky. Na telefonu lišta **Díly**, **Simulace**, **Detaily**
+a **Digital Twin** otevírá sbalitelné panely; otevřený panel má vlastní scroll.
 V portrétu zůstává model nad panelem, v nízkém landscape vedle něj. Zavírací
 tlačítko a Escape vrací klávesnicový focus na příslušnou akci lišty.
 Rozložení respektuje safe areas a dynamickou výšku browseru.
@@ -38,15 +49,27 @@ zaměření (240 ms). Renderer pracuje na vyžádání, DPR je nejvýše 2; změ
 velikosti canvasu a browser viewportu obnoví kreslení. Pointer cancel,
 ztráta capture a blur ruší aktivní gesta.
 
+Nad modelem zůstává název skutečného směru kamery (při otáčení **Volný pohled**),
+režim a počet viditelných dílů. **Pohled a ovládání** obsahuje také návod pro
+dotyk, myš a klávesnici. Při změně vrstev nebo izolaci je přímo nad modelem
+dostupné **Obnovit zobrazení**. Obnoví viditelnost a průhlednost výchozí pro
+aktuální režim a kameru; ponechá montážní krok, kabelové trasy, rozměry i
+případnou závadu po Stop. Servis proto zůstane odkrytý a montáž na stole
+nepřidá korpus. Skrytý díl vybraný ze seznamu má výslovně označený skrytý stav.
+
 ## Montážní průvodce
 
 **Montáž** otevře pokyny. Kompaktní lišta drží Předchozí, Instrukce s počítadlem
 a Další i při sbalení sheetu. Seznam kroků umožňuje skok; progress ukazuje
 pozici v návodu, nikoli fyzické dokončení. K dispozici je zaměření oblasti,
 restart a ukončení. Počet kroků je převzatý z `assembly-guide.json`.
+Nad tlačítky v dolní liště zůstává název aktuálního kroku, pracoviště, směr
+a souhrn dílů i po sbalení instrukcí. Dlouhý souhrn má vlastní posun;
+úplné pokyny jsou stále v panelu. Kontrolní krok ani pozice v průvodci
+nepotvrzují fyzické dokončení.
 
 Průvodce zobrazuje kumulativní fyzické osazení v kufru z `caseParts`
-(s fallbackem na `parts` u starších payloadů), mosazné zvýraznění dílů aktuálního
+(s fallbackem na `parts` u starších payloadů), periwinkle zvýraznění dílů aktuálního
 kroku, slovní seznam následujících dílů, instrukce, materiál, nástroje,
 předchůdce, kontrolu a volitelné údaje o místě, směru, přístupu, konektorech
 a demontáži. Volitelné údaje chybějící ve starším payloadu nejsou vyžadované.
@@ -168,7 +191,7 @@ Pop-Location
 
 Upravují se `viewer.js`, `viewer-template.html`, `viewer-workshop.css`, nikoli
 samotný export. [preview.py](preview.py) přes `viewer_document.py` vloží CAD
-payload, sdílený styl, fonty, `show_timeline.js` a zdrojově ověřený compiler
+payload, sdílený styl, fonty, kanonický UI runtime, `show_timeline.js` a zdrojově ověřený compiler
 plán/manifest do `exports/viewer.html`. Neaktuální hashe odmítne. Indexovaný payload obsahuje
 pro každý mesh sdílené `vertices` (ploché XYZ) a `triangles` (ploché indexy).
 Viewer před uploadem spočítá jednotkovou normálu každé facety a rozbalí
@@ -178,6 +201,15 @@ Starší payload s rozbaleným `data` je podporovaný. Indexování zmenšuje ex
 a jeho přenos/parsing; nezmenšuje GPU buffer ani počet skutečných facet. Z kořene final ve skutečném
 CAD prostředí lze spustit `python preview.py --viewer-only`; pro změny geometrie
 je potřeba nejprve skutečná kompletní generace a geometrické ověření.
+
+`viewer_ui.js` skládá režimy a akce z nativního ESM modulu
+`kufr/design-system/ui.js`; Twin používá stejné renderery a timeline jeho
+`bindDialog` nad nativním HTML dialogem. `viewer_runtime.py` vloží oba UI moduly
+do offline HTML bez importů a síťových závislostí. Nepodporovaný import/export
+odmítne. Generovaný `workshop-ui-runtime.js` je přesný fallback kanonického
+runtime pro obnovu ze samostatného F2 ZIP, stejně jako CSS snapshot; neupravuje
+se ručně. `viewer_style.snapshot_styles()` obnoví oba sdílené assety před
+zachycením zdrojových hashů, aby pozdější render nezměnil ověřovaný snapshot.
 
 Automatická kontrola z kořene repozitáře:
 
@@ -210,3 +242,34 @@ předpoklady. Rozhoduje plášť BREP z `chassis.shell()`, nikoli prázdný obd�
 Popisky rozměrů a inspektor tuto hranici zachovávají; pant používá skutečnou
 osu z payloadu. Výkres řezu vzorkuje přímo hrany řezu stejného BREP, včetně
 oblouků, výztuh lemu a předpokládaného víka. Není to výkres k výrobě kufru.
+
+
+## UI náhled nad existujícím exportem
+
+Pro kontrolu samotného rozhraní bez výpočtu CAD použijte ze složky `final/`:
+
+```powershell
+python refresh_viewer.py --source C:/cesta/k/existujicimu/exports/viewer.html --output exports/viewer-preview.html
+python -m http.server 8915 --directory exports --bind 127.0.0.1
+```
+
+Otevřete `http://127.0.0.1:8915/viewer-preview.html`. Skript načte skutečný
+vložený JSON z existujícího exportu a použije stejné `viewer_document.render_document`
+a `viewer_style.snapshot_styles` jako `preview.py`. Původní export nepřepisuje.
+Výstup je označen **UI náhled** a uvádí UTC datum souboru se vstupní geometrií.
+Datum není potvrzení čerstvosti CAD. Nevytváří ověření, generation snapshot ani
+výrobní ZIP; úplná regenerace a kontrola balíčku nadále vyžaduje `Regenerate.ps1`.
+Náhled vyžaduje pouze Python, nepotřebuje instalovat CAD knihovny.
+
+Když existující export není k dispozici, ovládání a offline balení lze ověřit
+na malém syntetickém bloku přes tutéž cestu `render_document`:
+
+```powershell
+python preview_ui_fixture.py --output "$env:TEMP/dv-ui-framework/viewer.html"
+```
+
+Výstup trvale uvádí **SYNTETICKÁ UI FIXTURE**, nenabízí výrobní ZIP a není
+modelem kufru ani CAD či fyzickým důkazem. Test `test_viewer_document.py`
+ověřuje sestavený runtime v Node a obnovu z fallbacku bez sdíleného stromu.
+Fixture má dva výslovně syntetické kroky pro ověření práce s instrukcemi;
+nenahrazují skutečný postup z `assembly-guide.json`.

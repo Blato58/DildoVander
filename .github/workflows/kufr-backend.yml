@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: kufr/contracts/.nvmrc
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -60,7 +60,7 @@ jobs:
           python3 -m unittest discover -s kufr/backend/deploy/twin -p 'test_twin_release.py'
       - name: Package backend with build provenance
         run: python3 scripts/ci/package.py pack "$RUNNER_TEMP/kufr-publish" "$RUNNER_TEMP/backend-package"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # PR CI validates packages; explicit main builds retain deployable artifacts.
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !github.event.inputs.pr_number
         with:
@@ -71,7 +71,7 @@ jobs:
           overwrite: true
       - name: Package compiled synthetic provider diagnostic
         run: python3 scripts/ci/package.py pack kufr/backend-tests/bin/Release/net10.0/linux-x64 "$RUNNER_TEMP/diagnostics-package"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !github.event.inputs.pr_number
         with:
           name: backend-diagnostics

@@ -1,10 +1,10 @@
 # DV10 final delivery profile
 
 This file records the final package layout and configuration commands. Use
-[VPS_HANDOFF](VPS_HANDOFF.md) for actual read-only server capability evidence,
+[VPS_HANDOFF](VPS_HANDOFF.md) for actual production and historical preflight evidence,
 private storage, encrypted backup, isolated restore and authorization gates.
-Local code packages are recorded in immutable project artifacts. No production
-activation was performed here. The [static evening decision](STATIC_EVENING.md)
+Local code packages are recorded in immutable project artifacts. Production activation and paid generation were authorized and completed on
+2026-10-15; see the [production record](../../../docs/project/artifacts/DV10-production-v1.json). The [static evening decision](STATIC_EVENING.md)
 supersedes individual QR pickup in the original specification.
 
 ## Safe default configuration
@@ -22,8 +22,8 @@ contains only the approved HTTPS origin and `/keepsake/evening/`, without a toke
 ## Exact ingress inventory
 
 [backend-route-contract.json](../../web/deploy/backend-route-contract.json)
-contains all 60 current literal backend route/method mappings: the existing 49,
-including seven authenticated keepsake administration routes, and 11 DigitalTwin
+contains all 69 current literal/grouped backend route/method mappings: the existing 49,
+including seven authenticated keepsake administration routes, and 20 DigitalTwin
 mappings. Twin routes use the isolated `127.0.0.1:5082` listener; the other
 services and guest routes keep `127.0.0.1:5080`. Twin instance names follow the
 source's 1-96 ASCII letter/digit, underscore, hyphen or dot rule; other parameter
@@ -123,14 +123,14 @@ python -m unittest discover -s kufr/web/deploy -p test_keepsake_proxy.py -v
 python -m unittest discover -s kufr/backend/deploy -p test_keepsake_delivery.py -v
 ```
 
-Six proxy tests and twelve delivery/recovery tests pass. Release fixtures verify
+Nine current proxy tests pass, including every generated API block rejecting encoded paths while permitting encoded query values. Twelve delivery/recovery tests passed in the earlier local slice. Release fixtures verify
 the project homepage, companion/workshop/simulator, portal and design-system
 hierarchy, exact full-site revision/hash inventory, and clean standalone provenance
 without creating a final artifact from the working tree. JSON/config/Python
 parsing and generated-example comparisons are local checks; they do not establish
 nginx runtime, independent off-VPS recovery, physical/iPhone or paid quality evidence.
 
-The parent's actual full public build attempt is blocked by absent local
+The earlier local full public build attempt was blocked by absent local
 `kufr/mechanika/final/exports/verification.json` and its export manifest. The
 initial standalone portal build (42 files) and Linux backend publish passed;
 the revised public evening standalone build has 45 files. Neither
@@ -143,6 +143,5 @@ subsequently passed all 13 jobs for `9760f5ffab78c4a39ae0ddf5dc30fd87a6259247`,
 including the complete canonical site/manufacturing build and unsigned native
 iOS build. This verifies the builder; no production artifact was uploaded by
 that PR run. Local verified CAD exports are still absent, and the local code ZIP
-still contains the standalone preview. Deployment and real iPhone/physical
-acceptance remain separate gates. Exact hosted check metadata is retained in
+still contains the standalone preview. That historical PR run did not deploy production. The current production section in VPS_HANDOFF records the later clean main build/deployment; real iPhone/physical acceptance remains unverified. Exact hosted check metadata is retained in
 the immutable project CI artifact and receipt.

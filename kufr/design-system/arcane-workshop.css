@@ -1,6 +1,8 @@
-/* Shared entry point. Keep imports relative for offline and hosted consumers. */
+/* Vapour Chrome. Historical entry filename is a compatibility contract.
+   Keep imports relative for offline and hosted consumers. */
 @import url('./tokens/palette.css');
 @import url('./tokens/typography.css');
 @import url('./tokens/layout.css');
 @import url('./tokens/motion.css');
 @import url('./components/patterns.css');
+@import url('./components/framework.css');

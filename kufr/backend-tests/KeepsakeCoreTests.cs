@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Xml.Linq;
 using Kufr.Backend.Features.Keepsakes;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
@@ -416,6 +417,30 @@ internal static class KeepsakeCoreTests
         using var codec = SKCodec.Create(new MemoryStream(card));
         Check(codec is not null && codec.Info.Width == 1200 && codec.Info.Height >= 2680
             && codec.EncodedFormat == SKEncodedImageFormat.Png, "long title plus portrait exports actual dynamically sized PNG with embedded font");
+        using var rendered = SKBitmap.Decode(card);
+        Check(rendered.GetPixel(0, 0) == SKColor.Parse("#1B2430")
+            && rendered.GetPixel(30, 30) == SKColor.Parse("#8A94A6"),
+            "rendered card uses Midnight background and Steel frame");
+        using var titleFont = new SKFont(typeface, 30);
+        var artworkTop = 110 + wrapped.Length * 52 + KeepsakeStore.WrapMeasured(story.Title, titleFont, 1060).Count() * 40;
+        Check(rendered.GetPixel(600, artworkTop + 500) == SKColors.Teal,
+            "card chrome preserves the synthetic artwork colors");
+
+        var artwork = Png();
+        var svg = XDocument.Parse(KeepsakeStore.BuildCard(snapshot, edition, "image/png", artwork, null));
+        XNamespace svgNamespace = "http://www.w3.org/2000/svg";
+        var group = svg.Root!.Element(svgNamespace + "g")!;
+        var images = group.Elements(svgNamespace + "image").ToArray();
+        Check(images.Length == 1 && images[0].Attribute("href")!.Value == "data:image/png;base64," + Convert.ToBase64String(artwork),
+            "SVG export retains exact artwork bytes and omits an unrequested portrait");
+        Check(svg.Root.Element(svgNamespace + "rect")!.Attribute("fill")!.Value == "#1B2430"
+            && group.Attribute("fill")!.Value == "#EEF1F5"
+            && group.Attribute("font-family")!.Value == "Inter,Arial,sans-serif"
+            && group.Elements(svgNamespace + "text").ElementAt(1).Attribute("fill")!.Value == "#B8C0FF",
+            "standalone SVG uses Vapour Chrome typography and frame hierarchy");
+        Check(group.Elements(svgNamespace + "text").First().Value == snapshot.OfficialName
+            && group.Elements(svgNamespace + "text").Last().Value == "SYNTHETICKÝ TEST — BEZ OPENAI",
+            "catalog identity and synthetic provenance remain visible on the exported card");
     }
     private static KeepsakeIssueSnapshot Snapshot(string outcome) => new(outcome, "device", 2,
         "stable-wand-two", "Katalogová hůlka", "Neměnný katalogový údaj", "timed_return_estimate_not_sensor");

@@ -1,11 +1,54 @@
 # DV10 VPS delivery and recovery
 
-DV10 delivery is prepared locally. No production deployment, DNS/firewall/TLS
-change, live backup, guest-photo read, or live-data mutation was performed.
-An operator must authorize the production steps separately. Feature activation
-is gated by the existing backend, public ingress checks, and independent backup.
+## Production observation — 2026-10-15
 
-## Observed read-only preflight
+The owner authorized production deployment and paid generation. Public pickup is
+live at **https://2.28.202.220/keepsake/evening/** with one static QR and no token.
+The active backend and full canonical site use clean main
+`985071520f4c64c7ff98eaff5f92ab10bbbabd98`, built by
+[CI 38748013953](https://github.com/Blato58/DildoVander/actions/runs/38748013953).
+The existing private workflows completed successfully:
+[backend 38755345896](https://github.com/Blato58/DildoVander-deploy/actions/runs/38755345896)
+and [site 38755728034](https://github.com/Blato58/DildoVander-deploy/actions/runs/38755728034).
+Exact artifact/runtime hashes and checks are in the
+[production record](../../../docs/project/artifacts/DV10-production-v1.json).
+
+- Backend release: `985071520f4c64c7ff98eaff5f92ab10bbbabd98-38755345896-1`;
+  site release: `38755728034-1`. Backend and Twin services are active.
+- Separate root-owned `/etc/kufr-backend/keepsake.env` mode0600 is loaded by
+  `90-keepsake.conf`; `UMask=0077`. Enabled, GenerationEnabled and PortraitEnabled
+  are true, ProviderMode is `openai`, StoryModel `gpt-6.1-sol`, ImageModel
+  `gpt-image-2`. PublicDeviceId is the existing provisioned primary ESP32 identity.
+  The existing backend key and dialog/voice/memory modes are preserved.
+- Archive `/var/lib/kufr-backend/keepsakes` and keyring
+  `/var/lib/kufr-backend/keepsakes.keys` are backend-owned mode0700, outside releases.
+  Retention remains manual-only; paid portraits require the private consent flow.
+- Active nginx uses the complete generated profile in
+  `/etc/nginx/snippets/dildovander-keepsake.conf` and the http-scope Upgrade map
+  `/etc/nginx/conf.d/keepsake-upgrade.conf`. Its69 method/route pairs preserve
+  current backend/Twin endpoints; encoded API paths are rejected. Certificate,
+  iOS, ACME and external CloudVPSBridge locations are preserved. Legacy bootstrap,
+  site-install or Twin-install helpers must not reinsert their old overlapping
+  includes/catch-all; reapply this complete generated profile if they are used.
+- Full candidate and active `nginx -t` passed. Isolated nginx10 cases, public HTTPS21
+  cases plus wrong-host421, SQLite quick_check, visible browser navigation/refresh,
+  and publishing workflow checks of all308 site files passed.
+- Private pre-change configuration and online SQLite copies are retained at
+  `/root/kufr-dv10-backups/20261015T140756Z`. This is a local operational backup;
+  independent encrypted off-VPS backup and isolated recovery remain unverified.
+
+At verification there were zero Keepsake items/jobs and no active evening. Paid
+inference was enabled but no inference sample was invoked. Account access to both
+models was checked without generation. Real output quality, consented photo pilot,
+real iPhone and physical device acceptance remain unverified.
+
+For emergency disable, set Enabled, GenerationEnabled and PortraitEnabled to false
+in the separate environment file and restart `kufr-backend.service`, then check
+loopback/public health. Keep the compatible backend, live SQLite, archive and
+DataProtection keys. Never roll back older DB/grants or delete retained content.
+The pre-DV10 backend is not a compatible rollback after accepting DV10 data.
+
+## Historical read-only preflight — 2026-10-14
 
 At **2026-10-14 15:18:15 UTC**, Windows `ssh -G vps-dildovander` resolved
 `root`, host `2.28.202.220`, port 22, normal host-key verification (`ask`).
@@ -117,8 +160,8 @@ python3 kufr/web/deploy/keepsake_proxy.py --host VERIFIED_CANONICAL_HOST \
 
 The source generator is the exact guest method/route allowlist, and
 [backend-route-contract.json](../../web/deploy/backend-route-contract.json)
-records all 60 existing backend route/method pairs with their actual source
-declarations and listener split: the prior 49 on `127.0.0.1:5080` plus 11
+records all 69 existing backend route/method pairs with their actual source
+declarations and listener split: the prior 49 on `127.0.0.1:5080` plus 20
 DigitalTwin mappings on its isolated `127.0.0.1:5082` service. The tests compare
 this inventory with every literal current source `/v1/*`, `/healthz`,
 `/healthz/twin` and `/twin` mapping, including the operator outcome/claim and admin
@@ -143,8 +186,11 @@ session, instance/snapshot/recording, simulation-command, ingest and provisioned
 device-token routes, keeping Twin roles and origin/cookie checks in .NET. Replace
 the old `dildovander-twin.conf` include along with the old site include and
 catch-all; its broad `^~ /v1/twin/` prefix would override the exact method guards.
-Twin inbound uses ordinary HTTP, with its existing 32 KiB proxy body limit and
-30-second read timeout. Its isolated outbound conversation/turn/operation calls
+Twin inbound uses ordinary HTTP, with a 256 KiB JPEG photo-upload limit, 32 KiB
+for other Twin requests and a 30-second read timeout. Nine grouped media routes
+retain the existing control/Origin authorization on port 5082; output is polled JSON.
+The exact API locations reject percent-encoded raw paths before method dispatch;
+percent encoding in query values remains supported. Its isolated outbound conversation/turn/operation calls
 use configured loopback HTTP and introduce no ingress route or WebSocket.
 It preserves backend auth rather than translating guest grants into those schemes.
 Existing Live ingress is POST `application/x-ndjson`, not a backend WebSocket
@@ -257,7 +303,7 @@ from code release. These are offline evidence, not live guest acceptance.
 Local `age` and `nginx` are unavailable on Windows. Ubuntu WSL startup failed
 because its configured `ext4.vhdx` is absent. Encrypted round-trip, nginx runtime
 syntax, independent off-server restore, production config/activation, public TLS,
-public guest flow, and recovery-key custody therefore remain **not_run/blocked**.
+public guest flow, and recovery-key custody were **not_run/blocked** at that local verification time. The production section above supersedes nginx/TLS/activation status; independent recovery remains unverified.
 The server's age binary existence does not count as an executed encrypted backup.
 
 The delivery skill passed the bundled `quick_validate.py` validator and its

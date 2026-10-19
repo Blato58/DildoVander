@@ -32,7 +32,7 @@ for ((attempt = 0; attempt < 50; attempt++)); do
   sleep 0.1
 done
 if [[ ! -s "$test_directory/http-address" ]]; then echo 'HTTP test peer did not start' >&2; exit 1; fi
-swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
+swiftc -g -swift-version 5 -warnings-as-errors -parse-as-library \
   ios/App/App/DebugBackendClient.swift ios/App/App/DebugRealtimeSession.swift ios/App/App/DebugHandsFreeSession.swift tests/native_debug/main.swift \
   -o "$test_directory/native-debug-tests"
 swiftc -swift-version 5 -warnings-as-errors -parse-as-library \

@@ -10,15 +10,23 @@ const palette = await readFile(resolve(mobileRoot, '../design-system/tokens/pale
 const output = resolve(mobileRoot, 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png');
 const size = 1024;
 
-function color(token) {
-  const match = palette.match(new RegExp(`--aw-${token}:\\s*#([0-9a-f]{6})\\s*;`, 'i'));
-  if (!match) throw new Error(`Missing Arcane Workshop color: ${token}`);
-  return [0, 2, 4].map(index => parseInt(match[1].slice(index, index + 2), 16));
+function color(token, visited = []) {
+  if (visited.includes(token)) throw new Error(`Circular Vapour Chrome color: ${[...visited, token].join(' -> ')}`);
+  // The first declaration is the offline-safe dark theme. Native icons remain
+  // fixed artwork, independent of the appearance selected inside the app.
+  const declaration = palette.match(new RegExp(`--aw-${token}:\\s*([^;]+);`, 'i'));
+  if (!declaration) throw new Error(`Missing Vapour Chrome color: ${token}`);
+  const value = declaration[1].trim();
+  const reference = value.match(/^var\(--aw-([a-z0-9-]+)\)$/i);
+  if (reference) return color(reference[1], [...visited, token]);
+  const hex = value.match(/^#([0-9a-f]{6})$/i);
+  if (!hex) throw new Error(`Unsupported Vapour Chrome color: ${token}`);
+  return [0, 2, 4].map(index => parseInt(hex[1].slice(index, index + 2), 16));
 }
 
 const background = color('void');
 const surface = color('surface');
-const brass = color('brass');
+const accent = color('accent');
 
 // Signed distance to an axis-aligned rounded rectangle; subpixel coverage
 // smooths edges without requiring a graphics package on the signing runner.
@@ -29,15 +37,15 @@ function rectangle(x, y, left, top, width, height, radius) {
 }
 
 const shapes = [
-  { bounds: [390, 242, 244, 160, 48], fill: brass },
+  { bounds: [390, 242, 244, 160, 48], fill: accent },
   { bounds: [420, 272, 184, 160, 20], fill: background },
-  { bounds: [180, 354, 664, 432, 64], fill: brass },
+  { bounds: [180, 354, 664, 432, 64], fill: accent },
   { bounds: [208, 382, 608, 376, 38], fill: surface },
-  { bounds: [208, 460, 608, 20, 0], fill: brass },
-  { bounds: [292, 436, 44, 68, 10], fill: brass },
-  { bounds: [688, 436, 44, 68, 10], fill: brass },
+  { bounds: [208, 460, 608, 20, 0], fill: accent },
+  { bounds: [292, 436, 44, 68, 10], fill: accent },
+  { bounds: [688, 436, 44, 68, 10], fill: accent },
   ...Array.from({ length: 6 }, (_, index) => ({
-    bounds: [286 + index * 84, 552, 32, 138, 16], fill: brass,
+    bounds: [286 + index * 84, 552, 32, 138, 16], fill: accent,
   })),
 ];
 
@@ -91,4 +99,4 @@ const png = Buffer.concat([
 
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, png);
-console.log('Generated original opaque 1024x1024 iOS AppIcon from Arcane Workshop tokens.');
+console.log('Generated original opaque 1024x1024 iOS AppIcon from Vapour Chrome tokens.');

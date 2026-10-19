@@ -3,6 +3,17 @@
   'use strict';
   const MAX_BYTES = 8 * 1024 * 1024, MAX_SNAPSHOTS = 2048, MAX_EVENTS = 4096;
   const UINT64_MAX = 18446744073709551615n;
+  async function httpFailure(response, path) {
+    let code = '';
+    try {
+      const body = await response.json();
+      if (typeof body?.code === 'string' && /^[a-z][a-z0-9_-]{0,95}$/.test(body.code)) code = body.code;
+    } catch (_) { /* A proxy may return an empty or non-JSON error body. */ }
+    const route = path.split('?')[0].split('/').slice(-2).join('/');
+    const error = new Error(`Twin HTTP ${response.status} (${route}): ${code || (response.status === 401 || response.status === 403 ? 'session/oprávnění' : 'požadavek odmítnut')}`);
+    error.status = response.status; error.code = code;
+    return error;
+  }
   function decimal(value, label) {
     if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value) || BigInt(value) > UINT64_MAX) {
       throw new Error(label + ': očekávána přesná uint64 decimal string');
@@ -170,6 +181,7 @@
   }
 
   function mount(document, model, hooks) {
+    const { button, statusBadge, notice } = root.VapourUI;
     const projection = new Projection(model.twinManifest);
     let browserMedia = null;
     let active = false, replay = false, selectedSlot = null, selectedMesh = null;
@@ -187,33 +199,33 @@
     const panel = document.createElement('section');
     panel.id = 'twin-panel'; panel.className = 'twin-panel aw-root';
     panel.setAttribute('aria-label', 'Digital Twin runtime');
-    panel.innerHTML = `<details id="twin-details"><summary>Digital Twin · runtime / záznam</summary>
-      <p>Plný snapshot core. LED je přijatý GRB frame, servo kalibrovaný odhad; fyzické ověření unavailable.</p>
-      <form id="twin-session" ${local ? '' : 'hidden'}><label>Twin server · stejný origin<input id="twin-base" type="url" readonly autocomplete="off"></label><label>Scoped Twin session credential<input id="twin-credential" type="password" autocomplete="off"></label><button>Připojit session</button></form>
+    panel.innerHTML = `<details id="twin-details"><summary>Digital Twin</summary><div class="twin-body"><header class="twin-heading"><span class="eyebrow">RUNTIME / REPLAY</span><h2>Digitální dvojče</h2></header>
+      <p class="twin-intro">Plný snapshot core. LED z přijatého GRB frame, servo jako kalibrovaný odhad. Fyzické ověření není dostupné.</p><h3>Zdroj a připojení</h3>
+      <form id="twin-session" ${local ? '' : 'hidden'}><label>Twin server · stejný origin<input id="twin-base" type="url" readonly autocomplete="off"></label><label>Scoped Twin session credential<input id="twin-credential" type="password" autocomplete="off"></label>${button({"label": "Připojit session", "type": "submit", "variant": "primary"})}</form>
       ${offline ? '<p>Offline export podporuje záznam a návrh. Pro session otevřete soukromý /twin na originu serveru; cross-origin cookie není podporována.</p>' : ''}
-      <div class="twin-row"><label>Zdroj<select id="twin-source"><option value="">Návrhový náhled</option></select></label><button id="twin-refresh" type="button">Načíst zdroje</button></div>
-      <p id="twin-warning"></p><p id="twin-error" role="alert"></p>
+      <div class="twin-row"><label>Zdroj<select id="twin-source"><option value="">Návrhový náhled</option></select></label>${button({"label": "Načíst zdroje", "id": "twin-refresh"})}</div>
+      <div id="twin-warning" hidden></div><div id="twin-error" hidden></div>
       <details><summary>Instance / build / čas / evidence</summary><pre id="twin-metadata"></pre></details>
       <div class="twin-controls" id="twin-controls" hidden>
         <label>Přihrádka<select id="twin-slot">${Array.from({length:6},(_,i)=>`<option>${i+1}</option>`).join('')}</select></label>
         <label>Varianta<select id="twin-variant"><option value="main">main</option><option value="short">short</option></select></label>
         <label class="twin-text-label">Text pro integrační backend<textarea id="twin-text" rows="3" maxlength="1024" autocomplete="off"></textarea></label>
-        <button data-twin-action="text">Syntetický textový vstup</button><button data-twin-action="stop" class="aw-button aw-button--danger">Stop</button><button data-twin-action="inspect">Servisní inspekce</button>
-        <button data-twin-action="dance">Dance</button><button data-twin-action="danceStop">Dance Stop</button>
-        <button data-twin-action="release">Uvolnit ovládání</button>
+        ${button({"label": "Syntetický textový vstup", "attributes": {"data-twin-action": "text"}})}${button({"label": "Stop", "variant": "danger", "attributes": {"data-twin-action": "stop"}})}${button({"label": "Servisní inspekce", "attributes": {"data-twin-action": "inspect"}})}
+        ${button({"label": "Dance", "attributes": {"data-twin-action": "dance"}})}${button({"label": "Dance Stop", "attributes": {"data-twin-action": "danceStop"}})}
+        ${button({"label": "Uvolnit ovládání", "attributes": {"data-twin-action": "release"}})}
         <label>Fake clock<select id="twin-speed"><option value="0.25">0.25×</option><option value="1" selected>1×</option><option value="4">4×</option></select></label>
-        <button id="twin-pause">Pozastavit clock</button><button id="twin-resume">Pokračovat clock</button><button id="twin-step">Krok 250 ms</button>
-        <label>Fault<select id="twin-fault"><option>none</option><option>servo</option><option>led</option><option>journal</option><option>jam</option></select></label><button id="twin-inject">Vložit fault</button>
+        ${button({"label": "Pozastavit clock", "id": "twin-pause"})}${button({"label": "Pokračovat clock", "id": "twin-resume"})}${button({"label": "Krok 250 ms", "id": "twin-step"})}
+        <label>Fault<select id="twin-fault"><option>none</option><option>servo</option><option>led</option><option>journal</option><option>jam</option></select></label>${button({"label": "Vložit fault", "id": "twin-inject"})}
       </div>
-      <p id="twin-capabilities"></p><p id="twin-selection"></p>
+      <p id="twin-capabilities" class="twin-capabilities"></p><h3>Události a výběr</h3><p id="twin-selection"></p>
       <p id="twin-audio-status"></p>
       <p id="twin-trace-status"></p>
       <ol id="twin-trace" tabindex="0" aria-label="Doložené runtime události"></ol>
-      <div class="twin-row"><button id="twin-export">Exportovat záznam</button><label>Import záznamu<input id="twin-import" type="file" accept="application/json,.json"></label></div>
-      <div id="twin-replay" hidden><label>Snapshot záznamu<input id="twin-seek" type="range" min="0" max="0" value="0"></label><button id="twin-play">Přehrát záznam</button><label>Rychlost replay<select id="twin-replay-speed"><option>0.25</option><option selected>1</option><option>4</option></select></label><output id="twin-record-time"></output><button id="twin-exit-replay">Zavřít záznam</button></div>
+      <h3>Záznam a přehrávání</h3><div class="twin-row">${button({"label": "Exportovat záznam", "id": "twin-export"})}<label>Import záznamu<input id="twin-import" type="file" accept="application/json,.json"></label></div>
+      <div id="twin-replay" hidden><label>Snapshot záznamu<input id="twin-seek" type="range" min="0" max="0" value="0"></label>${button({"label": "Přehrát záznam", "id": "twin-play"})}<label>Rychlost replay<select id="twin-replay-speed"><option>0.25</option><option selected>1</option><option>4</option></select></label><output id="twin-record-time"></output>${button({"label": "Zavřít záznam", "id": "twin-exit-replay"})}</div>
       <p id="twin-recording-status"></p>
-    </details>`;
-    document.body.append(panel);
+    </div></details>`;
+    (document.getElementById('workspace-dock') || document.body).append(panel);
     const badge = document.createElement('div'); badge.id = 'twin-badge'; badge.className = 'twin-badge aw-root';
     badge.setAttribute('role', 'status'); document.body.append(badge);
     const get = id => document.getElementById(id);
@@ -238,11 +250,16 @@
         bootId:snapshot?.source.bootId || null,status});
       const sourceMode = mode === 'live' ? 'ŽIVÝ KUFR · LIVE · ODHAD' : mode === 'simulation' ? 'SIMULACE' : 'ZDROJ';
       const cadState = !snapshot?.source.cadManifestRevision ? 'CAD unknown' : snapshot.source.cadManifestRevision !== model.twinManifest?.revision ? 'CAD NESHODA' : 'CAD match';
-      badge.textContent = !active ? 'NÁVRHOVÝ NÁHLED · bez runtime' :
+      const badgeLabel = !active ? 'NÁVRHOVÝ NÁHLED · bez runtime' :
         `${replay ? 'REPLAY · ' : ''}${sourceMode} · ${selectedProfile} · ${replay ? 'HISTORIE' : status.toUpperCase()} · ${snapshot?.source.instanceId || projection.instanceId || 'čekání'} · ${cadState}`;
+      badge.innerHTML = statusBadge({label:badgeLabel,tone:status === 'online' ? 'info' : status === 'stale' || status === 'offline' ? 'warning' : 'neutral'});
       badge.dataset.status = status;
-      get('twin-warning').textContent = projection.compatibility();
-      get('twin-error').textContent = failure;
+      badge.hidden = !active;
+      const compatibility = projection.compatibility();
+      get('twin-warning').innerHTML = compatibility ? notice({message:compatibility,tone:'warning'}) : '';
+      get('twin-warning').hidden = !compatibility;
+      get('twin-error').innerHTML = failure ? notice({title:'Twin není dostupný',message:failure,tone:'danger'}) : '';
+      get('twin-error').hidden = !failure;
       get('twin-capabilities').textContent = `Session: ${role}. Profile: ${selectedProfile}${selectedProfile === 'integration' ? ' · wall-clock; fake clock unavailable; návrh vybírá skutečný backend' : selectedProfile === 'deterministic' ? ' · injected fake clock; syntetický vstup' : ''}. Capabilities: ${(snapshot?.capabilities || remoteCapabilities).join(', ') || 'unavailable'}. ${commandNotice} ${replay ? 'Historický záznam; žádné povely.' : ''}`;
       get('twin-controls').hidden = !active || replay || snapshot?.source.mode !== 'simulation' || role !== 'control';
       for (const button of get('twin-controls').querySelectorAll('button')) {
@@ -278,6 +295,7 @@
         lastTraceKey = traceKey; get('twin-trace').replaceChildren();
         for (const event of events) {
           const item = document.createElement('li'), button = document.createElement('button');
+          button.className = 'aw-button aw-button--ghost';
           button.textContent = `${event.sequence ?? '?'} · ${event.timeMs ?? 'unknown'} ms · ${event.kind || '?'} · ${event.phaseId || ''} · slot ${event.slot ?? '?'} · ${event.evidence || 'unknown'}`;
           button.setAttribute('aria-pressed', String(event.slot === selectedSlot));
           button.onclick = () => { selectedSlot = event.slot >= 1 && event.slot <= 6 ? event.slot : null; selectedMesh = selectedSlot ? `tray_${selectedSlot}` : null; if (selectedMesh) hooks.select(selectedMesh); display(); };
@@ -303,7 +321,7 @@
     async function request(path, options = {}) {
       if (offline) throw new Error('Offline export: pro session otevřete /twin na originu serveru');
       const response = await root.fetch(base + path, {...options, credentials:'include', cache:'no-store'});
-      if (!response.ok) throw new Error(`Twin HTTP ${response.status}: ${response.status === 401 || response.status === 403 ? 'session/oprávnění' : 'požadavek odmítnut'}`);
+      if (!response.ok) throw await httpFailure(response, path);
       if (response.status === 204) return null;
       return response.json();
     }
@@ -470,7 +488,7 @@
       uncertainty:slot => projection.estimates[slot - 1] === 'unknown' || projection.estimates[slot - 1] === 'moving',
       state:() => ({active,replay,pending:pending || pendingStop,pendingOrdinary:pending,pendingStop,mode:selectedMode,profile:selectedProfile,instanceId:projection.instanceId,status:projection.status(root.performance.now()),selectedSlot,positions:[...projection.positions]})};
   }
-  const api = {Projection, decimal, validateSnapshot, parseRecording, traceSummary, reportedOutputs, ageStatus, mount, MAX_BYTES, MAX_SNAPSHOTS};
+  const api = {Projection, decimal, validateSnapshot, parseRecording, traceSummary, reportedOutputs, ageStatus, httpFailure, mount, MAX_BYTES, MAX_SNAPSHOTS};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DigitalTwin = api;
 })(typeof window === 'undefined' ? globalThis : window);

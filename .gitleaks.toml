@@ -9,7 +9,10 @@ useDefault = true
 description = "SHA-256 file inventories in project evidence and artifact manifests"
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^docs/project/(evidence|artifacts)/[^/]+\.json$''']
+paths = [
+  '''^docs/project/(evidence|artifacts)/[^/]+\.json$''',
+  '''^docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release\.json$''',
+]
 regexTarget = "line"
 regexes = ['''^\s*"[^"\r\n]+\.(py|cs|cpp|h|cjs|mjs|js|ts|swift|json|md|dll|pdb|exe|so|dylib)":\s*"[0-9a-f]{64}"\s*,?\s*$''']
 

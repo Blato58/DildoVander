@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-UX-JOURNEYS",
+  "initiative": "KUFR",
+  "title": "Souvislé cesty obsluhy, návštěvníka, modelu a servisních nástrojů",
+  "state": "closed",
+  "priority": "P1",
+  "sequence": 32,
+  "scope": [
+    "kufr/design-system",
+    "kufr/mobilni-aplikace",
+    "kufr/web",
+    "kufr/simulator",
+    "kufr/mechanika/final",
+    "kufr/firmware/diagnostics/servo-bench/web",
+    ".agents/skills/dildovander-ui",
+    "kufr/backend/deploy/ip-https/ios-placeholder.html"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "ACTIVE-JOURNEYS",
+      "revision": 1,
+      "expected": "Provoz začíná připraveností a dalším krokem; aktivní nástroje zachovávají kontext. Veřejné vyzvednutí začíná výběrem hůlky, soukromé operace neovlivní novou cestu po navigaci nebo skrytí. CAD zobrazuje kontext montáže a obnovuje viditelnost; simulace a USB servis pravdivě rozlišují původ, historii, brány a fyzické důkazy. Sdílený Vapour Chrome a skutečné desktopové/mobilní rendery jsou ověřené bez CAD regenerace, placených volání a ovládání hardware.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+      },
+      "evidenceRefs": [
+        "KUFR-UX-JOURNEYS-unit-v3",
+        "KUFR-UX-JOURNEYS-browser-v3",
+        "KUFR-UX-JOURNEYS-source-review-v3",
+        "KUFR-UX-JOURNEYS-ci"
+      ]
+    }
+  ],
+  "blockers": [],
+  "currentNote": "Ověřený UX overhaul sloučen PR213 na main 36fa4298a8d3535ea4dd4b14ad10096efb62f283; finální push bc9057f potvrzen skriptem Push-CurrentBranch.ps1. Všechna požadovaná CI run39184013608 prošla včetně Swift/BLE a nepodepsaného iOS Simulatoru. Review opravené a uzavřené; cílový Git tree totožný s testovaným. Software akceptovaný, bez nasazení/podpisu/placených AI/fyzických povelů. Signed iPhone, VoiceOver a hardware zůstávají samostatné hranice.",
+  "implementedSubject": {
+    "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+  },
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Aktivní softwarové cesty implementované, lokálně i v CI ověřené, renderované na úzkých/širokých displejích, nezávisle reviewované a ověřeně integrované na main. Fyzické, signed iPhone a produkční důkazy nejsou tímto softwarovým kritériem nahrazené.",
+    "subject": {
+      "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+    },
+    "evidenceRefs": [
+      "KUFR-UX-JOURNEYS-unit-v3",
+      "KUFR-UX-JOURNEYS-browser-v3",
+      "KUFR-UX-JOURNEYS-source-review-v3",
+      "KUFR-UX-JOURNEYS-ci"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "ACTIVE-JOURNEYS",
+        "revision": 1,
+        "expected": "Provoz začíná připraveností a dalším krokem; aktivní nástroje zachovávají kontext. Veřejné vyzvednutí začíná výběrem hůlky, soukromé operace neovlivní novou cestu po navigaci nebo skrytí. CAD zobrazuje kontext montáže a obnovuje viditelnost; simulace a USB servis pravdivě rozlišují původ, historii, brány a fyzické důkazy. Sdílený Vapour Chrome a skutečné desktopové/mobilní rendery jsou ověřené bez CAD regenerace, placených volání a ovládání hardware.",
+        "requiredEvidenceKinds": [
+          "unit",
+          "browser",
+          "source_review"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "dbd9ac1c6bdf8535dcd4023104c9d9f7862280bc2c543b98b8f60e2f666f7749"
+        },
+        "evidenceRefs": [
+          "KUFR-UX-JOURNEYS-unit-v3",
+          "KUFR-UX-JOURNEYS-browser-v3",
+          "KUFR-UX-JOURNEYS-source-review-v3",
+          "KUFR-UX-JOURNEYS-ci"
+        ]
+      }
+    ]
+  }
+}

@@ -1,4 +1,7 @@
+import { bindDialog, button as renderButton, element, emptyState, notice, statusBadge, wandCard } from '/design-system/ui.js';
+
 const $ = id => document.getElementById(id);
+const artworkDialog = bindDialog($('public-art-dialog'));
 const allowedKinds = new Set(['base_image', 'export_story', 'export_card', 'export_zip']);
 const kindMediaTypes = { base_image: 'image/png', export_story: 'text/plain', export_card: 'image/png', export_zip: 'application/zip' };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,7 +29,19 @@ const pendingDownloads = new Set();
 
 function text(id, value) { $(id).textContent = value ?? ''; }
 function visible(id, shown) { $(id).hidden = !shown; }
-function status(message) { text('evening-status', message); }
+let lastStatus;
+function status(message, tone = 'info') {
+  const signature = `${tone}:${message}`;
+  if (lastStatus === signature) return;
+  lastStatus = signature;
+  $('evening-status').replaceChildren(element(notice({ message, tone })));
+}
+function empty(title, message) {
+  const state = element(emptyState({ title, message }));
+  state.querySelector('h2, h3').id = 'empty-title';
+  state.querySelector('p').id = 'empty-copy';
+  $('evening-empty').replaceChildren(state);
+}
 function itemKey(item) { return `${item.locator}:${item.editionId}`; }
 function assetOf(item, kind) { return item?.assets.find(asset => asset.kind === kind); }
 function assetSignature(asset) { return `${asset.id}:${asset.kind}:${asset.mediaType}:${asset.length}:${asset.sha256}`; }
@@ -151,9 +166,16 @@ function renderSelection() {
   renderArtwork(selected);
   for (const [key, node] of listNodes) node.firstElementChild.setAttribute('aria-pressed', String(key === itemKey(selected)));
 }
-function select(item, manual = true) {
+function select(item, manual = true, reveal = false) {
   if (!item || !eveningId) return;
   setSelected(item); followsLatest = !manual; renderSelection();
+  if (manual) {
+    status(`Vybraná hůlka: ${item.officialName}. Příběh a soubory jsou připravené níže.`);
+    if (reveal) {
+      $('public-name').focus({ preventScroll: true });
+      $('public-edition').scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
+  }
 }
 function renderList() {
   const wanted = new Set(items.map(itemKey));
@@ -163,23 +185,25 @@ function renderList() {
     let node = listNodes.get(key);
     if (!node) {
       node = document.createElement('li');
-      const button = document.createElement('button'); button.className = 'evening-item'; button.type = 'button';
-      const name = document.createElement('strong'); const title = document.createElement('span'); title.className = 'item-title';
-      const state = document.createElement('span'); state.className = 'item-state'; button.append(name, title, state);
-      button.addEventListener('click', () => select(items.find(candidate => itemKey(candidate) === key)));
+      const button = element(wandCard({ title: item.officialName, subtitle: item.story.title || 'Příběh se připravuje', number: item.slot ?? undefined }));
+      button.classList.add('evening-item');
+      button.append(element(statusBadge({ label: '', tone: 'neutral' })));
+      button.addEventListener('click', event => select(items.find(candidate => itemKey(candidate) === key), true, event.detail > 0));
       node.append(button); listNodes.set(key, node);
     }
     const button = node.firstElementChild;
-    button.children[0].textContent = item.officialName;
-    button.children[1].textContent = item.story.title || 'Příběh se připravuje';
-    button.children[2].textContent = item.synthetic ? 'SYNTETICKÁ UKÁZKA' : assetOf(item, 'base_image') ? 'Obraz připravený' : 'Obraz se připravuje';
+    button.querySelector('.aw-wand-card__title').textContent = item.officialName;
+    button.querySelector('.aw-wand-card__subtitle').textContent = item.story.title || 'Příběh se připravuje';
+    button.querySelector('.aw-badge').textContent = item.synthetic ? 'SYNTETICKÁ UKÁZKA' : assetOf(item, 'base_image') ? 'Obraz připravený' : 'Obraz se připravuje';
     button.setAttribute('aria-pressed', String(!!selected && key === itemKey(selected)));
     const position = $('evening-list').children[index];
     if (position !== node) $('evening-list').insertBefore(node, position || null);
   });
   visible('evening-list-section', items.length > 0);
-  text('item-count', `Zobrazeno ${items.length} příběhů`);
-  visible('load-more', !!nextCursor); $('load-more').disabled = paging;
+  text('item-count', `${items.length} ${olderPage ? 'dřívějších' : 'nejnovějších'} příběhů · výběrem otevřeš detail`);
+  visible('load-more', !!nextCursor); $('load-more').disabled = paging || refreshing;
+  $('load-more').textContent = paging ? 'Načítáme další…' : 'Načíst další hůlky';
+  if (paging) $('load-more').setAttribute('aria-busy', 'true'); else $('load-more').removeAttribute('aria-busy');
   visible('first-page', olderPage);
 }
 function schedule(delay = 10000) {
@@ -189,14 +213,15 @@ function schedule(delay = 10000) {
 function handleUnavailable(error) {
   clearScope();
   visible('evening-empty', true);
-  text('empty-title', 'Archiv je právě nedostupný');
-  text('empty-copy', 'Zkus obnovit spojení. Tento přehled žádné generování ani nový výběr nespouští.');
-  status(error.status === 429 ? 'Přehled dostává příliš mnoho požadavků. Za chvíli jej zkusíme znovu.' : 'Přehled se nepodařilo ověřit.');
+  empty('Archiv je právě nedostupný', 'Zkus obnovit spojení. Tento přehled žádné generování ani nový výběr nespouští.');
+  status(error.status === 429 ? 'Přehled dostává příliš mnoho požadavků. Za chvíli jej zkusíme znovu.' : 'Přehled se nepodařilo ověřit.', 'warning');
 }
 async function refresh() {
   if (document.hidden || refreshing) return;
   refreshing = true; paging = false;
-  $('refresh-evening').disabled = true; $('load-more').disabled = true;
+  $('refresh-evening').textContent = 'Obnovujeme…';
+  $('load-more').textContent = 'Načíst další hůlky'; $('load-more').removeAttribute('aria-busy');
+  $('refresh-evening').disabled = true; $('refresh-evening').setAttribute('aria-busy', 'true'); $('load-more').disabled = true;
   controller?.abort(); controller = new AbortController();
   const epoch = ++requestEpoch;
   try {
@@ -221,8 +246,7 @@ async function refresh() {
     text('evening-label', safeText(view.evening?.label, 160) || 'Aktivní večer');
     renderList(); renderSelection();
     visible('evening-empty', !selected);
-    text('empty-title', eveningId ? 'První příběh je ještě před námi' : 'Večer ještě nezačal');
-    text('empty-copy', eveningId ? 'Archivář čeká na první připravenou hůlku. Tenhle odkaz si můžeš nechat otevřený.' : 'Jakmile obsluha zahájí večer, objeví se tady jeho hůlky a příběhy.');
+    empty(eveningId ? 'První příběh je ještě před námi' : 'Večer ještě nezačal', eveningId ? 'Archivář čeká na první připravenou hůlku. Tenhle odkaz si můžeš nechat otevřený.' : 'Jakmile obsluha zahájí večer, objeví se tady jeho hůlky a příběhy.');
     status(selected ? (latest && selected && itemKey(selected) !== itemKey(latest) ? 'Čteš dřívější hůlku. Nejnovější připravená edice je také v přehledu.' : 'Aktivní večer · přehled se průběžně obnovuje.') : 'Zatím žádná připravená edice.');
     schedule();
   } catch (error) {
@@ -233,12 +257,12 @@ async function refresh() {
     }
     handleUnavailable(error); schedule(error.retryAfterMs || 15000);
   } finally {
-    if (epoch === requestEpoch) { refreshing = false; $('refresh-evening').disabled = false; $('load-more').disabled = false; }
+    if (epoch === requestEpoch) { refreshing = false; $('refresh-evening').textContent = 'Obnovit přehled'; $('refresh-evening').disabled = false; $('refresh-evening').removeAttribute('aria-busy'); $('load-more').disabled = false; }
   }
 }
 async function loadMore() {
   if (!nextCursor || paging || refreshing || !eveningId) return;
-  paging = true; $('load-more').disabled = true;
+  paging = true; $('load-more').disabled = true; $('load-more').textContent = 'Načítáme další…'; $('load-more').setAttribute('aria-busy', 'true');
   const epoch = requestEpoch; const previousEvening = eveningId;
   const requestedCursor = nextCursor;
   try {
@@ -255,7 +279,7 @@ async function loadMore() {
     if (epoch !== requestEpoch || error.name === 'AbortError') return;
     if (error.status === 409) { clearScope(); eveningId = undefined; followsLatest = true; await refresh(); }
     else status('Další příběhy se nepodařilo načíst. Zkus načtení znovu.');
-  } finally { if (epoch === requestEpoch) { paging = false; $('load-more').disabled = false; } }
+  } finally { if (epoch === requestEpoch) { paging = false; $('load-more').disabled = false; $('load-more').textContent = 'Načíst další hůlky'; $('load-more').removeAttribute('aria-busy'); } }
 }
 async function download(button) {
   const item = selected; const asset = assetOf(item, button.dataset.publicDownload);
@@ -274,19 +298,19 @@ async function download(button) {
     const filename = { base_image: 'wand-art', export_story: 'story', export_card: 'keepsake-card', export_zip: 'bundle' }[asset.kind] + extension;
     const file = new File([blob], filename, { type: mediaType });
     const url = URL.createObjectURL(blob); fileUrls.add(url);
-    const dialog = document.createElement('dialog'); dialog.dataset.publicFile = 'true';
+    const dialog = document.createElement('dialog'); dialog.className = 'aw-dialog'; dialog.dataset.publicFile = 'true';
     const title = document.createElement('h2'); title.textContent = 'Památka je připravená k uložení';
     const note = document.createElement('p'); note.textContent = 'Na iPhonu použij Sdílet → Uložit do Souborů; u obrázku případně Uložit obrázek. Uložení do Fotek potvrzuje až systém.';
     const link = document.createElement('a'); link.href = url; link.download = filename; link.className = 'aw-button'; link.textContent = 'Stáhnout soubor';
     dialog.append(title, note, link);
     if (navigator.canShare?.({ files: [file] })) {
-      const share = document.createElement('button'); share.className = 'aw-button aw-button--secondary'; share.textContent = 'Sdílet soubor';
+      const share = element(renderButton({ label: 'Sdílet soubor' }));
       share.addEventListener('click', async () => {
         try { await navigator.share({ files: [file] }); }
         catch (error) { if (error.name !== 'AbortError') status('Systémové sdílení není dostupné. Použij stažení souboru.'); }
       }); dialog.append(share);
     }
-    const close = document.createElement('button'); close.className = 'text-button'; close.textContent = 'Zavřít'; close.addEventListener('click', () => dialog.close()); dialog.append(close);
+    const close = element(renderButton({ label: 'Zavřít', variant: 'ghost' })); close.addEventListener('click', () => dialog.close()); dialog.append(close);
     dialog.addEventListener('close', () => { URL.revokeObjectURL(url); fileUrls.delete(url); dialog.remove(); });
     document.body.append(dialog); dialog.showModal();
   } catch (error) {
@@ -300,7 +324,7 @@ $('refresh-evening').addEventListener('click', refresh);
 $('load-more').addEventListener('click', loadMore);
 $('first-page').addEventListener('click', () => { pageCursor = undefined; refresh(); });
 $('select-latest').addEventListener('click', () => select(latest, false));
-$('public-art-open').addEventListener('click', () => $('public-art-dialog').showModal());
+$('public-art-open').addEventListener('click', () => artworkDialog.open());
 $('close-public-art').addEventListener('click', () => $('public-art-dialog').close());
 $('public-art').addEventListener('error', () => { clearArtwork(); text('public-art-status', 'Obraz se nepodařilo zobrazit. Obnov přehled.'); });
 for (const button of document.querySelectorAll('[data-public-download]')) button.addEventListener('click', () => download(button));

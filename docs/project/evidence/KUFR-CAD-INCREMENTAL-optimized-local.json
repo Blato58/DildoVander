@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-CAD-INCREMENTAL-optimized-local",
+  "observedAtUtc": "2026-10-19T00:22:28Z",
+  "kind": "unit",
+  "result": "pass",
+  "claims": [
+    {"workItemId": "KUFR-CAD-INCREMENTAL", "criterionId": "IMPACT", "criterionRevision": 2, "result": "pass"},
+    {"workItemId": "KUFR-CAD-INCREMENTAL", "criterionId": "REUSE", "criterionRevision": 2, "result": "pass"}
+  ],
+  "subject": {"artifactDigest": "86605a61c0d5bf06dab3bc81fb2111b88f78205d1490e1ed9828c5a63c01b7d4"},
+  "environment": "Windows task checkout; complete existing 6d2b Python 3.11/CadQuery 2.8.0 environment; Python 3.14 stdlib; Node 25.9; actionlint1.7.12.",
+  "method": "Pinned Python -m unittest test_part_cache test_refresh_package test_regenerate test_regeneration_cache test_viewer_document test_viewer_style test_inspect_data:112 passed. Python scripts/ci test_cad*.py:26, test_select_projects:11, test_site_workflow:9 passed. node --test scripts/ci/*.test.cjs:61 passed. actionlint -shellcheck= -pyflakes= and git diff --check passed.",
+  "observation": "Native small-box test now proves the key is unchanged before/after STL/STEP/3MF tessellation and key computation preserves original shape check flags. A diagnostic probe first reproduced BREP triangle/check-state mutation; copy-without-mesh plus normalized copy-only Checked flags fixes it. Promotion tests reject unmerged/wrong-base/different-code/mode/nonancestor/incorrect-key/force cases and retain original runtime/acceptance provenance. No full suitcase rebuild was run locally.",
+  "limitations": ["Hosted run39179540290 passed structural/site checks and partial native gates, then was deliberately cancelled before completion while final promotion/mesh fixes were integrated; no acceptance is claimed from that run.", "Final hosted validation and actual main promotion remain pending.", "Digest is sorted27 implementation/guidance/test paths changed against d409916 excluding docs/project: UTF-8 path + NUL + exact bytes + NUL."]
+}

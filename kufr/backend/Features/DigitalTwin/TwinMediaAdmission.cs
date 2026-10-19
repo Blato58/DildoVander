@@ -10,13 +10,27 @@ internal sealed class TwinAdmissionCancellations
 {
     private const int Capacity = 64;
     private readonly Lock gate = new();
-    private readonly Dictionary<TwinAdmissionIdentity, DateTimeOffset> entries = new();
+    private sealed class Deadline(Func<DateTimeOffset> current)
+    {
+        internal DateTimeOffset Minimum;
+        internal DateTimeOffset Expires
+        {
+            get { var value = current(); return value > Minimum ? value : Minimum; }
+        }
+    }
+    private readonly Dictionary<TwinAdmissionIdentity, Deadline> entries = new();
+    private readonly Dictionary<string, Deadline> overflowOwners = new(StringComparer.Ordinal);
     private DateTimeOffset overflowUntil;
 
     internal bool Record(TwinAdmissionIdentity identity, DateTimeOffset expires, DateTimeOffset now)
+        => Record(identity, () => expires, now);
+    internal bool Record(TwinAdmissionIdentity identity, Func<DateTimeOffset> expiry, DateTimeOffset now)
     {
         lock (gate)
         {
+            // Read the authenticated deadline under the same lock as renewal,
+            // so a cancellation captured before login cannot expire early.
+            var expires = expiry();
             Prune(now);
             if (expires <= now) { return false; }
             if (entries.ContainsKey(identity)) { return true; }
@@ -24,10 +38,13 @@ internal sealed class TwinAdmissionCancellations
             {
                 // An active matching actor still cancels. This bounded barrier
                 // remembers the unavailable slot until its owner expires.
-                if (expires > overflowUntil) { overflowUntil = expires; }
+                if (overflowOwners.TryGetValue(identity.OwnerId, out var previous))
+                { if (expires > previous.Minimum) { previous.Minimum = expires; } }
+                else if (overflowOwners.Count < Capacity) { overflowOwners.Add(identity.OwnerId, new Deadline(expiry)); }
+                else { overflowUntil = DateTimeOffset.MaxValue; } // Fail closed until the service restarts.
                 return false;
             }
-            entries.Add(identity, expires);
+            entries.Add(identity, new Deadline(expiry));
             return true;
         }
     }
@@ -37,15 +54,27 @@ internal sealed class TwinAdmissionCancellations
         {
             Prune(now);
             if (entries.ContainsKey(identity)) { return "media_cancelled"; }
-            return fresh && (entries.Count >= Capacity || overflowUntil > now) ? "media_cancellation_capacity" : null;
+            return fresh && (entries.Count >= Capacity || overflowOwners.Count > 0 || overflowUntil > now) ? "media_cancellation_capacity" : null;
+        }
+    }
+    internal void RenewOwner(string ownerId, DateTimeOffset expires, DateTimeOffset now)
+    {
+        lock (gate)
+        {
+            foreach (var identity in entries.Keys.Where(identity => identity.OwnerId == ownerId).ToArray())
+            { if (entries[identity].Minimum < expires) { entries[identity].Minimum = expires; } }
+            if (overflowOwners.TryGetValue(ownerId, out var overflow) && overflow.Minimum < expires)
+            { overflow.Minimum = expires; }
         }
     }
     private void Prune(DateTimeOffset now)
     {
         // UUIDs do not establish boot ordering. Retain entries until owner
         // expiry so an in-flight old-boot request cannot erase newer memory.
-        foreach (var expired in entries.Where(entry => entry.Value <= now).Select(entry => entry.Key).ToArray())
+        foreach (var expired in entries.Where(entry => entry.Value.Expires <= now).Select(entry => entry.Key).ToArray())
         { entries.Remove(expired); }
+        foreach (var expired in overflowOwners.Where(entry => entry.Value.Expires <= now).Select(entry => entry.Key).ToArray())
+        { overflowOwners.Remove(expired); }
     }
 }
 
@@ -77,7 +106,7 @@ internal sealed partial class TwinMediaSessions
         var memory = cancellations.GetOrAdd(id, _ => new TwinAdmissionCancellations());
         // Record before inspecting the actor. The memory lock is released
         // before actor.Gate; cancellation never takes the settings/manager lock.
-        var recorded = memory.Record(new(owner.Id, boot, operation), owner.Expires, clock.GetUtcNow());
+        var recorded = memory.Record(new(owner.Id, boot, operation), () => owner.Expires, clock.GetUtcNow());
         if (actors.TryGetValue(id, out var actor) && actor.OwnerId == owner.Id
             && actor.OperationId == cancel.OperationId && actor.BootId == cancel.ExpectedBootId)
         {

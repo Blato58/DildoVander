@@ -272,10 +272,19 @@ identity jsou v receipts; build/screenshot nejsou fyzickou akceptací.
 NASAZENO NA VPS: oddělená služba a skutečně běžící host procesy, chráněný viewer
 a ingest. Testy používají fake provider; Realtime/GPT-Live jsou připravené
 v nastavení se schváleným existujícím serverovým klíčem. Fyzický kufr nebyl
-ovládán ani flashován. Aktuální nasazený release je `twin-20261014-v12`;
-source/build ID `ccb70eeb2eaa2640e69d6c3bb69c9c0baa9cb3d1132515999cf800fa2a6fb36c`.
-Aktuální [softwarový target](../../docs/project/targets/KUFR-TWIN-software.json)
-zahrnuje i browser média; fyzickou akceptaci dál blokuje PHYSICAL.
+ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v17`;
+source/build ID `a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148`.
+[Cílený target v17](../../docs/project/targets/KUFR-TWIN-mic-v17.json) ověřuje
+opravu mikrofonní fronty na skutečném VPS: při zpoždění 603 ms rozhovor pokračoval,
+fronta zůstala do 400 ms, prošly JPEG, PCM/drain a reload bez opakování. Použit byl
+fake provider a fake zařízení Chrome; původní nastavení bylo obnoveno a ověřeno.
+[Plný softwarový baseline v16](../../docs/project/targets/KUFR-TWIN-software.json)
+zůstává historickým důkazem; fyzickou akceptaci dál blokuje PHYSICAL.
+
+Standardní installer odmítl aktuální Nginx layout před aktivací. V17 byl aktivován
+atomickým přepnutím se soukromou zálohou a rollbackem přes existující ověřenou
+route/unit; jejich konfigurace i credentials zůstaly stejné. Obě služby jsou zdravé.
+Podrobnosti a omezení jsou v [důkazech v17](../../docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/README.md).
 
 Test s 20 HTTPS polls po 50 ms a pomalým čtenářem 10 B/s naměřil z VPS na jeho
 vlastní TLS origin median 7,91 ms, p95 10,19 ms, simulační Stop 32,45 ms a
@@ -308,3 +317,36 @@ periferie nebyly testovány. Viewer o nich nevrací falešný úspěch.
 Virtuální kalibrace 1100/1900 µs a
 500 ms je testovací předpoklad, nikoli měření aktuální sestavy. Časový/kinematický
 model neověřuje servo moment, odběr, tření, akustiku ani mechanickou bezpečnost.
+
+
+V14: HAL32 položek slučuje sousední PCM stejné epochy do32768B; služby mají
+samostatné2 položky, vstupní události8 /512KiB. Pouze media worker čeká nejvýše5s
+wall-clock. Stop nečeká. Retry je jen pro nepřijaté `media-event-backpressure`.
+Browser má150ms počáteční buffer a dostupné bloky načítá bez další50ms pauzy.
+ACK potvrzuje software přehrání a přesné kumulativní bajty. Vadný stream ukončí
+actor; úklid se neopakuje při každém pollu. Přihlášení stejného browseru/scope
+zachová vlastníka řízení. V5 receipts:19native Windows/Linux,103JS/Chrome,
+HTTP/native260x4800B s pomalým čtenářem a CAD desktop/mobile/reload/Stop.
+Placená AI vynechána; GPT-Live rozhovor ověří majitel. Výkonnostní čísla výše
+patří staršímu běhu a nebyla znovu měřena pro v14.
+
+
+V15 doplňuje nejvýše3 pokusy o úklid konverzace (4s každý, stejný idempotentní
+klíč;204/404 ukončí opakování). Úspěšné přihlášení stejným credentialem a cookie
+obnoví8h platnost téhož ID i dosud platného vlastnictví médií/hostu a paměti
+zrušených operací. Jiný browser nebo scope původní řízení nepřebírá.
+
+Paměť zrušení je omezená na64 operací a64 vlastníků overflow bariéry na instanci.
+Při dalším zaplnění blokuje nové vstupy až do explicitního restartu služby;
+nezahazuje neexpirované záznamy. Deadline sleduje obnovenou autentizovanou relaci.
+
+
+Přechod mikrofonní brány (v16): platný opožděný PCM blok z již uzavřené vstupní
+epochy vrací409 `media-input-retired` bez přijetí bajtů a bez ukončení rozhovoru.
+Browser blok neopakuje, vyčistí čekající mikrofonní vstup a čeká na vyšší epochu
+potvrzenou nativním stavem. Starší FIFO událost nesmí bránu znovu otevřít.
+Nesprávné pořadí v aktuální epoše (`media-input-sequence-mismatch`), budoucí epocha,
+neplatná identita a přeplnění (`media-input-overflow`) zůstávají chybami.
+Nativní upload čeká s oddělenou engine a HAL epochou; staré čekání nespotřebuje
+první blok nově otevřené brány. Pause GPT-Live může obnovit HAL bránu, aniž změní
+vstupní turn sdíleného engine, proto se čítače nesmějí číselně zaměňovat.

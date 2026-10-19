@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-VAPOUR-CHROME",
+  "initiative": "KUFR",
+  "title": "Vapour Chrome napříč rozhraními a projektovou design guidance",
+  "state": "closed",
+  "priority": "P1",
+  "sequence": 30,
+  "scope": [
+    "kufr/design-system",
+    "kufr/mobilni-aplikace",
+    "kufr/simulator",
+    "kufr/mechanika/final",
+    "kufr/web",
+    "AGENTS.md",
+    ".agents/skills",
+    ".codex/environment",
+    "scripts/check_design_system.py",
+    "kufr/backend/Features/Keepsakes/KeepsakeExports.cs",
+    "kufr/backend-tests/KeepsakeCoreTests.cs",
+    "kufr/firmware/diagnostics/servo-bench/web",
+    "kufr/backend/deploy/ip-https/ios-placeholder.html",
+    "scripts/test_design_system.py",
+    ".github/workflows",
+    "PRODUCT.md",
+    "DESIGN.md"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "UI",
+      "revision": 1,
+      "expected": "Společný Vapour Chrome základ, skutečné přepracování existujících UI, návazná guidance a ověřené úzké/široké renderované stavy bez změny bezpečnostních a datových hranic.",
+      "requiredEvidenceKinds": [
+        "source_review",
+        "unit",
+        "browser"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "7e53ae7fa345b22bbe7316aaaf3e135e4e6b528bbbd4259baf64bb3ca1ab07fa"
+      },
+      "evidenceRefs": [
+        "KUFR-VAPOUR-CHROME-unit-v2",
+        "KUFR-VAPOUR-CHROME-browser-v2",
+        "KUFR-VAPOUR-CHROME-source-review-v2"
+      ]
+    }
+  ],
+  "blockers": [],
+  "currentNote": "Implementace f2443cb983d46c51e957b2dc9a82d39c069432bc ověřena a úspěšně pushnuta na origin/codex/vapour-chrome-ui; remote SHA ověřeno skriptem Push-CurrentBranch.ps1. Lokální software/render kontroly prošly; nativní iPhone, živý simulator bridge, plný CAD výrobní ZIP a nasazení nejsou touto dodávkou prokázány. PR/CI před merge se posuzují samostatně. PR #209; první CI odhalilo CRLF/LF nesoulad STATUS, opraveno b7c692b a ověřen skutečný remote push. Závěrečné logy odhalily dev font403: úzce opraveno, fonty200/repo root403, mobile63 testů a build prošly, Inter skutečně načten a render opakován. Nejnovější CI musí projít před merge.",
+  "implementedSubject": {
+    "artifactDigest": "7e53ae7fa345b22bbe7316aaaf3e135e4e6b528bbbd4259baf64bb3ca1ab07fa"
+  },
+  "closure": {
+    "outcome": "accepted",
+    "reason": "Softwarová implementace, cílené testy a skutečné renderované UI ověřeny; fyzická/native/production hranice zůstává oddělená.",
+    "subject": {
+      "artifactDigest": "7e53ae7fa345b22bbe7316aaaf3e135e4e6b528bbbd4259baf64bb3ca1ab07fa"
+    },
+    "evidenceRefs": [
+      "KUFR-VAPOUR-CHROME-unit-v2",
+      "KUFR-VAPOUR-CHROME-browser-v2",
+      "KUFR-VAPOUR-CHROME-source-review-v2"
+    ],
+    "acceptedCriteria": [
+      {
+        "id": "UI",
+        "revision": 1,
+        "expected": "Společný Vapour Chrome základ, skutečné přepracování existujících UI, návazná guidance a ověřené úzké/široké renderované stavy bez změny bezpečnostních a datových hranic.",
+        "requiredEvidenceKinds": [
+          "source_review",
+          "unit",
+          "browser"
+        ],
+        "rule": "allOf",
+        "appliesTo": {
+          "artifactDigest": "7e53ae7fa345b22bbe7316aaaf3e135e4e6b528bbbd4259baf64bb3ca1ab07fa"
+        },
+        "evidenceRefs": [
+          "KUFR-VAPOUR-CHROME-unit-v2",
+          "KUFR-VAPOUR-CHROME-browser-v2",
+          "KUFR-VAPOUR-CHROME-source-review-v2"
+        ]
+      }
+    ]
+  }
+}

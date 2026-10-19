@@ -1,37 +1,41 @@
 {
   "schemaVersion": 1,
-  "profile": "DV10 local A-H + static public evening pickup, production OFF",
-  "observedAtUtc": "2026-10-14T19:02:43.930834Z",
+  "profile": "DV10 deployed static evening pickup; paid generation ON",
+  "observedAtUtc": "2026-10-15T15:02:08.904733+00:00",
   "implementation_A_H": true,
   "offline_verified": true,
-  "vps_runtime_verified": false,
+  "vps_runtime_verified": true,
   "provider_quality_verified": false,
   "iphone_guest_verified": false,
   "manual_retention_verified": true,
   "privacy_cleanup_verified": true,
   "backup_restore_verified": false,
-  "public_deployment_verified": false,
+  "public_deployment_verified": true,
   "event_ready": false,
   "scope": {
     "implementation_A_H": "Local source, exact ESP outcome handoff without individual QR, public active-evening wands/stories/base exports, separate private photo/portrait/owner/admin APIs, manual-only archive, skills and prepared delivery tooling.",
-    "offline_verified": "Pinned .NET SDK10.0.303 build/core/gallery/admin/outcome and actual HTTP integration; synthetic public/private browser and mobile62 tests/build; seven firmware host suites and ESP-IDF build. No paid inference. Standalone public evening built (45 files); full project-site build still needs verified CAD exports.",
-    "vps_runtime_verified": "Read-only baseline preflight succeeded; DV10 runtime not deployed or exercised on VPS.",
-    "manual_retention_verified": "Local synthetic year-advance and lifecycle tests; production storage policy not activated.",
+    "offline_verified": "Current-main hosted backend/full offline+realHTTP, firmware host/build, native/web/offlineAI/repository checks PASS; local9 proxy cases and repeated public/private synthetic browser suites PASS. Full canonical site is verified separately.",
+    "vps_runtime_verified": "Actual compatible backend/site activated with separate private config and complete nginx69-route profile; services active, HTTPS21 cases plus wrongHost421 pass, SQLite quick_check ok. No generated items yet.",
+    "manual_retention_verified": "Synthetic lifecycle tests passed; production archive configured manual_only outside releases with0700 and umask0077. No real archive deletion or year-long retention test performed.",
     "privacy_cleanup_verified": "Local primary-store closure and orphan cleanup verified; provider deletion unknown, backup reconciliation pending.",
     "backup_restore_verified": "Isolated synthetic SQLite/archive/key evidence verifier passed; real encrypted off-VPS backup and restore not performed.",
-    "native_ci_verified": "Native Swift tests and unsigned iOS Simulator build PASS in https://github.com/Blato58/DildoVander/actions/runs/38613273980; real iPhone guest remains unverified.",
-    "full_site_ci_verified": "Canonical whole-site build and manufacturing verification PASS in https://github.com/Blato58/DildoVander/actions/runs/38613273980; no production publication. Local verified CAD exports remain absent."
+    "native_ci_verified": "Native Swift tests and unsigned Simulator build PASS in CI38748013953; real iPhone guest remains unverified.",
+    "full_site_ci_verified": "Canonical site/manufacturing build PASS in CI38748013953 on clean main9850715;308 files deployed and HTTPS hashes verified by site deploy38755728034.",
+    "public_deployment_verified": "https://2.28.202.220/keepsake/evening/ returns200; actual visible in-app browser navigation/refresh shows correct empty evening. Public gallery no-store/no-cookie; private/admin routes remain protected.",
+    "generation_enabled": "Enabled/GenerationEnabled/PortraitEnabled true, openai, gpt-6.1-sol and gpt-image-2; existing key unchanged, model catalog access verified without inference."
   },
   "supported_portrait_variant": "portrait_only",
   "unsupported_portrait_variant": "portrait_with_wand returns explicit 409",
   "credential_decision": "Owner approved reuse of existing backend OpenAI key; no key copied or printed.",
   "remaining_gates": [
-    "Authorized paid OpenAI quality pilot with consented photos and verified account model availability.",
-    "Real iPhone guest and hardware power-loss/network timing verification; current PR native CI is tracked separately and does not prove either.",
-    "Approved production deployment, real nginx validation/TLS/route smoke and rollback.",
-    "Independent encrypted off-VPS backup destination, actual key persistence and isolated restore rehearsal."
+    "Actual paid quality pilot with consented photographs; activation and model availability alone do not prove output quality.",
+    "Real iPhone guest and hardware power-loss/network timing verification.",
+    "Independent encrypted off-VPS backup destination and actual isolated restore rehearsal."
   ],
   "static_evening_pickup_implemented": true,
   "native_ci_verified": true,
-  "full_site_ci_verified": true
+  "full_site_ci_verified": true,
+  "generation_enabled": true,
+  "portrait_enabled": true,
+  "provider_model_access_verified": true
 }

@@ -94,6 +94,17 @@ internal sealed partial class TwinHost : BackgroundService
         }
     }
     public bool IsSimulation(string id) => hosts.ContainsKey(id);
+    internal void RenewOwner(TwinSession session)
+    {
+        var principal = session.Principal;
+        if (principal.Role != "control" || principal.Mode != "simulation" || principal.InstanceId is not { } id
+            || !hosts.TryGetValue(id, out var host)) { return; }
+        lock (host.Gate)
+        {
+            if (host.Owner == session.Id && host.OwnerExpires > clock.GetUtcNow()
+                && session.Expires > host.OwnerExpires) { host.OwnerExpires = session.Expires; }
+        }
+    }
     public bool IsReady() => hosts.Values.All(host => host.Ready);
     public object Health() => hosts.Values.Select(host => new { instanceId = host.Id, ready = host.Ready, error = host.Error }).ToArray();
     public async Task<TwinCommandResult> CommandAsync(string id, TwinSession session, TwinCommand command, CancellationToken cancellation)
@@ -179,8 +190,10 @@ internal sealed partial class TwinHost : BackgroundService
             // transfer ordinary command ownership to a newly signed-in session.
             if (command.Action != "stop")
             {
+                // A request admitted before reauthentication must not shorten
+                // the renewed owner's deadline when it later reaches this lock.
+                if (host.Owner != session.Id || session.Expires > host.OwnerExpires) { host.OwnerExpires = session.Expires; }
                 host.Owner = session.Id;
-                host.OwnerExpires = session.Expires;
             }
         }
         // A disconnected HTTP observer cannot cancel an already admitted input.
