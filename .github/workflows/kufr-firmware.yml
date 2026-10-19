@@ -389,7 +389,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          g++ -std=c++14 -Wall -Wextra -Werror -Itests/idf_stubs \
+          g++ -std=c++14 -Wall -Wextra -Werror -Itests/idf_stubs -I lib/device_configuration/include \
             src/features/provisioning/EspIdfPairingRandom.cpp \
             tests/espidf_pairing_random_test.cpp \
             -o "$RUNNER_TEMP/espidf-pairing-random-test"
@@ -544,6 +544,9 @@ jobs:
           rm -f kufr/firmware/.pio/build/production/CMakeCache.txt
           "$KUFR_PIO" run -d kufr/firmware -e production -s
           python3 kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/production/firmware.bin --version "$version"
+          mkdir -p "$RUNNER_TEMP/firmware/esp32-s3-idf"
+          cp kufr/firmware/.pio/build/production/*.bin "$RUNNER_TEMP/firmware/esp32-s3-idf/"
+          cp kufr/firmware/.pio/build/production/firmware.elf "$RUNNER_TEMP/firmware/esp32-s3-idf/"
       - name: Secured BLE adapter with pinned managed cJSON
         working-directory: kufr/firmware
         shell: bash
@@ -593,9 +596,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/firmware/esp32-s3-idf"
-          cp kufr/firmware/.pio/build/production/*.bin "$RUNNER_TEMP/firmware/esp32-s3-idf/"
-          cp kufr/firmware/.pio/build/production/firmware.elf "$RUNNER_TEMP/firmware/esp32-s3-idf/"
           python3 scripts/ci/package.py pack "$RUNNER_TEMP/firmware" "$RUNNER_TEMP/firmware-package"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # PR CI validates packages; explicit main builds retain deployable artifacts.
