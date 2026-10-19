@@ -66,6 +66,6 @@
   "implementedSubject": {
     "artifactDigest": "516ba92f703449af10934d51f072cf484309c69d1780922abe8bd05f83d448e7"
   },
-  "currentNote": "Integrated concurrent main211 b44e192. Preserved shared executable UI consumers; exact reviewed runtime/helpers presentation-only, unknown/toolchain changes remain mechanical. Combined pinned117/CI27/selector13/Node63/web23 checks and independent review pass. Obsolete hosted runs cancelled safely; final hosted acceptance pending.",
-  "nextAction": "Run integrated PR CI, prove trusted reuse across tracking-only commits, merge after reviews/checks, confirm main promotion without duplicate CAD."
+  "currentNote": "31ce3fb0ae9ed809d7d356c99484db10673a14f6 pushed/remote verified. Hosted CI39181940875 passed all selected jobs and CI required; native CAD42m44s, PASS_CAD_NOT_PHYSICAL_ACCEPTANCE and PASS_SLICER. Verified artifact12157827058, key176694e063630eef5244ef171afcf6cfb4feef9ae49b1b9428796a813ac1c98f. Testing source-identical tracking-only PR reuse before merge; main promotion pending.",
+  "nextAction": "Verify same-PR hit skips toolchain/generation, recheck all reviews, merge, then verify main promotion and exact main hit."
 }
