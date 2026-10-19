@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-DEPENDABOT-SYNC-native-build-unit",
+  "observedAtUtc": "2026-10-19T06:17:28.841029Z",
+  "kind": "unit",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-SYNC",
+      "criterionId": "POLICY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "environment": "GitHub-hosted macOS/Ubuntu and Windows source-fix checkout.",
+  "method": "Focused Node controller20 and Python generator/workflow10 tests; git diff --check.",
+  "observation": "All30 focused checks pass. Native ordering now installs existing mobile/contracts/simulator locks without lifecycle hooks, performs actual web build, cap sync ios and Xcode resolution; permissions/artifact/API boundaries unchanged.",
+  "limitations": [
+    "Hosted native and backend rehearsals of this new source remain pending."
+  ]
+}

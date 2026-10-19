@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-DEPENDABOT-SYNC-native-rehearsal-v1",
+  "observedAtUtc": "2026-10-19T06:17:28.841029Z",
+  "kind": "integration",
+  "result": "fail",
+  "subject": {
+    "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-SYNC",
+      "criterionId": "NATIVE",
+      "criterionRevision": 1,
+      "result": "fail"
+    }
+  ],
+  "environment": "GitHub-hosted macOS/Ubuntu and Windows source-fix checkout.",
+  "method": "Manual read-only generator dispatch on main706c3dd for original PR196 commit7a5c1c4, workflow39208741362.",
+  "observation": "Plan accepted the historical bot commit and native job ran. npmci passed but cap update ios invoked copy and failed because./dist was absent. No artifact uploaded and no publisher writes. Original implementation0ce94d05ee061ae10dbbd4ee51c8ae5472e7f18a was pushed/remote verified; PR221 CI39208402370 passed and merge706c3dd tree956182ee626827557d16ff882b68c93a65c94d87 matched tested source.",
+  "limitations": [
+    "This failure applies to the original generator source; it is retained unchanged and does not establish native acceptance."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/39208741362"
+  ]
+}
