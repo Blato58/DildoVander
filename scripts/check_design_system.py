@@ -5,7 +5,7 @@ import json
 import re
 from pathlib import Path
 
-from generate_design_tokens import outputs
+from generate_design_tokens import outputs, read_output
 
 
 PALETTE = {
@@ -100,7 +100,7 @@ def inspect(root):
         try:
             data = json.loads(token_source.read_text(encoding="utf-8"))
             for path, expected in outputs(data, root=root).items():
-                if not path.exists() or path.read_text(encoding="utf-8") != expected:
+                if not path.exists() or read_output(path) != expected:
                     problems.append(f"Generated design token drift: {path.relative_to(root).as_posix()}")
         except (ValueError, KeyError, TypeError) as error:
             problems.append(f"Invalid machine-readable design tokens: {error}")
@@ -122,6 +122,12 @@ def inspect(root):
         # are deliberately excluded; their colors encode engineering/content.
         if path.suffix == ".css" and OLD_UI_COLORS.search(text):
             problems.append(f"Obsolete UI color in {path.relative_to(root).as_posix()}")
+        # Browser startup metadata cannot reference a CSS variable. Keep these
+        # declarative dark-theme fallbacks bound to the canonical primitive.
+        if path.suffix == ".html":
+            for color in re.findall(r'<meta\b[^>]*name=[\'"]theme-color[\'"][^>]*content=[\'"]([^\'"]+)', text, re.I):
+                if color.upper() != PALETTE["midnight"]:
+                    problems.append(f"Noncanonical startup theme-color in {path.relative_to(root).as_posix()}")
     for path, token in uses:
         if token not in definitions:
             problems.append(f"Undefined {token} in {path.relative_to(root).as_posix()}")

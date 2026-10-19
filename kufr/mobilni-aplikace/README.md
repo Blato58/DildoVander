@@ -556,7 +556,10 @@ stávající funkce; hlas a textový rozhovor zůstávají v Ovládání. Horní
 ukazuje Stop kufru (ve vývoji Stop simulace) také při přepnutí do Diagnostiky nebo
 Síť kufru. Používá stejný povel a stejnou dostupnost podle přijatého stavu,
 nepřidává potvrzení a neobchází zotavení. Instalační Safari stránka sdílí vzhled
-přes `/design-system/arcane-workshop.css` a má samostatný CSS fallback.
+přes generovaný canonical CSS blok vložený přímo do samostatného publisheru;
+`/design-system/arcane-workshop.css` dodává lokální fonty při připojení. Archiv
+offline používá společné systémové fontové fallbacky. Blok se generuje z
+`tokens.json` a skutečných sdílených komponent, paletu ručně nekopírujte.
 
 Spodní navigace Ovládání/Síť kufru/Diagnostika a horní lišta respektují iOS safe
 area. Viewport má `viewport-fit=cover`; horní lišta přidává `safe-area-inset-top`

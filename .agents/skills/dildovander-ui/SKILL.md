@@ -31,6 +31,8 @@ State, authorization and device availability remain in their feature owners.
 Edit `tokens.json`, then run `python scripts/generate_design_tokens.py`.
 Never hand-edit generated CSS, ESM/types or C# token constants. Local CSS
 handles layout. Extend shared primitives for repeated appearance or behavior.
+The same generator owns only native launch RGB and the delimited standalone
+iOS installer CSS block; keep its script-only packaging and offline fallback.
 For offline viewer work use the authored assembler and generated snapshots;
 use a labelled UI-only preview, never regenerate CAD just for chrome.
 

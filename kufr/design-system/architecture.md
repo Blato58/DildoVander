@@ -13,6 +13,9 @@ nikoli druhou implementaci UI. Existující protokolové typy zůstávají v
 - `tokens.json` je jediný ručně upravovaný zdroj designových rozhodnutí.
   Generátor validuje schéma, hodnoty, aliasy a cykly a vytváří čtyři CSS soubory,
   neměnné `tokens.mjs`, typy a backendové `DesignTokens.g.cs` pro offline karty.
+  Generátor také kontroluje nativní launch pozadí a vložené CSS/theme označeného
+  bloku v samostatném iOS publisheru. Tato generovaná kopie je nutná, protože
+  privátní provozní helper spouští jediný Python soubor bez okolního design adresáře.
 - `ui.js` a `ui.d.ts` jsou společné renderery a přístupné interakce. Tlačítka,
   pole, stavové štítky, oznámení, prázdné stavy a karty hůlek sdílejí stejný kód.
   `bindTabs` vlastní výběr, roving tabindex a šipky/Home/End; `bindDialog`
@@ -43,6 +46,8 @@ odeslání, klávesnici a systémové ovládání bez další knihovny primitiv.
 | Workshop / CAD, Twin, live a media, timeline | `mechanika/final/viewer_ui.js`, `viewer.js`, `twin_viewer.js`, `twin_media.js`, `show_timeline.js` | `viewer_document.py` vloží runtime i CSS; bez síťových importů. Generované snapshoty uchovávají samostatnou obnovu z výrobního ZIPu |
 | Servisní servo panel | `firmware/diagnostics/servo-bench/web/panel-ui.mjs` | Existující omezený Python server doručuje společné assety; bez výběru USB se zařízení neotevře |
 | Instalační iOS stránka | `backend/deploy/ip-https/ios-placeholder.html`, canonical CSS | Statický serverový stav; žádný alternativní nativní UI framework |
+| Generovaná instalace podepsané aplikace | `mobilni-aplikace/scripts/publish-ios-install.py` | Samostatný publisher nese generovaný blok canonical CSS; nevyžaduje další soubor v privátním deployment helperu. Online může načíst lokální fonty, archiv offline použije společný systémový fallback |
+| Nativní start aplikace | `mobilni-aplikace/ios/App/App/Base.lproj/LaunchScreen.storyboard` a `generate-native-assets.mjs` | Generátor tokenů vlastní pouze sRGB pozadí storyboardu; ikona již čte generované CSS. Storyboard layout, provisioning a podpis zůstávají vlastníkem iOS projektu |
 | Offline archivní karty | `backend/Features/Keepsakes/KeepsakeExports.cs` | Generované C# konstanty místo ručně kopírované palety; artwork není UI token |
 | Designové ukázky a test harnessy | `design-system/mockups`, `design-system/playground`, mobilní test harnessy | Ukázky zůstávají označené; interaktivní katalog používá skutečný `ui.js` |
 

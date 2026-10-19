@@ -77,6 +77,11 @@ class IntegrityTests(unittest.TestCase):
         adapter.write_text("import '../design-system/ui.js';")
         self.assertTrue(any('Circular shared UI import' in issue for issue in inspect(self.root)))
 
+    def test_startup_metadata_stays_bound_to_the_canonical_dark_surface(self):
+        page = self.root / 'kufr/design-system/index.html'
+        page.write_text('<meta name="theme-color" content="#000000">')
+        self.assertTrue(any('Noncanonical startup theme-color' in issue for issue in inspect(self.root)))
+
 
 if __name__ == "__main__":
     unittest.main()

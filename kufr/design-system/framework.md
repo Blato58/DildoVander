@@ -11,6 +11,13 @@ with a theme. JavaScript imports `primitives`, `themes`, `typography`, `layout`
 and `motion` from `tokens.mjs`; keys omit the `--aw-` prefix. Semantic values
 retain CSS `var()` aliases for browser use. Objects are recursively frozen.
 
+The generator also checks the native launch storyboard's background RGB without
+owning its XML layout, and the delimited CSS/theme block inside
+`mobilni-aplikace/scripts/publish-ios-install.py`. That generated block keeps the
+private script-only publisher self-contained; it derives token and component CSS
+from current sources. Archived pages use the canonical system font fallbacks
+offline; the existing same-origin stylesheet supplies local fonts when online.
+
 ## Markup
 
 All renderers return HTML strings. Text and attribute values are escaped;

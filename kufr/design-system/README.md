@@ -41,6 +41,9 @@ nikoli další barevnou paletu. Barvy fyzických materiálů modelu se nemění.
 
 Zdroj tokenů je `tokens.json`; CSS, typované ES moduly i C# export se generují
 pomocí `python scripts/generate_design_tokens.py`. Generované soubory neupravujte.
+Stejný generátor vlastní RGB pozadí nativního launch storyboardu a označený CSS
+blok samostatného iOS publisheru. Ostatní XML/layout a publikační logika zůstávají
+v jejich vlastních zdrojích; spuštění generátoru nic nepodepisuje ani nenasazuje.
 Před novou komponentou prohlédněte `ui.js` a interaktivní katalog. Sdílené
 renderery přijímají data a vracejí bezpečně escapované HTML; stav a transport
 zůstávají ve vlastníku funkce. iOS zobrazuje stejné komponenty v Capacitoru.

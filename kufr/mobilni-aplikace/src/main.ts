@@ -1,4 +1,5 @@
 import { bindTabs, button, emptyState, escapeHtml, field, notice, statusBadge, wandCard } from '../../design-system/ui.js';
+import { primitives } from '../../design-system/tokens.mjs';
 import './style.css';
 import { VoicePanel } from './features/voice_control/VoicePanel';
 import { DancePanel } from './features/dance/DancePanel';
@@ -104,7 +105,7 @@ function applyTheme(theme: 'light' | 'dark'): void {
   document.documentElement.dataset.theme = theme;
   themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Přepnout na světlý vzhled' : 'Přepnout na tmavý vzhled');
   themeToggle.setAttribute('aria-pressed', String(theme === 'light'));
-  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#1B2430' : '#EEF1F5');
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? primitives.midnight : primitives.mist);
 }
 let savedTheme = document.documentElement.dataset.theme;
 try { savedTheme = localStorage.getItem('aw-theme') ?? savedTheme; } catch { /* Storage may be unavailable in a restricted browser. */ }

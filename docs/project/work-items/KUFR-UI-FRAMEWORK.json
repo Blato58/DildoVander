@@ -23,7 +23,7 @@
   "acceptance": [
     {
       "id": "SHARED-UI",
-      "revision": 2,
+      "revision": 3,
       "expected": "Jediný strojový zdroj tokenů, skutečně sdílené HTML komponenty a interakce napříč existujícími UI včetně Capacitor iOS, offline viewer generování bez CAD regenerace, interaktivní katalog, cílené CI a ověřené desktopové i mobilní rendery při zachování datových a bezpečnostních kontraktů.",
       "requiredEvidenceKinds": [
         "unit",
@@ -32,19 +32,19 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
+        "artifactDigest": "67367221f323070f5227292479ffbfa428997450bf27360436c2d1fb213a546e"
       },
       "evidenceRefs": [
-        "KUFR-UI-FRAMEWORK-unit-v3",
-        "KUFR-UI-FRAMEWORK-browser-v3",
-        "KUFR-UI-FRAMEWORK-source-review-v3"
+        "KUFR-UI-FRAMEWORK-unit-v4",
+        "KUFR-UI-FRAMEWORK-browser-v4",
+        "KUFR-UI-FRAMEWORK-source-review-v4"
       ]
     }
   ],
   "blockers": [],
-  "currentNote": "Implementace ef07324 a následná CI úprava4277e87 úspěšně pushnuté a ověřené skriptem Push-CurrentBranch.ps1 na origin/codex/unified-ui-framework. PR211 navazuje na otevřený baseline PR209. Aktuální revize2 kritéria má finální source identity, opravné v3 receipts a prošlé lokální runtime/render/balení i nezávislé review; celý slice má cad=false. Původní closure z ef07324 je neměnná, lifecycle je aktivní kvůli poslednímu GitHub CI/review a integraci. Bez nasazení, podpisu, placených AI volání a fyzických pohybů.",
+  "currentNote": "Implementace a dosavadní opravy úspěšně pushnuté a ověřené skriptem Push-CurrentBranch.ps1 (ef07324,4277e87,db8b2b8). PR209 dokončil CI a byl sloučen; PR211 nyní cílí na main. Revize3 doplňuje reálnou generovanou iOS instalační stránku a nativní launch RGB z jediného zdroje; lokální testy, skutečné offline/browser rendery a nezávislé review prošly. Historická closure z ef07324 zůstává neměnná. Lifecycle aktivní pouze pro poslední GitHub CI/review a integraci. Bez nasazení, podpisu, placených AI volání a fyzických pohybů.",
   "implementedSubject": {
-    "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
+    "artifactDigest": "67367221f323070f5227292479ffbfa428997450bf27360436c2d1fb213a546e"
   },
   "closure": {
     "outcome": "accepted",
@@ -79,5 +79,5 @@
       }
     ]
   },
-  "nextAction": "Dokončit poslední GitHub CI a review PR211, integrovat po přijetí baseline PR209 a uzavřít lifecycle při zachování původní historické closure a aktuálních ověřených kritérií."
+  "nextAction": "Dokončit poslední CI a všechna review PR211 proti main, integrovat ověřený framework a uzavřít lifecycle při zachování historické closure a aktuální evidence."
 }
