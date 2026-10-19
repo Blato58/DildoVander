@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
 import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { PassThrough } from 'node:stream';
 
 const addressFile = process.argv[2];
 if (!addressFile) throw new Error('Address file required');
@@ -147,6 +149,55 @@ const server = createServer((request, response) => {
     })); return;
   }
   response.writeHead(404).end();
+});
+// Real native URLSessionWebSocketTask peer. Send callbacks never wait for ACKs.
+server.on('upgrade', (request, socket, head) => {
+  if (!request.url.endsWith('/audio-stream') || request.headers.authorization !== 'Bearer access') {
+    socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); return;
+  }
+  const accept = createHash('sha1').update(request.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+  let pending = Buffer.alloc(0);
+  const send = value => {
+    const body = Buffer.from(JSON.stringify(value));
+    const header = body.length < 126 ? Buffer.from([0x81, body.length]) : Buffer.from([0x81, 126, body.length >> 8, body.length & 255]);
+    if (!socket.destroyed) socket.write(Buffer.concat([header, body]));
+  };
+  socket.on('error', () => {});
+  socket.on('data', chunk => {
+    pending = Buffer.concat([pending, chunk]);
+    while (pending.length >= 2) {
+      let length = pending[1] & 127; let offset = 2;
+      if (length === 126) { if (pending.length < 4) return; length = pending.readUInt16BE(2); offset = 4; }
+      if (length === 127 || length > 14000 || !(pending[1] & 128)) { socket.destroy(); return; }
+      if (pending.length < offset + 4 + length) return;
+      const opcode = pending[0] & 15;
+      const mask = pending.subarray(offset, offset + 4); offset += 4;
+      const body = Buffer.from(pending.subarray(offset, offset + length));
+      for (let index = 0; index < body.length; index++) body[index] ^= mask[index % 4];
+      pending = pending.subarray(offset + length);
+      if (opcode === 8) { socket.end(); return; }
+      if (opcode !== 1) { socket.destroy(); return; }
+      const frame = JSON.parse(body.toString());
+      const pcm = Buffer.from(frame.audio, 'base64');
+      if (request.url === '/test/audio-stream') {
+        if (pcm.length !== 9600 || frame.sequence !== regressionUploads || frame.inputId !== 'socket-regression') throw new Error('Invalid socket sequence');
+        if (!pcm.every(value => value === frame.sequence % 251)) throw new Error('Socket PCM changed');
+        regressionUploads++;
+        setTimeout(() => send({ type: 'ack', inputId: frame.inputId, sequence: frame.sequence }), 350);
+        continue;
+      }
+      const audio = new PassThrough();
+      audio.url = request.url.replace(/audio-stream$/, 'audio');
+      audio.headers = { authorization: 'Bearer access', 'input-id': frame.inputId, 'input-sequence': String(frame.sequence) };
+      audio.method = 'POST'; audio.socket = socket;
+      const response = { statusCode: 200, writeHead(code) { this.statusCode = code; return this; },
+        end() { if (this.statusCode !== 204) throw new Error('Audio upload failed'); send({ type: 'ack', inputId: frame.inputId, sequence: frame.sequence }); } };
+      server.emit('request', audio, response);
+      audio.end(pcm);
+    }
+  });
+  if (head.length) socket.emit('data', head);
 });
 server.listen(0, '127.0.0.1', () => writeFileSync(addressFile, `http://127.0.0.1:${server.address().port}`));
 process.on('exit', () => { if (played !== 3 || uploads !== 2 || cleanup !== 3 || livePlayed !== 2 || liveUploads !== 2 || actorCheckpoints !== 2) process.exitCode = 1; });

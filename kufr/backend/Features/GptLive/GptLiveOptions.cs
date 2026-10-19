@@ -5,13 +5,13 @@ using Kufr.Backend.Features.Character;
 
 namespace Kufr.Backend.Features.GptLive;
 
-internal enum LiveActorMode { LegacyBackendScripted, AutonomousActor }
+internal enum LiveActorMode { AutonomousActor }
 internal sealed record LiveConversationPolicy(int UsualAnswers, int MaximumAnswers, bool AllowEarlySelection);
 
 internal sealed record GptLiveOptions
 {
     internal CharacterPolicy Character { get; init; } = new();
-    internal LiveActorMode Mode { get; init; } = LiveActorMode.LegacyBackendScripted;
+    internal LiveActorMode Mode { get; init; } = LiveActorMode.AutonomousActor;
     internal string DecisionModel { get; init; } = ResponsesTextDialogBudget.Model;
     internal bool AdultLanguage { get; init; } = true;
     internal int TranscriptCharacterLimit { get; init; } = 128_000;
@@ -34,7 +34,8 @@ internal sealed record GptLiveOptions
     internal static GptLiveOptions Read(IConfiguration configuration)
     {
         var section = configuration.GetSection("Backend:GptLive");
-        var mode = section["ActorMode"] ?? nameof(LiveActorMode.LegacyBackendScripted);
+        var mode = section["ActorMode"] ?? nameof(LiveActorMode.AutonomousActor);
+        if (mode == "LegacyBackendScripted") { mode = nameof(LiveActorMode.AutonomousActor); }
         if (!Enum.TryParse<LiveActorMode>(mode, false, out var parsed) || !Enum.IsDefined(parsed))
             throw new InvalidOperationException("Invalid Backend:GptLive:ActorMode.");
         var options = new GptLiveOptions
@@ -94,8 +95,7 @@ internal sealed record LivePromptSnapshot(string PersonalityId, string Version, 
                 characterInstructions, policy, options)
             { CatalogVersion = PartyWandCatalog.Version, LoreVersion = CharacterLoreProfiles.Version };
         }
-        var instructions = options.Mode == LiveActorMode.AutonomousActor
-            ? PersonalityCatalog.AutonomousLivePersona(personality) + "\n\n" + $"""
+        var instructions = PersonalityCatalog.AutonomousLivePersona(personality) + "\n\n" + $"""
                 Důvěryhodná provozní politika aplikace:
                 Obvyklý počet zodpovězených diagnostických otázek: {policy.UsualAnswers}; nejvýše {policy.MaximumAnswers}.
                 {(policy.AllowEarlySelection ? "Při dostatku podkladů nebo výslovné žádosti vyber dříve." : "Zachovej obvyklý rytmus této personality; po splnění politiky směřuj k výběru.")}
@@ -113,9 +113,8 @@ internal sealed record LivePromptSnapshot(string PersonalityId, string Version, 
                 Současná session je nová interakce; začni až po aplikačním pokynu. Paměť není právě vyslovená odpověď.
                 Z přijetí kontextu neodvozuj přednes ani fyzickou prezentaci. Servo a místní bezpečnost vlastní zařízení.
                 Backend může označit návrh jako zastaralý. Takový návrh neoznamuj a nepoužívej.
-                """
-            : PersonalityCatalog.Persona(personality);
-        return new(personality, options.Mode == LiveActorMode.AutonomousActor ? "autonomous-live-v3" : "legacy-live-v1",
+                """;
+        return new(personality, "autonomous-live-v3",
             Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(instructions))), instructions, policy, options);
     }
 }

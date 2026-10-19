@@ -1,5 +1,6 @@
 using Kufr.Backend.Features.Character;
 using Kufr.Backend.Features.GptLive;
+using Kufr.Backend.Features.Realtime;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -22,10 +23,9 @@ internal sealed partial class ConversationStore
         lock (gate)
         {
             CleanupExpired(clock.GetUtcNow());
-            if (request.DialogMode is not ("fake" or "responses")
-                || request.VoiceMode is not ("fake" or "openai"))
+            if (request.DialogMode is not null || request.VoiceMode is not null)
             {
-                return new(400, null, "invalid_mode");
+                return new(410, null, "conversation_engine_upgrade_required");
             }
             var requestedPersonality = request.PersonalityId ?? personalityId;
             if (!PersonalityCatalog.Contains(requestedPersonality))
@@ -56,24 +56,17 @@ internal sealed partial class ConversationStore
             }
 
             var current = ServerModesSnapshot();
-            if (request.DialogMode == current.DialogMode && request.VoiceMode == current.VoiceMode
-                && requestedPersonality == personalityId && nextCharacter == characterPolicy && !request.ResetCharacterVariety)
+            if (requestedPersonality == personalityId && nextCharacter == characterPolicy && !request.ResetCharacterVariety)
             {
                 return new(200, current, null);
             }
 
             // Create and all provider admission share this lock. Mode changes
             // cannot split a conversation or race a still-unwinding paid call.
-            var modesChanged = request.DialogMode != current.DialogMode || request.VoiceMode != current.VoiceMode || requestedPersonality != personalityId;
+            var modesChanged = requestedPersonality != personalityId;
             if (modesChanged && (conversations.Count != 0 || activePaidCalls.Count != 0))
             {
                 return new(409, null, "conversations_active");
-            }
-
-            if ((request.DialogMode == "responses" && dialogRunner?.Available != true)
-                || (request.VoiceMode == "openai" && voiceRunner?.Available != true))
-            {
-                return new(409, null, "provider_unavailable");
             }
 
             // Commit persistence before publishing the in-memory configuration.
@@ -81,8 +74,6 @@ internal sealed partial class ConversationStore
             personalityId = requestedPersonality;
             characterPolicy = nextCharacter;
             if (request.ResetCharacterVariety) { characterStyles.Clear(); }
-            dialogRunner?.SetEnabled(request.DialogMode == "responses");
-            voiceRunner?.SetEnabled(request.VoiceMode == "openai");
             modeRevision = Guid.NewGuid().ToString();
             return new(200, ServerModesSnapshot(), null);
         }
@@ -90,14 +81,30 @@ internal sealed partial class ConversationStore
 
     private ServerModes ServerModesSnapshot() => new(
         modeRevision,
-        dialogRunner?.Enabled == true ? "responses" : "fake",
-        voiceRunner?.Enabled == true ? "openai" : "fake",
-        dialogRunner?.Available == true,
-        voiceRunner?.Available == true,
+        "retired",
+        "retired",
+        false,
+        false,
         conversations.Count,
         personalityId,
         PersonalityCatalog.Inventory,
         CharacterEnabled: characterPolicy.Enabled,
         CharacterTone: characterPolicy.HostTone.ToString(),
-        CharacterFinaleProfile: characterPolicy.FinaleProfile.ToString());
+        CharacterFinaleProfile: characterPolicy.FinaleProfile.ToString(),
+        Engines: EngineCapabilities());
+
+    private ConversationEngineCapabilities EngineCapabilities()
+    {
+        var ready = !string.IsNullOrWhiteSpace(configuration?["OPENAI_API_KEY"]);
+        var unavailableReason = ready ? null : "provider_credential_missing";
+        string[] voices = ["cedar", "marin", "coral"];
+        string[] inputs = ["audio"];
+        string[] cameras = ["phone", "suitcase"];
+        return new(1, "gpt-live", [
+            new("gpt-live", GptLiveProtocol.Model, ready, unavailableReason, voices,
+                new(false, 1, 1, 1), inputs, cameras),
+            new("realtime", RealtimeProtocol.Model, ready, unavailableReason, voices,
+                new(true, 0.8, 1.2, 1), inputs, cameras)
+        ]);
+    }
 }

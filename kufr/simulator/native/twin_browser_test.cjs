@@ -88,13 +88,18 @@ async function main() {
       assert.equal(settings.engine, 'fake', 'integration browser acceptance must never call a paid provider');
       await command({ action: 'stop' }, 'sim-integration');
       await command({ action: 'inspect' }, 'sim-integration');
-      for (let index = 0; index < 8; index++) {
-        const result = await command({ action: 'integrationText', operationId: crypto.randomUUID(),
-          text: 'Synthetic software test answer ' + index }, 'sim-integration');
-        integration.push(result.code);
-        if (result.code === 'integration-presentation-admitted') break;
-      }
-      assert(integration.includes('integration-presentation-admitted'), 'production backend fake conversation admitted presentation');
+      const before = await (await context.request.get(origin + '/v1/twin/instances/sim-integration')).json();
+      const response = await context.request.post(origin + '/v1/twin/instances/sim-integration/commands',
+        { headers: { Origin: origin }, data: { action: 'integrationText', operationId: crypto.randomUUID(),
+          text: 'Synthetic compatibility test' } });
+      assert.equal(response.status(), 409);
+      const result = await response.json();
+      integration.push(result.code);
+      assert.equal(result.accepted, false);
+      assert.equal(result.code, 'conversation_engine_upgrade_required');
+      const after = await (await context.request.get(origin + '/v1/twin/instances/sim-integration')).json();
+      assert.equal(after.snapshot.reported.generation, before.snapshot.reported.generation,
+        'retired integration text cannot prepare or execute a physical selection');
       await command({ action: 'release' }, 'sim-integration');
     }
     assert.deepEqual(errors, []);
@@ -103,7 +108,7 @@ async function main() {
       bootPreserved: true, stopNoAutoLower: true, integration, integrationSkipped, pageErrors: errors,
       physicalVerification: 'unavailable'
     }, null, 2));
-    console.log('PASS browser: native input -> tray_3 GPU movement 16mm, reload, mobile, Stop; integration ' + (integrationSkipped ? 'explicitly skipped' : 'fake backend passed'));
+    console.log('PASS browser: native input -> tray_3 GPU movement 16mm, reload, mobile, Stop; integration ' + (integrationSkipped ? 'explicitly skipped' : 'retired text explicitly rejected'));
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

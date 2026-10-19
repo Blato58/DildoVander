@@ -260,17 +260,10 @@ void LocalControlOwner::Handle(
       accepted = output_.DanceAck(handle_, message, dance_ != nullptr);
       break;
     case LocalControlMessageKind::Text: {
-      ConversationTextCommand command;
-      command.bootId = message.bootId;
-      command.conversationId = message.conversationId;
-      command.clientTurnId = message.clientTurnId;
-      command.generation = message.generation;
-      command.expectedRevision = message.expectedRevision;
-      command.text = message.text;
-      const auto receipt = gateway_->SubmitText(
-          command, message.controlLeaseId, nowMs);
-      accepted = output_.ConversationAck(handle_, message, receipt);
-      WipeText(command.text);
+      // The former turns/opening backend is retired. Older controllers get a
+      // typed upgrade requirement before any cloud request or local turn starts.
+      accepted = output_.ConversationAck(handle_, message,
+          {ConversationCommandError::EngineUpgradeRequired, false});
       break;
     }
     case LocalControlMessageKind::Cancel: {

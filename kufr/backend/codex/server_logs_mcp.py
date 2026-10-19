@@ -63,6 +63,7 @@ class Backend:
                 return project(path, result)
         except urllib.error.HTTPError as error:
             # Do not expose URLs, credentials, raw bodies or provider errors.
+            error.close()
             raise DiagnosticError(f'Diagnostic HTTP {error.code}; check reader credential, backend version and query.') from None
         except (urllib.error.URLError, TimeoutError, OSError, ValueError):
             raise DiagnosticError('Diagnostic connection or JSON failed; check HTTPS connectivity and trust.') from None
@@ -80,13 +81,41 @@ def project(path, value):
     def fail():
         raise DiagnosticError('Invalid diagnostic response contract.')
     if path.endswith('/status'):
-        keys = ('revision', 'dialogMode', 'voiceMode', 'dialogAvailable', 'voiceAvailable', 'activeConversations', 'lifetime')
-        if (not identity(value.get('revision')) or value.get('dialogMode') not in ('fake', 'responses')
-                or value.get('voiceMode') not in ('fake', 'openai') or value.get('lifetime') != 'until_restart'
-                or type(value.get('dialogAvailable')) is not bool or type(value.get('voiceAvailable')) is not bool
+        if (not identity(value.get('revision')) or value.get('lifetime') != 'until_restart'
                 or not integer(value.get('activeConversations'))):
             fail()
-        return {key: value[key] for key in keys}
+        capabilities = value.get('engines')
+        if (not isinstance(capabilities, dict) or type(capabilities.get('schemaVersion')) is not int
+                or capabilities['schemaVersion'] != 1 or capabilities.get('primaryEngine') != 'gpt-live'
+                or not isinstance(capabilities.get('engines'), list) or len(capabilities['engines']) != 2):
+            fail()
+        expected_models = {'gpt-live': 'gpt-live-1', 'realtime': 'gpt-realtime-2.1'}
+        projected = []
+        seen = set()
+        for engine in capabilities['engines']:
+            if not isinstance(engine, dict):
+                fail()
+            name = engine.get('engine')
+            if not isinstance(name, str) or name not in expected_models or name in seen:
+                fail()
+            seen.add(name)
+            ready, reason = engine.get('ready'), engine.get('unavailableReason')
+            speed = {'supported': False, 'min': 1, 'max': 1, 'default': 1} if name == 'gpt-live' else {
+                'supported': True, 'min': 0.8, 'max': 1.2, 'default': 1}
+            if (engine.get('model') != expected_models[name] or type(ready) is not bool
+                    or not ((ready and reason is None) or (not ready and reason == 'provider_credential_missing'))
+                    or engine.get('voices') != ['cedar', 'marin', 'coral'] or engine.get('speed') != speed
+                    or not isinstance(engine.get('speed'), dict) or type(engine['speed'].get('supported')) is not bool
+                    or any(type(engine['speed'].get(field)) not in (int, float) for field in ('min', 'max', 'default'))
+                    or engine.get('inputModes') != ['audio'] or engine.get('cameraSources') != ['phone', 'suitcase']):
+                fail()
+            # Reconstruct every field: unknown raw payloads and identity details
+            # never enter Codex diagnostics or saved snapshots.
+            projected.append({'engine': name, 'model': expected_models[name], 'ready': ready,
+                'unavailableReason': reason, 'voices': ['cedar', 'marin', 'coral'], 'speed': speed,
+                'inputModes': ['audio'], 'cameraSources': ['phone', 'suitcase']})
+        return {'revision': value['revision'], 'activeConversations': value['activeConversations'],
+            'lifetime': 'until_restart', 'engines': {'schemaVersion': 1, 'primaryEngine': 'gpt-live', 'engines': projected}}
     keys = ('storeId', 'oldestCursor', 'latestCursor', 'nextCursor', 'hasMore', 'truncated', 'droppedWrites')
     if (not identity(value.get('storeId')) or any(not integer(value.get(key)) for key in ('oldestCursor', 'latestCursor', 'nextCursor', 'droppedWrites'))
             or type(value.get('hasMore')) is not bool or type(value.get('truncated')) is not bool

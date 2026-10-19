@@ -208,10 +208,11 @@ void TestCommandAndConversationAcks() {
     assert(fixture.output.CommandAck({7, 1}, request, {error}));
   }
   for (unsigned index = 0;
-       index <= static_cast<unsigned>(ConversationCommandError::TurnLimitReached); ++index) {
+       index <= static_cast<unsigned>(ConversationCommandError::EngineUpgradeRequired); ++index) {
     const auto error = static_cast<ConversationCommandError>(index);
     assert(fixture.output.ConversationAck({7, 1}, request, {error, index == 0}));
   }
+  assert(fixture.transport.messages.back().find("conversation_engine_upgrade_required") != std::string::npos);
   request.kind = LocalControlMessageKind::Cancel;
   request.clientTurnId.clear();
   assert(fixture.output.ConversationAck({7, 1}, request, {}));

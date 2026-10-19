@@ -15,7 +15,8 @@ import wave
 from pathlib import Path
 from uuid import uuid4
 
-from interactive_dialogue import ApiClient, DialogueError, check, issue_token, validate_base_url
+from backend_api_client import ApiClient, DialogueError, check, issue_token, validate_base_url
+from engine_capabilities import validate_engine_capabilities
 
 
 ANSWERS = (
@@ -92,7 +93,7 @@ def run():
     response = None
     try:
         _, modes = client.call("GET", "/v1/diagnostics", token=token)
-        check(modes["dialogMode"] == "responses" and modes["voiceMode"] == "openai", "wrong_mode")
+        validate_engine_capabilities(modes["engines"], require_ready=True)
         _, evenings = client.call("GET", "/v1/evenings", token=token)
         previous_evening = evenings["activeEveningId"]
         _, created_evening = client.call("POST", "/v1/evenings", token=token, key=str(uuid4()), body={

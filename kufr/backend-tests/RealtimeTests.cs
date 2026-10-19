@@ -19,6 +19,7 @@ internal static class RealtimeTests
         VerifyOpeningContext();
         await VerifyProgressiveAudioAsync();
         await VerifyPersistentVoiceAsync();
+        await AutonomousLiveTests.VerifyRealtimeMemoryBoundaryAsync();
         await VerifyToolValidationAsync();
         VerifyAdmissionAndMemory();
         VerifyHandsFreeBudgetAndStop();
@@ -38,7 +39,7 @@ internal static class RealtimeTests
             Require(RealtimeProtocol.Model == "gpt-realtime-2.1"
                 && options.RootElement.GetProperty("reasoning").GetProperty("effort").GetString() == "medium",
                 "Realtime 2.1 uses medium reasoning through the official SDK wire serializer");
-            Require(RealtimeProtocol.ContextData(turn) == "", "opening has no supplied visitor archive");
+            Require(RealtimeProtocol.ContextData(turn).Contains("previous visitor"), "opening receives explicitly scoped returning-guest archive");
             Require(options.RootElement.GetProperty("instructions").GetString()!
                 .StartsWith(PartyDialoguePrompt.DecisionInstructions, StringComparison.Ordinal),
                 "Realtime receives the shared Live voice persona and its own selection tools");
@@ -46,8 +47,8 @@ internal static class RealtimeTests
                 == RealtimeProtocol.SessionOptions(turn with { OutputTokenLimit = 512 }).Instructions,
                 "reservation fallback cannot change the opening intention");
             Require(RealtimeProtocol.ReservationMicroUsd(turn)
-                == RealtimeProtocol.ReservationMicroUsd(turn with { EveningContext = "", History = [] }),
-                "opening does not reserve for an archive it will not send");
+                > RealtimeProtocol.ReservationMicroUsd(turn with { EveningContext = "", History = [] }),
+                "opening accounts for the scoped archive actually sent");
         }
         var followUp = new RealtimeTurnContext(Request() with { Opening = false, Text = "Jsem Petr." },
             true, "previous visitor", [new("current guest", "current reply")]);
@@ -88,9 +89,19 @@ internal static class RealtimeTests
             return Task.FromResult<WebSocket>(socket);
         });
         await using var connection = await provider.ConnectAsync(CancellationToken.None);
-        await connection.GenerateTurnAsync(new(request, true, "", []), null,
-            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, CancellationToken.None);
+        var imageId = Guid.NewGuid().ToString("D");
+        byte[]? sentImage = null;
+        VisualMediaRecord ReadImage()
+        {
+            sentImage = [255, 216, 255, 217];
+            return new(imageId, "device-a", "conversation-a", 1, "camera", DateTimeOffset.UtcNow, sentImage);
+        }
+        await connection.GenerateTurnAsync(new(request, true, "returning guest fact", []), null,
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, CancellationToken.None,
+            visualImage: ReadImage);
+        Require(sentImage!.All(value => value == 0), "image byte clone is cleared after SDK transmission");
         var inputs = 0;
+        var memoryInputs = 0;
         var stopped = 0;
         for (var turn = 0; turn < 2; turn++)
         {
@@ -110,17 +121,29 @@ internal static class RealtimeTests
                         stopped++;
                     }
                     return Task.CompletedTask;
+                }, visualImage: ReadImage,
+                inputContext: (text, _) =>
+                {
+                    Require(text is "Petr." or "Moje žena.", "canonical memory receives finalized provider input rather than model arguments");
+                    memoryInputs++;
+                    return Task.FromResult("canonical result " + memoryInputs);
                 });
             Require(reply.Decision == "ask" && reply.VisitorText.Length > 0,
                 "successive VAD turns retain the real parallel visitor transcript");
         }
+        Require(socket.Sent.Count(value => value.Contains("input_image", StringComparison.Ordinal)) == 1,
+            "current image is sent as actual image content exactly once across persistent turns");
+        Require(socket.Sent.Count(value => value.Contains("returning guest fact", StringComparison.Ordinal)) == 1,
+            "startup memory is seeded once without replacing provider conversation history");
+        Require(memoryInputs == 2 && socket.Sent.Count(value => value.Contains("canonical result", StringComparison.Ordinal)) == 2,
+            "memory is resolved before each actual response and supplied to the retained provider");
         Require(connections == 1 && inputs == 2 && stopped == 2,
             "opening and two spoken answers use one provider connection with automatic VAD boundaries");
         Require(socket.Sent.Count(value => value.Contains("input_audio_buffer.append", StringComparison.Ordinal)) == 2
             && socket.Sent.Any(value => value.Contains("\"create_response\":false", StringComparison.Ordinal)),
             "streaming input cannot trigger unreserved automatic responses");
-        Require(socket.Sent.Any(value => value.Contains("conversation.item.delete", StringComparison.Ordinal)),
-            "previous audio items are removed before reconstructing bounded memory for the next turn");
+        Require(!socket.Sent.Any(value => value.Contains("conversation.item.delete", StringComparison.Ordinal)),
+            "complete provider conversation survives every turn without deleting its earlier answers");
 
         using var cancellation = new CancellationTokenSource();
         using var liveSession = new RealtimeLiveSession("device-a", "conversation-a", connection, cancellation);
@@ -185,9 +208,9 @@ internal static class RealtimeTests
         var result = await pending;
         Require(result.Reply == "Jak ti říkají?" && result.Decision == "ask" && result.VisitorText == "",
             "opening stores actual answer and no invented visitor");
-        Require(!socket.Sent.Any(value => value.Contains("conversation.item.create", StringComparison.Ordinal)
-            || value.Contains("old visitor secret", StringComparison.Ordinal)),
-            "opening wire payload has no archive or fabricated user message");
+        Require(socket.Sent.Any(value => value.Contains("conversation.item.create", StringComparison.Ordinal)
+            && value.Contains("old visitor secret", StringComparison.Ordinal)),
+            "opening seeds explicitly supplied historical reference data without fabricating current visitor speech");
         Require(socket.Sent.Any(value => value.Contains("\"turn_detection\":null", StringComparison.Ordinal)),
             "PTT does not wait for a VAD timeout");
         using var update = JsonDocument.Parse(socket.Sent[0]);

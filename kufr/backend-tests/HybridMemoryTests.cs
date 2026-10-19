@@ -12,6 +12,7 @@ internal static class HybridMemoryTests
 {
     internal static async Task RunAsync()
     {
+        await DependableMemoryTests.RunAsync();
         VerifyExistingEveningMigration();
         using var setup = new Setup();
         var store = setup.Store; var access = setup.Access;
@@ -92,9 +93,9 @@ internal static class HybridMemoryTests
         var foreignStore = new EveningMemoryStore(setup.ConfigurationWithEnvironment("Production"), setup.Journal, setup.Clock);
         Check(foreignStore.LocalMemory(access).Count == 0 && !foreignStore.IsPermitted(current, access), "environment isolation in SQLite");
         setup.Clock.Advance(TimeSpan.FromDays(40)); store.PurgeHybridMemory();
-        Check(store.LocalMemory(access).Count == 0 && store.CurrentMemory(current.MemoryId) is { IsActive: false, Text: "" }, "scope retention removes content immediately");
+        Check(store.LocalMemory(access).Count > 0 && store.CurrentMemory(current.MemoryId) is { IsActive: true }, "application archive survives old retention boundaries");
         await VerifyFailures(setup);
-        Console.WriteLine("Hybrid memory: identity/scopes/revisions/consent, durable outbox, OpenAI REST fixtures, deletion and retention passed.");
+        Console.WriteLine("Hybrid memory: identity/scopes/revisions/consent, durable outbox, OpenAI REST fixtures, deletion and manual-only archive retention passed.");
     }
 
     private static void VerifyTimelinePersistence(Setup setup)
@@ -201,7 +202,8 @@ internal static class HybridMemoryTests
         Check(setup.Store.ResolveFile(setup.Options.MotifStoreId, "file-fixture", setup.Access, MemoryScope.EveningMotif) is null,
             "stale cloud index loses authority before deletion");
         var zero = await service.RetrieveAsync(setup.Access, MemoryScope.EveningMotif, "chaos", CancellationToken.None);
-        Check(zero.Status == "memory_not_found" && handler.Searches == beforeSearch + 1, "correction invalidates cached old revision");
+        Check(zero.Status == "memory_found" && zero.Records.Single().Revision == corrected.Revision
+            && handler.Searches == beforeSearch + 1, "correction invalidates cached old revision and immediately returns its local replacement");
         var deletion = setup.Store.ClaimMemoryJob()!;
         Check(deletion.Action == "delete", "outbox prioritizes removal");
         await worker.ProcessAsync(deletion, CancellationToken.None); setup.Store.FinishMemoryJob(deletion);
@@ -244,7 +246,7 @@ internal static class HybridMemoryTests
         catch (MemoryProviderException e) { Check(e.Code == "http_429" && e.Retryable && e.RetryAfter == TimeSpan.FromSeconds(3), "rate limit classified with retry-after"); }
         var service = new HybridMemoryService(setup.Store, provider, setup.Options, setup.Clock);
         var unavailable = await service.RetrieveAsync(setup.Access, MemoryScope.EveningMotif, "query", CancellationToken.None);
-        Check(unavailable.Status == "memory_unavailable" && service.Status.Degraded, "provider outage differs from zero hits");
+        Check(unavailable.Status is "memory_unavailable" or "local_context" && service.Status.Degraded, "provider outage remains diagnostic while preserving eligible local facts");
         handler.Failure = 0; handler.IndexState = "failed";
         Check(await provider.IndexStatusAsync("vs_motifs", "file-fixture", CancellationToken.None) == "failed", "failed indexing is not complete");
         handler.IndexState = "in_progress";

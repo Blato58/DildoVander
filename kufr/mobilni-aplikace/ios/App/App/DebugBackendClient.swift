@@ -115,12 +115,42 @@ struct DebugPersonality: Codable {
     }
 }
 
+struct DebugEngineInventory: Codable {
+    struct Engine: Codable {
+        let engine: String
+        let model: String
+        let ready: Bool
+        let unavailableReason: String?
+        let voices: [String]
+        struct Speed: Codable { let supported: Bool; let min: Double; let max: Double; let `default`: Double }
+        let speed: Speed
+        let inputModes: [String]
+        let cameraSources: [String]
+    }
+    let schemaVersion: Int
+    let primaryEngine: String
+    let engines: [Engine]
+
+    func validate() throws {
+        guard schemaVersion == 1, primaryEngine == "gpt-live", engines.count == 2,
+              Set(engines.map { $0.engine }) == Set(["gpt-live", "realtime"]),
+              engines.allSatisfy({ value in
+                  value.model == (value.engine == "gpt-live" ? "gpt-live-1" : "gpt-realtime-2.1")
+                  && (!value.ready || value.unavailableReason == nil)
+                  && !value.voices.isEmpty && value.inputModes.contains("audio")
+              }) else { throw DebugBackendError.invalidResponse }
+    }
+
+    var bridgeValue: [String: Any] {
+        guard let data = try? JSONEncoder().encode(self),
+              let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return value
+    }
+}
+
 struct DebugServerModes: Codable {
     let revision: String
-    let dialogMode: String
-    let voiceMode: String
-    let dialogAvailable: Bool
-    let voiceAvailable: Bool
+    let engines: DebugEngineInventory
     let activeConversations: Int
     let lifetime: String
     let personalityId: String?
@@ -131,8 +161,7 @@ struct DebugServerModes: Codable {
     var characterFinaleProfile: String? = nil
 
     var bridgeValue: [String: Any] {
-        ["revision": revision, "dialogMode": dialogMode, "voiceMode": voiceMode,
-         "dialogAvailable": dialogAvailable, "voiceAvailable": voiceAvailable,
+        ["revision": revision, "engines": engines.bridgeValue,
          "activeConversations": activeConversations, "lifetime": lifetime,
          "personalityId": personalityId as Any? ?? NSNull(),
          "personalities": personalities?.map { $0.bridgeValue } as Any? ?? NSNull(),
@@ -355,10 +384,28 @@ private final class DebugHTTPCall: @unchecked Sendable {
     }
 }
 
+struct DebugGuestMemoryBinding {
+    let guestId: String
+    let identityVerified: Bool
+    let longTermAllowed: Bool
+    let cloudExportAllowed: Bool
+
+    func validate() throws {
+        guard identityVerified, (1...80).contains(guestId.utf8.count),
+              guestId.range(of: "[A-Za-z0-9._-]+", options: .regularExpression) == guestId.startIndex..<guestId.endIndex,
+              !cloudExportAllowed || longTermAllowed else { throw DebugBackendError.serverCode("guest_identity_not_verified") }
+    }
+}
+
 final class DebugCostumeInput {
     var jpeg: Data?
     var description: String?
-    init(jpeg: Data?, description: String?) { self.jpeg = jpeg; self.description = description }
+    let imageId: String
+    let capturedAt: Date
+    init(jpeg: Data?, description: String?, imageId: String = UUID().uuidString.lowercased(), capturedAt: Date = Date()) {
+        self.jpeg = jpeg; self.description = description
+        self.imageId = imageId; self.capturedAt = capturedAt
+    }
 }
 
 enum DebugCostumeJPEG {
@@ -424,88 +471,9 @@ final class DebugBackendClient {
 
     deinit { transport?.invalidate() }
 
-    func openSession(_ profile: DebugBackendProfile, expectedMode: String, readyMask: Int,
-                     voice: String, speed: Double, costume: DebugCostumeInput? = nil,
-                     costumeStatus: (String) -> Void = { _ in }) async throws -> DebugDialogSession {
-        guard ["fake", "openai"].contains(expectedMode), (0...63).contains(readyMask),
-              ["cedar", "marin", "onyx", "coral"].contains(voice), speed.isFinite,
-              (0.85...1.25).contains(speed) else { throw DebugBackendError.invalidResponse }
-        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
-        let token = try await accessToken(profile)
-        guard try await metadata(profile, token: token, expectedMode: expectedMode, requireDialog: true) == expectedMode else {
-            throw DebugBackendError.wrongMode
-        }
-        let boot = UUID().uuidString.lowercased()
-        let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
-            "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
-            "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
-            "consent": ["audio": true, "image": costume?.jpeg != nil]
-        ])
-        var conversation = try uuid(created, "conversationId")
-        do {
-            conversation = try await prepareCostume(profile, token: token, conversation: conversation, boot: boot, input: costume, status: costumeStatus)
-            guard try await metadata(profile, token: token, expectedMode: expectedMode, requireDialog: true) == expectedMode else {
-                throw DebugBackendError.wrongMode
-            }
-            try Task.checkCancellation()
-            return DebugDialogSession(client: self, profile: profile, token: token, conversation: conversation,
-                                      boot: boot, readyMask: readyMask, voice: voice, speed: speed)
-        } catch {
-            try? await cleanup(profile, token: token, conversation: conversation)
-            throw error
-        }
-    }
-
-    func openRealtimeSession(_ profile: DebugBackendProfile, readyMask: Int,
-                             voice: String, speed: Double, costume: DebugCostumeInput? = nil,
-                             costumeStatus: (String) -> Void = { _ in }) async throws -> DebugRealtimeSession {
-        guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
-              speed.isFinite, (0.8...1.2).contains(speed) else {
-            throw DebugBackendError.invalidResponse
-        }
-        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
-        let token = try await accessToken(profile)
-        guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
-            throw DebugBackendError.wrongMode
-        }
-        let boot = UUID().uuidString.lowercased()
-        let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
-            "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
-            "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
-            "consent": ["audio": true, "image": costume?.jpeg != nil]
-        ])
-        var conversation = try uuid(created, "conversationId")
-        do {
-            conversation = try await prepareCostume(profile, token: token, conversation: conversation, boot: boot, input: costume, status: costumeStatus)
-            guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
-                throw DebugBackendError.wrongMode
-            }
-            try Task.checkCancellation()
-            return DebugRealtimeSession(client: self, profile: profile, token: token, conversation: conversation,
-                                        boot: boot, readyMask: readyMask, voice: voice, speed: speed)
-        } catch {
-            try? await cleanup(profile, token: token, conversation: conversation)
-            throw error
-        }
-    }
-
-    nonisolated static func realtimeError(data: Data, status: Int) -> DebugBackendError {
-        let allowed = ["cost_limit", "turn_limit", "dialogue_busy", "realtime_unavailable",
-            "access_token_required", "audio_consent_required", "device_scope_mismatch",
-            "conversation_not_found", "conversation_finished", "conversation_version_mismatch",
-            "realtime_stream_not_replayable", "invalid_request", "request_too_large",
-            "ai_unavailable", "operation_cancelled", "invalid_audio_frame", "realtime_input_mismatch",
-            "realtime_session_not_found", "realtime_playback_mismatch"]
-        if data.count <= 4096,
-           let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let code = value["code"] as? String, allowed.contains(code) {
-            return .serverCode(code)
-        }
-        return status == 429 ? .serverCode("cost_limit") : .httpStatus
-    }
-
     @MainActor func openHandsFreeSession(_ profile: DebugBackendProfile, readyMask: Int,
         voice: String, speed: Double, gptLive: Bool = false, costume: DebugCostumeInput? = nil,
+        guestMemory: DebugGuestMemoryBinding? = nil,
         costumeStatus: (String) -> Void = { _ in }, phase: @escaping DebugHandsFreeSession.Phase,
         visitor: @escaping DebugHandsFreeSession.Visitor, reply: @escaping DebugHandsFreeSession.Reply,
         audio: @escaping DebugHandsFreeSession.Audio, listening: @escaping DebugHandsFreeSession.Listening,
@@ -516,22 +484,19 @@ final class DebugBackendClient {
         guard (0...63).contains(readyMask), ["cedar", "marin", "coral"].contains(voice),
               speed.isFinite, (0.8...1.2).contains(speed) else { throw DebugBackendError.invalidResponse }
         guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
+        try guestMemory?.validate()
         let token = try await accessToken(profile)
-        guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
-            throw DebugBackendError.wrongMode
-        }
+        try await requireEngine(profile, token: token, engine: gptLive ? "gpt-live" : "realtime")
         let boot = UUID().uuidString.lowercased()
         let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
             "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
             "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
             "consent": ["audio": true, "image": costume?.jpeg != nil]
         ])
-        var conversation = try uuid(created, "conversationId")
+        let conversation = try uuid(created, "conversationId")
         do {
-            conversation = try await prepareCostume(profile, token: token, conversation: conversation, boot: boot, input: costume, status: costumeStatus)
-            guard try await metadata(profile, token: token, expectedMode: "openai", requireDialog: true) == "openai" else {
-                throw DebugBackendError.wrongMode
-            }
+            if let guestMemory { try await bindGuestMemory(profile, conversation: conversation, binding: guestMemory) }
+            try await requireEngine(profile, token: token, engine: gptLive ? "gpt-live" : "realtime")
             try Task.checkCancellation()
             return DebugHandsFreeSession(client: self, profile: profile, token: token, conversation: conversation,
                 boot: boot, readyMask: readyMask, voice: voice, speed: speed, gptLive: gptLive, phase: phase, visitor: visitor,
@@ -542,77 +507,101 @@ final class DebugBackendClient {
         }
     }
 
-    private func prepareCostume(_ profile: DebugBackendProfile, token: String, conversation: String,
-                                boot: String, input: DebugCostumeInput?, status: (String) -> Void) async throws -> String {
-        guard let input = input else { return conversation }
-        var preparedConversation = conversation
-        var photoFailed = false
+    private func bindGuestMemory(_ profile: DebugBackendProfile, conversation: String, binding: DebugGuestMemoryBinding) async throws {
+        try binding.validate()
+        _ = try await json(profile, path: "v1/admin/memory/guest", token: profile.credential, method: "PUT", body: [
+            "deviceId": profile.deviceId, "conversationId": conversation, "guestId": binding.guestId,
+            "identitySource": "operator", "identityVerified": binding.identityVerified,
+            "longTermAllowed": binding.longTermAllowed, "cloudExportAllowed": binding.cloudExportAllowed, "expectedVersion": 0])
+    }
+
+    func inspectMemory(_ profile: DebugBackendProfile, conversation: String, personality: String) async throws -> [String: Any] {
+        guard UUID(uuidString: conversation) != nil else { throw DebugBackendError.invalidResponse }
+        let (data, response) = try await request(profile, path: "v1/admin/memory/context", token: profile.credential,
+            method: "GET", body: nil, limit: 262_144,
+            queryItems: [URLQueryItem(name: "deviceId", value: profile.deviceId),
+                URLQueryItem(name: "conversationId", value: conversation), URLQueryItem(name: "personalityId", value: personality)])
+        guard response.mimeType == "application/json",
+              let value = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let epoch = value["epoch"] as? Int, epoch >= 0, value["records"] is [[String: Any]],
+              value["memoryStatus"] is [String: Any] else { throw DebugBackendError.invalidResponse }
+        if let identity = value["identity"] as? [String: Any] {
+            guard identity["deviceId"] as? String == profile.deviceId,
+                  identity["conversationId"] as? String == conversation else { throw DebugBackendError.invalidResponse }
+        }
+        return value
+    }
+
+    func deleteConversationMemory(_ profile: DebugBackendProfile, conversation: String, expectedEpoch: Int) async throws -> [String: Any] {
+        guard UUID(uuidString: conversation) != nil, expectedEpoch >= 0 else { throw DebugBackendError.invalidResponse }
+        let (data, response) = try await request(profile, path: "v1/admin/memory/scopes/conversation/\(conversation)",
+            token: profile.credential, method: "DELETE", body: ["deviceId": profile.deviceId, "expectedEpoch": expectedEpoch], limit: 262_144)
+        if response.statusCode == 204 { return ["deleted": true] }
+        guard response.mimeType == "application/json",
+              let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw DebugBackendError.invalidResponse }
+        return value
+    }
+
+    private func requireEngine(_ profile: DebugBackendProfile, token: String, engine: String) async throws {
+        let diagnostics = try await json(profile, path: "v1/diagnostics", token: token)
+        guard diagnostics["catalogVersion"] as? String == "ollivander-private-party-v1",
+              let value = diagnostics["engines"] as? [String: Any] else {
+            throw DebugBackendError.serverCode("native_upgrade_required")
+        }
+        let data = try JSONSerialization.data(withJSONObject: value)
+        let inventory = try JSONDecoder().decode(DebugEngineInventory.self, from: data)
+        try inventory.validate()
+        guard let selected = inventory.engines.first(where: { $0.engine == engine }), selected.ready else {
+            throw DebugBackendError.serverCode(engine == "gpt-live" ? "gpt_live_unavailable" : "realtime_unavailable")
+        }
+    }
+
+    func revokeConversationImage(_ profile: DebugBackendProfile, token: String, conversation: String,
+                                 boot: String, revision: Int) async throws {
+        guard revision >= 1 else { return }
+        var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/image"))
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 10
+        let headers = ["Authorization": "Bearer \(token)", "Idempotency-Key": UUID().uuidString.lowercased(),
+            "Client-Turn-Id": UUID().uuidString.lowercased(), "Boot-Id": boot, "Generation": "0", "Device-Revision": "0",
+            "Catalog-Version": "ollivander-private-party-v1", "Image-Revision": String(revision)]
+        for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+        let (data, response) = try await http(request, 4_096)
+        guard response.statusCode == 204, data.isEmpty else { throw DebugBackendError.invalidResponse }
+    }
+
+    func attachConversationImage(_ profile: DebugBackendProfile, token: String, conversation: String,
+                                 boot: String, jpeg: Data, imageId: String, capturedAt: Date, revision: Int) async throws {
+        guard !jpeg.isEmpty, jpeg.count <= 262_144, UUID(uuidString: imageId) != nil, revision > 0 else {
+            throw DebugBackendError.invalidResponse
+        }
         do {
-            if input.jpeg != nil {
-                status("Zpracovávám schválenou fotku kostýmu…")
-                do {
-                    let turn = UUID().uuidString.lowercased()
-                    let accepted = try await submitCostumeImage(profile, token: token, conversation: conversation,
-                        boot: boot, turn: turn, input: input)
-                    guard accepted["kind"] as? String == "image", accepted["status"] as? String == "pending" else {
-                        throw DebugBackendError.invalidResponse
-                    }
-                    let correlation: [String: Any] = ["deviceId": profile.deviceId, "bootId": boot,
-                        "conversationId": conversation, "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
-                    let id = try uuid(accepted, "operationId")
-                    let result = try await poll(profile, token: token, id: id,
-                        kind: "image", correlation: correlation)
-                    try validateCostumeResult(result, manual: false)
-                    status("Fotka zpracována. Vzhled je jen nejistá nápověda; hosta se zeptáme.")
-                } catch {
-                    try Task.checkCancellation()
-                    // A lost POST/202 may have admitted work whose ID we never saw.
-                    // DELETE is a backend completion barrier: no fresh voice may start
-                    // until JPEG/provider ownership has been released and 204 confirmed.
-                    status("Fotku se nepodařilo zpracovat. Uklízím původní rozhovor…")
-                    do { try await cleanup(profile, token: token, conversation: conversation) }
-                    catch {
-                        status("Úklid fotky nebyl potvrzen. Nový rozhovor se nespustil; použijte Stop.")
-                        throw error
-                    }
-                    try Task.checkCancellation()
-                    let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
-                        "deviceId": profile.deviceId, "bootId": boot, "generation": 0,
-                        "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
-                        "consent": ["audio": true, "image": false]
-                    ])
-                    preparedConversation = try uuid(created, "conversationId")
-                    try Task.checkCancellation()
-                    photoFailed = true
-                    status("Fotku se nepodařilo zpracovat. Rozhovor pokračuje bez fotky.")
-                }
+            let turn = UUID().uuidString.lowercased()
+            let accepted = try await costumeRequest(profile, token: token, conversation: conversation,
+                boot: boot, turn: turn, suffix: "image", method: "POST", data: jpeg, contentType: "image/jpeg",
+                extraHeaders: ["Image-Consent": "true", "Image-Id": imageId, "Image-Source": "phone",
+                    "Captured-At": ISO8601DateFormatter().string(from: capturedAt), "Image-Revision": String(revision)])
+            guard accepted["kind"] as? String == "image", accepted["status"] as? String == "pending" else {
+                throw DebugBackendError.invalidResponse
             }
-            if let description = input.description {
-                input.description = nil
-                do {
-                    try await correctCostume(profile, token: token, conversation: preparedConversation,
-                        boot: boot, description: description)
-                    status((photoFailed ? "Fotku se nepodařilo zpracovat. " : "") + "Používám ruční popis kostýmu místo odhadu z fotky.")
-                } catch {
-                    try Task.checkCancellation()
-                    status("Ruční popis nebyl potvrzen. Rozhovor se nespustil; použijte Stop.")
-                    throw error
-                }
-            }
-            try Task.checkCancellation()
-            return preparedConversation
+            let correlation: [String: Any] = ["deviceId": profile.deviceId, "bootId": boot,
+                "conversationId": conversation, "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
+            let id = try uuid(accepted, "operationId")
+            let result = try await poll(profile, token: token, id: id, kind: "image", correlation: correlation)
+            try validateCostumeResult(result, manual: false)
         } catch {
-            // The caller still owns the original ID until this helper returns.
-            // cleanup registers a fresh ID/key before I/O. A failed DELETE
-            // remains in this retained client for Stop, even without a session.
-            if preparedConversation != conversation {
-                try? await cleanup(profile, token: token, conversation: preparedConversation)
+            // Revoke even an ambiguously admitted upload. An unstructured barrier
+            // survives cancellation and prevents its late provider result winning.
+            let revocation = Task {
+                try await self.revokeConversationImage(profile, token: token, conversation: conversation, boot: boot, revision: revision)
             }
+            do { try await revocation.value }
+            catch { throw DebugBackendError.serverCode("image_cancel_failed") }
             throw error
         }
     }
 
-    private func correctCostume(_ profile: DebugBackendProfile, token: String, conversation: String,
+    func correctCostume(_ profile: DebugBackendProfile, token: String, conversation: String,
                                 boot: String, description: String) async throws {
         guard !description.isEmpty, description.unicodeScalars.count <= 240,
             !description.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
@@ -644,20 +633,12 @@ final class DebugBackendClient {
         throw DebugBackendError.invalidResponse
     }
 
-    private func submitCostumeImage(_ profile: DebugBackendProfile, token: String, conversation: String,
-                                    boot: String, turn: String, input: DebugCostumeInput) async throws -> [String: Any] {
-        defer { input.jpeg = nil }
-        guard let jpeg = input.jpeg, !jpeg.isEmpty, jpeg.count <= 262_144 else { throw DebugBackendError.tooLarge }
-        return try await costumeRequest(profile, token: token, conversation: conversation,
-            boot: boot, turn: turn, suffix: "image", method: "POST", data: jpeg, contentType: "image/jpeg")
-    }
-
     private func validateCostumeResult(_ result: [String: Any], manual: Bool) throws {
         guard let description = result["description"] as? String, !description.isEmpty, description.unicodeScalars.count <= 240,
             let uncertainty = result["uncertainty"] as? String, ["low", "medium", "high"].contains(uncertainty),
             let source = result["source"] as? String, (manual ? ["manual"] : ["photo", "fake"]).contains(source),
-            let expiry = result["expiresAt"] as? String, let date = DebugDialogSession.date(expiry), date > Date(),
-            date <= Date().addingTimeInterval(125) else { throw DebugBackendError.invalidResponse }
+            let expiry = result["expiresAt"] as? String, let date = Self.date(expiry), date > Date(),
+            date <= Date().addingTimeInterval(1_860) else { throw DebugBackendError.invalidResponse }
         if let character = result["possibleCharacter"] as? String, character.unicodeScalars.count > 80 {
             throw DebugBackendError.invalidResponse
         }
@@ -665,7 +646,8 @@ final class DebugBackendClient {
 
     private func costumeRequest(_ profile: DebugBackendProfile, token: String, conversation: String,
                                 boot: String, turn: String, suffix: String, method: String,
-                                data: Data, contentType: String, idempotencyKey: String? = nil) async throws -> [String: Any] {
+                                data: Data, contentType: String, idempotencyKey: String? = nil,
+                                extraHeaders: [String: String] = [:]) async throws -> [String: Any] {
         try Task.checkCancellation()
         var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/\(suffix)"))
         request.httpMethod = method
@@ -673,7 +655,7 @@ final class DebugBackendClient {
         let headers = ["Authorization": "Bearer \(token)", "Content-Type": contentType,
             "Idempotency-Key": idempotencyKey ?? UUID().uuidString.lowercased(), "Client-Turn-Id": turn, "Boot-Id": boot,
             "Generation": "0", "Device-Revision": "0", "Catalog-Version": "ollivander-private-party-v1"]
-        for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+        for (key, value) in headers.merging(extraHeaders, uniquingKeysWith: { _, new in new }) { request.setValue(value, forHTTPHeaderField: key) }
         // Single attempt: never resend a photo after an ambiguous network error.
         let (data, response) = try await http(request, 16_384)
         try Task.checkCancellation()
@@ -683,36 +665,15 @@ final class DebugBackendClient {
         return result
     }
 
-    fileprivate func upload(_ profile: DebugBackendProfile, token: String, path: String,
-                            fields: [String: String], wav: Data) async throws -> [String: Any] {
-        guard Self.validWav(wav) else { throw DebugBackendError.invalidResponse }
-        let boundary = UUID().uuidString.lowercased()
-        var body = Data()
-        for name in fields.keys.sorted() {
-            body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(fields[name]!)\r\n".utf8))
-        }
-        body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"wav\"; filename=\"answer.wav\"\r\nContent-Type: audio/wav\r\n\r\n".utf8))
-        body.append(wav)
-        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
-        var request = URLRequest(url: profile.baseURL.appendingPathComponent(path))
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(boundary, forHTTPHeaderField: "Idempotency-Key")
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.httpBody = body
-        try Task.checkCancellation()
-        let (data, response) = try await http(request, 16_384)
-        try Task.checkCancellation()
-        guard data.count <= 16_384, response.statusCode == 202, response.mimeType == "application/json",
-              let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw DebugBackendError.invalidResponse
-        }
-        return value
-    }
-
     func inspect(_ profile: DebugBackendProfile) async throws -> String {
         let token = try await accessToken(profile)
-        return try await metadata(profile, token: token)
+        let diagnostics = try await json(profile, path: "v1/diagnostics", token: token)
+        guard let value = diagnostics["engines"] as? [String: Any] else {
+            throw DebugBackendError.serverCode("native_upgrade_required")
+        }
+        let data = try JSONSerialization.data(withJSONObject: value)
+        try JSONDecoder().decode(DebugEngineInventory.self, from: data).validate()
+        return "openai"
     }
 
     func eveningList(_ profile: DebugBackendProfile, action: String = "list", name: String? = nil,
@@ -776,17 +737,12 @@ final class DebugBackendClient {
     }
 
     func serverModes(_ profile: DebugBackendProfile, expectedRevision: String? = nil,
-                     dialogMode: String? = nil, voiceMode: String? = nil,
                      personalityId: String? = nil, characterEnabled: Bool? = nil, characterTone: String? = nil,
                      characterFinaleProfile: String? = nil, resetCharacterVariety: Bool = false) async throws -> DebugServerModes {
         var body: [String: Any]?
         if let revision = expectedRevision {
-            guard UUID(uuidString: revision) != nil,
-                  let dialog = dialogMode, ["fake", "responses"].contains(dialog),
-                  let voice = voiceMode, ["fake", "openai"].contains(voice) else {
-                throw DebugBackendError.wrongMode
-            }
-            body = ["expectedRevision": revision, "dialogMode": dialog, "voiceMode": voice]
+            guard UUID(uuidString: revision) != nil else { throw DebugBackendError.wrongMode }
+            body = ["expectedRevision": revision]
             if let enabled = characterEnabled { body?["characterEnabled"] = enabled }
             if let tone = characterTone {
                 guard ["Reserved", "Dry", "Adult", "Chaos"].contains(tone) else { throw DebugBackendError.wrongMode }
@@ -808,14 +764,9 @@ final class DebugBackendClient {
                                    method: body == nil ? "GET" : "PUT", body: body)
         let data = try JSONSerialization.data(withJSONObject: value)
         let modes = try JSONDecoder().decode(DebugServerModes.self, from: data)
-        guard UUID(uuidString: modes.revision) != nil,
-              ["fake", "responses"].contains(modes.dialogMode),
-              ["fake", "openai"].contains(modes.voiceMode),
-              modes.activeConversations >= 0, modes.lifetime == "until_restart",
-              (modes.dialogMode != "responses" || modes.dialogAvailable),
-              (modes.voiceMode != "openai" || modes.voiceAvailable) else {
-            throw DebugBackendError.invalidResponse
-        }
+        try modes.engines.validate()
+        guard UUID(uuidString: modes.revision) != nil, modes.activeConversations >= 0,
+              modes.lifetime == "until_restart" else { throw DebugBackendError.invalidResponse }
         if modes.personalityId != nil || modes.personalities != nil || modes.personalityLifetime != nil {
             guard let id = modes.personalityId, let inventory = modes.personalities,
                   modes.personalityLifetime == "persistent", (1...32).contains(inventory.count),
@@ -836,64 +787,6 @@ final class DebugBackendClient {
         return modes
     }
 
-    func run(_ profile: DebugBackendProfile, expectedMode: String,
-             phase: (String) -> Void) async throws -> Data {
-        guard ["fake", "openai"].contains(expectedMode) else { throw DebugBackendError.wrongMode }
-        phase("checking")
-        guard !hasPendingCleanup else { throw DebugBackendError.serverCode("realtime_cleanup_failed") }
-        let token = try await accessToken(profile)
-        guard try await metadata(profile, token: token, expectedMode: expectedMode) == expectedMode else { throw DebugBackendError.wrongMode }
-        let bootId = UUID().uuidString.lowercased()
-        let turnId = UUID().uuidString.lowercased()
-        var conversationId: String?
-        var cleanupAttempted = false
-        do {
-            let created = try await json(profile, path: "v1/conversations", token: token, method: "POST", body: [
-                "deviceId": profile.deviceId, "bootId": bootId, "generation": 0,
-                "catalogVersion": "ollivander-private-party-v1", "locale": "cs-CZ",
-                "consent": ["audio": true, "image": false]
-            ])
-            let conversation = try uuid(created, "conversationId")
-            conversationId = conversation
-            // Create freezes server modes until cleanup. Recheck after it to
-            // close the race between the first inspection and admission.
-            guard try await metadata(profile, token: token, expectedMode: expectedMode) == expectedMode else { throw DebugBackendError.wrongMode }
-            let correlation: [String: Any] = [
-                "deviceId": profile.deviceId, "bootId": bootId, "conversationId": conversation,
-                "clientTurnId": turnId, "generation": 0, "deviceRevision": 0
-            ]
-            phase("opening")
-            let opening = try await json(profile, path: "v1/conversations/\(conversation)/opening",
-                                         token: token, method: "POST", body: [
-                "clientTurnId": turnId, "bootId": bootId, "generation": 0, "readyMask": 0,
-                "deviceRevision": 0, "catalogVersion": "ollivander-private-party-v1"
-            ])
-            _ = try await poll(profile, token: token, id: uuid(opening, "operationId"),
-                               kind: "turn", correlation: correlation)
-            phase("speech")
-            let speech = try await json(profile, path: "v1/conversations/\(conversation)/speech",
-                                        token: token, method: "POST", body: ["turnId": turnId, "outputTarget": "phone"])
-            let result = try await poll(profile, token: token, id: uuid(speech, "operationId"),
-                                        kind: "speech", correlation: correlation)
-            guard result["outputTarget"] as? String == "phone" else { throw DebugBackendError.invalidResponse }
-            let audioId = try uuid(result, "audioId")
-            let (wav, response) = try await request(profile, path: "v1/audio/\(audioId)", token: token,
-                                                    method: "GET", body: nil, limit: 1_920_044)
-            guard response.mimeType == "audio/wav", Self.validWav(wav) else { throw DebugBackendError.invalidResponse }
-            try Task.checkCancellation()
-            cleanupAttempted = true
-            try await cleanup(profile, token: token, conversation: conversation)
-            conversationId = nil
-            try Task.checkCancellation()
-            return wav
-        } catch {
-            if let conversation = conversationId, !cleanupAttempted {
-                try? await cleanup(profile, token: token, conversation: conversation)
-            }
-            throw error
-        }
-    }
-
     fileprivate func accessToken(_ profile: DebugBackendProfile) async throws -> String {
         let result = try await json(profile, path: "v1/device-access/token", token: profile.credential, method: "POST")
         guard result["deviceId"] as? String == profile.deviceId,
@@ -902,23 +795,6 @@ final class DebugBackendClient {
             throw DebugBackendError.invalidResponse
         }
         return token
-    }
-
-    fileprivate func metadata(_ profile: DebugBackendProfile, token: String, expectedMode: String? = nil,
-                              requireDialog: Bool = false) async throws -> String {
-        let result = try await json(profile, path: "v1/diagnostics", token: token)
-        if expectedMode == "fake" && result["dialogMode"] as? String != "fake" {
-            throw DebugBackendError.wrongMode
-        }
-        if requireDialog && expectedMode == "openai" && result["dialogMode"] as? String != "responses" {
-            throw DebugBackendError.wrongMode
-        }
-        guard let mode = result["voiceMode"] as? String, ["fake", "openai"].contains(mode),
-              result["catalogVersion"] as? String == "ollivander-private-party-v1",
-              result["audioFormat"] as? String == "pcm16-mono-32000-wav" else {
-            throw DebugBackendError.invalidResponse
-        }
-        return mode
     }
 
     fileprivate func poll(_ profile: DebugBackendProfile, token: String, id: String, kind: String,
@@ -1014,7 +890,7 @@ final class DebugBackendClient {
                 if recoverCancelledCreate && method == "POST" && path == "v1/conversations" &&
                     (Task.isCancelled || error is CancellationError) {
                     // The server may have accepted create just before Stop. Recover
-                    // only this key in a cleanup task; never continue to opening/TTS.
+                    // only this key in a cleanup task; never continue to a provider stream.
                     await Task { @MainActor in
                         if let created = try? await json(profile, path: path, token: token,
                             method: method, body: body, idempotencyKey: key, recoverCancelledCreate: false),
@@ -1062,167 +938,7 @@ final class DebugBackendClient {
         return value.lowercased()
     }
 
-    static func validWav(_ data: Data) -> Bool {
-        guard data.count >= 46, data.count <= 1_920_044 else { return false }
-        let bytes = [UInt8](data.prefix(44))
-        func number(_ offset: Int, _ count: Int) -> UInt32 {
-            (0..<count).reduce(0) { $0 | UInt32(bytes[offset + $1]) << (8 * $1) }
-        }
-        func tag(_ offset: Int, _ value: String) -> Bool { Array(bytes[offset..<(offset + 4)]) == Array(value.utf8) }
-        return tag(0, "RIFF") && tag(8, "WAVE") && tag(12, "fmt ") && tag(36, "data") &&
-            number(4, 4) == UInt32(data.count - 8) && number(16, 4) == 16 && number(20, 2) == 1 &&
-            number(22, 2) == 1 && number(24, 4) == 32_000 && number(28, 4) == 64_000 &&
-            number(32, 2) == 2 && number(34, 2) == 16 && number(40, 4) == UInt32(data.count - 44) &&
-            (data.count - 44) % 2 == 0
-    }
-}
-
-struct DebugDialogReply {
-    let text: String
-    let wav: Data
-    let selected: Int?
-    let terminal: Bool
-    let timings: [String: Double]
-}
-
-// A virtual session owns only its conversation and downloaded speech operation.
-// It never submits a physical command or a real ESP snapshot.
-@MainActor
-final class DebugDialogSession {
-    private let client: DebugBackendClient
-    private let profile: DebugBackendProfile
-    private let token: String
-    private let conversation: String
-    private let boot: String
-    private let readyMask: Int
-    private let voice: String
-    private let speed: Double
-    private var speechOperation: String?
-    private var closed = false
-    private var closing: Task<Void, Error>?
-    private var terminal = false
-    private var turns = 0
-
-    init(client: DebugBackendClient, profile: DebugBackendProfile, token: String, conversation: String,
-         boot: String, readyMask: Int, voice: String, speed: Double) {
-        self.client = client; self.profile = profile; self.token = token; self.conversation = conversation
-        self.boot = boot; self.readyMask = readyMask; self.voice = voice; self.speed = speed
-    }
-
-    private func correlation(_ turn: String) -> [String: Any] {
-        ["deviceId": profile.deviceId, "bootId": boot, "conversationId": conversation,
-         "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
-    }
-
-    func advance(_ text: String?, phase: (String) -> Void, reply: (String) -> Void) async throws -> DebugDialogReply {
-        guard !closed, !terminal, turns < 10, speechOperation == nil,
-              (turns == 0) == (text == nil) else { throw DebugBackendError.invalidResponse }
-        if let text = text {
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  text.unicodeScalars.count <= 1000 else { throw DebugBackendError.invalidResponse }
-        }
-        let start = ProcessInfo.processInfo.systemUptime
-        let turn = UUID().uuidString.lowercased()
-        var body: [String: Any] = ["clientTurnId": turn, "bootId": boot, "generation": 0,
-            "readyMask": readyMask, "deviceRevision": 0, "catalogVersion": "ollivander-private-party-v1"]
-        if let text = text { body["text"] = text }
-        phase(text == nil ? "opening" : "turn")
-        let accepted = try await client.json(profile, path: "v1/conversations/\(conversation)/\(text == nil ? "opening" : "turns")",
-                                             token: token, method: "POST", body: body)
-        let result = try await client.poll(profile, token: token, id: client.uuid(accepted, "operationId"),
-                                           kind: "turn", correlation: correlation(turn))
-        guard let response = result["reply"] as? String, !response.isEmpty, response.unicodeScalars.count <= 500,
-              let decision = result["decision"] as? String, ["ask", "propose", "no_selection"].contains(decision) else {
-            throw DebugBackendError.invalidResponse
-        }
-        var selected: Int?
-        var selectionExpiry: Date?
-        if decision == "propose" {
-            guard let proposal = result["proposal"] as? [String: Any],
-                  proposal["conversationId"] as? String == conversation,
-                  proposal["turnId"] as? String == turn,
-                  proposal["bootId"] as? String == boot,
-                  proposal["catalogVersion"] as? String == "ollivander-private-party-v1",
-                  let revision = proposal["deviceRevision"] as? NSNumber, revision == 0,
-                  let generation = proposal["generation"] as? NSNumber, generation == 0,
-                  let number = proposal["compartment"] as? NSNumber,
-                  number.doubleValue == Double(number.intValue), (1...6).contains(number.intValue),
-                  readyMask & (1 << (number.intValue - 1)) != 0,
-                  let expiry = proposal["expiresAt"] as? String,
-                  let parsedExpiry = Self.date(expiry), parsedExpiry > Date(),
-                  parsedExpiry < Date().addingTimeInterval(65) else {
-                throw DebugBackendError.invalidResponse
-            }
-            _ = try client.uuid(proposal, "proposalId")
-            selected = number.intValue
-            selectionExpiry = parsedExpiry
-        } else if !(result["proposal"] == nil || result["proposal"] is NSNull) {
-            throw DebugBackendError.invalidResponse
-        }
-        let dialogEnd = ProcessInfo.processInfo.systemUptime
-        reply(response)
-        phase("speech")
-        let speech = try await client.json(profile, path: "v1/conversations/\(conversation)/speech", token: token,
-            method: "POST", body: ["turnId": turn, "outputTarget": "phone", "voice": voice, "speed": speed])
-        let operation = try client.uuid(speech, "operationId")
-        speechOperation = operation
-        let audio = try await client.poll(profile, token: token, id: operation, kind: "speech", correlation: correlation(turn))
-        guard audio["outputTarget"] as? String == "phone" else { throw DebugBackendError.invalidResponse }
-        let speechEnd = ProcessInfo.processInfo.systemUptime
-        phase("download")
-        let (wav, http) = try await client.request(profile, path: "v1/audio/\(client.uuid(audio, "audioId"))", token: token,
-                                                  method: "GET", body: nil, limit: 1_920_044)
-        guard http.mimeType == "audio/wav", DebugBackendClient.validWav(wav) else { throw DebugBackendError.invalidResponse }
-        if let selectionExpiry = selectionExpiry, selectionExpiry <= Date() { throw DebugBackendError.invalidResponse }
-        let end = ProcessInfo.processInfo.systemUptime
-        terminal = decision != "ask"; turns += 1
-        return DebugDialogReply(text: response, wav: wav, selected: selected, terminal: terminal, timings: [
-            "dialogMs": (dialogEnd - start) * 1000, "speechMs": (speechEnd - dialogEnd) * 1000,
-            "downloadMs": (end - speechEnd) * 1000, "totalMs": (end - start) * 1000])
-    }
-
-    func releaseSpeech() async throws {
-        guard let operation = speechOperation else { return }
-        let key = UUID().uuidString.lowercased()
-        for attempt in 0..<2 {
-            do {
-                let (_, response) = try await client.request(profile, path: "v1/operations/\(operation)", token: token,
-                                                              method: "DELETE", body: nil, limit: 4096, key: key)
-                guard response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
-                speechOperation = nil
-                return
-            } catch {
-                try Task.checkCancellation()
-                if attempt == 1 { throw error }
-            }
-        }
-    }
-
-    func transcribe(_ wav: Data) async throws -> String {
-        guard !closed, !terminal, turns > 0, speechOperation == nil else { throw DebugBackendError.invalidResponse }
-        let turn = UUID().uuidString.lowercased()
-        let accepted = try await client.upload(profile, token: token, path: "v1/conversations/\(conversation)/transcriptions",
-            fields: ["clientTurnId": turn, "bootId": boot, "generation": "0", "deviceRevision": "0"], wav: wav)
-        let result = try await client.poll(profile, token: token, id: client.uuid(accepted, "operationId"),
-                                           kind: "transcription", correlation: correlation(turn))
-        guard let text = result["transcript"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              text.unicodeScalars.count <= 1000 else { throw DebugBackendError.invalidResponse }
-        return text
-    }
-
-    func close() async throws {
-        guard !closed else { return }
-        if let closing = closing { try await closing.value; return }
-        let closing = Task { @MainActor in
-            try await client.cleanup(profile, token: token, conversation: conversation)
-            closed = true; speechOperation = nil
-        }
-        self.closing = closing
-        do { try await closing.value }
-        catch { self.closing = nil; throw error }
-    }
-
-    fileprivate static func date(_ value: String) -> Date? {
+    static func date(_ value: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)

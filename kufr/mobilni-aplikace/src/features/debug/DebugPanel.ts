@@ -4,12 +4,81 @@ import type { DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
 import { DebugJournal, type DebugCategory, type DebugCode } from './DebugJournal';
 import { ServerLogBuffer, type ServerLogPage } from './ServerLogs';
 
+type ConversationEngine = 'gpt-live' | 'realtime';
+interface EngineCapability {
+  engine: ConversationEngine;
+  model: string;
+  ready: boolean;
+  unavailableReason?: string | null;
+  voices: string[];
+  speed: { supported: boolean; min: number; max: number; default: number };
+  inputModes: string[];
+  cameraSources: string[];
+}
+interface EngineCapabilities {
+  schemaVersion: number;
+  primaryEngine: ConversationEngine;
+  engines: EngineCapability[];
+}
+interface GuestMemoryBinding {
+  guestId: string;
+  identityVerified: boolean;
+  longTermAllowed: boolean;
+  cloudExportAllowed: boolean;
+}
+interface MemoryInspection {
+  identity: (GuestMemoryBinding & { version: number; conversationId: string; deviceId: string }) | null;
+  epoch: number;
+  deletionEpoch: number;
+  records: Array<{ memoryId: string; text: string; sourceReference: string; revision: number; isActive: boolean }>;
+  totalRecords: number;
+  hasMore: boolean;
+  memoryStatus: { provider: string; configured: boolean; degraded: boolean; configurationStatus: string;
+    pending: number; failed: number; deleting: number; storedBytes: number; capacityBytes: number; rejectedWrites: number };
+}
+const enginePreferenceKey = 'kufr.conversation.engine.v1';
+
+export function validGuestMemoryId(value: string): boolean {
+  return value.length >= 1 && value.length <= 80 && !/[^A-Za-z0-9._-]/.test(value);
+}
+
+/** Only the retired PTT variant has an equivalent retained engine. Other old
+ * values require a deliberate operator choice rather than a silent fallback. */
+export function migrateConversationEngine(value: string | null): { engine?: ConversationEngine; message?: string } {
+  if (value === null) return { engine: 'gpt-live' };
+  if (value === 'gpt-live' || value === 'realtime') return { engine: value };
+  if (value === 'realtime-ptt') return {
+    engine: 'realtime', message: 'Původní Realtime PTT bylo převedeno na GPT Realtime 2.1. Ověřte dostupný způsob vstupu.',
+  };
+  return { message: 'Uložený rozhovorový režim už není podporován. Vyberte GPT Live nebo GPT Realtime 2.1.' };
+}
+
+function validCapability(value: EngineCapability): boolean {
+  return value != null && typeof value.ready === 'boolean'
+    && Array.isArray(value.voices) && value.voices.every(voice => typeof voice === 'string')
+    && Array.isArray(value.cameraSources) && value.cameraSources.every(source => typeof source === 'string')
+    && Array.isArray(value.inputModes) && value.inputModes.every(mode => typeof mode === 'string')
+    && value.speed != null && typeof value.speed.supported === 'boolean'
+    && Number.isFinite(value.speed.min) && Number.isFinite(value.speed.max) && Number.isFinite(value.speed.default)
+    && value.speed.min <= value.speed.default && value.speed.default <= value.speed.max;
+}
+
 interface VoiceStatus {
   configured: boolean;
   running: boolean;
   session?: boolean;
   recording?: boolean;
   handsFree?: boolean;
+  cameraActive?: boolean;
+  imagePending?: boolean;
+  inputActive?: boolean;
+  outputActive?: boolean;
+  toolActive?: boolean;
+  effectiveEngine?: string;
+  effectiveModel?: string;
+  sessionGeneration?: number;
+  conversationId?: string;
+  lastConversationId?: string;
   errorCode?: string | null;
   costumeStatus?: string | null;
   audioOutput?: { route: 'speaker' | 'receiver' | 'external' | 'none'; volume: number;
@@ -30,10 +99,7 @@ interface EveningList {
 }
 interface ServerModes {
   revision: string;
-  dialogMode: 'fake' | 'responses';
-  voiceMode: 'fake' | 'openai';
-  dialogAvailable: boolean;
-  voiceAvailable: boolean;
+  engines?: EngineCapabilities;
   activeConversations: number;
   lifetime: 'until_restart';
   personalityId?: string;
@@ -53,18 +119,20 @@ interface DebugBridge {
   activateEvening(options: { eveningId: string; expectedEveningId: string }): Promise<void>;
   inspectBackend(): Promise<void>;
   inspectServer(): Promise<void>;
-  changeServerModes(options: { expectedRevision: string; dialogMode: string; voiceMode: string; personalityId?: string;
+  changeServerModes(options: { expectedRevision: string; personalityId?: string;
     characterEnabled?: boolean; characterTone?: string; characterFinaleProfile?: string; resetCharacterVariety?: boolean }): Promise<void>;
-  runOpeningSpeech(options: { expectedMode: 'fake' | 'openai' }): Promise<void>;
   captureCostumePhoto(): Promise<{ draftId: string | null }>;
+  attachCostumePhoto(options: { draftId: string }): Promise<{ status: string; imageId: string; revision: number }>;
   discardCostumePhoto(): Promise<void>;
+  inspectMemory(options: { conversationId: string }): Promise<MemoryInspection>;
+  deleteConversationMemory(options: { conversationId: string; expectedEpoch: number }): Promise<{
+    localDeletion: 'complete'; remoteDeletion: 'complete' | 'pending';
+  }>;
   startConversation(options: {
-    expectedMode: 'fake' | 'openai'; readyMask: number; photoDraftId?: string; costumeDescription?: string;
-    voice: 'cedar' | 'marin' | 'onyx' | 'coral'; speed: number; engine: 'realtime' | 'gpt-live' | 'realtime-ptt' | 'chained';
+    expectedMode: 'openai'; readyMask: number; photoDraftId?: string; costumeDescription?: string;
+    voice: string; speed: number; engine: ConversationEngine;
+    guestMemory?: GuestMemoryBinding;
   }): Promise<void>;
-  answerConversation(options: { text: string }): Promise<void>;
-  startRecording(): Promise<void>;
-  finishRecording(): Promise<void>;
   speakSystem(): Promise<void>;
   stop(): Promise<void>;
   shareLog(options: { json: string }): Promise<void>;
@@ -97,6 +165,19 @@ export class DebugPanel {
   private eveningRevision?: string;
   private statusSequence = 0;
   private actionGeneration = 0;
+  private photoPending = false;
+  private photoAttaching = false;
+  private photoDiscarding = false;
+  private photoUsed = false;
+  private photoCancellationFailed = false;
+  private engineMigrationMessage?: string;
+  private statusPending = false;
+  private memoryPending = false;
+  private memorySequence = 0;
+  private memoryInspection?: MemoryInspection;
+  private memoryInspectedConversation?: string;
+  private lastMemoryConversation?: string;
+  private memoryMessage = 'Načtěte paměť konkrétního rozhovoru. Čtení nevolá AI.';
   private readonly serverLogs = new ServerLogBuffer();
   private logsPending = false;
   private logsSequence = 0;
@@ -118,6 +199,7 @@ export class DebugPanel {
       <nav class="section-nav" aria-label="Přejít v diagnostice">
         <a href="#esp-heading">Kufr</a><a href="#server-heading">Server</a>
         <a href="#server-log-heading">Log serveru</a><a href="#evening-heading">Večery</a>
+        <a href="#guest-memory-heading">Paměť hosta</a>
         <a href="#voice-heading">Hlas</a><a href="#debug-conversation-heading">Zkušební rozhovor</a>
         <a href="#log-heading">Log aplikace</a>
       </nav>
@@ -127,17 +209,13 @@ export class DebugPanel {
         <p data-freshness></p>
         <p class="footnote">Údaje pocházejí z přijatých snapshotů. GPIO, napájení ani fyzický pohyb z nich nelze ověřit.</p></section>
       <section class="debug-card" aria-labelledby="server-heading"><h2 id="server-heading">Server</h2>
-        <p>Nastavení platí pro celý backend. Personalita se ukládá i přes restart; režimy do restartu.
+        <p>Personalita a pravidla postavy platí pro celý backend a ukládají se i přes restart.
           Změny lze použít mezi rozhovory.
           AI testy čerpají OpenAI účet až při spuštění.</p>
         <div class="actions">
           ${button({ label: "Nastavit serverový / testovací přístup", attributes: {"data-debug": "configure"} })}
           ${button({ label: "Zapomenout uložený přístup", attributes: {"data-debug": "forget-profile"} })}
           ${button({ label: "Obnovit stav serveru", attributes: {"data-debug": "server-inspect"} })}
-          ${field({ id: 'server-dialog-mode', label: "Dialog", control: `<select class="aw-input" aria-label="Režim dialogu" data-server="dialog">
-            <option value="fake">Fake</option><option value="responses">AI · Sol</option></select>` })}
-          ${field({ id: 'server-voice-mode', label: "Hlas", control: `<select class="aw-input" aria-label="Režim hlasu" data-server="voice">
-            <option value="fake">Fake · tiché WAV</option><option value="openai">AI · STT / TTS</option></select>` })}
           ${field({ id: 'server-personality', label: "Personalita", control: `<select class="aw-input" aria-label="Personalita kufru" data-server="personality">
             <option value="">Nejprve obnovte stav serveru</option></select>` })}
           ${button({ label: "Použít nastavení serveru", variant: 'primary', attributes: {"data-debug": "server-apply"} })}
@@ -152,14 +230,14 @@ export class DebugPanel {
             <option value="Limited">Omezené · bez vysloveného názvu hůlky</option></select>` })}
           <p class="footnote">Pojmenované finále a roast fotografie čekají na samostatné ověření. Změna platí pro nové session;
             ukončení živého rozhovoru a nouzový Stop používejte přes stávající ovládání.
-            DV01 vyžaduje personalitu ollivander-trunk a backendový AutonomousActor. DV01 přepis se nepřenáší do paměti dalšího hosta.</p>
+            DV01 vyžaduje personalitu ollivander-trunk. DV01 přepis se nepřenáší do paměti dalšího hosta.</p>
           <div class="actions">${button({ label: "Použít DV01 pro nové rozhovory", attributes: {"data-debug": "character-apply"} })}
             ${button({ label: "Resetovat anonymní pestrost", attributes: {"data-debug": "character-reset"} })}</div>
         </fieldset>
         <p data-personality-description></p>
         <p data-server-status role="status"></p>
         <p class="footnote">Správa vyžaduje samostatný credential správce a testovací ID debug-server-admin.
-          Běžný přístup kufru nestačí. Po restartu platí režimy nasazení; obnovte stav.</p></section>
+          Běžný přístup kufru nestačí. Po restartu nebo změně nasazení obnovte stav enginů.</p></section>
       <section class="debug-card" aria-labelledby="server-log-heading"><h2 id="server-log-heading">Log serveru</h2>
         <p>Technické události serveru za posledních 24 hodin, nejvýše 5000 záznamů.
           Zobrazení obsahuje posledních 200 událostí vybraného filtru.</p>
@@ -185,47 +263,67 @@ export class DebugPanel {
         <p class="footnote">Seznam patří nastavené testovací identitě. Obsah rozhovorů se zde nestahuje
           a založení ani přepnutí samo nevolá AI.</p>
       </section>
+      <section class="debug-card" aria-labelledby="guest-memory-heading"><h2 id="guest-memory-heading">Paměť hosta</h2>
+        <p>Přístup správce zobrazí jen záznamy použitelné pro zvolený rozhovor a jeho ověřenou identitu.
+          Čtení ani odstranění nevolá AI. Smazání paměti nemění mechanický stav kufru.</p>
+        ${field({ id: 'memory-conversation', label: 'ID rozhovoru pro kontrolu paměti', control: `<input class="aw-input" data-memory-conversation type="text" maxlength="64" autocomplete="off" spellcheck="false">` })}
+        <div class="actions">${button({ label: 'Načíst paměť rozhovoru', attributes: {'data-debug': 'memory-inspect'} })}</div>
+        <p data-memory-status role="status"></p><p data-memory-identity></p><p data-memory-provider></p>
+        <ol class="debug-transcript" data-memory-records aria-label="Použitelná paměť rozhovoru"></ol>
+        <label><input type="checkbox" data-memory-delete-confirm> Potvrzuji odstranění paměti tohoto rozhovoru.</label>
+        <p class="footnote">Před odstraněním ukončete rozhovor. Odstranění osobní paměti jiných rozhovorů ani archivu památek není součástí této akce.</p>
+        <div class="actions">${button({ label: 'Odstranit paměť tohoto rozhovoru', variant: 'danger', attributes: {'data-debug': 'memory-delete'} })}</div>
+      </section>
       <section class="debug-card" aria-labelledby="voice-heading"><h2 id="voice-heading">Hlas</h2>
-        <p>AI test přehraje úvodní repliku na telefonu. Neovládá pohony ani reproduktor kufru.
-          Vyžaduje samostatné testovací device ID a credential backendu; místní párovací token sem nepatří.
-          Replika se může uložit do paměti testovacího večera a test čerpá OpenAI účet.</p>
+        <p>Samostatný test reproduktoru nevolá AI a neovládá kufr. Rozhovor spusťte níže
+          pod servisní identitou backendu. Místní párovací token sem nepatří.</p>
         <div class="actions">
           ${button({ label: "Test reproduktoru telefonu", attributes: {"data-debug": "system"} })}
           ${button({ label: "Ověřit backend", attributes: {"data-debug": "inspect"} })}
-          ${button({ label: "Test AI hlasu", variant: 'primary', attributes: {"data-debug": "ai"} })}
-          ${button({ label: "Test fake audio toku", attributes: {"data-debug": "fake"} })}
           ${button({ label: "Zastavit hlas", attributes: {"data-debug": "voice-stop"} })}
         </div>
         <p data-voice-status role="status"></p>
-        <p class="footnote">Systémový hlas telefonu není AI TTS. Fake backend vrací tiché testovací WAV.
+        <p class="footnote">Systémový hlas telefonu slouží pouze k ověření reproduktoru.
           Přístup se ukládá do Keychain iPhonu a zachová při aktualizaci. Do webu ani logu se credential nepředává.</p></section>
       <section class="debug-card debug-conversation" aria-labelledby="debug-conversation-heading">
         <h2 id="debug-conversation-heading">Zkušební rozhovor a výběr hůlky</h2>
         <p>Rozhovor běží na telefonu pod servisní identitou. Dostupnost přihrádek je pouze simulovaná;
           návrh hůlky nespouští pohon kufru. AI režim čerpá OpenAI účet.</p>
         <p data-conversation-personality>Personalitu zvolte a použijte v nastavení serveru výše.</p>
+        <p data-conversation-identity></p>
+        <fieldset data-guest-memory><legend>Identita a souhlas pro nového hosta</legend>
+          <p>Bez stálého ID začne anonymní host. Pro návrat stejného hosta zadejte stejné ID a ověřte ho osobně;
+            fotografie ani odhad modelu identitu neověřují. Použijte vlastní evidenční kód, nikoli odhadnuté jméno.
+            ID rozlišuje velká a malá písmena; smí mít 1–80 znaků A–Z, a–z, 0–9, tečku, podtržítko a pomlčku.
+            Volba se použije před první replikou a neukládá se do telefonu.</p>
+          ${field({ id: 'guest-memory-id', label: 'Stálé ID vracejícího se hosta (volitelné)', control: `<input class="aw-input" data-guest-id type="text" maxlength="80" autocomplete="off" placeholder="Například host-042">` })}
+          <label><input type="checkbox" data-guest-verified> Obsluha ověřila identitu tohoto hosta.</label>
+          <label><input type="checkbox" data-guest-long-term> Host souhlasí s dlouhodobou osobní pamětí.</label>
+          <label><input type="checkbox" data-guest-cloud> Host souhlasí také s exportem osobní paměti do cloudového indexu.</label>
+          <p data-guest-memory-status class="footnote" role="status"></p>
+        </fieldset>
         <fieldset data-conversation-availability><legend>Simulované dostupné přihrádky</legend>
           <div class="debug-ready-grid">
             ${Array.from({ length: 6 }, (_, index) => `<label><input type="checkbox" data-ready="${index + 1}" checked> ${index + 1}</label>`).join('')}
           </div>
         </fieldset>
         <div class="debug-conversation-options">
-          ${field({ id: 'conversation-engine', label: "Tok", control: `<select class="aw-input" data-conversation-engine aria-label="Tok AI rozhovoru">
-            <option value="realtime" selected>Realtime · bez tlačítek</option>
-            <option value="gpt-live">GPT-Live + Sol · test kvality</option>
-            <option value="realtime-ptt">Realtime · ruční nahrávání</option>
-            <option value="chained">Řetězený · kompatibilní</option></select>` })}
+          ${field({ id: 'conversation-engine', label: "Konverzační engine", control: `<select class="aw-input" data-conversation-engine aria-label="Konverzační engine">
+            <option value="gpt-live" selected>GPT Live · gpt-live-1</option>
+            <option value="realtime">GPT Realtime 2.1 · gpt-realtime-2.1</option></select>` })}
           ${field({ id: 'conversation-voice', label: "Hlas", control: `<select class="aw-input" data-conversation-voice aria-label="Hlas zkušebního rozhovoru">
             <option value="cedar" selected>Cedar</option><option value="marin">Marin</option>
-            <option value="onyx">Onyx</option><option value="coral">Coral</option></select>` })}
+            <option value="coral">Coral</option></select>` })}
           ${field({ id: 'conversation-speed', label: "Tempo", control: `<select class="aw-input" data-conversation-speed aria-label="Tempo zkušebního rozhovoru">
             <option value="0.9">0,9×</option><option value="1">1×</option>
             <option value="1.1" selected>1,1×</option><option value="1.2">1,2×</option></select>` })}
         </div>
+        <p data-engine-status role="status"></p>
         <fieldset data-costume-controls><legend>Volitelná nápověda kostýmu</legend>
           <p>Fotku pořizujte jen se souhlasem hosta. Potvrzením „Použít fotku“ souhlasíte s jejím předáním
             serveru a OpenAI pro tento rozhovor. Fotka se neukládá do galerie ani paměti večera.</p>
           <div class="actions">${button({ label: "Se souhlasem vyfotit kostým", attributes: {"data-debug": "costume-photo"} })}
+            ${button({ label: "Odeslat schválenou fotku", attributes: {"data-debug": "costume-attach"} })}
             ${button({ label: "Zrušit fotku", attributes: {"data-debug": "costume-discard"} })}</div>
           <p data-costume-status role="status"></p>
           ${field({ id: 'costume-description', label: "Ruční popis nebo oprava odhadu", control: `<input class="aw-input" type="text" data-costume-description maxlength="240"
@@ -234,24 +332,16 @@ export class DebugPanel {
             Po chybě fotky rozhovor pokračuje. Běžný přepis se dál ukládá do paměti večera.</p>
         </fieldset>
         <div class="actions">
-          ${button({ label: "Otestovat personalitu · AI", variant: 'primary', attributes: {"data-debug": "conversation-ai"} })}
-          ${button({ label: "Otestovat personalitu · fake", attributes: {"data-debug": "conversation-fake"} })}
-          ${button({ label: "Ukončit a připravit dalšího hosta", variant: 'danger', attributes: {"data-debug": "conversation-stop"} })}
+          ${button({ label: "Zahájit rozhovor s novým hostem", variant: 'primary', attributes: {"data-debug": "conversation-ai"} })}
+          ${button({ label: "Ukončit rozhovor", variant: 'danger', attributes: {"data-debug": "conversation-stop"} })}
         </div>
         <p data-conversation-status role="status"></p>
         <p data-conversation-error role="alert" hidden></p>
         <p data-conversation-audio class="footnote" hidden></p>
         <ol class="debug-transcript" data-conversation-transcript aria-label="Přepis zkušebního rozhovoru"></ol>
-        <div data-answer-controls><label class="debug-answer-label" for="debug-answer">Vaše odpověď</label>
-        <textarea class="aw-input" id="debug-answer" data-conversation-answer maxlength="1000" rows="3"
-          placeholder="Napište vlastní odpověď"></textarea>
-        <div class="actions">
-          ${button({ label: "Odeslat odpověď", variant: 'primary', attributes: {"data-debug": "conversation-send"} })}
-          ${button({ label: "Začít nahrávat odpověď", attributes: {"data-debug": "conversation-record"} })}
-        </div>
-        </div>
-        <p class="footnote">V Realtime a GPT-Live stačí spustit rozhovor a povolit mikrofon. Realtime poslouchá mezi replikami;
-          GPT-Live poslouchá i během odpovědi. Náklady a dostupnost řídí OpenAI účet.
+        <p class="footnote">GPT Live je hlavní rozhovor; GPT Realtime 2.1 zůstává záměrnou alternativou.
+          Povolte mikrofon a mluvte. Po ukončení nový start vytvoří nový rozhovor a nového hosta.
+          Náklady a dostupnost řídí OpenAI účet.
           Zastavit jej můžete kdykoli. Hlas se průběžně posílá serveru a přepis může zůstat v paměti vybraného večera.</p>
         <p data-conversation-selection></p>
         <p data-conversation-timings class="footnote"></p>
@@ -305,12 +395,43 @@ export class DebugPanel {
       this.category = (event.target as HTMLSelectElement).value as DebugCategory | 'all';
       this.renderLog();
     });
-    this.element.querySelector('[data-conversation-answer]')!.addEventListener('input', () => {
+    const engineSelector = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!;
+    let storedEngine: string | null = null;
+    try { storedEngine = localStorage.getItem(enginePreferenceKey); } catch { /* Storage can be disabled. */ }
+    const migration = migrateConversationEngine(storedEngine);
+    engineSelector.value = migration.engine ?? '';
+    this.engineMigrationMessage = migration.message;
+    engineSelector.addEventListener('change', () => {
+      this.engineMigrationMessage = undefined;
+      try { localStorage.setItem(enginePreferenceKey, engineSelector.value); } catch { /* Session selection still applies. */ }
+      this.clearCostumeDraft();
+      if (this.native) void bridge.discardCostumePhoto().catch(() => undefined);
       this.renderConversationControls();
     });
-    this.element.querySelector('[data-conversation-engine]')!.addEventListener('change', () => this.renderConversationControls());
     this.element.querySelector('[data-evening-name]')!.addEventListener('input', () => this.renderEveningControls());
     this.element.querySelector('[data-evening-selection]')!.addEventListener('change', () => this.renderEveningControls());
+    this.element.querySelector('[data-memory-conversation]')!.addEventListener('input', () => {
+      this.clearMemoryInspection();
+      this.renderMemory();
+    });
+    this.element.querySelector('[data-memory-delete-confirm]')!.addEventListener('change', () => this.renderMemory());
+    this.element.querySelector('[data-guest-memory]')!.addEventListener('change', event => {
+      const control = event.target as HTMLInputElement;
+      if (control.matches('[data-guest-verified]') && !control.checked) {
+        this.element.querySelector<HTMLInputElement>('[data-guest-long-term]')!.checked = false;
+        this.element.querySelector<HTMLInputElement>('[data-guest-cloud]')!.checked = false;
+      }
+      if (control.matches('[data-guest-long-term]') && !control.checked) {
+        this.element.querySelector<HTMLInputElement>('[data-guest-cloud]')!.checked = false;
+      }
+      this.renderConversationControls();
+    });
+    this.element.querySelector('[data-guest-id]')!.addEventListener('input', () => {
+      for (const selector of ['[data-guest-verified]', '[data-guest-long-term]', '[data-guest-cloud]']) {
+        this.element.querySelector<HTMLInputElement>(selector)!.checked = false;
+      }
+      this.renderConversationControls();
+    });
     this.element.querySelector('[data-server-log-level]')!.addEventListener('change', () => {
       this.clearServerLogs();
       void this.refreshServerLogs();
@@ -327,15 +448,17 @@ export class DebugPanel {
       }
     }, 500);
     document.addEventListener('visibilitychange', () => {
+      if (document.hidden && (this.photoPending || this.voice.cameraActive)) return;
       if (document.hidden) {
         this.clearServerLogs();
         this.clearCostumeDraft();
+        this.clearGuestDraft();
+        this.clearMemoryInspection();
         this.actionGeneration += 1;
         this.pending = false;
         this.cancellationPending = false;
         this.statusSequence += 1;
         this.journal.record('background');
-        this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
         this.voice = { ...this.voice, transcript: [], selected: null, timings: undefined,
           session: false, recording: false, evenings: null, phase: 'cancelled' };
         this.renderVoice();
@@ -407,20 +530,18 @@ export class DebugPanel {
 
   private renderVoice(): void {
     this.renderServerLogs();
-    for (const name of ['system', 'configure', 'forget-profile', 'inspect', 'ai', 'fake', 'server-inspect', 'server-apply']) {
-      this.button(name).disabled = !this.native || this.pending || this.voice.running || this.voice.session === true;
+    for (const name of ['system', 'configure', 'forget-profile', 'inspect', 'server-inspect', 'server-apply']) {
+      this.button(name).disabled = !this.native || this.pending || this.memoryPending || this.voice.running || this.voice.session === true;
     }
     this.button('inspect').disabled ||= !this.voice.configured;
     this.button('forget-profile').disabled ||= !this.voice.configured;
-    this.button('ai').disabled ||= !this.voice.configured || this.voice.mode !== 'openai';
-    this.button('fake').disabled ||= !this.voice.configured || this.voice.mode !== 'fake';
-    this.button('fake').disabled ||= this.voice.server?.dialogMode === 'responses';
     this.renderServer();
     this.renderEvenings();
+    this.renderMemory();
     this.button('voice-stop').disabled = !this.native || this.cancellationPending || (!this.pending && !this.voice.running);
     this.element.querySelector('[data-voice-status]')!.textContent = !this.native
       ? 'Hlasové testy jsou dostupné v nativní iOS aplikaci.'
-      : `${phases[this.voice.phase] ?? phases.failed} · backend ${this.voice.mode === 'openai' ? 'AI TTS' : this.voice.mode === 'fake' ? 'FAKE' : 'neověřený'}${!this.voice.configured ? ' · přístup není nastaven' : ''}`;
+      : `${phases[this.voice.phase] ?? phases.failed}${!this.voice.configured ? ' · přístup není nastaven' : ''}`;
     this.renderConversation();
   }
 
@@ -428,12 +549,8 @@ export class DebugPanel {
     const server = this.voice.server;
     const busy = !this.native || !this.voice.configured || this.pending
       || this.voice.running || this.voice.session === true;
-    const dialog = this.element.querySelector<HTMLSelectElement>('[data-server="dialog"]')!;
-    const voice = this.element.querySelector<HTMLSelectElement>('[data-server="voice"]')!;
     const personality = this.element.querySelector<HTMLSelectElement>('[data-server="personality"]')!;
     if (server?.revision !== this.serverRevision) {
-      dialog.value = server?.dialogMode ?? 'fake';
-      voice.value = server?.voiceMode ?? 'fake';
       personality.replaceChildren();
       for (const item of server?.personalities ?? []) {
         const option = document.createElement('option');
@@ -453,9 +570,6 @@ export class DebugPanel {
     }
     personality.disabled = busy || !server?.personalities?.length || server.activeConversations > 0;
     this.renderPersonality();
-    dialog.options[1].disabled = !server?.dialogAvailable;
-    voice.options[1].disabled = !server?.voiceAvailable;
-    dialog.disabled = voice.disabled = busy || !server || server.activeConversations > 0;
     this.button('server-inspect').disabled ||= !this.voice.configured;
     this.button('server-apply').disabled ||= !server || server.activeConversations > 0;
     for (const control of this.element.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-character]')) {
@@ -464,7 +578,7 @@ export class DebugPanel {
     this.button('character-apply').disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
     this.button('character-reset').disabled = busy || !server || typeof server.characterEnabled !== 'boolean';
     this.element.querySelector('[data-server-status]')!.textContent = server
-      ? `Poslední ověřený stav: dialog ${server.dialogMode === 'responses' ? 'AI · Sol' : 'FAKE'}, hlas ${server.voiceMode === 'openai' ? 'AI · STT / TTS' : 'FAKE'}. Aktivní rozhovory: ${server.activeConversations}.`
+      ? `Aktivní rozhovory: ${server.activeConversations}. Dostupnost jednotlivých enginů je uvedena u volby rozhovoru.`
       : this.native ? 'Nastavte přístup správce a obnovte stav serveru.' : 'Správa serveru je dostupná v nativní iOS aplikaci.';
   }
 
@@ -475,7 +589,7 @@ export class DebugPanel {
       server?.personalities?.find(item => item.id === selected)?.description ?? '';
     const active = server?.personalities?.find(item => item.id === server.personalityId);
     this.element.querySelector('[data-conversation-personality]')!.textContent = active
-      ? `Test používá aktivní personalitu: ${active.name}. Změnu nejprve použijte v nastavení serveru. Fake ověřuje průchod a délku rozhovoru; tón ověří AI test.`
+      ? `Test používá aktivní personalitu: ${active.name}. Změnu nejprve použijte v nastavení serveru. Dostupnost enginu a tón ověří skutečný rozhovor.`
       : 'Personalitu zvolte a použijte v nastavení serveru výše.';
   }
 
@@ -547,11 +661,15 @@ export class DebugPanel {
     }
 
     const selected = this.voice.selected;
+    const conversationIdentity = this.voice.conversationId ?? this.voice.lastConversationId;
+    this.element.querySelector('[data-conversation-identity]')!.textContent = conversationIdentity
+      ? `ID ${this.voice.session ? 'aktuálního' : 'posledního'} rozhovoru: ${conversationIdentity}. Paměť lze zkontrolovat v sekci Paměť hosta.` : 'Nový start vytvoří vlastní ID rozhovoru a nového hosta.';
     const errors: Record<string, string> = {
       cost_limit: 'OpenAI účet omezil dostupnost AI. Ověřte jeho kredit a limity.',
       turn_limit: 'Rozhovor dosáhl maximálního počtu odpovědí. Spusťte nový rozhovor.',
       dialogue_busy: 'Server právě zpracovává jiný rozhovor. Zkuste to za chvíli.',
       realtime_unavailable: 'Realtime hlas není na serveru dostupný. Obnovte stav serveru.',
+      native_status_unavailable: 'Stav telefonu se nepodařilo načíst. Rozhovor může stále běžet; použijte Ukončit rozhovor a obnovte stav.',
       microphone_unavailable: 'Povolte mikrofon aplikaci v Nastavení iPhonu.',
       realtime_live_audio_overflow: 'Odesílání mikrofonu se zpozdilo a zaplnilo zvukovou frontu. Zkuste rozhovor znovu; příčinou může být aplikace nebo odezva serveru i při stabilním připojení.',
       realtime_live_audio_start_failed: 'iPhone nemohl spustit mikrofon a reproduktor. Ukončete rozhovor a zkuste jej znovu.',
@@ -610,7 +728,19 @@ export class DebugPanel {
           : this.voice.phase === 'completed' && (this.voice.transcript?.length ?? 0) > 0
             ? 'Rozhovor skončil bez návrhu hůlky.'
           : 'Připravte simulovanou dostupnost a spusťte rozhovor.';
-    this.element.querySelector('[data-costume-status]')!.textContent = this.voice.costumeStatus ?? this.photoMessage;
+    const activity = [
+      this.voice.inputActive === true ? 'Mikrofon přijímá zvuk' : null,
+      this.voice.outputActive === true ? 'Hlas přehrává odpověď' : null,
+      this.voice.toolActive === true ? 'Probíhá práce nástroje' : null,
+    ].filter(Boolean).join(' · ');
+    const status = this.element.querySelector('[data-conversation-status]')!;
+    if (this.voice.session && this.voice.effectiveModel) {
+      status.textContent += ` · ${this.voice.effectiveModel}`;
+      if (activity) status.textContent += ` · ${activity}`;
+    }
+    this.element.querySelector('[data-costume-status]')!.textContent =
+      this.photoPending || this.photoAttaching || this.photoDraftId || this.photoUsed || this.photoCancellationFailed
+        ? this.photoMessage : this.voice.costumeStatus ?? this.photoMessage;
     this.renderConversationControls();
   }
 
@@ -655,53 +785,225 @@ export class DebugPanel {
     if (this.photoTimer !== undefined) window.clearTimeout(this.photoTimer);
     this.photoTimer = undefined;
     this.photoDraftId = undefined;
+    this.photoPending = false;
+    this.photoAttaching = false;
+    this.photoDiscarding = false;
+    this.photoUsed = false;
+    this.photoCancellationFailed = false;
     this.photoMessage = 'Bez fotky. Rozhovor ji nepotřebuje.';
     this.voice.costumeStatus = null;
     if (clearDescription) this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.value = '';
   }
 
-  private renderConversationControls(): void {
-    const busy = !this.native || this.pending || this.voice.running;
-    const session = this.voice.session === true;
-    const server = this.voice.server;
-    this.button('costume-photo').disabled = busy || session;
-    this.button('costume-discard').disabled = !this.photoDraftId;
-    this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.disabled = busy || session;
-    this.button('conversation-ai').disabled = busy || session || !this.voice.configured
-      || this.voice.mode !== 'openai' || server?.dialogMode !== 'responses';
-    this.button('conversation-fake').disabled = busy || session || !this.voice.configured
-      || this.voice.mode !== 'fake' || server?.dialogMode !== 'fake';
-    this.button('conversation-stop').disabled = !this.native || this.cancellationPending
-      || (!this.pending && !session && !this.voice.running
-        && !this.photoDraftId && (this.voice.transcript?.length ?? 0) === 0 && this.voice.selected == null);
+  private selectedCapability(): EngineCapability | undefined {
+    const capabilities = this.voice.server?.engines;
+    if (capabilities?.schemaVersion !== 1 || !Array.isArray(capabilities.engines)) return undefined;
+    const selected = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value;
+    return capabilities.engines.find(item => validCapability(item) && item.engine === selected
+      && (item.engine === 'gpt-live' ? item.model === 'gpt-live-1' : item.model === 'gpt-realtime-2.1'));
+  }
 
-    this.element.querySelectorAll<HTMLInputElement>('[data-ready]').forEach((input) => {
+  private guestMemoryDraft(): GuestMemoryBinding | undefined {
+    const guestId = this.element.querySelector<HTMLInputElement>('[data-guest-id]')!.value;
+    if (!guestId) return undefined;
+    return { guestId,
+      identityVerified: this.element.querySelector<HTMLInputElement>('[data-guest-verified]')!.checked,
+      longTermAllowed: this.element.querySelector<HTMLInputElement>('[data-guest-long-term]')!.checked,
+      cloudExportAllowed: this.element.querySelector<HTMLInputElement>('[data-guest-cloud]')!.checked };
+  }
+
+  private clearGuestDraft(): void {
+    this.element.querySelector<HTMLInputElement>('[data-guest-id]')!.value = '';
+    for (const selector of ['[data-guest-verified]', '[data-guest-long-term]', '[data-guest-cloud]']) {
+      this.element.querySelector<HTMLInputElement>(selector)!.checked = false;
+    }
+  }
+
+  private clearMemoryInspection(): void {
+    this.memorySequence += 1;
+    this.memoryPending = false;
+    this.memoryInspection = undefined;
+    this.memoryInspectedConversation = undefined;
+    this.memoryMessage = 'Načtěte paměť konkrétního rozhovoru. Čtení nevolá AI.';
+    this.element.querySelector<HTMLInputElement>('[data-memory-delete-confirm]')!.checked = false;
+    this.element.querySelector('[data-memory-records]')!.replaceChildren();
+  }
+
+  private renderMemory(): void {
+    const current = this.voice.conversationId ?? this.voice.lastConversationId;
+    const target = this.element.querySelector<HTMLInputElement>('[data-memory-conversation]')!;
+    if (current && current !== this.lastMemoryConversation) {
+      this.lastMemoryConversation = current;
+      target.value = current;
+      this.clearMemoryInspection();
+    }
+    const conversationId = target.value.trim();
+    const busy = !this.native || !this.voice.configured || this.memoryPending || this.pending;
+    target.disabled = busy;
+    this.button('memory-inspect').disabled = busy || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId);
+    const confirmed = this.element.querySelector<HTMLInputElement>('[data-memory-delete-confirm]')!;
+    confirmed.disabled = busy || this.voice.session === true || !this.memoryInspection;
+    this.button('memory-delete').disabled = busy || this.voice.session === true || !confirmed.checked
+      || !this.memoryInspection || this.memoryInspectedConversation !== conversationId;
+    this.element.querySelector('[data-memory-status]')!.textContent = !this.native
+      ? 'Kontrola paměti vyžaduje nativní aplikaci a přístup správce.' : this.memoryMessage;
+    const identity = this.memoryInspection?.identity;
+    this.element.querySelector('[data-memory-identity]')!.textContent = this.memoryInspection
+      ? identity ? `Host: ${identity.guestId} · ověření obsluhou: ${identity.identityVerified ? 'ano' : 'ne'} · dlouhodobá paměť: ${identity.longTermAllowed ? 'povolena' : 'zakázána'} · cloudový export: ${identity.cloudExportAllowed ? 'povolen' : 'zakázán'} · verze ${identity.version}.`
+        : 'Rozhovor nemá vazbu na stálou osobní identitu.' : '';
+    const provider = this.memoryInspection?.memoryStatus;
+    const providerStates: Record<string, string> = {
+      disabled: 'paměť je na serveru vypnutá', key_missing: 'chybí provider credential',
+      store_ids_missing: 'cloudový index není nastaven', not_verified: 'konfigurace nebyla vzdáleně ověřena',
+      verified: 'server ověřil dostupnost', configured: 'místní konfigurace je připravena',
+    };
+    this.element.querySelector('[data-memory-provider]')!.textContent = provider
+      ? `Cloudový index: ${providerStates[provider.configurationStatus] ?? 'stav není ověřen'}${provider.degraded ? ' · omezený provoz' : ''}. Čekající zápisy ${provider.pending} · neúspěšné ${provider.failed} · čekající odstranění ${provider.deleting}. Místní záznamy jsou zobrazeny výše.` : '';
+  }
+
+  private async memoryActionAsync(action: 'memory-inspect' | 'memory-delete'): Promise<void> {
+    if (!this.native || !this.voice.configured || this.memoryPending || this.pending) return;
+    const conversationId = this.element.querySelector<HTMLInputElement>('[data-memory-conversation]')!.value.trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId)) return;
+    const inspection = this.memoryInspection;
+    if (action === 'memory-delete' && (this.voice.session || !inspection || this.memoryInspectedConversation !== conversationId
+      || !this.element.querySelector<HTMLInputElement>('[data-memory-delete-confirm]')!.checked)) return;
+    const sequence = ++this.memorySequence;
+    const generation = this.actionGeneration;
+    this.memoryPending = true;
+    this.memoryMessage = action === 'memory-inspect' ? 'Načítám oprávněnou paměť…' : 'Odstraňuji paměť vybraného rozhovoru…';
+    this.renderMemory();
+    this.renderConversationControls();
+    try {
+      if (action === 'memory-delete') {
+        const result = await bridge.deleteConversationMemory({ conversationId, expectedEpoch: inspection!.epoch });
+        if (sequence !== this.memorySequence || generation !== this.actionGeneration) return;
+        if (result.localDeletion !== 'complete' || !['complete', 'pending'].includes(result.remoteDeletion)) throw new Error('deletion_unconfirmed');
+        this.memoryInspection = undefined;
+        this.memoryInspectedConversation = undefined;
+        this.element.querySelector('[data-memory-records]')!.replaceChildren();
+        this.memoryMessage = result.remoteDeletion === 'pending'
+          ? 'Místní paměť rozhovoru byla odstraněna. Cloudové odstranění ještě čeká na potvrzení; obnovte kontrolu.'
+          : 'Místní i cloudové odstranění paměti rozhovoru bylo potvrzeno.';
+      } else {
+        const result = await bridge.inspectMemory({ conversationId });
+        if (sequence !== this.memorySequence || generation !== this.actionGeneration) return;
+        if (!Number.isSafeInteger(result.epoch) || result.epoch < 0 || !Array.isArray(result.records)
+          || result.records.length > 50 || !result.memoryStatus) throw new Error('memory_contract_invalid');
+        this.memoryInspection = result;
+        this.memoryInspectedConversation = conversationId;
+        this.memoryMessage = `${result.records.length} z ${result.totalRecords} oprávněných záznamů${result.hasMore ? ' · výpis je omezen na 50' : ''}. Revize paměti ${result.epoch}.`;
+        const records = this.element.querySelector('[data-memory-records]')!;
+        records.replaceChildren();
+        for (const record of result.records) {
+          if (typeof record.text !== 'string') continue;
+          const row = document.createElement('li');
+          const text = document.createElement('p'); text.textContent = record.text.slice(0, 2000);
+          const source = document.createElement('small'); source.textContent = `Zdroj: ${String(record.sourceReference ?? '').slice(0, 200)} · revize ${record.revision}`;
+          row.append(text, source); records.append(row);
+        }
+      }
+    } catch {
+      if (sequence !== this.memorySequence || generation !== this.actionGeneration) return;
+      this.memoryMessage = action === 'memory-delete'
+        ? 'Odstranění nebylo potvrzeno. Obnovte paměť a znovu potvrďte odstranění; revize se mohla změnit.'
+        : 'Paměť se nepodařilo načíst. Ověřte ID rozhovoru, přístup správce a verzi serveru.';
+      this.memoryInspection = undefined;
+      this.memoryInspectedConversation = undefined;
+      this.element.querySelector('[data-memory-records]')!.replaceChildren();
+    } finally {
+      if (sequence === this.memorySequence && generation === this.actionGeneration) {
+        this.memoryPending = false;
+        this.element.querySelector<HTMLInputElement>('[data-memory-delete-confirm]')!.checked = false;
+        this.renderMemory();
+        this.renderConversationControls();
+      }
+    }
+  }
+
+  private async attachCostumePhotoAsync(draftId: string, sequence: number): Promise<void> {
+    const generation = this.actionGeneration;
+    const conversationId = this.voice.conversationId;
+    const sessionGeneration = this.voice.sessionGeneration;
+    this.photoAttaching = true;
+    this.photoMessage = 'Odesílám schválenou fotku k tomuto rozhovoru. Hlas pokračuje.';
+    this.renderConversation();
+    try {
+      const result = await bridge.attachCostumePhoto({ draftId });
+      if (sequence !== this.photoSequence || generation !== this.actionGeneration) return;
+      if (conversationId !== this.voice.conversationId || sessionGeneration !== this.voice.sessionGeneration) return;
+      if (result.status !== 'analysed' || typeof result.imageId !== 'string' || !result.imageId
+        || !Number.isSafeInteger(result.revision) || result.revision < 1) throw new Error('image_not_analysed');
+      this.clearCostumeDraft(false);
+      this.photoUsed = true;
+      this.photoMessage = 'Fotka analyzována pro tento rozhovor. Vzhled je nejistá nápověda, nikoli identita.';
+    } catch {
+      if (sequence !== this.photoSequence || generation !== this.actionGeneration) return;
+      this.photoMessage = 'Fotka nebyla zpracována. Rozhovor pokračuje; zkuste Odeslat schválenou fotku nebo ji zrušte.';
+    } finally {
+      if (generation === this.actionGeneration && (sequence === this.photoSequence || !this.photoDraftId)) {
+        this.photoAttaching = false;
+        this.renderConversation();
+      }
+    }
+  }
+
+  private renderConversationControls(): void {
+    const session = this.voice.session === true;
+    const busy = !this.native || this.pending || this.cancellationPending || this.memoryPending;
+    const capability = this.selectedCapability();
+    const cameraBusy = this.photoPending || this.photoAttaching || this.voice.cameraActive === true || this.voice.imagePending === true;
+    this.button('costume-photo').disabled = busy || cameraBusy || !this.voice.configured
+      || session && !capability?.cameraSources.includes('phone');
+    this.button('costume-discard').disabled = !this.native || this.photoDiscarding
+      || (!this.photoDraftId && !cameraBusy && !this.photoUsed && !this.photoCancellationFailed);
+    this.button('costume-attach').disabled = busy || cameraBusy || !session || !this.photoDraftId;
+    this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.disabled = busy || session;
+    this.button('conversation-ai').disabled = busy || session || this.voice.running || cameraBusy
+      || !this.voice.configured || !capability?.ready;
+    this.button('conversation-stop').disabled = !this.native || this.cancellationPending
+      || (!this.pending && !session && !this.voice.running && !cameraBusy
+        && !this.photoDraftId && (this.voice.transcript?.length ?? 0) === 0 && this.voice.selected == null);
+    this.element.querySelectorAll<HTMLInputElement>('[data-ready]').forEach(input => {
       input.disabled = busy || session;
     });
-    this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!.disabled = busy || session;
-    this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.disabled = busy || session;
     const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!;
-    engine.disabled = busy || session;
-    const speedSelect = this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!;
-    speedSelect.disabled = busy || session || engine.value === 'gpt-live';
-    if (engine.value === 'gpt-live') speedSelect.value = '1';
-    const conversationVoice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!;
-    const onyx = conversationVoice.querySelector<HTMLOptionElement>('option[value="onyx"]')!;
-    onyx.disabled = engine.value !== 'chained';
-    this.element.querySelector<HTMLElement>('[data-answer-controls]')!.hidden = this.voice.handsFree === true
-      || ['realtime', 'gpt-live'].includes(engine.value) && server?.dialogMode === 'responses';
-    if (onyx.disabled && conversationVoice.value === 'onyx') { conversationVoice.value = 'cedar'; }
-    const awaiting = session && this.voice.configured && !busy
-      && !this.voice.recording && this.voice.phase === 'awaiting';
-    const answer = this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!;
-    answer.disabled = !awaiting;
-    this.button('conversation-send').disabled = !awaiting || answer.value.trim().length === 0;
-    const recording = this.voice.recording === true;
-    this.button('conversation-record').disabled = !this.native || !this.voice.configured
-      || this.pending || !session
-      || (!recording && (this.voice.running || this.voice.phase !== 'awaiting'));
-    this.button('conversation-record').textContent = recording
-      ? 'Dokončit nahrávání a odeslat' : 'Začít nahrávat odpověď';
+    engine.disabled = busy || session || cameraBusy;
+    const speed = this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!;
+    speed.disabled = busy || session || !capability?.speed.supported;
+    if (capability && !capability.speed.supported) speed.value = String(capability.speed.default);
+    for (const option of Array.from(speed.options)) {
+      option.disabled = !capability || Number(option.value) < capability.speed.min || Number(option.value) > capability.speed.max;
+    }
+    const voice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!;
+    voice.disabled = busy || session || !capability;
+    for (const option of Array.from(voice.options)) option.disabled = !capability?.voices.includes(option.value);
+    // No silent engine/voice substitution: a stale explicit setting prevents start.
+    const voiceSupported = capability?.voices.includes(voice.value) === true;
+    this.button('conversation-ai').disabled ||= !voiceSupported;
+    const guest = this.guestMemoryDraft();
+    const guestValid = !guest || guest.identityVerified && validGuestMemoryId(guest.guestId)
+      && (!guest.cloudExportAllowed || guest.longTermAllowed);
+    this.button('conversation-ai').disabled ||= !guestValid;
+    for (const input of this.element.querySelectorAll<HTMLInputElement>('[data-guest-memory] input')) input.disabled = busy || session;
+    this.element.querySelector<HTMLInputElement>('[data-guest-long-term]')!.disabled ||= !guest?.identityVerified;
+    this.element.querySelector<HTMLInputElement>('[data-guest-cloud]')!.disabled ||= !guest?.identityVerified || !guest.longTermAllowed;
+    this.element.querySelector('[data-guest-memory-status]')!.textContent = !guest ? 'Nový anonymní host. Osobní paměť jiného hosta se nepoužije.'
+      : !validGuestMemoryId(guest.guestId) ? 'ID musí mít 1–80 znaků A–Z, a–z, 0–9, tečku, podtržítko nebo pomlčku. Mezery ani jiné znaky nejsou povoleny; velikost písmen se zachovává.'
+      : !guestValid ? 'Před startem ověřte identitu hosta. Cloudový export vyžaduje také souhlas s dlouhodobou pamětí.'
+      : `Při startu se ověří vazba na ${guest.guestId}; při chybě se rozhovor nespustí. Po startu se tato volba vymaže pro dalšího hosta.`;
+    const status = this.element.querySelector<HTMLElement>('[data-engine-status]')!;
+    const readiness = !this.native ? 'Rozhovor vyžaduje nativní iOS aplikaci s uloženým přístupem.'
+      : !this.voice.configured ? 'Nastavte servisní přístup k serveru.'
+      : !this.voice.server?.engines ? 'Obnovte stav serveru. Tato verze vyžaduje kontrakt enginů v1.'
+      : !capability ? 'Server nebo uložená volba vyžadují aktualizaci. Vyberte podporovaný engine a obnovte stav.'
+      : !capability.ready ? capability.unavailableReason === 'provider_credential_missing'
+        ? 'Na serveru chybí přístup OpenAI. Správce musí nastavit provider credential a obnovit stav.'
+        : 'Zvolený engine není dostupný. Ověřte konfiguraci serveru a přístup OpenAI účtu k tomuto modelu; potom obnovte stav.'
+      : !voiceSupported ? 'Vybraný hlas engine nepodporuje. Zvolte dostupný hlas.'
+      : `Konfigurace připravena · ${capability.model}${capability.speed.supported ? '' : ' · pevné tempo 1×'}. Dostupnost modelu ověří připojení.`;
+    status.textContent = [this.engineMigrationMessage, readiness].filter(Boolean).join(' ');
+
   }
 
   private button(name: string): HTMLButtonElement {
@@ -709,12 +1011,16 @@ export class DebugPanel {
   }
 
   private async refreshVoiceAsync(): Promise<void> {
+    if (this.statusPending) return;
+    this.statusPending = true;
+    const generation = this.actionGeneration;
     const sequence = ++this.statusSequence;
     const previousPhase = this.voice.phase;
     let status: VoiceStatus;
     try { status = await bridge.status(); }
-    catch { status = { configured: false, running: false, phase: 'failed', mode: 'unknown' }; }
-    if (sequence !== this.statusSequence || document.hidden) { return; }
+    catch { status = { ...this.voice, phase: 'failed', errorCode: 'native_status_unavailable' }; }
+    finally { this.statusPending = false; }
+    if (sequence !== this.statusSequence || generation !== this.actionGeneration || document.hidden) { return; }
     this.voice = status;
     if (this.voice.phase !== previousPhase && this.voice.phase === 'completed') {
       this.journal.record('voice_finished');
@@ -732,7 +1038,13 @@ export class DebugPanel {
       });
       return;
     }
-    if (action === 'configure' || action === 'forget-profile') { this.clearServerLogs(); }
+    if (action === 'configure' || action === 'forget-profile') {
+      this.clearServerLogs();
+      this.clearMemoryInspection();
+      this.clearGuestDraft();
+      this.lastMemoryConversation = undefined;
+      this.element.querySelector<HTMLInputElement>('[data-memory-conversation]')!.value = '';
+    }
     if (action === 'esp-stop') { this.stopDevice(); return; }
     if (action === 'pause') {
       this.paused = !this.paused;
@@ -753,14 +1065,19 @@ export class DebugPanel {
       link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); return;
     }
     if (!this.native) { return; }
+    if (action === 'memory-inspect' || action === 'memory-delete') {
+      await this.memoryActionAsync(action);
+      return;
+    }
     if (action === 'voice-stop' || action === 'conversation-stop') {
       if (this.cancellationPending) return;
       const generation = ++this.actionGeneration;
       this.clearCostumeDraft();
+      this.clearGuestDraft();
+      this.clearMemoryInspection();
       this.statusSequence += 1;
       this.pending = true;
       this.cancellationPending = true;
-      this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
       this.renderVoice();
       await bridge.stop().catch(() => undefined);
       if (generation !== this.actionGeneration) return;
@@ -771,36 +1088,94 @@ export class DebugPanel {
       return;
     }
     if (action === 'costume-discard') {
+      if (this.photoDiscarding) return;
       this.clearCostumeDraft(false);
-      await bridge.discardCostumePhoto().catch(() => undefined);
-      this.renderConversation(); return;
+      const sequence = this.photoSequence;
+      const generation = this.actionGeneration;
+      this.photoPending = true;
+      this.photoDiscarding = true;
+      this.photoMessage = 'Ruším fotku; hlasový rozhovor pokračuje.';
+      this.renderConversation();
+      try {
+        await bridge.discardCostumePhoto();
+        if (sequence !== this.photoSequence || generation !== this.actionGeneration) return;
+        this.voice.costumeStatus = null;
+        this.photoMessage = 'Fotka zrušena. Hlasový rozhovor může pokračovat.';
+      } catch {
+        if (sequence !== this.photoSequence || generation !== this.actionGeneration) return;
+        this.photoCancellationFailed = true;
+        this.photoMessage = 'Server nepotvrdil zrušení fotky. Zkuste Zrušit fotku znovu; rozhovor pokračuje.';
+      } finally {
+        if (sequence === this.photoSequence && generation === this.actionGeneration) {
+          this.photoPending = false;
+          this.photoDiscarding = false;
+          this.renderConversation();
+        }
+      }
+      return;
+    }
+    if (action === 'costume-attach') {
+      if (!this.voice.session || !this.photoDraftId || this.photoPending || this.photoAttaching) return;
+      await this.attachCostumePhotoAsync(this.photoDraftId, this.photoSequence);
+      return;
     }
     if (action === 'costume-photo') {
-      if (this.pending) return;
+      if (this.pending || this.photoPending || this.photoAttaching || this.cancellationPending) return;
+      const replaceImage = this.photoUsed || this.photoCancellationFailed;
       this.clearCostumeDraft(false);
       const sequence = ++this.photoSequence;
-      const generation = ++this.actionGeneration;
-      this.pending = true; this.renderVoice();
+      const generation = this.actionGeneration;
+      const capturedForSession = this.voice.session === true;
+      const conversationId = this.voice.conversationId;
+      const sessionGeneration = this.voice.sessionGeneration;
+      this.photoPending = true;
+      this.photoMessage = 'Otevírám fotoaparát. Před odesláním potvrďte náhled.';
+      this.renderConversation();
       try {
+        if (replaceImage) {
+          try { await bridge.discardCostumePhoto(); }
+          catch {
+            if (sequence !== this.photoSequence || generation !== this.actionGeneration) return;
+            this.photoCancellationFailed = true;
+            this.photoMessage = 'Předchozí fotku server neodebral. Zkuste Zrušit fotku znovu; hlas pokračuje.';
+            return;
+          }
+          if (sequence !== this.photoSequence || generation !== this.actionGeneration) return;
+          this.voice.costumeStatus = null;
+        }
         const result = await bridge.captureCostumePhoto();
-        if (sequence !== this.photoSequence || document.hidden) return;
+        if (sequence !== this.photoSequence || generation !== this.actionGeneration) return;
+        if (capturedForSession && (!this.voice.session || conversationId !== this.voice.conversationId
+          || sessionGeneration !== this.voice.sessionGeneration)) {
+          await bridge.discardCostumePhoto().catch(() => undefined);
+          this.photoMessage = 'Původní rozhovor skončil. Pro dalšího hosta pořiďte novou fotku.';
+          return;
+        }
         this.photoDraftId = result.draftId ?? undefined;
-        this.photoMessage = result.draftId ? 'Schválená fotka připravena na 2 minuty pro jeden rozhovor.' : 'Fotka zrušena. Pokračujte bez ní.';
+        this.photoMessage = result.draftId ? 'Schválená fotka připravena na 2 minuty pro tento rozhovor.'
+          : 'Fotka zrušena. Hlasový rozhovor může pokračovat.';
         if (this.photoTimer !== undefined) window.clearTimeout(this.photoTimer);
         if (result.draftId) this.photoTimer = window.setTimeout(() => {
           if (sequence !== this.photoSequence) return;
           this.clearCostumeDraft(false);
+          void bridge.discardCostumePhoto().catch(() => undefined);
           this.photoMessage = 'Fotka vypršela. Pořiďte novou nebo pokračujte bez ní.';
           this.renderConversation();
         }, 120000);
       } catch {
-        if (sequence === this.photoSequence) this.photoMessage = 'Fotoaparát není dostupný nebo povolený. Pokračujte bez fotky nebo s ručním popisem.';
+        if (sequence === this.photoSequence) this.photoMessage = 'Fotoaparát není dostupný nebo povolený. Rozhovor pokračuje; povolte kameru v Nastavení nebo použijte ruční popis.';
       } finally {
-        if (generation === this.actionGeneration) { this.pending = false; this.renderVoice(); }
+        if (sequence === this.photoSequence) {
+          this.photoPending = false;
+          this.renderConversation();
+          if (this.photoDraftId && this.voice.session && generation === this.actionGeneration) {
+            await this.attachCostumePhotoAsync(this.photoDraftId, sequence);
+          }
+        }
       }
       return;
     }
-    if (this.pending) { return; }
+    if (this.pending || this.memoryPending) { return; }
     const errorText = this.element.querySelector<HTMLElement>('[data-voice-error]')!;
     errorText.hidden = true;
     const generation = ++this.actionGeneration;
@@ -812,7 +1187,6 @@ export class DebugPanel {
       else if (action === 'forget-profile') {
         await bridge.forgetProfile(); code = 'profile_forgotten';
         if (generation !== this.actionGeneration) return;
-        this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
       }
       else if (action === 'evenings-inspect') { await bridge.inspectEvenings(); code = 'evenings_checked'; }
       else if (action === 'evening-create' || action === 'evening-activate') {
@@ -829,15 +1203,13 @@ export class DebugPanel {
           await bridge.activateEvening({ eveningId, expectedEveningId: list.activeEveningId });
         }
         if (generation !== this.actionGeneration) return;
-        this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
         code = 'evening_changed';
       }
       else if (action === 'server-inspect') { await bridge.inspectServer(); code = 'backend_checked'; }
       else if (action === 'character-apply' || action === 'character-reset') {
         const server = this.voice.server;
         if (!server) { return; }
-        await bridge.changeServerModes({ expectedRevision: server.revision, dialogMode: server.dialogMode,
-          voiceMode: server.voiceMode, personalityId: server.personalityId,
+        await bridge.changeServerModes({ expectedRevision: server.revision, personalityId: server.personalityId,
           ...(action === 'character-apply' ? {
             characterEnabled: this.element.querySelector<HTMLInputElement>('[data-character="enabled"]')!.checked,
             characterTone: this.element.querySelector<HTMLSelectElement>('[data-character="tone"]')!.value,
@@ -849,51 +1221,42 @@ export class DebugPanel {
       else if (action === 'server-apply') {
         const server = this.voice.server;
         if (!server) { return; }
-        const dialogMode = this.element.querySelector<HTMLSelectElement>('[data-server="dialog"]')!.value;
-        const voiceMode = this.element.querySelector<HTMLSelectElement>('[data-server="voice"]')!.value;
         const personalityId = this.element.querySelector<HTMLSelectElement>('[data-server="personality"]')!.value || undefined;
-        await bridge.changeServerModes({ expectedRevision: server.revision, dialogMode, voiceMode, personalityId });
+        await bridge.changeServerModes({ expectedRevision: server.revision, personalityId });
         code = 'server_modes_changed';
       }
       else if (action === 'inspect') { await bridge.inspectBackend(); code = 'backend_checked'; }
       else if (action === 'system') { await bridge.speakSystem(); }
-      else if (action === 'ai' || action === 'fake') {
-        this.journal.record('voice_started');
-        await bridge.runOpeningSpeech({ expectedMode: action === 'ai' ? 'openai' : 'fake' });
-        code = null;
-      }
-      else if (action === 'conversation-ai' || action === 'conversation-fake') {
+      else if (action === 'conversation-ai') {
+        if (this.voice.session || this.voice.running || this.photoPending || this.photoAttaching || this.memoryPending) return;
+        const guestMemory = this.guestMemoryDraft();
+        if (guestMemory && (!guestMemory.identityVerified || !validGuestMemoryId(guestMemory.guestId)
+          || guestMemory.cloudExportAllowed && !guestMemory.longTermAllowed)) return;
         const readyMask = Array.from(this.element.querySelectorAll<HTMLInputElement>('[data-ready]'))
           .reduce((mask, input) => mask | (input.checked ? 1 << (Number(input.dataset.ready) - 1) : 0), 0);
-        const voice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!.value as
-          'cedar' | 'marin' | 'onyx' | 'coral';
+        const voice = this.element.querySelector<HTMLSelectElement>('[data-conversation-voice]')!.value;
         const speed = Number(this.element.querySelector<HTMLSelectElement>('[data-conversation-speed]')!.value);
-        const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as 'realtime' | 'gpt-live' | 'realtime-ptt' | 'chained';
+        const engine = this.element.querySelector<HTMLSelectElement>('[data-conversation-engine]')!.value as ConversationEngine;
+        if (!this.selectedCapability()?.ready || !['gpt-live', 'realtime'].includes(engine)) return;
         const photoDraftId = this.photoDraftId;
+        const photoSequence = this.photoSequence;
         const costumeDescription = this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.value.trim() || undefined;
-        this.clearCostumeDraft();
+        this.photoUsed = false;
+        this.element.querySelector<HTMLInputElement>('[data-costume-description]')!.value = '';
         await bridge.startConversation({
-          photoDraftId, costumeDescription,
-          expectedMode: action === 'conversation-ai' ? 'openai' : 'fake',
-          readyMask, voice, speed, engine: action === 'conversation-ai' ? engine : 'chained',
+          costumeDescription,
+          expectedMode: 'openai',
+          readyMask, voice, speed, engine,
+          ...(guestMemory ? { guestMemory } : {}),
         });
-      }
-      else if (action === 'conversation-send') {
-        const answer = this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!;
-        const text = answer.value.trim();
-        if (!text || text.length > 1000) { return; }
-        await bridge.answerConversation({ text });
         if (generation !== this.actionGeneration) return;
-        answer.value = '';
-        code = null;
-      }
-      else if (action === 'conversation-record') {
-        if (this.voice.recording) {
-          await bridge.finishRecording();
-        } else {
-          await bridge.startRecording();
+        this.clearGuestDraft();
+        if (photoDraftId && photoSequence === this.photoSequence) {
+          await this.refreshVoiceAsync();
+          if (generation === this.actionGeneration && this.voice.session) {
+            await this.attachCostumePhotoAsync(photoDraftId, photoSequence);
+          }
         }
-        code = null;
       }
       if (code !== null && generation === this.actionGeneration) {
         const state = code === 'voice_started' ? await bridge.status().catch(() => null) : null;

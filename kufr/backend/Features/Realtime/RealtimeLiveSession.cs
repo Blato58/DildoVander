@@ -26,9 +26,11 @@ internal sealed class RealtimeLiveSession : IDisposable
     private readonly IStreamingAudioInput provider;
     private readonly bool continuous;
     private readonly CancellationTokenSource lifetime;
+    private readonly CancellationToken lifetimeToken;
     private RealtimeCall? input;
     private Guid? endedInput;
     private bool accepting;
+    private bool audioStreamAttached;
     private int sequence;
     private int bytes;
     private string? playbackOperation;
@@ -45,11 +47,31 @@ internal sealed class RealtimeLiveSession : IDisposable
         this.provider = provider;
         this.continuous = continuous;
         this.lifetime = lifetime;
+        lifetimeToken = lifetime.Token;
     }
 
     internal Guid Id { get; } = Guid.NewGuid();
     internal string DeviceId { get; }
     internal string ConversationId { get; }
+
+    internal bool AttachAudioStream()
+    {
+        lock (gate)
+        {
+            if (audioStreamAttached || lifetime.IsCancellationRequested) { return false; }
+            audioStreamAttached = true;
+            return true;
+        }
+    }
+
+    // A broken stream has an unknown last accepted frame. Close the entire
+    // provider session rather than reconnect and replay potentially spoken input.
+    internal void EndAudioStream()
+    {
+        try { lifetime.Cancel(); }
+        catch (ObjectDisposedException) { } // The owning output request already ended.
+    }
+    internal CancellationToken Lifetime => lifetimeToken;
 
     internal void Listen(RealtimeCall call)
     {
@@ -83,7 +105,7 @@ internal sealed class RealtimeLiveSession : IDisposable
     }
 
     internal async Task<bool> UploadAsync(Guid inputId, int inputSequence, byte[] pcm,
-        CancellationToken disconnected)
+        CancellationToken disconnected, bool streaming = false)
     {
         if (pcm.Length == 0 || pcm.Length > 9600 || pcm.Length % 2 != 0)
         {
@@ -91,12 +113,13 @@ internal sealed class RealtimeLiveSession : IDisposable
         }
         lock (gate)
         {
+            if (audioStreamAttached && !streaming) { return false; }
             if (inputId == endedInput)
             {
                 return true;
             }
         }
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected, lifetime.Token);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected, lifetimeToken);
         if (!await uploads.WaitAsync(0, cancellation.Token))
         {
             lock (gate)

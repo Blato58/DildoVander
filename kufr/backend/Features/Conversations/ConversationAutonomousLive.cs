@@ -71,16 +71,17 @@ internal sealed partial class ConversationStore
                 call.Context.Request.CatalogVersion, correlation.DeviceRevision, compartment, reply.Reason,
                 correlation.BootId, correlation.Generation, clock.GetUtcNow().AddSeconds(60)) : null;
         var result = new TurnResult(reply.Reply, proposal is null ? "no_selection" : "propose", reply.Reason, proposal);
-        if (call.EveningId is not null && call.Context.LivePrompt?.Version != "dv01-adult-v1")
+        if (call.EveningId is not null)
         {
             var access = LiveMemoryAccess(call)!;
-            eveningMemory!.AppendTimedTranscripts(access, call.SessionGeneration, outcome.Segments);
+            eveningMemory!.AppendTimedTranscripts(access, call.SessionGeneration, outcome.Segments, call.MemoryDeletionEpoch);
             var epoch = eveningMemory.MemoryEpoch;
             var motif = AnonymousMotifs.FromTranscript(string.Concat(outcome.Segments.Select(s => s.Text)));
             if (motif.Length > 0) eveningMemory.WriteMemory(access, new(Guid.NewGuid().ToString("D"), MemoryScope.EveningMotif,
-                MemoryKind.TopicUsed, motif, call.OperationId, ExpectedEpoch: epoch));
+                MemoryKind.TopicUsed, motif, call.OperationId, ExpectedEpoch: epoch, ExpectedDeletionEpoch: call.MemoryDeletionEpoch));
         }
-        if (!journal.MarkSelectionCompleted(call.OperationId, proposal, call.EveningId)) return null;
+        if (!IsRealtimeTurnCurrent(call)) { return null; }
+        if (!journal.MarkSelectionCompleted(call.OperationId, proposal, call.EveningId, call.MemoryDeletionEpoch, call.Context.PersonalityId)) return null;
         operations.Add(call.OperationId, new(call.OperationId, "turn", "completed", correlation, result, null));
         conversations[correlation.ConversationId].TerminalReplyPublished = true;
         return result;

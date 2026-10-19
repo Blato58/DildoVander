@@ -1,52 +1,14 @@
 
 namespace Kufr.Backend.Features.Conversations;
 
+// Deterministic adapter retained for offline fixtures and the explicitly fake twin.
+// Production conversation engines never register or construct this adapter.
 internal sealed class TextDialogRunner : IDisposable
 {
     private readonly Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, string, string, Task<TextDialogResponse>>? generate;
-    private readonly ResponsesTextDialogClient? provider;
     private readonly SemaphoreSlim slot = new(1, 1);
-    private readonly HttpClient? httpClient;
     private readonly Func<byte[], CancellationToken, Task<CostumeImageResponse>>? analyzeImage;
     private volatile bool enabled = true;
-
-    public TextDialogRunner(IConfiguration configuration, IHostApplicationLifetime lifetime)
-    {
-        var mode = configuration["Backend:Dialog:Mode"] ?? "fake";
-        if (mode is not ("fake" or "responses"))
-        {
-            throw new InvalidOperationException("Unsupported backend dialog mode.");
-        }
-
-        Model = configuration["Backend:Dialog:Model"] ?? ResponsesTextDialogBudget.Model;
-        if (!ResponsesTextDialogBudget.IsSupportedModel(Model))
-        {
-            throw new InvalidOperationException("Only Sol is supported.");
-        }
-
-        var apiKey = configuration["OPENAI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            if (mode == "fake")
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                "Responses mode requires an API key.");
-        }
-
-        httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
-        var client = new ResponsesTextDialogClient(
-            httpClient,
-            apiKey,
-            Model);
-        provider = client;
-        generate = (text, mask, history, question, token, context, personality) => client.GenerateAsync(text, mask, history, question, token, context, personality);
-        analyzeImage = new CostumeImageClient(httpClient, apiKey, Model).AnalyzeAsync;
-        enabled = mode == "responses";
-        Stopping = lifetime.ApplicationStopping;
-    }
 
     internal TextDialogRunner(
         Func<string, int, IReadOnlyList<DialogExchange>, bool, CancellationToken, Task<TextDialogResponse>> generate,
@@ -95,17 +57,14 @@ internal sealed class TextDialogRunner : IDisposable
         string personalityId = PersonalityCatalog.DefaultId,
         string costumeContext = "")
     {
-        return provider is not null
-            ? provider.GenerateAsync(text, readyMask, history, requireQuestion, cancellationToken, eveningContext, personalityId, costumeContext)
-            : generate!(text, readyMask, history, requireQuestion, cancellationToken, eveningContext + costumeContext, personalityId);
+        return generate!(text, readyMask, history, requireQuestion, cancellationToken, eveningContext + costumeContext, personalityId);
     }
 
     public void Release() => slot.Release();
 
     public void Dispose()
     {
-        // Shutdown cancellation can still unwind a background request after
-        // DI disposes this service; its finally block must be able to release.
-        httpClient?.Dispose();
+        // Fixture delegates own their resources. Pending finally blocks may
+        // still release the semaphore during cancellation cleanup.
     }
 }

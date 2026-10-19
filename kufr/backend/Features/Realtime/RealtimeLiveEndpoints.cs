@@ -4,11 +4,12 @@ using System.Text;
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Memory;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace Kufr.Backend.Features.Realtime;
 
-internal static class RealtimeLiveEndpoints
+internal static partial class RealtimeLiveEndpoints
 {
     internal static IEndpointRouteBuilder MapRealtimeLive(this IEndpointRouteBuilder routes)
     {
@@ -17,12 +18,14 @@ internal static class RealtimeLiveEndpoints
         routes.MapPost("/v1/conversations/{id}/realtime-live/{streamId:guid}/played", PlayedAsync);
         routes.MapPost("/v1/conversations/{id}/gpt-live/{streamId:guid}/audio", UploadAsync);
         routes.MapPost("/v1/conversations/{id}/gpt-live/{streamId:guid}/played", PlayedAsync);
+        routes.MapGet("/v1/conversations/{id}/realtime-live/{streamId:guid}/audio-stream", AudioStreamAsync);
+        routes.MapGet("/v1/conversations/{id}/gpt-live/{streamId:guid}/audio-stream", AudioStreamAsync);
         return routes;
     }
 
     private static async Task RunAsync(string id, HttpContext context, DeviceAccessStore access,
         ConversationStore conversations, OpenAiRealtimeClient provider, RealtimeLiveRegistry registry,
-        IHostApplicationLifetime host)
+        IHostApplicationLifetime host, HybridMemoryService memory)
     {
         var device = DeviceAccessEndpoints.Authenticate(context, access);
         if (device is null)
@@ -66,6 +69,7 @@ internal static class RealtimeLiveEndpoints
                 throw new OperationCanceledException();
             }
             registered = true;
+            call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token);
             context.Response.ContentType = "application/x-ndjson";
             context.Response.Headers["X-Accel-Buffering"] = "no";
             await using var connection = await provider.ConnectAsync(call.Cancellation.Token);
@@ -99,7 +103,11 @@ internal static class RealtimeLiveEndpoints
                 }
                 dispatched = true;
                 var response = await connection.GenerateTurnAsync(current.Context, null,
-                    (pcm, token) => WriteAsync(new { type = "audio", delta = Convert.ToBase64String(pcm) }, token),
+                    (pcm, token) =>
+                    {
+                        if (!conversations.IsRealtimeTurnCurrent(current)) { throw new OperationCanceledException(token); }
+                        return WriteAsync(new { type = "audio", delta = Convert.ToBase64String(pcm) }, token);
+                    },
                     (text, token) => WriteAsync(new { type = "visitor", text }, token),
                     current.Cancellation.Token,
                     async token =>
@@ -115,7 +123,11 @@ internal static class RealtimeLiveEndpoints
                         }
                         await WriteAsync(new { type, inputId = current.Context.Request.ClientTurnId }, token);
                     },
-                    current.Context.LiveAudio ? ResponseReadyAsync : null);
+                    current.Context.LiveAudio ? ResponseReadyAsync : null,
+                    transcript: (eventId, visitorText, replyText) => conversations.AppendRealtimeTranscript(current, eventId, visitorText, replyText),
+                    visualImage: () => conversations.ReadVisualImage(device, id),
+                    inputContext: (text, token) => ConversationStartupMemory.ProcessInputAsync(current, conversations, memory, text, token),
+                    visualContext: () => conversations.ReadVisualContext(device, id));
                 session.StopListening();
                 var result = conversations.CompleteRealtimeTurn(current, response)
                     ?? throw new InvalidDataException();

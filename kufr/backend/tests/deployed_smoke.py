@@ -3,14 +3,14 @@
 import json
 import ipaddress
 import os
-import time
 import urllib.error
 import urllib.request
-from uuid import uuid4
+from engine_capabilities import validate_engine_capabilities
+from backend_api_client import NoRedirect
 
 
 BASE_URL = "http://127.0.0.1:5080"
-OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
 
 
 def check(condition, label):
@@ -62,11 +62,6 @@ def main():
         check(address.is_global, "public_ipv4_not_global")
         BASE_URL = f"https://{address}"
 
-    expectation = os.environ.get("DIALOG_EXPECTATION", "fake")
-    check(expectation in {"fake", "responses"}, "invalid_dialog_expectation")
-    catalog_version = (
-        "ollivander-private-party-v1" if expectation == "responses" else "neutral-1"
-    )
     device_id = os.environ.get("DEVICE_ID")
     credential = os.environ.get("DEV_DEVICE_CREDENTIAL")
     check(bool(device_id and credential), "development_identity_missing")
@@ -80,82 +75,17 @@ def main():
     check(status == 200 and issued.get("deviceId") == device_id, "token_exchange_failed")
     token = issued["accessToken"]
 
-    boot_id = str(uuid4())
-    conversation_body = {
-        "deviceId": device_id,
-        "bootId": boot_id,
-        "generation": 0,
-        "catalogVersion": catalog_version,
-        "locale": "cs-CZ",
-        "consent": {"audio": False, "image": False},
-    }
-    create_key = str(uuid4())
-    status, created = call(
-        "POST", "/v1/conversations", bearer=token, key=create_key, body=conversation_body
-    )
-    check(status == 201 and created.get("conversationId"), "conversation_create_failed")
-    conversation_id = created["conversationId"]
-
-    # Content quality and adaptive conversation are exercised by interactive_dialogue.py.
-    visitor_turns = [""] if expectation == "responses" else ["Syntetický test nasazené vývojové instance."]
-    turn_path = f"/v1/conversations/{conversation_id}/{'opening' if expectation == 'responses' else 'turns'}"
-    for index, visitor_text in enumerate(visitor_turns):
-        turn_body = {
-            "clientTurnId": str(uuid4()),
-            "bootId": boot_id,
-            "generation": 0,
-            "text": visitor_text,
-            "readyMask": 1,
-            "deviceRevision": 0,
-            "catalogVersion": catalog_version,
-        }
-        if expectation == "responses":
-            del turn_body["text"]
-        turn_key = str(uuid4())
-        status, accepted = call("POST", turn_path, bearer=token, key=turn_key, body=turn_body)
-        check(status == 202 and accepted.get("operationId"), "turn_submit_failed")
-        if index == 0:
-            status, repeated = call(
-                "POST", turn_path, bearer=token, key=turn_key, body=turn_body
-            )
-            check(
-                status == 202 and repeated.get("operationId") == accepted["operationId"],
-                "turn_idempotency_failed",
-            )
-
-        operation = None
-        for _ in range(260):
-            status, operation = call(
-                "GET", f"/v1/operations/{accepted['operationId']}", bearer=token
-            )
-            check(status == 200, "operation_poll_failed")
-            if operation.get("status") not in {"pending", "running"}:
-                break
-            time.sleep(0.25)
-
-        check(operation is not None and operation.get("status") == "completed", "turn_failed")
-        result = operation.get("result", {})
-        if expectation == "fake":
-            check(
-                result.get("decision") == "ask" and result.get("proposal") is None,
-                "fake_result_failed",
-            )
-            continue
-
-        check(
-            isinstance(result.get("reply"), str)
-            and bool(result["reply"])
-            and result["reply"] != "Toto je testovací odpověď bez AI.",
-            "responses_result_failed",
-        )
-        check(result.get("decision") == "ask" and result.get("proposal") is None,
-              "responses_opening_failed")
-        print(f"responses_turn_{index + 1}_reply=" + json.dumps(result["reply"], ensure_ascii=False))
-    status, _ = call(
-        "DELETE", f"/v1/conversations/{conversation_id}", bearer=token, key=str(uuid4())
-    )
-    check(status == 204, "conversation_cleanup_failed")
-    print(f"deployed_{expectation}_dialogue=ok; transport={transport}; {len(visitor_turns)} turns, token, idempotency, poll and cleanup verified")
+    status, diagnostics = call("GET", "/v1/diagnostics", bearer=token)
+    check(status == 200 and isinstance(diagnostics, dict), "diagnostics_failed")
+    validate_engine_capabilities(diagnostics.get("engines"))
+    # A fixed nonexistent ID proves retired routes reject before conversation
+    # creation, provider generation, operation polling or physical preparation.
+    retired_id = "00000000-0000-4000-8000-000000000001"
+    for route in ("opening", "turns", "transcriptions", "speech", "realtime-turns"):
+        status, problem = call("POST", f"/v1/conversations/{retired_id}/{route}", bearer=token, body={})
+        check(status == 410 and isinstance(problem, dict)
+              and problem.get("code") == "conversation_engine_upgrade_required", "retired_route_not_rejected")
+    print(f"deployed_engine_contract=ok; transport={transport}; token, capabilities and retired route upgrade verified; no inference or conversation created")
 
 
 if __name__ == "__main__":

@@ -196,7 +196,7 @@ test('private same-origin session clears credential; public and file paths canno
   await offline.get('twin-refresh').onclick(); assert.match(offline.get('twin-error').textContent,/Offline export/);
   assert.equal(offline.posts.length,0);
 });
-test('integration profile sends actual text without slot/variant and never commands fake clock',async()=>{
+test('integration profile requires a client upgrade for retired text and never commands fake clock',async()=>{
   const app=mounted('control',undefined,'integration'); await app.get('twin-refresh').onclick();
   app.get('twin-source').value='sim'; app.get('twin-source').onchange(); await app.flush();
   assert.equal(app.api.state().profile,'integration'); assert.match(app.get('twin-badge').textContent,/integration/);
@@ -206,11 +206,13 @@ test('integration profile sends actual text without slot/variant and never comma
   assert.equal(app.posts.length,0);
   app.get('twin-text').value='  Vyber mi hůlku.  ';
   app.actions.find(button=>button.dataset.twinAction==='text').onclick(); await app.flush();
-  assert.equal(app.posts.length,1);
-  assert.deepEqual(app.posts[0].body,{action:'integrationText',text:'Vyber mi hůlku.',operationId:'00000000-0000-4000-8000-000000000001'});
+  assert.equal(app.posts.length,0);
+  assert.equal(app.actions.find(button=>button.dataset.twinAction==='text').disabled,true);
+  assert.equal(app.get('twin-text').disabled,true);
+  assert.match(app.get('twin-error').textContent,/conversation_engine_upgrade_required/);
   await app.get('twin-refresh').onclick(); assert.equal(app.api.state().profile,'integration');
   app.actions.find(button=>button.dataset.twinAction==='release').onclick(); await app.flush();
-  assert.equal(app.posts[1].body.action,'release'); assert.match(app.get('twin-capabilities').textContent,/Ovládání uvolněno/);
+  assert.equal(app.posts[0].body.action,'release'); assert.match(app.get('twin-capabilities').textContent,/Ovládání uvolněno/);
 });
 test('deterministic profile retains explicit slot/variant synthetic input',async()=>{
   const app=mounted('control'); await app.get('twin-refresh').onclick();
@@ -252,15 +254,16 @@ test('v1 snapshot and untrusted replay reject claimed physical measurement',()=>
   assert.throws(()=>twin.validateSnapshot(measured.snapshot),/fyzické měření/);
   assert.throws(()=>twin.parseRecording(JSON.stringify({schemaVersion:1,snapshots:[measured]})),/fyzické měření/);
 });
-test('integration textarea and final UTF8 JSON size are bounded before posting',async()=>{
+test('retired integration text never posts guest content or starts a pending operation',async()=>{
   const app=mounted('control',undefined,'integration'); await app.get('twin-refresh').onclick();
   app.get('twin-source').value='sim'; app.get('twin-source').onchange(); await app.flush();
   const submit=app.actions.find(button=>button.dataset.twinAction==='text').onclick;
-  app.get('twin-text').value='a'.repeat(1025); submit(); await app.flush();
-  assert.equal(app.posts.length,0); assert.match(app.get('twin-error').textContent,/1024/);
-  app.get('twin-text').value='界'.repeat(700); submit(); await app.flush();
-  assert.equal(app.posts.length,0); assert.match(app.get('twin-error').textContent,/2048.*UTF-8/);
-  app.get('twin-text').value='a'.repeat(1024); submit(); await app.flush(); assert.equal(app.posts.length,1);
+  for (const value of ['Guest private detail', 'a'.repeat(1025), '界'.repeat(700)]) {
+    app.get('twin-text').value=value; submit(); await app.flush();
+    assert.equal(app.posts.length,0);
+    assert.equal(app.api.state().pending,false);
+    assert.match(app.get('twin-error').textContent,/conversation_engine_upgrade_required/);
+  }
 });
 test('nullable unknown LED frame remains unknown rather than assumed accepted zero frame',async()=>{
   const app=mounted(); app.setFrame(frame('1','0',{reported:{ledGrb:null}}));
@@ -269,13 +272,13 @@ test('nullable unknown LED frame remains unknown rather than assumed accepted ze
   const parsed=twin.parseRecording(JSON.stringify({schemaVersion:1,snapshots:[frame('1','0',{reported:{ledGrb:null}})]}));
   assert.equal(parsed.snapshots[0].snapshot.reported.ledGrb,null);
 });
-test('urgent Stop posts during unresolved integration, without duplicate Stop flood',async()=>{
-  const app=mounted('control',undefined,'integration'); await app.get('twin-refresh').onclick();
+test('urgent Stop posts during an unresolved deterministic command, without duplicate Stop flood',async()=>{
+  const app=mounted('control'); await app.get('twin-refresh').onclick();
   app.get('twin-source').value='sim'; app.get('twin-source').onchange(); await app.flush();
   const text=app.actions.find(button=>button.dataset.twinAction==='text');
   const stop=app.actions.find(button=>button.dataset.twinAction==='stop');
   const finishIntegration=app.holdNextPost(); app.get('twin-text').value='Vyber hůlku.'; text.onclick(); await app.flush();
-  assert.equal(app.posts[0].body.action,'integrationText'); assert.equal(app.api.state().pendingOrdinary,true);
+  assert.equal(app.posts[0].body.action,'text'); assert.equal(app.api.state().pendingOrdinary,true);
   assert.equal(text.disabled,true); assert.equal(stop.disabled,false);
   // Stop remains reachable even when a stalled integration lets receipt age expire.
   app.setNow(2500); app.timers[0](); assert.equal(stop.disabled,false);
@@ -288,7 +291,7 @@ test('urgent Stop posts during unresolved integration, without duplicate Stop fl
   finishStop(); await app.flush(); assert.equal(app.api.state().pending,false); assert.equal(stop.disabled,false);
 });
 test('previous-source ordinary and urgent Stop completions cannot clear new-source pending flags',async()=>{
-  const app=mounted('control',undefined,'integration'); await app.get('twin-refresh').onclick();
+  const app=mounted('control'); await app.get('twin-refresh').onclick();
   app.get('twin-source').value='sim'; app.get('twin-source').onchange(); await app.flush();
   const text=app.actions.find(button=>button.dataset.twinAction==='text');
   const stop=app.actions.find(button=>button.dataset.twinAction==='stop'); app.get('twin-text').value='Text';

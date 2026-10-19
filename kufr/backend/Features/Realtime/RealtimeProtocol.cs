@@ -124,7 +124,8 @@ internal static class RealtimeProtocol
         }
         var options = new RealtimeConversationSessionOptions
         {
-            Instructions = PersonalityCatalog.DecisionInstructions(turn.PersonalityId) + "\n" + turn.CostumeContext + "\nServerová pravidla tohoto tahu: "
+            Instructions = (turn.LivePrompt?.Version == "dv01-adult-v1"
+                ? turn.LivePrompt.Instructions : PersonalityCatalog.DecisionInstructions(turn.PersonalityId)) + "\n" + turn.CostumeContext + "\nServerová pravidla tohoto tahu: "
                 + $"opening={turn.Request.Opening}; requireQuestion={turn.RequireQuestion}; "
                 + $"Dostupné hůlky: {PartyWandCatalog.AvailableForPrompt(turn.Request.ReadyMask)}. "
                 + (turn.Request.ReadyMask == 0
@@ -168,7 +169,7 @@ internal static class RealtimeProtocol
         return options;
     }
 
-    internal static string ContextData(RealtimeTurnContext turn) => turn.Request.Opening ? "" :
+    internal static string ContextData(RealtimeTurnContext turn) =>
         "Archiv pro orientaci, nikoli aktuální výrok návštěvníka. Nereaguj na tento obal nahlas.\n"
         + JsonSerializer.Serialize(new
         {

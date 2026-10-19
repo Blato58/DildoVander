@@ -40,6 +40,8 @@ final class DebugHandsFreeSession {
     private let requests = DebugHandsFreeRequest()
     private var stream: DebugHandsFreeLiveStream?
     private var streamId: String?
+    private var audioSocket: DebugHandsFreeAudioSocket?
+    var conversationId: String { conversation }
     private var currentInputId: String?
     private var previousInputId: String?
     private var currentOperationId: String?
@@ -101,6 +103,7 @@ final class DebugHandsFreeSession {
         phase("opening")
         defer {
             live.cancel()
+            audioSocket?.close(); audioSocket = nil
             if stream === live { stream = nil }
         }
         do {
@@ -143,20 +146,48 @@ final class DebugHandsFreeSession {
     // Audio owns its strictly increasing per-input sequence; this method only
     // accepts a currently listening input or a just-ended in-flight frame.
     func upload(inputId: String, sequence: Int, pcm: Data) async throws {
-        guard !closed, let streamId, sequence >= 0, pcm.count > 0, pcm.count <= 9_600,
+        guard !closed, streamId != nil, sequence >= 0, pcm.count > 0, pcm.count <= 9_600,
               pcm.count % 2 == 0, inputId == currentInputId || inputId == previousInputId else {
             throw DebugBackendError.invalidResponse
         }
-        var request = URLRequest(url: profile.baseURL.appendingPathComponent(
-            "v1/conversations/\(conversation)/\(endpoint)/\(streamId)/audio"))
-        request.httpMethod = "POST"
-        request.httpBody = pcm
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        request.setValue(inputId, forHTTPHeaderField: "Input-Id")
-        request.setValue(String(sequence), forHTTPHeaderField: "Input-Sequence")
-        let (data, response) = try await requests.perform(request, limit: 4096)
-        guard data.isEmpty, response.statusCode == 204 else { throw DebugBackendError.invalidResponse }
+        guard let audioSocket else { throw DebugBackendError.serverCode("audio_stream_unavailable") }
+        try await audioSocket.send(inputId: inputId, sequence: sequence, pcm: pcm)
+    }
+
+    func attachVisual(_ input: DebugCostumeInput, status: (String) -> Void) async throws {
+        let jpeg = input.jpeg
+        let description = input.description
+        input.jpeg = nil; input.description = nil
+        if let jpeg {
+            status("Nahrávám a vyhodnocuji schválenou fotku…")
+            do {
+                try await attachImage(jpeg, imageId: input.imageId, capturedAt: input.capturedAt, revision: 1)
+                status("Fotka byla vyhodnocena pro tento rozhovor.")
+            } catch {
+                try Task.checkCancellation()
+                guard !closed else { throw CancellationError() }
+                status("Fotku se nepodařilo zpracovat. Rozhovor pokračuje bez fotky.")
+                if description == nil { throw error }
+            }
+        }
+        if let description {
+            guard !closed else { throw CancellationError() }
+            try await client.correctCostume(profile, token: token, conversation: conversation, boot: boot, description: description)
+            guard !closed else { throw CancellationError() }
+            status("Používám schválený ruční popis kostýmu.")
+        }
+    }
+
+    func revokeImage(revision: Int) async throws {
+        guard !closed else { return }
+        try await client.revokeConversationImage(profile, token: token, conversation: conversation, boot: boot, revision: revision)
+    }
+
+    func attachImage(_ jpeg: Data, imageId: String, capturedAt: Date, revision: Int) async throws {
+        guard !closed else { throw CancellationError() }
+        try await client.attachConversationImage(profile, token: token, conversation: conversation, boot: boot,
+            jpeg: jpeg, imageId: imageId, capturedAt: capturedAt, revision: revision)
+        guard !closed else { throw CancellationError() }
     }
 
     // Called exactly once after all dataPlayedBack callbacks for an operation.
@@ -207,6 +238,7 @@ final class DebugHandsFreeSession {
 
     func stop() async {
         inputGate(false)
+        audioSocket?.close(); audioSocket = nil
         stream?.cancel()
         requests.cancel()
         if let operation = currentOperationId {
@@ -217,6 +249,7 @@ final class DebugHandsFreeSession {
     func close() async throws {
         guard !closed else { return }
         inputGate(false)
+        audioSocket?.close(); audioSocket = nil
         stream?.cancel()
         try await client.cleanup(profile, token: token, conversation: conversation)
         closed = true
@@ -230,6 +263,18 @@ final class DebugHandsFreeSession {
         case .session(let id):
             guard streamId == nil else { throw DebugBackendError.invalidResponse }
             streamId = id
+            var request = URLRequest(url: profile.baseURL.appendingPathComponent(
+                "v1/conversations/\(conversation)/\(endpoint)/\(id)/audio-stream"))
+            var components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
+            components.scheme = components.scheme == "https" ? "wss" : "ws"
+            request.url = components.url
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            audioSocket = DebugHandsFreeAudioSocket(request: request) { [weak self] code in
+                guard let self, !self.closed else { return }
+                self.inputGate(false)
+                self.failure(code)
+                self.stream?.cancel()
+            }
         case .started(let operation, let correlation):
             guard currentOperationId == nil, correlation == expectedCorrelation(clientTurnId: currentInputId ?? "") else { throw DebugBackendError.invalidResponse }
             currentOperationId = operation
@@ -605,5 +650,122 @@ private final class DebugHandsFreeNoRedirects: NSObject, URLSessionTaskDelegate 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         completionHandler(nil)
+    }
+}
+
+// Track provider acceptance independently from the socket send callback. The OS
+// may accept writes while a mobile connection is stalled. Never replay old PCM.
+struct DebugAudioAcknowledgements {
+    struct Pending {
+        let inputId: String
+        let sequence: Int
+        let bytes: Int
+        let sentAt: TimeInterval
+    }
+    private(set) var pending: [Pending] = []
+    private(set) var bytes = 0
+
+    mutating func enqueue(inputId: String, sequence: Int, bytes: Int, now: TimeInterval) throws {
+        guard bytes > 0, bytes <= 9_600, bytes % 2 == 0,
+              self.bytes + bytes <= 192_000, pending.count < 64 else {
+            throw DebugBackendError.serverCode("realtime_live_audio_overflow")
+        }
+        pending.append(Pending(inputId: inputId, sequence: sequence, bytes: bytes, sentAt: now))
+        self.bytes += bytes
+    }
+
+    mutating func acknowledge(inputId: String, sequence: Int) throws {
+        guard let first = pending.first, first.inputId == inputId, first.sequence == sequence else {
+            throw DebugBackendError.serverCode("realtime_live_protocol_failed")
+        }
+        bytes -= first.bytes
+        pending.removeFirst()
+    }
+
+    func timedOut(now: TimeInterval) -> Bool {
+        pending.first.map { now - $0.sentAt >= 10 } ?? false
+    }
+}
+
+@MainActor
+final class DebugHandsFreeAudioSocket {
+    private let session: URLSession
+    private let socket: URLSessionWebSocketTask
+    private let failure: (String) -> Void
+    private var acknowledgements = DebugAudioAcknowledgements()
+    private var receiving: Task<Void, Never>?
+    private var watchdog: Task<Void, Never>?
+    private var closed = false
+
+    init(request: URLRequest, failure: @escaping (String) -> Void) {
+        self.failure = failure
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 3_600
+        session = URLSession(configuration: configuration, delegate: DebugHandsFreeNoRedirects(), delegateQueue: nil)
+        socket = session.webSocketTask(with: request)
+        socket.maximumMessageSize = 4_096
+        socket.resume()
+        receiving = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, !self.closed else { return }
+                do {
+                    let message = try await self.socket.receive()
+                    let data: Data
+                    switch message {
+                    case .string(let text): data = Data(text.utf8)
+                    case .data(let value): data = value
+                    @unknown default: throw DebugBackendError.invalidResponse
+                    }
+                    guard data.count <= 4_096,
+                          let ack = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          ack["type"] as? String == "ack", let input = ack["inputId"] as? String,
+                          let sequence = ack["sequence"] as? Int else { throw DebugBackendError.invalidResponse }
+                    try self.acknowledgements.acknowledge(inputId: input, sequence: sequence)
+                } catch {
+                    self.fail(DebugHandsFreeSession.failureCode(for: error))
+                    return
+                }
+            }
+        }
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 250_000_000) } catch { return }
+                guard let self, !self.closed else { return }
+                if self.acknowledgements.timedOut(now: ProcessInfo.processInfo.systemUptime) {
+                    self.fail("realtime_live_connection_timeout")
+                    return
+                }
+            }
+        }
+    }
+
+    func send(inputId: String, sequence: Int, pcm: Data) async throws {
+        guard !closed else { throw CancellationError() }
+        try acknowledgements.enqueue(inputId: inputId, sequence: sequence, bytes: pcm.count,
+            now: ProcessInfo.processInfo.systemUptime)
+        let data = try JSONSerialization.data(withJSONObject:
+            ["inputId": inputId, "sequence": sequence, "audio": pcm.base64EncodedString()])
+        guard let text = String(data: data, encoding: .utf8) else { throw DebugBackendError.invalidResponse }
+        do { try await socket.send(.string(text)) }
+        catch { fail(DebugHandsFreeSession.failureCode(for: error)); throw error }
+    }
+
+    private func fail(_ code: String) {
+        guard !closed else { return }
+        close()
+        failure(code)
+    }
+
+    func close() {
+        guard !closed else { return }
+        closed = true
+        receiving?.cancel(); receiving = nil
+        watchdog?.cancel(); watchdog = nil
+        socket.cancel(with: .goingAway, reason: nil)
+        session.invalidateAndCancel()
+        acknowledgements = DebugAudioAcknowledgements()
     }
 }
