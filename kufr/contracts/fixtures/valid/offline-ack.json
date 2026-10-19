@@ -1,0 +1,27 @@
+{
+  "protocolVersion": 1,
+  "type": "offline.ack",
+  "bootId": "22222222-2222-4222-8222-222222222222",
+  "requestMessageId": "11111111-1111-4111-8111-111111111111",
+  "accepted": true,
+  "errorCode": null,
+  "offline": {
+    "state": "missing_assets",
+    "armed": false,
+    "quiet": false,
+    "ambientEnabled": false,
+    "generation": 1,
+    "readyMask": 0,
+    "outboxCount": 0,
+    "catalogVersion": "ollivander-private-party-v1",
+    "bankVersion": "show-offline-v1",
+    "bankVoice": "marin",
+    "voiceCompatible": true,
+    "audioBytes": 0,
+    "audioCapacityBytes": 1500000,
+    "streamWorkingBytes": 960,
+    "missing": [
+      "intro-1"
+    ]
+  }
+}

@@ -52,7 +52,8 @@ internal sealed partial class KeepsakeStore
         }
         var artwork = document.Assets.SingleOrDefault(item => item.Id == edition.ArtworkAssetId);
         if (artwork is not null && artwork.Kind != "base_image") { throw new KeepsakeException("edition_not_published", 409); }
-        if (format == "card" && artwork is null) { throw new KeepsakeException("artwork_not_ready", 409); }
+        var identity = document.WizardIdentities.Where(item => item.EditionId == editionId).Select(ToCard).SingleOrDefault();
+        if (format == "card" && artwork is null && identity is null) { throw new KeepsakeException("artwork_not_ready", 409); }
         KeepsakePortrait? portrait = null;
         byte[]? portraitBytes = null;
         KeepsakeAsset? portraitAsset = null;
@@ -71,11 +72,11 @@ internal sealed partial class KeepsakeStore
         }
         if (portraitAsset is not null) { portraitBytes = ReadBytes(id, portraitAsset); }
         var artworkBytes = artwork is null ? null : ReadBytes(id, artwork);
-        var storyBytes = Encoding.UTF8.GetBytes(StoryText(document.Snapshot, edition));
+        var storyBytes = Encoding.UTF8.GetBytes(StoryText(document.Snapshot, edition, identity));
         var storedCard = portraitId is null ? document.Assets.FirstOrDefault(asset => asset.EditionId == editionId
             && asset.Kind == "export_card" && asset.UploadId is null) : null;
-        var cardBytes = format == "story" || artworkBytes is null ? null
-            : storedCard is null ? BuildPngCard(document.Snapshot, edition, artworkBytes, portraitBytes) : ReadBytes(id, storedCard);
+        var cardBytes = format == "story" || (artworkBytes is null && identity is null) ? null
+            : storedCard is null ? BuildPngCard(document.Snapshot, edition, artworkBytes, portraitBytes, identity) : ReadBytes(id, storedCard);
         byte[] output;
         string mime;
         switch (format)
@@ -93,7 +94,8 @@ internal sealed partial class KeepsakeStore
                 var manifest = JsonSerializer.SerializeToUtf8Bytes(new
                 {
                     schema = "dv10-export-v1", synthetic = edition.Synthetic, portraitIncluded = portraitBytes is not null,
-                    partial = artworkBytes is null, missingComponents = artworkBytes is null ? new[] { "wand.png", "keepsake-card.png" } : [],
+                    partial = artworkBytes is null, missingComponents = artworkBytes is null
+                        ? cardBytes is null ? new[] { "wand.png", "keepsake-card.png" } : new[] { "wand.png" } : [],
                     components = components.Select(item => new
                     {
                         filename = item.Key, length = item.Value.LongLength,
@@ -116,7 +118,7 @@ internal sealed partial class KeepsakeStore
                 mime = "application/zip";
                 break;
         }
-        var kind = format == "zip" && artworkBytes is null ? "export_partial_zip" : "export_" + format;
+        var kind = artworkBytes is null && (format is "zip" or "card") ? "export_partial_" + format : "export_" + format;
         var result = StoreAsset(id, document, kind, mime, output, editionId, portrait?.UploadId);
         Save(connection, transaction, id, document);
         return result;
@@ -129,7 +131,7 @@ internal sealed partial class KeepsakeStore
     }
 
     internal static byte[] BuildPngCard(KeepsakeIssueSnapshot snapshot, KeepsakeEdition edition,
-        byte[] artwork, byte[]? portrait)
+        byte[]? artwork, byte[]? portrait, WizardIdentityCard? identity = null)
     {
         using var fontStream = typeof(KeepsakeStore).Assembly.GetManifestResourceStream("Kufr.Backend.KeepsakeInter")
             ?? throw new InvalidOperationException("Keepsake font missing.");
@@ -138,11 +140,13 @@ internal sealed partial class KeepsakeStore
         using var titleFont = new SKFont(typeface, 30);
         using var bodyFont = new SKFont(typeface, 26);
         using var captionFont = new SKFont(typeface, 22);
-        var headingLines = WrapMeasured(snapshot.OfficialName, heading, 1060).ToArray();
-        var titleLines = WrapMeasured(edition.Story.Title, titleFont, 1060).ToArray();
+        var headingLines = WrapMeasured(identity?.WizardAlias ?? snapshot.OfficialName, heading, 1060).ToArray();
+        var titleLines = WrapMeasured(identity is null ? edition.Story.Title : snapshot.OfficialName + " · " + edition.Story.Title, titleFont, 1060).ToArray();
         var summary = edition.Story.Text.Length <= 600 ? edition.Story.Text : edition.Story.Text[..600] + "…";
-        var bodyLines = WrapMeasured(summary, bodyFont, 1060).ToArray();
-        var height = 110 + headingLines.Length * 52 + titleLines.Length * 40 + 1070
+        var bodyLines = identity is null ? WrapMeasured(summary, bodyFont, 1060).ToArray()
+            : IdentityText(identity).Split('\n').SelectMany(line => WrapMeasured(line, bodyFont, 1060).Append("")).ToArray();
+        var artworkHeight = artwork is null ? 80 : 1070;
+        var height = 110 + headingLines.Length * 52 + titleLines.Length * 40 + artworkHeight
             + bodyLines.Length * 36 + (portrait is null ? 0 : 800) + 180;
         using var bitmap = new SKBitmap(1200, height);
         using var canvas = new SKCanvas(bitmap);
@@ -161,9 +165,16 @@ internal sealed partial class KeepsakeStore
         {
             canvas.DrawText(line, 70, y, SKTextAlign.Left, titleFont, accentInk); y += 40;
         }
-        using var wand = SKBitmap.Decode(artwork);
-        canvas.DrawBitmap(wand, new SKRect(270, y + 20, 930, y + 1010), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
-        y += 1070;
+        if (artwork is not null)
+        {
+            using var wand = SKBitmap.Decode(artwork);
+            canvas.DrawBitmap(wand, new SKRect(270, y + 20, 930, y + 1010), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
+        }
+        else
+        {
+            canvas.DrawText("Digitální obraz ještě není připravený.", 70, y + 40, SKTextAlign.Left, bodyFont, captionInk);
+        }
+        y += artworkHeight;
         foreach (var line in bodyLines)
         {
             canvas.DrawText(line, 70, y, SKTextAlign.Left, bodyFont, ink); y += 36;
@@ -214,11 +225,18 @@ internal sealed partial class KeepsakeStore
         if (line.Length > 0) { yield return line; }
     }
 
-    private static string StoryText(KeepsakeIssueSnapshot snapshot, KeepsakeEdition edition) =>
-        snapshot.OfficialName + "\n" + edition.Story.Title + "\n\n" + edition.Story.Text + "\n\n"
+    private static string StoryText(KeepsakeIssueSnapshot snapshot, KeepsakeEdition edition, WizardIdentityCard? identity = null) =>
+        (identity is null ? "" : IdentityText(identity) + "\n\n") + snapshot.OfficialName + "\n" + edition.Story.Title + "\n\n" + edition.Story.Text + "\n\n"
         + "Katalogová fakta: " + snapshot.CatalogFacts + "\n"
         + "Digitální návrh, nikoli fotografie ani přesná replika fyzické hůlky. Příběh je smyšlený.\n"
         + (edition.Synthetic ? "SYNTHETICKÝ TEST — bez OpenAI inference.\n" : "Autorská digitální edice vytvořená pomocí OpenAI.\n");
+
+    private static string IdentityText(WizardIdentityCard identity) =>
+        identity.WizardAlias + "\n" + identity.HouseOrGuild + "\n"
+        + "Schopnost: " + identity.SignatureAbility + "\nSlabina: " + identity.Weakness + "\n"
+        + "Specializace: " + identity.DubiousSpecialization + "\n" + identity.MinistryAssessment + "\n"
+        + identity.WandBond + "\nMotto: " + identity.Motto + "\n" + identity.MicroStory + "\n"
+        + "Veřejná indicie: " + identity.Omen + "\nKomediální fikce. " + identity.ContentVersion;
 
     // The exported layout is local and accessible; model output never contains SVG or executable markup.
     internal static string BuildCard(KeepsakeIssueSnapshot snapshot, KeepsakeEdition edition,

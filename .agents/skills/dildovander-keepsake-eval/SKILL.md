@@ -5,6 +5,12 @@ description: Evaluate DV10 keepsake catalog binding, story and digital design qu
 
 # DV10 keepsake evaluation
 
+Include [Show Pack acceptance](../../../kufr/docs/show-pack.md) and backend
+`--show`. Verify server-time prophecy gating, owner/operator projections, legacy
+editions, partial PNG/ZIP, distinct identities using one wand, duel side grants,
+source withdrawal and chronicle zero/tie/late-outcome revisions. Inspect actual
+PNG/export bytes and rendered owner/public pages. GET never triggers a job.
+
 Use for DV10 acceptance and regressions. Read the owner's current specification,
 the relevant backend contracts and `kufr/web/README.md`. Preserve the actual source,
 artifact and schema versions. Do not treat an older result as a current check.

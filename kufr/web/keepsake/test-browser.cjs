@@ -16,6 +16,14 @@ const fixture = (name = 'Brk bouřlivého archiváře') => ({
   snapshot: { officialName: name, catalogId: 'fixture-wand', slot: 2, physicalEvidence: 'synthetic' },
   editions: [{ id: editionId, synthetic: true, artworkAssetId: artId, createdAt: '2026-10-14T12:00:00Z',
     story: { title: 'Majitel posledního slova', text: 'Tato syntetická legenda patří pouze testu.\n\nHůlka zásadně odmítala přímé odpovědi, a proto se zabydlela v archivu.', design: {} } }],
+  wizardIdentities: [{ identityId: ownerId, editionId, visibility: 'public_fiction',
+    wizardAlias: 'Inspektor mimořádně dlouhých přestávek a formulářů',
+    houseOrGuild: 'Ústav praktické nerozhodnosti', dubiousSpecialization: 'Razítkování výjimek',
+    signatureAbility: 'Promění trapné ticho v přestávku.', weakness: 'Otázka, kdo to uklidí.',
+    ministryAssessment: 'Fiktivní ministerstvo: podmíněně způsobilý.', wandBond: 'Hůlka přijala smlouvu.',
+    motto: 'Když nevíš, zakouzli přestávku.', microStory: 'Smyšlená identita bez osobního posudku.', omen: 'Ještě zazní: jenom jedno.' }],
+  prophecies: [{ identityId: ownerId, editionId, omen: 'Jenom jedno.', createdAt: '2026-10-25T00:55:00Z',
+    unlockAt: '2026-10-25T01:10:00Z', state: 'locked', unlockReason: 'after_15_minutes' }],
   portraits: [], uploads: [], jobs: [], assets: [], sharedEditionId: null
 });
 const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760" viewBox="0 0 600 760"><rect width="600" height="760" fill="#171F29"/><circle cx="300" cy="360" r="210" fill="none" stroke="#34424F"/><path d="M180 590L390 150" stroke="#D9B777" stroke-width="18" stroke-linecap="round"/><path d="M174 585L220 491" stroke="#6B7E8E" stroke-width="32" stroke-linecap="round"/><path d="M183 560L220 535M196 533L230 508" stroke="#D9B777" stroke-width="7"/></svg>';
@@ -85,6 +93,9 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
     await page.locator('#exchange').click();
     await page.locator('#wand-name').filter({ hasText: 'Brk bouřlivého archiváře' }).waitFor();
     await privacyRoundTrip();
+    assert.match(await page.locator('#wizard-identity').textContent(), /Inspektor/);
+    assert.match(await page.locator('#wizard-prophecy').textContent(), /Praha.*server/);
+    assert.equal(await page.locator('#wizard-prophecy').textContent().then(text => text.includes('TAJNÉ PROROCTVÍ')), false);
     assert.equal(calls.filter(c => c.path.endsWith('/claim')).length, 1);
     for (const call of calls.filter(c => c.method !== 'GET' && !c.path.endsWith('/bootstrap'))) {
       assert.equal(call.headers['x-dv10-csrf'], 'synthetic-csrf');
@@ -209,6 +220,12 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
     assert.equal(await page.locator('#wand-name').textContent(), 'JINÝ HOST', 'Old route result must not replace current guest');
     delayed = false; view = fixture();
     await page.goto(origin + `/keepsake/?k=${ownerId}`); await page.locator('#wand-name').filter({ hasText: 'Brk bouřlivého archiváře' }).waitFor();
+    view.prophecies[0] = { ...view.prophecies[0], state: 'revealed', revelation: 'TAJNÉ PROROCTVÍ · pouze vlastníku.' };
+    await page.reload();
+    await page.locator('#wizard-prophecy').filter({ hasText: 'TAJNÉ PROROCTVÍ' }).waitFor();
+    view = fixture();
+    await page.reload();
+    await page.locator('#wizard-identity h2').waitFor();
     const screenshot = process.env.DV10_SCREENSHOT;
     if (screenshot) {
       if (process.env.DV10_SCREENSHOT_WIDTH) await page.setViewportSize({ width: Number(process.env.DV10_SCREENSHOT_WIDTH), height: 900 });

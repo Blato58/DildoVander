@@ -25,6 +25,9 @@ class PersistentCommandJournal final : public CommandJournal {
   Lookup Find(const std::string& commandId, uint8_t compartment,
               uint64_t fingerprint) const override;
   size_t HistoryCount() const { return state_.historyCount; }
+  bool CanBeginOperation() const override {
+    return healthy_ && !HasPending() && state_.historyCount < HistoryCapacity;
+  }
   bool Resolve(uint8_t readyMask) override;
   bool ResolveRestored(uint8_t compartment) override;
   bool ConfirmTimedPresentation(const std::string& id, uint8_t compartment, uint64_t fingerprint) override;

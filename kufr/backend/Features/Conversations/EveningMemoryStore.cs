@@ -76,6 +76,7 @@ internal sealed partial class EveningMemoryStore
         command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
         MigrateHybridMemory(connection, migration);
+        MigrateShowChronicle(connection, migration);
         migration.Commit();
     }
 
@@ -298,7 +299,8 @@ internal sealed partial class EveningMemoryStore
             }
 
             // Archived dialogue belongs only to its original conversation. A
-            // similar name/story never establishes a returning guest identity.
+            // matching alias, voice or wand never authorizes another guest;
+            // verified returns use the permission-bound personal store.
             var groups = rows.GroupBy(row => row.ConversationId);
             var selected = new List<MemoryExchange>();
             var remaining = MaxContextCharacters - 2;

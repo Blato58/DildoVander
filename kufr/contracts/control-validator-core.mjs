@@ -63,7 +63,7 @@ export function createControlValidator(schema) {
     const message = parseStrictJson(bytes, maximumConversationTextBytes);
     if (bytes.length > maximumControlMessageBytes &&
         message.type !== 'conversation.text' &&
-        message.type !== 'conversation.result') {
+        message.type !== 'conversation.result' && message.type !== 'offline.outbox') {
       throw new Error(`message exceeds ${maximumControlMessageBytes} UTF-8 bytes`);
     }
     if (!validateSchema(message)) {

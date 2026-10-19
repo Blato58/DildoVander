@@ -24,6 +24,13 @@ enum class LocalControlMessageKind : uint8_t {
   VoiceStop,
   DanceStart,
   DanceStop,
+  OfflinePreflight,
+  OfflineArm,
+  OfflineStart,
+  Quiet,
+  OfflineOutbox,
+  OfflineSyncAck,
+  OfflineAmbient,
 };
 
 struct LocalControlMessage {
@@ -39,6 +46,8 @@ struct LocalControlMessage {
   std::string voiceMode;
   std::string voice;
   bool imageConsent = false;
+  bool shortVariant = false;
+  bool enabled = false;
   uint64_t generation = 0;
   uint64_t expectedRevision = 0;
   uint64_t sequence = 0;

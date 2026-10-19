@@ -13,6 +13,7 @@ import { SimulatorDeviceConnection } from './features/device_connection/Simulato
 import { DebugPanel } from './features/debug/DebugPanel';
 import { ProvisioningPanel } from './features/provisioning/ProvisioningPanel';
 import { operatorReadiness } from './features/device_connection/OperatorReadiness';
+import { DirectorPanel } from './features/director/DirectorPanel';
 
 type PendingAction = {
   kind: 'select' | 'reload';
@@ -119,6 +120,32 @@ controlPanel.after(debugPanel.element);
 let refreshNativePairing: (() => Promise<void>) | undefined;
 const provisioningPanel = new ProvisioningPanel(nativeMode, async () => { await refreshNativePairing?.(); });
 debugPanel.element.after(provisioningPanel.element);
+const directorPanel = new DirectorPanel(nativeMode, {
+  stop: stopDevice,
+  cancelSpeech: () => { if (connection instanceof NativeDeviceConnection) connection.stopVoice(); },
+  nextVisit: () => connection instanceof NativeDeviceConnection && connection.startVoice(false),
+  offline: (action, compartment, commandId, options) => connection instanceof NativeDeviceConnection
+    ? connection.requestOffline(action, compartment, commandId, options)
+    : Promise.reject(new Error('Místní párovaný kufr není připojený. Použijte fyzické zastavení.')),
+});
+provisioningPanel.element.after(directorPanel.element);
+const directorEntry = document.createElement('details');
+directorEntry.className = 'director-entry';
+directorEntry.innerHTML = `<summary>Provozní nástroje</summary>${button({ label: 'Otevřít Director Mode', attributes: { 'data-director-open': true } })}`;
+debugPanel.element.append(directorEntry);
+function openDirector(): void {
+  controlPanel.hidden = true;
+  debugPanel.show(false);
+  provisioningPanel.show(false);
+  directorPanel.show(true);
+  tabs.querySelector<HTMLAnchorElement>('.skip-link')!.href = '#director-panel';
+  history.replaceState(null, '', `${location.pathname}${location.search}#director`);
+  directorPanel.element.focus();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+directorEntry.querySelector('[data-director-open]')!.addEventListener('click', openDirector);
+directorPanel.element.querySelector('[data-director-back]')!.addEventListener('click', () => selectTab('tab-control'));
+window.addEventListener('hashchange', () => { if (location.hash === '#director') openDirector(); });
 const tabs = document.createElement('nav');
 tabs.className = 'app-tabs';
 tabs.setAttribute('aria-label', 'Sekce aplikace');
@@ -200,6 +227,8 @@ function selectTab(id: string): void {
 
 bindTabs(tabs, { onSelect: (tab) => {
   const id = tab.id;
+  directorPanel.show(false);
+  if (location.hash === '#director') history.replaceState(null, '', `${location.pathname}${location.search}`);
   controlPanel.hidden = id !== 'tab-control';
   debugPanel.show(id === 'tab-debug');
   provisioningPanel.show(id === 'tab-provisioning');
@@ -250,6 +279,7 @@ function render(snapshot: DeviceSnapshot): void {
     pendingAction = null;
   }
   currentSnapshot = snapshot;
+  directorPanel.updateDevice(snapshot);
   debugPanel.update(snapshot);
   renderConversation(snapshot);
   voicePanel.update(snapshot);
@@ -691,3 +721,4 @@ async function initializeNativeAsync(): Promise<void> {
     });
   });
 }
+if (location.hash === '#director') openDirector();

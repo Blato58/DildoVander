@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "SHOW-PACK-PR-native-ios-v2",
+  "observedAtUtc": "2026-10-19T04:42:52Z",
+  "kind": "native_ios",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "SHOW-PACK-OPERATIONS",
+      "criterionId": "NATIVE",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "iosArtifactDigest": "3eeda531dc4aab756f058be77401025adec9a1b76238d7d8f6234d2ef9fee9b8",
+    "policyVersion": "show-pack-2026.10.19.1"
+  },
+  "supersedes": [
+    "SHOW-PACK-PR-native-ios-v1"
+  ],
+  "supersedesReason": "New exact native inputs after main unified voice/media integration. All163 inputs remain identical in the current test-only harness patch.",
+  "method": "Inspected job117892611227 and actual native harness/xcodebuild logs in PR219 run39200591623 on source950d4a1; compared all current native source SHA256 inputs with the recorded exact native fingerprint.",
+  "environment": "GitHub-hosted macos-15; Xcode26.3; CODE_SIGNING_ALLOWED=NO.",
+  "limitations": [
+    "Simulator app built, not physical iPhone/ESP, audible speech, signing or deployment.",
+    "Overall first run failed separate historical-C++/Node server-cleanup harnesses; their failure does not change the successful native job or identical native inputs."
+  ],
+  "observation": "SUCCESS: pinned discovery/SPKI/Keychain/HTTPS/authenticated WSS; two-engine capabilities/session ownership/evenings/HTTP; native cancellation/dedupe/preserved input/checkpoint/lostACK; hands-free VAD/startup/48kHz/batching/backlog/epoch/reuse/cancellation; image provenance/expiry/revocation/retake; provisioning codec. Unsigned Simulator BUILD SUCCEEDED04:42:47UTC.",
+  "artifactRefs": [
+    "docs/project/artifacts/SHOW-PACK-ios-source-v2.json",
+    "https://github.com/Blato58/DildoVander/actions/runs/39200591623/job/117892611227"
+  ]
+}

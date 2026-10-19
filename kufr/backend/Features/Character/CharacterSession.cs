@@ -47,6 +47,20 @@ internal sealed class CharacterSession
     internal long ResponseGeneration { get; private set; }
     internal long SourceRevision { get; private set; }
 
+    // Operator settings remain constrained by the frozen host ceiling and all
+    // guest opt-outs already recorded by this same session owner.
+    internal void ApplyOperatorStyle(string? tone = null, string? tempo = null)
+    {
+        if (Closed) { return; }
+        if (tone is not null && Enum.TryParse<CharacterTone>(tone, true, out var requested) && Enum.IsDefined(requested))
+        {
+            Tone = (CharacterTone)Math.Min((int)requested, Math.Min((int)Policy.HostTone, toneLimit));
+        }
+        if (tempo is "express") { Tempo = CharacterTempo.Express; }
+        else if (tempo is "standard" && Engagement != CharacterEngagement.LowPressure) { Tempo = CharacterTempo.Standard; }
+        Revision++;
+    }
+
     internal CharacterInputChange AcceptInput(string sourceId, long sourceRevision, string text, bool correction = false)
     {
         if (Closed || !Policy.Enabled || string.IsNullOrWhiteSpace(sourceId) || sourceId.Length > 128

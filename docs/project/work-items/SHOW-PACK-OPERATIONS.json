@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "id": "SHOW-PACK-OPERATIONS",
+  "initiative": "DV02",
+  "title": "Provozní a externí akceptace Show Pack 2026.10.19.1",
+  "state": "blocked",
+  "priority": "P1",
+  "sequence": 2,
+  "scope": [
+    "kufr/firmware/offline-bank",
+    "kufr/mobilni-aplikace/ios",
+    "kufr/backend",
+    "kufr/docs/show-pack.md"
+  ],
+  "dependencies": [],
+  "relatedItems": [
+    "SHOW-PACK",
+    "DV01",
+    "DV02",
+    "DV10"
+  ],
+  "acceptance": [
+    {
+      "id": "RECORDINGS",
+      "revision": 1,
+      "expected": "Schválené nahrávky 24 českých klipů, hlasový profil a skutečná připravenost OTA banky.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "PROVIDER",
+      "revision": 1,
+      "expected": "Výslovně autorizovaný pilot reálného Live/TTS a generované identity; poslech, obsah a časování se skutečným poskytovatelem.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "NATIVE",
+      "revision": 3,
+      "expected": "macOS Swift testy a nepodepsaný iOS Simulator build aktuálního softwaru.",
+      "requiredEvidenceKinds": [
+        "native_ios"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "iosArtifactDigest": "3eeda531dc4aab756f058be77401025adec9a1b76238d7d8f6234d2ef9fee9b8",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-PR-native-ios-v2"
+      ]
+    },
+    {
+      "id": "PHYSICAL",
+      "revision": 1,
+      "expected": "Akustická a fyzická akceptace identifikované sestavy včetně Stop, napájení, jednoho pohonu, LED a offline restartu.",
+      "requiredEvidenceKinds": [
+        "physical_inspection",
+        "esp_runtime"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": []
+    },
+    {
+      "id": "HARNESS",
+      "revision": 2,
+      "expected": "Aktuální historický paritní a HTTP procesní testovací harness zachovává přísné kontroly a je svázán s přesnými zdroji bez změny produkčního runtime.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "validationArtifactDigest": "5d3d25209aae2a103e4d44a16a3f3022c42637202f1d9ffb21bbce5079049722",
+        "policyVersion": "show-pack-2026.10.19.1"
+      },
+      "evidenceRefs": [
+        "SHOW-PACK-validation-harness-v5"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "id": "AUDIO",
+      "problem": "Pro 24 autorských textů nejsou dodány schválené hlasové nahrávky; banka má nula audio bytes a pravdivě hlásí missing_assets.",
+      "severity": "medium",
+      "blocks": [
+        "RECORDINGS"
+      ],
+      "unblockCondition": "Dodat majitelem schválené WAV a voice profil; připravit skutečným prepare_offline_bank.py a ověřit připravenou banku."
+    },
+    {
+      "id": "PAID",
+      "problem": "Uživatel výslovně vyloučil placené testy.",
+      "severity": "medium",
+      "blocks": [
+        "PROVIDER"
+      ],
+      "unblockCondition": "Samostatné výslovné oprávnění k provider pilotu; dosavadní fake/replay nejsou živý důkaz."
+    },
+    {
+      "id": "HARDWARE",
+      "problem": "Fyzická sestava nebyla během této implementace připojena, flash ani měření nejsou součástí oprávnění.",
+      "severity": "medium",
+      "blocks": [
+        "PHYSICAL"
+      ],
+      "unblockCondition": "Identifikovat sestavu, schválit instalaci a provést skutečnou akustickou/fyzickou akceptaci s firmware/config/wiring/mechanics identitou."
+    }
+  ],
+  "nextAction": "Dodat schválené hlasové WAV; provider pilot a skutečný iPhone/fyzickou sestavu řešit samostatným oprávněním. Placené testy, deploy ani flash nyní nespouštět.",
+  "currentNote": "Nativní Swift testy a nepodepsaný Simulator build současných163 vstupů splněny (native-v2 receipt). Test-only paritní/procesní/časové/CI linker opravy mají source-v5 validationArtifactDigest; všech1065 ostatních vstupů včetně produkce je shodných se source-v3. Kompletní aktuální GitHub CI je povinná merge brána. Nahrávky/provider/fyzická akceptace zůstávají tři oddělené blokace."
+}

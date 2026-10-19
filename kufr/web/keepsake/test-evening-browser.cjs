@@ -36,6 +36,10 @@ function syntheticPng() {
 }
 const image = syntheticPng();
 const item = (number, name) => ({
+  wizardIdentity: { visibility: 'public_fiction', wizardAlias: 'Inspektor přestávek ' + number,
+    houseOrGuild: 'Cech přestávek', dubiousSpecialization: 'Odkládání formulářů', signatureAbility: 'Přestávka',
+    weakness: 'Úklid', ministryAssessment: 'Fiktivní ministerstvo schvaluje.', wandBond: 'Katalogová hůlka',
+    motto: 'Zítra.', microStory: 'Komediální fikce.', omen: 'Ještě jedno.', revelation: 'TAJNÝ TEXT NEPATŘÍ VEŘEJNOSTI' },
   locator: guid(number), editionId: guid(number + 1000), officialName: name || `Hůlka číslo ${number}`,
   catalogId: 'synthetic-catalog', slot: 2, createdAt: '2026-10-14T12:00:00Z', synthetic: true,
   story: { title: `Příběh ${number} · poslední slovo kufru`, text: 'Tato syntetická legenda slouží pouze browser testu.\n\nHůlka se usadila v archivu a na každou otázku odpovídala dalším záznamem.' },
@@ -105,6 +109,8 @@ const eveningA = guid(9001); const eveningB = guid(9002);
   try {
     await page.goto(origin + '/keepsake/evening/');
     await page.locator('#public-name').filter({ hasText: 'Hůlka číslo 3' }).waitFor();
+    assert.match(await page.locator('#public-wizard-identity').textContent(), /Inspektor přestávek 3/);
+    assert.equal(await page.locator('body').textContent().then(text => text.includes('TAJNÝ TEXT NEPATŘÍ VEŘEJNOSTI')), false);
     await page.locator('#public-art').waitFor({ state: 'visible' });
     await page.locator('#public-art-open').click();
     await page.locator('#public-art-dialog').waitFor({ state: 'visible' });

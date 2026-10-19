@@ -1,5 +1,21 @@
 # Sdílené kontrakty kufru
 
+## Show Pack
+
+[HTTP rozšíření](show-openapi-v1.json) popisuje autorizované Director, duel,
+proroctví, kroniku a offline import. `verify-show-api.mjs` kontroluje zdrojové
+routy, oddělené scopes a omezená těla; spouští jej standardní `npm test`.
+Autoritativní výsledky zůstávají v C# DTO a stávajícím SQLite, nikoli v UI.
+
+Lokální control v1 nově obsahuje `offline_preflight`, `offline_arm`,
+`offline_start` (včetně `shortVariant`), `quiet`/`offline_ambient` s `enabled`,
+`offline_outbox`, `offline_sync_ack` a odpovědi `offline.ack`/`offline.outbox`.
+Outbox může mít osm timing-confirmed záznamů a nejvýše 8192 B; ostatní meze
+zůstávají. Arm potřebuje platný místní lease, nová generace odstaví staré povely.
+Preflight přiznává hlas banky, kompatibilitu a chybějící assety. Synchronizace
+nikdy nepřenáší příkazy pohonům ani nepřepisuje původní večer.
+Provozní návod a externí brány jsou v [Show Pack](../docs/show-pack.md).
+
 ## Autonomní Live a paměť (D143)
 
 Opt-in actor větev rozšiřuje `GptLiveEvent` o `playback_checkpoint`

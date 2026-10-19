@@ -45,6 +45,9 @@ function setup() {
   };
   const context = {
     tabs, bindTabs, controlPanel: panels.get('control-panel'),
+    directorPanel: { show() {} },
+    location: { hash: '', pathname: '/', search: '' },
+    history: { replaceState() {} },
     debugPanel: { show: visible => shown.push(['debug', visible]) },
     provisioningPanel: { show: visible => shown.push(['provisioning', visible]) },
     currentSnapshot: { phase: 'running' },

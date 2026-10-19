@@ -219,7 +219,8 @@ internal sealed partial class KeepsakeStore
                     || (item.EditionId == sharedEdition && item.UploadId is null
                         && item.Kind is "export_story" or "export_card" or "export_zip")).ToArray();
                 return new(id, document.Snapshot, "manual_only", "ready", editions, [], [], [], assets,
-                    true, sharedEdition, document.Revision);
+                    true, sharedEdition, document.Revision, WizardIdentities: document.WizardIdentities
+                        .Where(item => item.EditionId == sharedEdition).Select(ToCard).ToArray());
             }
             using var jobs = Command(connection, null, "SELECT id FROM dv10_jobs WHERE keepsake_id=$id ORDER BY created,id", ("$id", id));
             using var reader = jobs.ExecuteReader();
@@ -233,7 +234,11 @@ internal sealed partial class KeepsakeStore
                     ? MayDispatch("base") ? "awaiting_capacity" : "paused_preparing" : "pending";
             return new(id, document.Snapshot, "manual_only", state, document.Editions,
                 document.Portraits, document.Uploads, jobViews, document.Assets, false, null, document.Revision,
-                document.PortraitConsent, document.ConsentVersion);
+                document.PortraitConsent, document.ConsentVersion,
+                document.WizardIdentities.Where(identity => document.Editions.Any(edition => edition.Id == identity.EditionId
+                    && edition.PublicationState != "private_history")).Select(ToCard).ToArray(),
+                document.Prophecies.Where(prophecy => document.Editions.Any(edition => edition.Id == prophecy.EditionId
+                    && edition.PublicationState != "private_history")).Select(OwnerProphecy).ToArray());
         }
     }
 

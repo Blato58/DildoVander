@@ -7,6 +7,22 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--show-live-boundary"]) { await AutonomousLiveTests.RunShowLiveBoundariesAsync(); return; }
+if (args is ["--show"])
+{
+    ShowDirectorTests.Run();
+    OperatorOverrideTests.Run();
+    await ShowDeviceCueTests.RunAsync();
+    await ShowSpeechProviderTests.RunAsync();
+    ChronicleTests.Run();
+    OfflineOutcomeTests.Run();
+    await DuelTests.RunAsync();
+    await KeepsakeCoreTests.RunAsync();
+    await EveningMemoryTests.RunAsync();
+    return;
+}
+if (args is ["--duel"]) { await DuelTests.RunAsync(); return; }
+if (args is ["--show-speech"]) { await ShowSpeechProviderTests.RunAsync(); return; }
 if (args is ["--keepsake-fixture"]) { KeepsakeHttpFixture.Run(); return; }
 if (args is ["--keepsake"]) { KeepsakeOutcomeJournalTests.Run(); await KeepsakeCoreTests.RunAsync(); return; }
 if (args is ["--twin"]) { await TwinTests.RunAsync(); return; }
@@ -36,6 +52,13 @@ if (args is ["--autonomous-memory"])
 }
 
 if (args is ["--image"]) { await CostumeImageTests.RunAsync(); return; }
+ShowDirectorTests.Run();
+OperatorOverrideTests.Run();
+await ShowDeviceCueTests.RunAsync();
+await ShowSpeechProviderTests.RunAsync();
+ChronicleTests.Run();
+OfflineOutcomeTests.Run();
+await DuelTests.RunAsync();
 await KeepsakeCoreTests.RunAsync();
 KeepsakeOutcomeJournalTests.Run();
 FirmwareReleaseTests.Run();

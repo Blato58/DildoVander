@@ -16,6 +16,8 @@ CORE = [
     "wand_presentation/WandPresentation", "physical_effects/PhysicalEffects",
     "physical_effects/PhysicalPresentation", "physical_effects/PresentationDiagnostics",
     "scene_intent/SceneIntentBridge",
+    "offline_show/OfflineShow",
+    "offline_show/ImaAdpcm",
 ]
 
 
@@ -57,6 +59,8 @@ def main():
     checks = [
         ("physical_effects_test", CORE, []),
         ("show_runtime_test", CORE + ["device_control/PersistentCommandJournal"], []),
+        ("offline_show_test", CORE, []),
+        ("device_show_cues_test", CORE + ["show_cues/DeviceShowCue", "show_cues/DeviceShowAudio", "show_cues/DeviceShowRuntime", "conversation/ConversationSession", "conversation/ConversationStartCodec"], []),
         ("autonomous_presentation_lifecycle_test", CORE, []),
         ("device_control_runtime_test", CORE, []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),

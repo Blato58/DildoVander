@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
 namespace Kufr.Backend.Features.Keepsakes;
@@ -11,15 +12,27 @@ internal sealed partial class KeepsakeStore
         lock (gate)
         {
             using var connection = Open();
-            using var transaction = connection.BeginTransaction();
-            RequireSession(connection, transaction, session);
+            RequireSession(connection, null, session);
             var scope = "delete:" + id + ":" + Hash(session);
             var body = deleteScope + ":" + expectedRevision;
-            var replay = Replay(connection, transaction, scope, key, body);
+            var replay = Replay(connection, null, scope, key, body);
             if (replay is not null) { return GetDeletionReceipt(replay, session); }
-            RequireAccess(connection, transaction, id, session, KeepsakeScope.Delete);
-            var document = Load(connection, transaction, id);
+            RequireAccess(connection, null, id, session, KeepsakeScope.Delete);
+            var document = Load(connection, null, id);
             if (expectedRevision is not null && expectedRevision != document.Revision)
+            {
+                throw new KeepsakeException("revision_changed", 409);
+            }
+            var validatedDocument = JsonSerializer.Serialize(document, Json);
+            var validatedEpoch = ReadDeletionEpoch(connection, null, id);
+            RevokeDeletionMemorySources(id, document, deleteScope);
+            // No base-database transaction spans a memory-store call. Recheck
+            // authority and the entire source after acquiring the write fence.
+            using var transaction = connection.BeginTransaction();
+            RequireAccess(connection, transaction, id, session, KeepsakeScope.Delete);
+            document = Load(connection, transaction, id);
+            if (JsonSerializer.Serialize(document, Json) != validatedDocument
+                || ReadDeletionEpoch(connection, transaction, id) != validatedEpoch)
             {
                 throw new KeepsakeException("revision_changed", 409);
             }
@@ -30,6 +43,30 @@ internal sealed partial class KeepsakeStore
         ResumeDeletionCleanup();
         return GetDeletionReceipt(receiptId, session);
     }
+
+    private static (int Epoch, int PhotoEpoch) ReadDeletionEpoch(SqliteConnection connection,
+        SqliteTransaction? transaction, string id)
+    {
+        using var command = Command(connection, transaction,
+            "SELECT epoch,photo_epoch FROM dv10_keepsakes WHERE id=$id AND deleted=0", ("$id", id));
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) { throw new KeepsakeException("keepsake_not_found", 404); }
+        return (reader.GetInt32(0), reader.GetInt32(1));
+    }
+
+    private void RevokeDeletionMemorySources(string id, Document document, KeepsakeDeleteScope scope)
+    {
+        if (scope != KeepsakeDeleteScope.All) { return; }
+        BeforeDeletionMemoryRevocation?.Invoke();
+        memoryStore?.RevokeShowSource(document.Snapshot.DeviceId, id);
+        memoryStore?.RevokeShowSource(document.Snapshot.DeviceId, document.Snapshot.OutcomeId);
+        if (document.Snapshot.SourceConversationId is { } conversationId)
+        {
+            memoryStore?.RevokeShowSource(document.Snapshot.DeviceId, conversationId);
+        }
+    }
+
+    internal Action? BeforeDeletionMemoryRevocation { get; set; }
 
     private string PrepareDeletion(SqliteConnection connection, SqliteTransaction transaction, string id,
         Document document, KeepsakeDeleteScope deleteScope, string actorHash)

@@ -237,6 +237,9 @@ internal sealed partial class KeepsakeStore
                     var publish = state == "dispatched" && document.CurrentBaseJob == job.Id
                         && Eligible(connection, transaction, job, document, request);
                     var model = response.RootElement.TryGetProperty("model", out var modelValue) ? modelValue.GetString() ?? "unknown" : "unknown";
+                    EnsureWizardIdentity(job.KeepsakeId, document, request.EditionId!, story,
+                        OpenAiKeepsakeProvider.ParseIdentity(response.RootElement));
+                    document.Editions.RemoveAll(item => item.Id == request.EditionId);
                     document.Editions.Add(new(request.EditionId!, job.Id, story, "", false, "openai", model, "", Now,
                         publish ? "story_ready" : "private_history"));
                     document.Revision++;
@@ -312,6 +315,7 @@ internal sealed partial class KeepsakeStore
                 if (output.Story is null) { throw new KeepsakeException("provider_story_missing"); }
                 document.Editions.RemoveAll(edition => edition.Id == editionId);
                 var completedAt = Now;
+                EnsureWizardIdentity(job.KeepsakeId, document, editionId, output.Story, output.Identity);
                 document.Editions.Add(new(editionId, job.Id, output.Story, asset.Id, output.Synthetic,
                     output.Provider, output.Model, output.Prompt, completedAt, publish ? "ready" : "private_history"));
                 if (publish)

@@ -5,6 +5,7 @@ using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Memory;
+using Kufr.Backend.Features.Show;
 
 namespace Kufr.Backend.Features.GptLive;
 
@@ -143,7 +144,8 @@ internal static class GptLiveEndpoints
                     await context.Response.Body.FlushAsync(writeToken);
                 }, token);
             }
-            var outcome = await new AutonomousLiveDialogue(connection, decisions, clock, memory).RunAsync(call,
+            var outcome = await new AutonomousLiveDialogue(connection, decisions, clock, memory,
+                context.RequestServices.GetService<ShowCoordinator>()).RunAsync(call,
                     async (pcm, token) =>
                     {
                         if (!conversations.IsRealtimeTurnCurrent(call)) { throw new OperationCanceledException(token); }

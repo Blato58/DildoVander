@@ -1,5 +1,12 @@
 # Implementační plán AI kufru
 
+> **Show Pack – zadání majitele 19. 10. 2026:** rozšířit současné DV01/DV02/DV10
+> o režii a procedurální finále, šest osobností, náladu, explicitní ambient,
+> identitu/proroctví, izolovanou paměť/kroniku, duely, Director iOS/web a offline
+> scény. [Kontrakty a provoz](show-pack.md), [mapa požadavků](show-pack-requirements.json)
+> a [akceptace](../../docs/project/work-items/SHOW-PACK.json) rozlišují software,
+> chybějící mluvenou banku, skutečný provider, nativní iOS a fyzické brány.
+> Nemění se vlastník pohonů, katalog, `manual_only` ani Limited/Blocked audio brána.
 > **Platná architektura od19.10.2026:** zadání GPT-OVERHAUL nahrazuje staré
 > D128/D143 větve a příslušné konfigurační návody v historických poznámkách níže.
 > Produkční enginy jsou pouze GPT Live gpt-live-1 (primární) a Realtime

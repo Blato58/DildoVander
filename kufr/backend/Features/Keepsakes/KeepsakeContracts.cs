@@ -2,7 +2,7 @@ namespace Kufr.Backend.Features.Keepsakes;
 
 internal sealed record KeepsakeIssueSnapshot(string OutcomeId, string DeviceId, int Slot, string CatalogId,
     string OfficialName, string CatalogFacts, string PhysicalEvidence, string CatalogVersion = "ollivander-private-party-v1",
-    string? EveningId = null);
+    string? EveningId = null, string? SourceConversationId = null);
 internal sealed record IssuedKeepsake(string Id);
 internal sealed record KeepsakeSession(string Token, string CsrfToken);
 internal sealed record KeepsakeLink(string Token, DateTimeOffset ExpiresAt, string KeepsakeId, string? EditionId = null);
@@ -24,7 +24,8 @@ internal sealed record KeepsakeView(string Id, KeepsakeIssueSnapshot Snapshot, s
     string State, IReadOnlyList<KeepsakeEdition> Editions, IReadOnlyList<KeepsakePortrait> Portraits,
     IReadOnlyList<KeepsakeUpload> Uploads, IReadOnlyList<KeepsakeJob> Jobs, IReadOnlyList<KeepsakeAsset> Assets,
     bool ReadOnly, string? SharedEditionId, int Revision = 0, bool PortraitConsent = false,
-    int PortraitConsentVersion = 0);
+    int PortraitConsentVersion = 0, IReadOnlyList<WizardIdentityCard>? WizardIdentities = null,
+    IReadOnlyList<ProphecyView>? Prophecies = null);
 internal sealed record KeepsakeAssetContent(KeepsakeAsset Asset, byte[] Bytes);
 internal sealed record KeepsakeDeletionReceipt(string Id, string Scope, string LocalState,
     string ProviderState, string BackupState, DateTimeOffset RequestedAt);
@@ -43,7 +44,7 @@ internal sealed record KeepsakeProviderRequest(string KeepsakeId, KeepsakeIssueS
     public Func<string, string, string, bool>? RecordStage { get; init; }
 }
 internal sealed record KeepsakeProviderOutput(KeepsakeStory? Story, byte[] ImageBytes, string MediaType,
-    string Provider, string Model, string Prompt, string ContentResponse, bool Synthetic);
+    string Provider, string Model, string Prompt, string ContentResponse, bool Synthetic, WizardIdentityContent? Identity = null);
 internal interface IKeepsakeProvider
 {
     Task<KeepsakeProviderOutput> GenerateAsync(KeepsakeProviderRequest request, CancellationToken cancellationToken);

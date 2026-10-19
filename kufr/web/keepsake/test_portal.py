@@ -38,7 +38,7 @@ class PortalSourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder)
             module.build_keepsake(REPO, output)
-            expected = {'index.html', 'app.js', 'keepsake.css', 'theme.js', 'evening/index.html', 'evening/evening.js', 'evening/evening.css'}
+            expected = {'index.html', 'app.js', 'keepsake.css', 'theme.js', 'evening/index.html', 'evening/evening.js', 'evening/evening.css', 'identity.js', 'chronicle.html', 'chronicle.js', 'chronicle.css', 'duel.html', 'duel.js', 'duel.css'}
             runtime = output / 'keepsake'
             self.assertEqual(expected, {p.relative_to(runtime).as_posix() for p in runtime.rglob('*') if p.is_file()})
             for name in expected:

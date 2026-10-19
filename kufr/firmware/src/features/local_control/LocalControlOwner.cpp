@@ -1,4 +1,5 @@
 #include "LocalControlOwner.h"
+#include "../offline_show/OfflineShow.h"
 
 #include <new>
 #include "../voice_turn/LocalVoicePort.h"
@@ -52,6 +53,7 @@ void LocalControlOwner::Poll() {
           SelectionStep step;
           if (dance_) dance_->StopDance();
           if (voice_) voice_->StopVoice();
+          if (offline_) offline_->Stop();
           runtime_.Stop(step);
           steps_.OnStep(step);
           if (gateway_) {
@@ -203,12 +205,66 @@ void LocalControlOwner::Handle(
     return;
   }
   switch (message.kind) {
+    case LocalControlMessageKind::OfflinePreflight:
+    case LocalControlMessageKind::OfflineArm:
+    case LocalControlMessageKind::OfflineStart:
+    case LocalControlMessageKind::Quiet:
+    case LocalControlMessageKind::OfflineOutbox:
+    case LocalControlMessageKind::OfflineAmbient:
+    case LocalControlMessageKind::OfflineSyncAck: {
+      bool result = offline_ != nullptr;
+      std::string error;
+      inbox_.RunIfCurrent(handle_, [&]() {
+        if (!offline_) return;
+        if (voice_) offline_->SetVoice(voice_->VoiceStatus().voice);
+        if (message.kind == LocalControlMessageKind::OfflineArm) {
+          ConversationRuntimeSnapshot before;
+          const auto voice = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};
+          const bool voiceIdle = voice.phase == "idle" || voice.phase == "unavailable" ||
+              voice.phase == "completed" || voice.phase == "failed";
+          result = !maintenance_ && !dancing &&
+              voiceIdle &&
+              session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) &&
+              runtimeState_.Read(before) && before.generation == message.generation &&
+              before.deviceRevision == message.expectedRevision &&
+              std::string(offline_->Preflight()) == "ready";
+          if (result) {
+            if (voice_) voice_->StopVoice();
+            result = session_->HandoffToOffline(bootId_, message.controlLeaseId, clock_.NowMs());
+            if (result) {
+              ConversationRuntimeSnapshot after;
+              result = runtimeState_.Read(after) && offline_->Arm(after.generation, after.deviceRevision);
+            }
+          }
+        } else if (message.kind == LocalControlMessageKind::OfflineStart) {
+          result = !maintenance_ && !dancing && offline_->Start(message.messageId,
+              message.compartment, message.shortVariant, message.generation,
+              message.expectedRevision, clock_.NowMs());
+        } else if (message.kind == LocalControlMessageKind::Quiet) {
+          result = offline_->Quiet(message.enabled);
+        } else if (message.kind == LocalControlMessageKind::OfflineAmbient) {
+          result = offline_->ConfigureAmbient(message.enabled);
+        } else if (message.kind == LocalControlMessageKind::OfflineSyncAck) {
+          result = offline_->Acknowledge(message.commandId);
+        }
+      });
+      if (!result) {
+        error = offline_ ? offline_->Preflight() : "unsupported";
+        if (error == "ready") error = "busy_or_stale";
+      }
+      accepted = output_.OfflineAck(handle_, message, result, error,
+          offline_ ? offline_->StatusJson() : "null",
+          message.kind == LocalControlMessageKind::OfflineOutbox && offline_ ? offline_->OutboxJson() : "");
+      break;
+    }
     case LocalControlMessageKind::StateGet:
       Snapshot(nowMs);
       return;
     case LocalControlMessageKind::Acquire:
       if (voice_) voice_->StopVoice();
-      accepted = session_->Acquire(bootId_, ids_.NewLeaseId(), nowMs);
+      accepted = (!offline_ || (offline_->PrepareInteraction() &&
+          (!runtime_.OfflineAuthority() || offline_->Leave()))) &&
+          session_->Acquire(bootId_, ids_.NewLeaseId(), nowMs);
       break;
     case LocalControlMessageKind::Release: {
       SelectionStep step;
@@ -225,11 +281,14 @@ void LocalControlOwner::Handle(
       }
       break;
     case LocalControlMessageKind::VoiceConfigure:
-      accepted = output_.VoiceAck(handle_, message, !dancing && voice_ && voice_->ConfigureVoice(message.voiceMode, message.voice));
+      accepted = output_.VoiceAck(handle_, message, !dancing && voice_ &&
+          (!offline_ || offline_->PrepareInteraction()) && voice_->ConfigureVoice(message.voiceMode, message.voice));
       break;
     case LocalControlMessageKind::VoiceStart: {
       ConversationRuntimeSnapshot snapshot;
-      const bool ready = voice_ && session_->LeaseId().empty() && runtimeState_.Read(snapshot) &&
+      const bool online = (!offline_ || offline_->PrepareInteraction()) &&
+          (!runtime_.OfflineAuthority() || (offline_ && offline_->Leave()));
+      const bool ready = online && voice_ && session_->LeaseId().empty() && runtimeState_.Read(snapshot) &&
                          snapshot.deviceRevision == message.expectedRevision;
       const bool started = ready && voice_->StartVoiceWithImageConsent(message.messageId, snapshot, message.imageConsent);
       accepted = output_.VoiceAck(handle_, message, started);
@@ -246,7 +305,8 @@ void LocalControlOwner::Handle(
                              voice.phase == "completed" || voice.phase == "failed";
       bool started = false;
       inbox_.RunIfCurrent(handle_, [&]() {
-        started = dance_ && danceAdmission_ && !maintenance_ && !dancing && voiceIdle &&
+        started = (!offline_ || offline_->PrepareInteraction()) &&
+            !runtime_.OfflineAuthority() && dance_ && danceAdmission_ && !maintenance_ && !dancing && voiceIdle &&
             session_->LeaseId().empty() && !conversation_.HasActiveTurn() &&
             runtimeState_.Read(snapshot) && snapshot.deviceRevision == message.expectedRevision &&
             dance_->StartDance(message.messageId);

@@ -129,7 +129,9 @@ def build_keepsake(repo, destination):
     portal = destination / 'keepsake'
     portal.mkdir()
     source = repo / 'kufr/web/keepsake'
-    for name in ('index.html', 'app.js', 'keepsake.css', 'theme.js'):
+    for name in ('index.html', 'app.js', 'keepsake.css', 'theme.js', 'identity.js',
+                 'duel.html', 'duel.js', 'duel.css',
+                 'chronicle.html', 'chronicle.js', 'chronicle.css'):
         shutil.copyfile(source / name, portal / name)
     evening = portal / 'evening'
     evening.mkdir()

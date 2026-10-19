@@ -1,5 +1,19 @@
 # Backend kufru
 
+## Show Pack
+
+[Provoz a společné kontrakty](../docs/show-pack.md) rozšiřují současné DV01/DV10,
+nikoli vlastnictví zařízení. `Features/Show` obsahuje deterministickou režii,
+immutable finále svázané s opravdovým proposal ID, duel a příjem offline výsledků.
+Paměť/kronika používají stávající evening store; identita a soukromé proroctví
+stávající DV10 dokument. [HTTP rozšíření](../contracts/show-openapi-v1.json)
+odděluje admin/device/public/duel-side scopes. Aditivní migrace probíhá při
+otevření stejných SQLite; ruční archivní retence a nejisté provider pokusy zůstávají.
+Z adresáře `kufr/` použij pinned SDK přes `global.json` a
+`dotnet run --project backend-tests/BackendTests.csproj -- --show`.
+Pro cross-origin webového operátora nastav přesný `Show:AllowedOrigins` seznam.
+`Show:DuelCommentaryEnabled` má default false; běžné testy nepoužívají poskytovatele.
+
 Produkční rozhovor má dva enginy: **GPT Live `gpt-live-1`** (výchozí) a
 **GPT Realtime 2.1 `gpt-realtime-2.1`** (výslovná alternativa). Live tvoří
 běžnou řeč sám. Sol rozhoduje jen o skutečné hůlce; samostatná vision služba

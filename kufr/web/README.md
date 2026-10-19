@@ -1,5 +1,12 @@
 # Veřejný web · Vapour Chrome
 
+[Show Pack](../docs/show-pack.md) doplňuje identitu a sběratelskou kartu do
+stávající památky, `/keepsake/chronicle.html` a `/keepsake/duel.html`.
+`build-site.py --keepsake-only` balí všechny tři návštěvnické cesty bez CAD.
+Kronika a výsledek duelu používají allowlist `/guest/v1`; soukromé proroctví,
+portrét, operátor a tahy duelu mají nadále oddělená oprávnění. Proxy příklady
+generuj z `deploy/keepsake_proxy.py`, neupravuj je ručně ani nepovoluj catch-all.
+
 Kořen HTTPS webu vede návštěvníka nejprve k památce z večera; dílna a její
 nástroje tvoří samostatný přehled níže. `/workshop/` obsahuje aktuální generovaný
 CAD viewer a úplný výrobní ZIP; `/ios/` zachovává podepsanou Safari instalaci.

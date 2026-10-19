@@ -403,7 +403,10 @@ internal sealed partial class EveningMemoryStore
                 using var tombstone = Command(c, tx, "INSERT OR IGNORE INTO memory_deleted_evenings VALUES($n,$d,$subject)",
                     ("$d", device), ("$subject", subject), ("$n", memoryOptions.Namespace));
                 tombstone.ExecuteNonQuery();
-                using var sessions = Command(c, tx, "SELECT conversation_id FROM live_transcripts WHERE device_id=$d AND evening_id=$subject UNION SELECT conversation_id FROM exchanges WHERE device_id=$d AND evening_id=$subject",
+                using var sessions = Command(c, tx, "SELECT conversation_id FROM live_transcripts WHERE device_id=$d AND evening_id=$subject "
+                    + "UNION SELECT conversation_id FROM exchanges WHERE device_id=$d AND evening_id=$subject "
+                    + "UNION SELECT conversation_id FROM show_visits WHERE device_id=$d AND evening_id=$subject "
+                    + "UNION SELECT conversation_id FROM show_memory_events WHERE device_id=$d AND evening_id=$subject AND conversation_id IS NOT NULL",
                     ("$d", device), ("$subject", subject));
                 using var reader = sessions.ExecuteReader();
                 while (reader.Read()) { conversations.Add(reader.GetString(0)); }
@@ -426,6 +429,17 @@ internal sealed partial class EveningMemoryStore
                 remove.ExecuteNonQuery();
                 AdvanceConversationEpoch(c, tx, device, conversation, deletion: true);
             }
+            var showSources = new HashSet<string>(conversations, StringComparer.Ordinal);
+            if (scope == "evening")
+            {
+                showSources.Add(subject);
+                using var showEvents = Command(c, tx,
+                    "SELECT DISTINCT source_id FROM show_memory_events WHERE device_id=$d AND evening_id=$subject",
+                    ("$d", device), ("$subject", subject));
+                using var reader = showEvents.ExecuteReader();
+                while (reader.Read()) { showSources.Add(reader.GetString(0)); }
+            }
+            RevokeShowSources(c, tx, device, showSources);
             foreach (var id in ids) { Invalidate(c, tx, id); }
             using var fence = Command(c, tx, "UPDATE memory_meta SET epoch=epoch+1,deletion_epoch=deletion_epoch+1 WHERE id=1");
             fence.ExecuteNonQuery();
@@ -484,6 +498,7 @@ internal sealed partial class EveningMemoryStore
     }
     private void InvalidateEveningMemory(SqliteConnection c, SqliteTransaction tx, string device, string evening)
     {
+        RevokeDeletedShowEvening(c, tx, device, evening);
         using var cmd = Command(c, tx, "SELECT DISTINCT memory_id FROM memory_records WHERE device_id=$d AND evening_id=$e",
             ("$d", device), ("$e", evening));
         var ids = new List<string>(); using (var r = cmd.ExecuteReader()) while (r.Read()) ids.Add(r.GetString(0));

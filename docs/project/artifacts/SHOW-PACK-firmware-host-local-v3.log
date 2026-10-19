@@ -1,0 +1,170 @@
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+DeviceControlRuntime.cpp
+ConversationRuntimeState.cpp
+PendingProposal.cpp
+WandPresentation.cpp
+PhysicalEffects.cpp
+PhysicalPresentation.cpp
+PresentationDiagnostics.cpp
+SceneIntentBridge.cpp
+OfflineShow.cpp
+ImaAdpcm.cpp
+physical_effects_test.cpp
+Generování kódu...
+Physical limits, calibrated commanded travel, journal, autonomous/manual return and Stop passed
+PASS physical_effects_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+DeviceControlRuntime.cpp
+ConversationRuntimeState.cpp
+PendingProposal.cpp
+WandPresentation.cpp
+PhysicalEffects.cpp
+PhysicalPresentation.cpp
+PresentationDiagnostics.cpp
+SceneIntentBridge.cpp
+OfflineShow.cpp
+ImaAdpcm.cpp
+PersistentCommandJournal.cpp
+show_runtime_test.cpp
+Generování kódu...
+PASS show_runtime_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+DeviceControlRuntime.cpp
+ConversationRuntimeState.cpp
+PendingProposal.cpp
+WandPresentation.cpp
+PhysicalEffects.cpp
+PhysicalPresentation.cpp
+PresentationDiagnostics.cpp
+SceneIntentBridge.cpp
+OfflineShow.cpp
+ImaAdpcm.cpp
+offline_show_test.cpp
+Generování kódu...
+offline core: six slots, variants, epoch, Stop, outbox, 30-minute ambient passed
+PASS offline_show_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+DeviceControlRuntime.cpp
+ConversationRuntimeState.cpp
+PendingProposal.cpp
+WandPresentation.cpp
+PhysicalEffects.cpp
+PhysicalPresentation.cpp
+PresentationDiagnostics.cpp
+SceneIntentBridge.cpp
+OfflineShow.cpp
+ImaAdpcm.cpp
+DeviceShowCue.cpp
+DeviceShowAudio.cpp
+DeviceShowRuntime.cpp
+ConversationSession.cpp
+ConversationStartCodec.cpp
+device_show_cues_test.cpp
+Generování kódu...
+Device cue codec, typed adapters, duel playback drain, cancellation, settings and bounds passed
+PASS device_show_cues_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+DeviceControlRuntime.cpp
+ConversationRuntimeState.cpp
+PendingProposal.cpp
+WandPresentation.cpp
+PhysicalEffects.cpp
+PhysicalPresentation.cpp
+PresentationDiagnostics.cpp
+SceneIntentBridge.cpp
+OfflineShow.cpp
+ImaAdpcm.cpp
+autonomous_presentation_lifecycle_test.cpp
+Generování kódu...
+PASS autonomous_presentation_lifecycle_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+DeviceControlRuntime.cpp
+ConversationRuntimeState.cpp
+PendingProposal.cpp
+WandPresentation.cpp
+PhysicalEffects.cpp
+PhysicalPresentation.cpp
+PresentationDiagnostics.cpp
+SceneIntentBridge.cpp
+OfflineShow.cpp
+ImaAdpcm.cpp
+device_control_runtime_test.cpp
+Generování kódu...
+PASS device_control_runtime_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+PersistentCommandJournal.cpp
+persistent_command_journal_test.cpp
+Generování kódu...
+PASS persistent_command_journal_test
+RealtimeSessionEngine.cpp
+TurnPollGuard.cpp
+realtime_session_engine_test.cpp
+Generování kódu...
+Shared input epoch, wall-clock, cancellation and decoder bounds passed
+PASS realtime_session_engine_test
+EspIdfRealtimeTransport.cpp
+RealtimeSessionEngine.cpp
+RealtimeEventCodec.cpp
+TurnOperationCodec.cpp
+TurnPollGuard.cpp
+ConversationStartCodec.cpp
+ConversationSession.cpp
+NetworkSettings.cpp
+espidf_realtime_transport_test.cpp
+Generování kódu...
+ESP realtime stream, two microphone replies, ordered upload, stale input discard, drain/ACK, Stop and failures passed
+PASS espidf_realtime_transport_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+DeviceControlRuntime.cpp
+ConversationRuntimeState.cpp
+PendingProposal.cpp
+WandPresentation.cpp
+PhysicalEffects.cpp
+PhysicalPresentation.cpp
+PresentationDiagnostics.cpp
+SceneIntentBridge.cpp
+OfflineShow.cpp
+ImaAdpcm.cpp
+ConversationSession.cpp
+ConversationStartCodec.cpp
+LocalControlSession.cpp
+LocalConversationGateway.cpp
+LocalControlInbox.cpp
+LocalControlOwner.cpp
+local_control_owner_test.cpp
+Generování kódu...
+PASS local_control_owner_test
+ConversationSession.cpp
+ConversationStartCodec.cpp
+LocalControlCodec.cpp
+local_control_codec_test.cpp
+Generování kódu...
+PASS local_control_codec_test
+SafetyController.cpp
+SelectionSequence.cpp
+DeviceControl.cpp
+PersistentCommandJournal.cpp
+ConversationSession.cpp
+ConversationStartCodec.cpp
+LocalControlOutput.cpp
+local_control_output_test.cpp
+Generování kódu...
+Validated 55 actual firmware messages against shared v1 schema
+PASS local_control_output_test
+PASS 12 offline DV02 host checks

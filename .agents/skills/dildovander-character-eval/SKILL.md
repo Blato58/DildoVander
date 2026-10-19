@@ -5,6 +5,13 @@ description: Reproduce and evaluate DildoVander DV01 Live/adult/chaos regression
 
 # DildoVander character evaluation
 
+For Show Pack add [the integrated acceptance](../../../kufr/docs/show-pack.md)
+and backend `--show`. Exercise actual Live scene hooks, correlated player drain,
+finite pause, operator queue saturation, stale override and anonymous lore.
+Verify common conversation/outcome producers; direct library tests alone do not
+prove runtime use. Local ambient is opt-in and speech needs an approved bank;
+missing_assets is a limitation. Preserve the A/B/C/D evidence separation.
+
 Read [runtime limits and operations](../../../kufr/docs/dv01.md), then the affected
 [R/T scenarios](../../../kufr/ai-eval/dv01-scenarios.json) and
 [actual test map](../../../kufr/ai-eval/dv01-coverage.json). Choose the layer:

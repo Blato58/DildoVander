@@ -96,3 +96,12 @@ main { scroll-margin-top: 24px; }
 .portrait-management { padding-top: 16px; border-top: 1px solid var(--aw-border-subtle); }
 #wand-name, #public-name { overflow-wrap: anywhere; }
 @media (max-width: 680px) { .consent-panel { padding: 12px; } }
+
+.wizard-identity, .wizard-prophecy { padding: clamp(1rem, 3vw, 2rem); margin-block: 1rem 2rem; border: 1px solid var(--aw-border); border-radius: var(--aw-radius-card); background: var(--aw-surface); overflow-wrap: anywhere; }
+.wizard-identity h2 { margin-block: 0 .6rem; font-size: clamp(1.5rem, 5vw, 2.6rem); line-height: 1.16; }
+.wizard-traits { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr); gap: .7rem 1.2rem; }
+.wizard-traits dt { color: var(--aw-muted); }
+.wizard-traits dd { margin: 0; }
+.wizard-identity blockquote { margin-inline: 0; padding-inline-start: 1rem; border-inline-start: 3px solid var(--aw-accent); }
+.wizard-omen { font-style: italic; }
+@media (max-width: 430px) { .wizard-traits { grid-template-columns: 1fr; gap: .3rem; } .wizard-traits dd { margin-block-end: .7rem; } }

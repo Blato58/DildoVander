@@ -1,3 +1,4 @@
+using Kufr.Backend.Features.Show;
 using System.Security.Cryptography;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
@@ -39,11 +40,26 @@ internal static partial class KeepsakeOutcomeEndpoints
             var bodyHash = Convert.ToHexString(SHA256.HashData(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(request)));
             var outcome = journal.ConfirmKeepsakeOutcome(device, operationId, request.OutcomeId,
                 request.PresentationEvidence, bodyHash);
+            store.RequireOutcomeNotDeleted(device, outcome);
+            var originalCapture = memoryStore.ReadCapturedShowEvening(device, proposal.ConversationId);
+            var journalEvening = journal.ReadKeepsakeEvening(device, operationId);
+            var capturedEvening = originalCapture ?? journalEvening;
+            var recorded = originalCapture is not null
+                ? memoryStore.RecordConfirmedShowOutcome(device, proposal.ConversationId, originalCapture,
+                    outcome, proposal.Compartment, request.PresentationEvidence)
+                : journalEvening is null || memoryStore.RecordJournalConfirmedShowOutcome(journal, device,
+                    operationId, outcome, request.PresentationEvidence);
+            if (!recorded)
+            {
+                return Results.Json(new { errorCode = "outcome_not_eligible" }, statusCode: 409);
+            }
+            c.RequestServices.GetService<ShowCoordinator>()?.ObserveFinaleOutcome(device, operationId,
+                proposal.ProposalId, outcome, request.PresentationEvidence);
             var wand = PartyWandCatalog.Available(63).Single(w => w.Compartment == proposal.Compartment);
             var result = store.Issue(new KeepsakeIssueSnapshot(outcome, device, proposal.Compartment,
                 wand.StableId, wand.DisplayName, wand.Description, request.PresentationEvidence,
-                proposal.CatalogVersion, journal.ReadKeepsakeEvening(device, operationId)));
-            if (journal.ReadKeepsakeEvening(device, operationId) is { } evening
+                proposal.CatalogVersion, capturedEvening, proposal.ConversationId));
+            if (capturedEvening is { } evening
                 && journal.ReadSelectionMemoryEpoch(device, operationId) is { } deletionEpoch)
             {
                 var permission = memoryStore.GuestPermission(device, proposal.ConversationId);

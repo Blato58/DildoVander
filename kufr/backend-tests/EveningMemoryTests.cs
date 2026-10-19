@@ -68,9 +68,11 @@ internal static class EveningMemoryTests
                         new string('x', 900), new string('y', 450));
                 }
 
+                Check(memory.ReadContext("device-a", "return", "Petr je zpatky.").Transcript == "",
+                    "same stated name never grants another conversation's personal context");
                 var recalled = memory.ReadContext("device-a", "petr-first", "Petr je zpatky.");
                 Check(recalled.Transcript.Contains("taxik", StringComparison.Ordinal),
-                    "same conversation retains its older statement beyond recent context window");
+                    "own conversation remains available beyond other visitors' recent context window");
                 Check(recalled.Transcript.Length <= EveningMemoryStore.MaxContextCharacters,
                     "context is bounded");
                 using var parsed = JsonDocument.Parse(recalled.Transcript);
@@ -420,7 +422,7 @@ internal static class EveningMemoryTests
         var returning = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "returning"u8,
             Turn("Petr, uz jsem tu byl."));
         await CompletedAsync(store, runner, returning.OperationId!);
-        Check(!calls[^1].Context.Contains("sousedum"), "a claimed name does not expose another visitor session");
+        Check(!calls[^1].Context.Contains("sousedum"), "new visitor session cannot recall an earlier guest through a stated name");
         var oldEvening = memory.GetStatus("device-a").EveningId;
         delayed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = store.SubmitTurn("device-a", conversation, Guid.NewGuid(), "pending"u8, Turn("late secret"));

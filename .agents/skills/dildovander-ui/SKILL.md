@@ -5,6 +5,15 @@ description: Implement or improve DildoVander UI using the shared Vapour Chrome 
 
 # DildoVander UI
 
+For Show Pack's existing Capacitor/web Director use
+[the operational contract](../../../kufr/docs/show-pack.md). Distinguish backend
+direction, physical state and unknown/cached results. Operator unlock does not
+return another guest's revelation. Verify real API flows, two-operator conflicts,
+local short/quiet/ambient and delayed socket close. The mobile
+`scripts/check-director-browser.mjs` uses an isolated fake backend; verify the
+served checkout/port before accepting screenshots. Package identity, duel and
+chronicle assets through the existing `kufr/web/build-site.py`.
+
 Read the current `AGENTS.md`, applicable nested instructions and component
 README first. Then read `kufr/design-system/README.md` and the relevant
 `style-guide.md`, `components.md`, `accessibility.md`, `screens.md`. Paths are

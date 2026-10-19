@@ -1,0 +1,165 @@
+{
+  "baselineCommit": "74f215fc371e19780a3521adf0f7b79dcdb068a5",
+  "baselineSourceDigest": "9a29ff13f756027ac3e9e4bb81fe05286a761d8d14c8648b36a74b1f520cbb7d",
+  "candidateSourceDigest": "6584f6110bb5e2eb9c14f495c5db9bc7a896bf9466877cafacde171bc977bcc7",
+  "evidence": "host fake-port commands; no physical or acoustic measurement",
+  "calibratedTravelMs": 500,
+  "tickPeriodMs": 10,
+  "deadlineMs": 15000,
+  "timingParity": true,
+  "requirements": [
+    "DV02-R03"
+  ],
+  "testFamilies": [
+    "DV02-T01",
+    "DV02-T02"
+  ],
+  "cases": [
+    {
+      "slot": 1,
+      "variant": "main",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 9790,
+      "candidateDurationMs": 9790,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 49,
+      "candidateEventCount": 49
+    },
+    {
+      "slot": 1,
+      "variant": "short",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 6970,
+      "candidateDurationMs": 6970,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 19,
+      "candidateEventCount": 19
+    },
+    {
+      "slot": 2,
+      "variant": "main",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 9790,
+      "candidateDurationMs": 9790,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 49,
+      "candidateEventCount": 49
+    },
+    {
+      "slot": 2,
+      "variant": "short",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 6970,
+      "candidateDurationMs": 6970,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 19,
+      "candidateEventCount": 19
+    },
+    {
+      "slot": 3,
+      "variant": "main",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 9790,
+      "candidateDurationMs": 9790,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 49,
+      "candidateEventCount": 49
+    },
+    {
+      "slot": 3,
+      "variant": "short",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 6970,
+      "candidateDurationMs": 6970,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 19,
+      "candidateEventCount": 19
+    },
+    {
+      "slot": 4,
+      "variant": "main",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 9790,
+      "candidateDurationMs": 9790,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 49,
+      "candidateEventCount": 49
+    },
+    {
+      "slot": 4,
+      "variant": "short",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 6970,
+      "candidateDurationMs": 6970,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 19,
+      "candidateEventCount": 19
+    },
+    {
+      "slot": 5,
+      "variant": "main",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 9790,
+      "candidateDurationMs": 9790,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 49,
+      "candidateEventCount": 49
+    },
+    {
+      "slot": 5,
+      "variant": "short",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 6970,
+      "candidateDurationMs": 6970,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 19,
+      "candidateEventCount": 19
+    },
+    {
+      "slot": 6,
+      "variant": "main",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 9790,
+      "candidateDurationMs": 9790,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 49,
+      "candidateEventCount": 49
+    },
+    {
+      "slot": 6,
+      "variant": "short",
+      "commandSequenceEqual": true,
+      "baselineDurationMs": 6970,
+      "candidateDurationMs": 6970,
+      "durationDeltaMs": 0,
+      "unexpectedDifferences": [],
+      "timingDifferences": [],
+      "baselineEventCount": 19,
+      "candidateEventCount": 19
+    }
+  ],
+  "fullReportSha256": "0633d9d0d4a7bda1bd75cc70efc0ede5d8c111fa08238d38303dee732a0b0b87",
+  "reportScope": "Compact summary of actual comparator output; full local trace retained in OS-temp/dildovander-show-legacy-parity-v4.json. Exact reproduction command is in SHOW-PACK-validation-v4.json."
+}

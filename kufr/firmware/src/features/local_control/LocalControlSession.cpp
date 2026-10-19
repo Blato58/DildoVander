@@ -79,6 +79,13 @@ bool LocalControlSession::Release(
   return released;
 }
 
+bool LocalControlSession::HandoffToOffline(const std::string& bootId,
+    const std::string& leaseId, uint64_t nowMs) {
+  if (!MatchesOwnedLease(bootId, leaseId) || !runtime_.HandoffToOffline(leaseId, nowMs)) return false;
+  leaseId_.clear();
+  return true;
+}
+
 void LocalControlSession::Disconnect(SelectionStep& step) {
   if (disconnected_) {
     return;

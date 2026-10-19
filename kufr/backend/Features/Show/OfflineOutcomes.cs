@@ -1,0 +1,176 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Keepsakes;
+using Microsoft.Data.Sqlite;
+
+namespace Kufr.Backend.Features.Show;
+
+internal sealed record OfflineOutcome(string OperationId, string DeviceId, string BootId,
+    int Generation, string LocalEveningId, string? EveningId, string SourceMode, int Compartment,
+    string CatalogVersion, long StartedAtDeviceMs, long CompletedAtDeviceMs,
+    string TimeConfidence, string Outcome);
+internal sealed record OfflineOutcomeRequest(int SchemaVersion, OfflineOutcome Outcome);
+internal sealed record ImportedOfflineOutcome(int SchemaVersion, string OperationId,
+    string EveningId, string Locator, bool Duplicate);
+
+// Import records only. No path from this service to the device command transport.
+internal sealed class OfflineOutcomeStore
+{
+    private readonly object gate = new();
+    private readonly string connectionString;
+    private readonly KeepsakeStore keepsakes;
+    private readonly EveningMemoryStore evenings;
+
+    public OfflineOutcomeStore(IConfiguration config, OperationJournal journal,
+        KeepsakeStore keepsakes, EveningMemoryStore evenings)
+    {
+        _ = journal; // The existing journal owns process locking and startup recovery.
+        this.keepsakes = keepsakes;
+        this.evenings = evenings;
+        connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = Path.GetFullPath(config["Backend:DatabasePath"]!), DefaultTimeout = 5
+        }.ToString();
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS show_offline_outcomes (
+                device_id TEXT NOT NULL, operation_id TEXT NOT NULL,
+                local_evening_id TEXT NOT NULL, evening_id TEXT NOT NULL,
+                payload_hash TEXT NOT NULL, locator TEXT,
+                provenance TEXT NOT NULL, retention TEXT NOT NULL DEFAULT 'manual_only',
+                PRIMARY KEY(device_id, operation_id));
+            """;
+        command.ExecuteNonQuery();
+    }
+
+    internal ImportedOfflineOutcome Import(string authenticatedDevice, OfflineOutcome record, string provenance)
+    {
+        Validate(authenticatedDevice, record);
+        var hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(record)));
+        var eveningId = MapEvening(record.DeviceId, record.LocalEveningId);
+        lock (gate)
+        {
+            using var connection = Open();
+            using var read = connection.CreateCommand();
+            read.CommandText = "SELECT payload_hash,locator,provenance FROM show_offline_outcomes WHERE device_id=$device AND operation_id=$operation";
+            read.Parameters.AddWithValue("$device", record.DeviceId);
+            read.Parameters.AddWithValue("$operation", record.OperationId);
+            bool duplicate;
+            string? existingLocator = null;
+            using (var reader = read.ExecuteReader())
+            {
+                duplicate = reader.Read();
+                if (duplicate && reader.GetString(0) != hash)
+                {
+                    throw new KeepsakeException("offline_outcome_conflict", 409);
+                }
+                if (duplicate)
+                {
+                    existingLocator = reader.IsDBNull(1) ? null : reader.GetString(1);
+                    provenance = reader.GetString(2);
+                }
+            }
+
+            // Commit the immutable import before deriving archive content. A crash
+            // between these stages resumes the same outcome; Issue is idempotent.
+            using var insert = connection.CreateCommand();
+            insert.CommandText = """
+                INSERT OR IGNORE INTO show_offline_outcomes
+                (device_id,operation_id,local_evening_id,evening_id,payload_hash,provenance)
+                VALUES($device,$operation,$local,$evening,$hash,$provenance)
+                """;
+            insert.Parameters.AddWithValue("$device", record.DeviceId);
+            insert.Parameters.AddWithValue("$operation", record.OperationId);
+            insert.Parameters.AddWithValue("$local", record.LocalEveningId);
+            insert.Parameters.AddWithValue("$evening", eveningId);
+            insert.Parameters.AddWithValue("$hash", hash);
+            insert.Parameters.AddWithValue("$provenance", provenance);
+            insert.ExecuteNonQuery();
+            evenings.EnsureImportedShowEvening(record.DeviceId, eveningId, "Offline představení");
+            if (!evenings.RecordImportedOfflineOutcome(record.DeviceId, eveningId, record.OperationId,
+                record.Compartment, provenance))
+            { throw new KeepsakeException("offline_memory_not_eligible", 409); }
+            if (existingLocator is not null) { return new(1, record.OperationId, eveningId, existingLocator, true); }
+            var wand = PartyWandCatalog.Available(63).Single(w => w.Compartment == record.Compartment);
+            var issued = keepsakes.Issue(new KeepsakeIssueSnapshot(record.OperationId, record.DeviceId,
+                record.Compartment, wand.StableId, wand.DisplayName, wand.Description,
+                "completed_by_timing", record.CatalogVersion, eveningId));
+            using var update = connection.CreateCommand();
+            update.CommandText = "UPDATE show_offline_outcomes SET locator=$locator WHERE device_id=$device AND operation_id=$operation";
+            update.Parameters.AddWithValue("$locator", issued.Id);
+            update.Parameters.AddWithValue("$device", record.DeviceId);
+            update.Parameters.AddWithValue("$operation", record.OperationId);
+            update.ExecuteNonQuery();
+            return new(1, record.OperationId, eveningId, issued.Id, duplicate);
+        }
+    }
+
+    internal static string MapEvening(string device, string localEvening)
+    {
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes("show-offline-evening-v1\n" + device + "\n" + localEvening));
+        return new Guid(digest.AsSpan(0, 16)).ToString("D");
+    }
+
+    private static void Validate(string device, OfflineOutcome record)
+    {
+        if (record.DeviceId != device || string.IsNullOrWhiteSpace(device) || device.Length > 128
+            || !Guid.TryParseExact(record.OperationId, "D", out _)
+            || !Guid.TryParseExact(record.BootId, "D", out _)
+            || !Guid.TryParseExact(record.LocalEveningId, "D", out _)
+            || record.Generation < 1 || record.EveningId is not null
+            || record.SourceMode is not ("offline_scripted" or "operator")
+            || record.Compartment is < 1 or > 6 || record.CatalogVersion != PartyWandCatalog.Version
+            || record.TimeConfidence != "boot_monotonic" || record.Outcome != "completed_by_timing"
+            || record.StartedAtDeviceMs < 0 || record.CompletedAtDeviceMs <= record.StartedAtDeviceMs
+            || record.CompletedAtDeviceMs - record.StartedAtDeviceMs > 600_000)
+        {
+            throw new KeepsakeException("offline_outcome_not_eligible", 409);
+        }
+    }
+
+    private SqliteConnection Open()
+    {
+        var connection = new SqliteConnection(connectionString);
+        connection.Open();
+        return connection;
+    }
+}
+
+internal static class OfflineOutcomeEndpoints
+{
+    internal static void MapOfflineOutcomeEndpoints(this WebApplication app)
+    {
+        app.MapPost("/v1/show/offline-outcomes", (HttpContext context, DeviceAccessStore access,
+            ServerAdminAccess admin, IConfiguration config, OfflineOutcomeStore store) =>
+            ImportAsync(context, null, access, admin, config, store)).RequireRateLimiting("keepsake");
+        app.MapPost("/v1/show/devices/{deviceId}/offline-outcomes", (string deviceId, HttpContext context,
+            DeviceAccessStore access, ServerAdminAccess admin, IConfiguration config, OfflineOutcomeStore store) =>
+            ImportAsync(context, deviceId, access, admin, config, store)).RequireRateLimiting("keepsake");
+    }
+
+    private static async Task<IResult> ImportAsync(HttpContext context, string? routeDevice,
+        DeviceAccessStore access, ServerAdminAccess admin, IConfiguration config, OfflineOutcomeStore store)
+    {
+            if (!config.GetValue<bool>("Keepsake:Enabled")) { return Results.NotFound(); }
+            var device = DeviceAccessEndpoints.Authenticate(context, access);
+            var isAdmin = admin.Authenticate(context);
+            if (device is null && !isAdmin) { return Results.Unauthorized(); }
+            try
+            {
+                var request = await context.Request.ReadFromJsonAsync<OfflineOutcomeRequest>(context.RequestAborted);
+                if (request is null || request.SchemaVersion != 1 || request.Outcome is null) { return Results.BadRequest(); }
+                var target = request.Outcome.DeviceId;
+                if (routeDevice is not null && routeDevice != target) { return Results.BadRequest(); }
+                if (isAdmin && !config.GetSection("Devices").GetChildren().Any(d => d["DeviceId"] == target))
+                { return Results.NotFound(); }
+                if (!isAdmin && device != target) { return Results.Unauthorized(); }
+                return Results.Json(store.Import(target, request.Outcome, isAdmin ? "operator_relay" : "device_report"));
+            }
+            catch (JsonException) { return Results.BadRequest(); }
+            catch (KeepsakeException error) { return Results.Json(new { errorCode = error.Code }, statusCode: error.Status); }
+    }
+}

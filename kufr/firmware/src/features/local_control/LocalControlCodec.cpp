@@ -31,6 +31,9 @@ enum Field : uint32_t {
   VoiceMode = 1U << 17,
   Voice = 1U << 18,
   ImageConsent = 1U << 19,
+  Slot = 1U << 20,
+  ShortVariant = 1U << 21,
+  Enabled = 1U << 22,
 };
 
 bool ReadSafeInteger(JsonCursor& cursor, uint64_t& value) {
@@ -62,7 +65,21 @@ bool ReadKind(JsonCursor& cursor, LocalControlMessageKind& kind) {
   if (!cursor.ReadString(type, 32)) {
     return false;
   }
-  if (type == "hello") {
+  if (type == "offline_ambient") {
+    kind = LocalControlMessageKind::OfflineAmbient;
+  } else if (type == "offline_preflight") {
+    kind = LocalControlMessageKind::OfflinePreflight;
+  } else if (type == "offline_arm") {
+    kind = LocalControlMessageKind::OfflineArm;
+  } else if (type == "offline_start") {
+    kind = LocalControlMessageKind::OfflineStart;
+  } else if (type == "quiet") {
+    kind = LocalControlMessageKind::Quiet;
+  } else if (type == "offline_outbox") {
+    kind = LocalControlMessageKind::OfflineOutbox;
+  } else if (type == "offline_sync_ack") {
+    kind = LocalControlMessageKind::OfflineSyncAck;
+  } else if (type == "hello") {
     kind = LocalControlMessageKind::Hello;
   } else if (type == "state.get") {
     kind = LocalControlMessageKind::StateGet;
@@ -167,6 +184,18 @@ uint32_t ExpectedFields(LocalControlMessageKind kind) {
                                 CommandId | Sequence | Revision | IssuedAt |
                                 MaxAge | Payload;
   switch (kind) {
+    case LocalControlMessageKind::OfflinePreflight:
+    case LocalControlMessageKind::OfflineOutbox:
+      return Common;
+    case LocalControlMessageKind::Quiet:
+    case LocalControlMessageKind::OfflineAmbient:
+      return Common | Enabled;
+    case LocalControlMessageKind::OfflineArm:
+      return Manual | Generation | Revision;
+    case LocalControlMessageKind::OfflineStart:
+      return Common | Generation | Revision | Slot | ShortVariant;
+    case LocalControlMessageKind::OfflineSyncAck:
+      return Common | CommandId;
     case LocalControlMessageKind::Hello:
       return HelloFields;
     case LocalControlMessageKind::StateGet:
@@ -270,6 +299,17 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
     } else if (key == "inspectionConfirmed") {
       field = Inspection;
       valid = cursor.ReadTrue();
+    } else if (key == "compartment") {
+      field = Slot;
+      uint64_t slot = 0;
+      valid = cursor.ReadUnsigned(slot) && slot >= 1 && slot <= 6;
+      message.compartment = static_cast<uint8_t>(slot);
+    } else if (key == "enabled") {
+      field = Enabled;
+      valid = cursor.ReadBoolean(message.enabled);
+    } else if (key == "shortVariant") {
+      field = ShortVariant;
+      valid = cursor.ReadBoolean(message.shortVariant);
     } else if (key == "imageConsent") {
       field = ImageConsent;
       valid = cursor.ReadBoolean(message.imageConsent);

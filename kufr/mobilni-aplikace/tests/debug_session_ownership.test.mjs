@@ -10,7 +10,7 @@ async function moduleUrl(name) {
 const source = await readFile(new URL('../src/features/debug/DebugPanel.ts', import.meta.url), 'utf8');
 const code = stripTypeScriptTypes(source, { mode: 'transform' })
   .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/design-system\/ui\.js'/, JSON.stringify(new URL('../../design-system/ui.js', import.meta.url).href))
-  .replace(/import \{ registerPlugin \} from '@capacitor\/core';/, 'const registerPlugin = () => ({});')
+  .replace(/import \{ nativeDebugBridge \} from '\.\/NativeDebugBridge';/, 'const nativeDebugBridge = () => ({});')
   .replace(/'\.\/DebugJournal'/, JSON.stringify(await moduleUrl('DebugJournal')))
   .replace(/'\.\/ServerLogs'/, JSON.stringify(await moduleUrl('ServerLogs')));
 const { DebugPanel, bridge, migrateConversationEngine, validGuestMemoryId } = await import(`data:text/javascript;base64,${Buffer.from(code + '\nexport { bridge };').toString('base64')}`);
