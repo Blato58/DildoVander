@@ -19,7 +19,14 @@ class PublicWorkflowTests(unittest.TestCase):
                 self.assertNotIn('self-hosted', source)
                 self.assertNotIn('backend-production', source)
                 self.assertNotIn('/var/www/', source)
-                self.assertNotIn('workflow_run:', source)
+                if path.name == 'dependabot-publish.yml':
+                    # This audited API-only controller cannot execute PR artifacts.
+                    self.assertIn('workflows: [Generate Dependabot dependency artifacts]', source)
+                    self.assertIn("github.event.workflow_run.event == 'pull_request'", source)
+                    self.assertIn('ref: ${{ github.event.repository.default_branch }}', source)
+                    self.assertNotRegex(source, r'(?m)^\s+run:')
+                else:
+                    self.assertNotIn('workflow_run:', source)
                 secrets = set(re.findall(r'secrets\.([A-Z0-9_]+)', source))
                 self.assertTrue(secrets <= (allowed if path.name == 'kufr-ios-sign.yml' else set()))
 

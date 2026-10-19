@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-identity-v8",
+  "observedAtUtc": "2026-10-19T06:17:16.976009+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 4,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "1b30288f08dde76640a699f75ee1908dfd46e16043dbaf29bf797888dbb9b6c8",
+    "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea"
+  },
+  "method": "Accepted main706c3dd dependency automation integration: fresh122Node+193Vue tests/build,20dependency-controller Node tests,10generator/workflow Python tests and9site-workflow tests; all56 rebuilt dist files byte-identical to runtime-v6 and backend source component exactly unchanged. Original Fresh backend build, full default, --identity, --show, --show-live-boundary, --twin and --twin-media; final real HTTPS account browser fixture and exact account/guest/native transport regression tests.",
+  "environment": "Windows11; Node24.21.0, Chrome Playwright, .NET10, MSVC portable C++ host; isolated loopback and temporary stores.",
+  "limitations": [
+    "No production deployment, paid provider call, credential rotation, signing, firmware flashing or physical actuator execution.",
+    "Chrome virtual WebAuthn and native bridges are synthetic. Genuine portable C++ software checks do not prove signed iPhone, BLE possession, acoustic output or physical assembly.",
+    "Source-v8 normalizes UTF-8 text to LF, preserves binary bytes and Git modes; compiled artifacts have separate runtime inventory.",
+    "Fresh macOS Swift harnesses and unsigned Simulator build remain required for the Show native changes; previous native-v2 is historical."
+  ],
+  "observation": "PASS fresh315app tests and build plus listed dependency checks. Source-v8→v9 delta contains only dependency workflow/controller/test files and one native pin test; no application/backend runtime changes. Runtime byte comparison establishes the explicit transfer of original browser/backend checks; those were not rerun after this metadata/test integration. PASS build0 warnings/errors and all listed commands. Identity adds24 actual HTTP Show assertions: exact device grants, case/trailing-slash sensitive aliases, CSRF/recent-auth/confirmation, routine operations and urgent Stop. Firmware-only cue/audio/ack and physical reports reject accounts; operator relay provenance remains distinct. Linked accounts receive public wizard identities only. Native allowlists and task capacity have source/portable tests; actual Swift requires macOS CI.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v9.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v7.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v8.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v6.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-identity-v7"
+  ],
+  "supersedesReason": "Accepted dependency synchronization main706c3dd required integration. New source-v9/revision4 binds exact unchanged runtime bytes and backend source, with fresh new dependency checks. Earlier receipts remain immutable."
+}

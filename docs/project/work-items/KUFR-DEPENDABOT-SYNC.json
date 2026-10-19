@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-DEPENDABOT-SYNC",
+  "initiative": "KUFR",
+  "title": "Automatically synchronize Dependabot generated dependency artifacts",
+  "state": "active",
+  "priority": "P1",
+  "sequence": 37,
+  "scope": [
+    ".github/dependabot.yml",
+    ".github/workflows/dependabot-generate.yml",
+    ".github/workflows/dependabot-publish.yml",
+    "scripts/ci/dependabot-sync.cjs",
+    "scripts/ci/dependabot-sync.test.cjs",
+    "scripts/ci/dependabot_generate.py",
+    "scripts/ci/test_dependabot_generate.py",
+    "scripts/ci/test_dependabot_workflow.py",
+    "scripts/ci/test_site_workflow.py",
+    "kufr/mobilni-aplikace/tests/native-dependency-pins.test.mjs",
+    "docs/ci-cd.md",
+    "kufr/backend/README.md",
+    "kufr/mobilni-aplikace/README.md"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "POLICY",
+      "revision": 1,
+      "expected": "Trusted publisher accepts only same-repo bot dependency changes and bounded matching generator outputs; concurrency, replay and dispatch recovery are covered.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+      },
+      "evidenceRefs": [
+        "KUFR-DEPENDABOT-SYNC-local-unit",
+        "KUFR-DEPENDABOT-SYNC-local-review"
+      ]
+    },
+    {
+      "id": "BACKEND",
+      "revision": 1,
+      "expected": "Real NuGet regeneration repairs original stale backend test lock and passes locked restore preserving both runtime graphs.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+      },
+      "evidenceRefs": [
+        "KUFR-DEPENDABOT-SYNC-local-backend"
+      ]
+    },
+    {
+      "id": "NATIVE",
+      "revision": 1,
+      "expected": "Hosted macOS generation of original stale Capacitor update produces matching manifest and Xcode-resolved pins; manual rehearsal cannot publish.",
+      "requiredEvidenceKinds": [
+        "integration"
+      ],
+      "appliesTo": {
+        "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [],
+  "currentNote": "Implemented read-only PR generation and trusted API-only workflow_run publication. Node88, focused Python19, mobile115/build, actionlint and original stale NuGet repair passed; independent review clean. Native guard proves original PR196 mismatch fails before cap sync. Hosted native rehearsal remains pending.",
+  "nextAction": "Complete source regression/PR CI and merge, run read-only historical backend/native generator rehearsals on main, then record actual activation evidence.",
+  "implementedSubject": {
+    "artifactDigest": "03aab8fa00f74ffbd081501e117fae83f823590ece17d3917de5f4629a2993e1"
+  }
+}
