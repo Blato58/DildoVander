@@ -17,6 +17,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 BINARY = os.environ.get("GITLEAKS_BINARY") or shutil.which("gitleaks")
 SCAN_COMMAND = '"$RUNNER_TEMP/gitleaks" git --config=.gitleaks.toml --redact=100 --no-banner --log-opts=HEAD'
+# Historical fixtures: full-history secret scans must still handle old commits
+# after their source files have been removed from the current tree.
 INVENTORY_PATHS = (
     "docs/project/evidence/fixture.json",
     "docs/project/artifacts/fixture.json",

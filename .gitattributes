@@ -12,8 +12,6 @@ kufr/firmware/src/features/physical_effects/PresentationScore.h text eol=lf
 *.mjs text eol=lf
 *.md text eol=lf
 # DV08 provenance archives must preserve original bytes on every platform.
-docs/project/** text eol=lf
-docs/project/archive/dv08/** -text
 kufr/ai-eval/ollivander-trunk-persona.txt text eol=lf
 *.ps1 text eol=lf
 *.png binary

@@ -4,7 +4,7 @@
 > o režii a procedurální finále, šest osobností, náladu, explicitní ambient,
 > identitu/proroctví, izolovanou paměť/kroniku, duely, Director iOS/web a offline
 > scény. [Kontrakty a provoz](show-pack.md), [mapa požadavků](show-pack-requirements.json)
-> a [akceptace](../../docs/project/work-items/SHOW-PACK.json) rozlišují software,
+> a [privátní evidence](../../docs/development-coordination.md) rozlišují software,
 > chybějící mluvenou banku, skutečný provider, nativní iOS a fyzické brány.
 > Nemění se vlastník pohonů, katalog, `manual_only` ani Limited/Blocked audio brána.
 > **Platná architektura od19.10.2026:** zadání GPT-OVERHAUL nahrazuje staré
@@ -13,7 +13,7 @@
 > gpt-realtime-2.1. Starý scripted/Responses/STT→dialog→TTS/PTT runtime se
 > neobnovuje. Kanonická místní paměť platí pro obě cesty a DV01; obsah se
 > nemaže automatickou retencí. [Aktuální kontrakt a migrace](autonomous-live-memory.md),
-> [tracking](../../docs/project/work-items/GPT-OVERHAUL.json). Historické receipts
+> [privátní evidence](../../docs/development-coordination.md). Historické receipts
 > prokazují jen svůj datovaný rozsah, nikoli současnou architekturu.
 
 
@@ -303,7 +303,7 @@ Backend používá nativní Responses function calling: `continue_conversation`,
 
 Stav návrhu: **29. 9. 2026**. Dokument navrhuje budoucí implementaci; žádnou z ní neprohlašuje za hotovou. Pinová přidělení jsou **předběžná**, nikoli změřené zapojení konkrétní desky. Před zapojením a nahráním musí projít kontrolou revize podle kapitoly 10.
 
-Tento plán určuje cílovou architekturu a akceptační kritéria. Aktuální dokončení, rozpracovanost, ověření a další krok vede [generovaný STATUS](../../docs/project/STATUS.md); postup další AI určuje [AGENTS.md](../../AGENTS.md). Plán nahrazuje dosavadní nezávazné softwarové představy, nikoli existující elektrická bezpečnostní omezení. Obludárium není součástí návrhu. Původní příprava plánu i navazující sjednocení dokumentace byly pouze dokumentační práce; nejsou dokončením implementačních etap.
+Tento plán určuje cílovou architekturu a akceptační kritéria. Aktuální dokončení, rozpracovanost, ověření a další krok vede [privátní evidence](../../docs/development-coordination.md); postup další AI určuje [AGENTS.md](../../AGENTS.md). Plán nahrazuje dosavadní nezávazné softwarové představy, nikoli existující elektrická bezpečnostní omezení. Obludárium není součástí návrhu. Původní příprava plánu i navazující sjednocení dokumentace byly pouze dokumentační práce; nejsou dokončením implementačních etap.
 
 ## 1. Výchozí stav a cílový zážitek
 
@@ -313,14 +313,14 @@ zachovávají backendovou volbu, lokální ESP acceptance, NVS nejistotu, původ
 a katalog. Director nepřidává další model na tah, camera/portrait produkt ani show
 engine. Výchozí Blocked, explicitní Limited, nedostupný Named, image purpose,
 Live chování a fyzická akceptace mají oddělené gates; softwarové slice je
-nenahrazuje. Stav vede `docs/project/work-items/DV01.json`, nikoli historická inventura níže.
+nenahrazuje. Stav vede privátní evidence, nikoli historická inventura níže.
 
 DV02 rozšiřuje existující presentation/effects core podle [specifikace revize 2.0](dv02-spec.md).
 [Implementace a evidence](dv02.md) zavádí jeden build-time překlad choreografie,
 stejného physical ownera, bounded trace a read-only timeline. Main/short baseline,
 Dance audio owner, kalibrace a safety/Stop se zachovávají; nový obecný orchestrátor
 ani síťové nahrávání scén nevznikají. Software A–F a fyzickou bránu G odděluje
-`docs/project/work-items/DV02.json`; host replay nedokládá fyzické přijetí.
+privátní evidence; host replay nedokládá fyzické přijetí.
 
 Následující inventura zachycuje výchozí stav při návrhu 29. 9. 2026. Aktuální implementaci ověřuj podle stavového souboru a živého kódu; tento historický popis není překážkou zahájení dalších etap.
 
@@ -1305,7 +1305,7 @@ Metriky: LAN RTT a ACK p95, reconnect time, počet neznámých výsledků, provi
 
 ## 12. Postup v malých ověřitelných etapách
 
-Každá etapa je samostatně reviewovatelná změna a lze ji dělit na menší ověřitelné kroky. Implementace softwaru a simulace mohou předběhnout dodání desky; povolení skutečných pohonů nikoli. Následující tabulka určuje akceptaci; skutečné dokončení se odvozuje z [work items a důkazů](../../docs/project/STATUS.md).
+Každá etapa je samostatně reviewovatelná změna a lze ji dělit na menší ověřitelné kroky. Implementace softwaru a simulace mohou předběhnout dodání desky; povolení skutečných pohonů nikoli. Následující tabulka určuje akceptaci; skutečné dokončení se odvozuje z [privátní evidence](../../docs/development-coordination.md).
 
 | Etapa | Výstup | Závislost | Dokončeno, když |
 | --- | --- | --- | --- |
@@ -1360,7 +1360,7 @@ Příprava playlistu a úspěšný build tato kritéria nenahrazují.
 Pokyn „začni/pokračuj implementovat aplikaci podle implementačního plánu“ spouští postup v AGENTS.md: ověřit skutečný stav, převzít nejbližší proveditelný krok, implementovat, ověřit a předat. Při prvním zahájení je to E1, nikoli požadavek napřed dokončit všechna externí měření E0. Hardware/podpis/placené služby blokují jen své závislé části.
 
 - **Plán:** přijatá rozhodnutí, kontrakty, bezpečnost, etapové závislosti a kritéria. Měnit při novém architektonickém důkazu; důvod, dopady a potřebnou migraci zaznamenat spolu se změnou. Nesnižovat kritéria, aby šla etapa označit za hotovou.
-- **[Projektový tracking](../../docs/project/STATUS.md):** aktuální práce a ověření se odvozují z work items a typovaných receipts společným CLI; postup vede projektový skill odkazovaný z AGENTS. Historický stav je archiv, nepřidává se další deník.
+- **[Privátní koordinace](../../docs/development-coordination.md):** požadavky, blokace, rozhodnutí a skutečné výsledky ověření vedou privátní GitHub Issues; workflow pohled poskytuje privátní Project. Historické důkazy jsou oddělený archiv. Nevzniká další lokální databáze ani generovaný stav.
 - **README a AGENTS:** krátké vstupní body a postup práce. Komponentové README popisují skutečně dostupné příkazy/konfiguraci a zvlášť budoucí směr. Nové příkazy a závislosti doplnit zároveň s jejich implementací; nepředstírat existující backend/CI jen proto, že ho plán navrhuje.
 - **Firmware:** dokumentovat skutečný ESP-IDF runtime, kontrakty, jediný profil, servisní provisioning bez tajemství a ověřené příkazy. Historický Arduino sériový prototyp se nesestavuje ani neobnovuje.
 - **Mobil po E3/E3a/E4:** doplnit skutečné Windows/CI příkazy, Swift adaptér, workflow cestu, názvy secrets, podpisový režim a důkaz instalace. Vite build ani CI archive neznamenají otestovaný iPhone.

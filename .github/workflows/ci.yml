@@ -12,11 +12,7 @@ on:
         description: Project to rebuild for an artifact on the current tree
         type: choice
         default: all
-        options: [all, repository, backend, firmware, web, ios, ai-eval, site, cad]
-      force_cad:
-        description: Regenerate complete CAD even when a verified cache exists
-        type: boolean
-        default: false
+        options: [all, repository, backend, firmware, web, ios, ai-eval, site]
       pr_number:
         description: Internal synchronized PR number (empty for recovery builds)
         type: string
@@ -73,7 +69,6 @@ jobs:
       ios: ${{ steps.projects.outputs.ios }}
       ai-eval: ${{ steps.projects.outputs.ai-eval }}
       site: ${{ steps.projects.outputs.site }}
-      cad: ${{ steps.projects.outputs.cad }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -112,12 +107,9 @@ jobs:
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || inputs.expected_head_sha }}
           CI_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           CI_PROJECT: ${{ inputs.project || 'all' }}
-          FORCE_CAD: ${{ inputs.force_cad && inputs.pr_number == '' }}
         run: |
           if [ "$CI_EVENT_NAME" = workflow_dispatch ] && [ -z "$CI_PR_NUMBER" ]; then
-            extra=()
-            if [ "$FORCE_CAD" = true ]; then extra+=(--force-cad); fi
-            python3 scripts/ci/select_projects.py select --project "$CI_PROJECT" "${extra[@]}"
+            python3 scripts/ci/select_projects.py select --project "$CI_PROJECT"
           else
             python3 scripts/ci/select_projects.py select --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
           fi
@@ -150,6 +142,8 @@ jobs:
         run: node --test scripts/ci/*.test.cjs
       - name: Test artifact integrity and safe extraction
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
+      - name: Test private coordination transport without credentials
+        run: python3 -m unittest discover -s scripts -p 'test_coordination*.py'
       - name: Check whitespace
         run: git diff --check HEAD^ HEAD
       - name: Verify Vapour Chrome design integrity
@@ -188,20 +182,10 @@ jobs:
       actions: read
     uses: ./.github/workflows/kufr-site.yml
 
-  cad:
-    needs: changes
-    if: needs.changes.outputs.cad == 'true'
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/kufr-cad.yml
-    with:
-      force: ${{ inputs.force_cad == true && inputs.pr_number == '' }}
-
   required:
     name: CI required
     if: always()
-    needs: [secret-scan, changes, repository, backend, firmware, web, ios, ai-eval, site, cad]
+    needs: [secret-scan, changes, repository, backend, firmware, web, ios, ai-eval, site]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     env:

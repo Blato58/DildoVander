@@ -4,7 +4,7 @@ This file records the final package layout and configuration commands. Use
 [VPS_HANDOFF](VPS_HANDOFF.md) for actual production and historical preflight evidence,
 private storage, encrypted backup, isolated restore and authorization gates.
 Local code packages are recorded in immutable project artifacts. Production activation and paid generation were authorized and completed on
-2026-10-15; see the [production record](../../../docs/project/artifacts/DV10-production-v1.json). The [static evening decision](STATIC_EVENING.md)
+2026-10-15; see the [private historical evidence](../../../docs/development-coordination.md). The [static evening decision](STATIC_EVENING.md)
 supersedes individual QR pickup in the original specification.
 
 ## Safe default configuration
@@ -109,7 +109,7 @@ the clean source tree before the canonical build; its SHA alone cannot prove tha
 The existing CI provenance packager wraps this combined output. Activate compatible
 backend before dependent web, with feature flags off until authorized gates pass.
 Rollback swaps compatible code/web rather than older DB/grants. Actual local
-package identities and their scope are recorded in `docs/project/artifacts/`.
+package identities and their scope are recorded in private historical evidence.
 
 ## Actual local verification
 

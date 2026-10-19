@@ -4,22 +4,23 @@
 
 - `kufr/` je současná priorita: firmware ESP32-S3 v `kufr/firmware/` a samostatný mobilní ovladač ve `kufr/mobilni-aplikace/`.
 - `obludarium/firmware/` je oddělený projekt PlatformIO pro Arduino Nano; neměň ho při práci na kufru bez zadání, které se ho týká.
-- Architekturu, kontrakty, závislosti a kritéria etap určuje [implementační plán](kufr/docs/implementacni-plan.md). Aktuální práce, blokace a předání vede [GitHub Issues](https://github.com/Blato58/DildoVander/issues). [Původní evidence a STATUS](docs/project/README.md) slouží pouze jako historický snapshot. README jsou přehled a návod pro aktuálně existující kód, nikoli alternativní roadmapa.
+- Architekturu, kontrakty, závislosti a kritéria etap určuje [implementační plán](kufr/docs/implementacni-plan.md). Aktuální práci, blokace a předání vedou privátní GitHub Issues podle [koordinačního workflow](docs/development-coordination.md). README popisují aktuálně existující kód, nikoli alternativní roadmapu.
 - Pro zapojení a napájení čti `kufr/docs/efekty-a-napajeni.md`, pro podkladovou pinovou mapu `kufr/docs/pin-mapa-esp32-s3.md` a pro omezení kamery `kufr/docs/kamera.md`. Předběžné profily A/B a bezpečnostní obvod jsou v kapitolách 8 a 10 plánu.
 - Je-li přítomná `.codex/personal-routing.md`, načti ji jako doplněk aktuálních tracked pokynů. Přípravu lokálního kontextu nového worktree popisuje [.codex/environment/README.md](.codex/environment/README.md); Windows checkout, Cloud a VPS nejsou zaměnitelné prostředí.
 
 ## Jak začít nebo pokračovat v implementaci
 
 - Pokyn „začni/pokračuj implementovat aplikaci podle implementačního plánu“ znamená pokračovat na systému kufru podle tohoto postupu. Pokud uživatel výslovně omezí práci na mobil, backend či firmware, respektuj omezení a vyber příslušný krok se splněnými závislostmi.
-- Před prací přečti otevřená GitHub Issues, souběžná PR a [sdílenou koordinaci agentů #224](https://github.com/Blato58/DildoVander/issues/224). Pro významný úkol použij existující Issue nebo vytvoř nové; konkrétní zadání majitele má přednost. Jednotný postup je v [dildovander-project-tracking](.agents/skills/dildovander-project-tracking/SKILL.md).
-- Jeden úkol má typicky jeden implementační PR. Ověření, CI, review, omezení a merge se zaznamenávají v Issue/PR, nikoliv v dalších tracking PR. Nezapisuj běžný průběh do `docs/project/work-items/`, `evidence/`, `targets/` ani negeneruj STATUS; historická data zůstávají read-only. Skutečné fyzické ověření se nesmí nahradit simulací.
+- Před významnou prací načti [dildovander-project-tracking](.agents/skills/dildovander-project-tracking/SKILL.md) a spusť `python scripts/coordination.py discover`. Najdi odpovídající privátní Issue, přečti hub, aktivní claims a souběžná veřejná PR. Při pokračování vyber způsobilou práci podle priorit a závislostí; číslo úkolu od majitele není potřeba. Při nedostupnosti privátní koordinace nezakládej veřejný fallback ani nezačínej překrývající se úpravy.
+- Jeden úkol má typicky jeden implementační PR. Požadavky, průběh a předání patří do privátního Issue. Veřejná PR uvádějí změny kódu a skutečné testy; nikdy privátní názvy, identifikátory, odkazy nebo plánovací diskusi. Nevytvářej lokální tracking databázi, generovaný stav ani další PR jen pro evidenci. Skutečné fyzické ověření se nesmí nahradit simulací.
 - Chybějící deska, Apple identita nebo cloudový klíč blokují jen závislou část. Použij simulátor/fake adaptéry a pokračuj v nezávislém softwaru. Bez rozhodující informace si ji vyžádej, zaznamenej blokaci a neprohlašuj dotčené kritérium za splněné.
 - Přijatá rozhodnutí znovu neotvírej bez nového důkazu. Nutnou změnu architektury/kontraktu nejprve zdůvodni v plánu, zaznamenej dopad a migraci v dotčeném GitHub Issue a uprav související README. Nepřepisuj nesplněná kritéria jen kvůli uzavření etapy.
 - Běžné lokální implementace a ověření vyplývají z implementačního zadání. V tomto repozitáři majitel výslovně autorizoval commit a push po každém dokončeném a ověřeném implementačním slice; postup je níže. Krátké „pokračuj“ samo neznamená placené AI testy, nákup, publikaci Release/Pages, cloudové nasazení ani nahrání do desky. Kód a kontrolovatelný výsledek připrav před případnou žádostí o chybějící oprávnění.
 
 ## Git předání po implementačním slice
 
-- Po ověření slice zkontroluj `git status`, commitni jen související změny a z kořene repozitáře spusť `./scripts/Push-CurrentBranch.ps1` (použije účet `Blato58`). Otevři jeden implementační PR s odkazem na Issue a skutečnými výsledky testů; `Fixes #N` použij jen pro dokončené akceptační podmínky, jinak `Refs #N`. Výsledný commit, CI a případné blokace patří do Issue/PR, ne do další tracking větve.
+- Na dokončení CI nebo PR review nečekej v aktivním chatu ani v pollovací smyčce. V Codexu vytvoř nebo aktualizuj nativní heartbeat pro tento chat, běžně po pěti minutách, a předej mu pokračování při úspěchu, chybě nebo potřebě zásahu podle [koordinačního workflow](docs/development-coordination.md#asynchronous-pr-follow-up). Potom ukonči aktuální tah; neukončuj vzdálené CI. Pokud prostředí následné spuštění nepodporuje, uveď omezení a přesné předání místo slibu automatického probuzení.
+- Po ověření slice zkontroluj `git status`, commitni jen související změny a z kořene repozitáře spusť `./scripts/Push-CurrentBranch.ps1` v autorizovaném vývojovém prostředí. Otevři jeden veřejný implementační PR s technickým popisem a skutečnými výsledky testů. Privátní Issue neodkazuj z veřejného PR ani commitu; odkaz na PR, výsledný commit, CI a blokace zapiš do privátního Issue. Veřejné `Fixes #N` používej jen pro skutečný veřejný contributor Issue s dokončenou akceptací.
 - Cizí nebo nesouvisející úpravy nikdy automaticky nepřidávej. Neúspěšný build/test neopravuj commitem, který tvrdí dokončení; rozpracovaný stav zaznamenej a pokračuj podle konkrétní chyby.
 - Pokud chybí remote/upstream, přístup nebo jiný nezbytný údaj, dokonči bezpečný lokální commit a vyžádej jen chybějící údaj. Push neprohlašuj za hotový, dokud není ověřen.
 - Před každým merge načti z GitHubu všechna PR reviews, inline komentáře a stav Codex review. Probíhající review nech dokončit. Každý relevantní nález oprav, ověř regresním testem a zaznamenej výsledek; zamítnutý nález zdůvodni konkrétním kódem a důkazem. Po posledním push a těsně před merge komentáře znovu načti, včetně nových a dosud nevyřešených vláken. Dokud zbývá nevyřešený relevantní nález, PR neslučuj; zelené CI ani oprávnění k automatickému merge tuto kontrolu nenahrazují. Toto pravidlo výslovně požaduje majitel od 9. 10. 2026.
@@ -91,12 +92,13 @@
 
 ## Sestavení a ověření
 
-- CAD není součást běžného software buildu. Backend, firmware, mobilní UX a
-  nesouvisející dokumentace nespouštějí CAD, slicer ani rendery. Dopad určuje
-  `scripts/ci/cad_impact.py` se sdílenou politikou `source_inputs.py`; neznámé
-  mechanické vstupy posuzuj konzervativně. Viewer HTML/CSS/JS ověř cílenými
-  testy bez regenerace geometrie. Podrobnosti a příkazy jsou v
-  [CAD README](kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
+- Majitel 20. 10. 2026 odstranil CAD z CI/CD do přípravy nového řešení.
+  Žádné PR, push ani ruční GitHub workflow nesmí spouštět CAD, slicer,
+  rendery nebo výrobní ověření. Lokální mechanické kontroly a provenience
+  zůstávají povinné; dopad určuje `scripts/ci/cad_impact.py` se sdílenou
+  politikou `source_inputs.py`. Viewer HTML/CSS/JS ověř cílenými testy bez
+  regenerace geometrie. Zelené softwarové CI neprokazuje mechanickou akceptaci.
+  Podrobnosti jsou v [CAD README](kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
 - Pro mechanické změny použij běžnou inkrementální `Regenerate.ps1` a zachovej
   kontroly kolizí, montáže a tisku. Ověřené nezměněné výsledky lze znovu použít
   jen se shodou vstupů a ověřenými bytes/proveniencí. `-Force` a kompletní

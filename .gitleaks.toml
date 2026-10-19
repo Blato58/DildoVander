@@ -6,7 +6,9 @@ useDefault = true
 # Keep every upstream detector. Only generic-api-key misreads these non-secrets.
 # AND binds each content exception to its intended file; no whole-file exclusions.
 [[allowlists]]
-description = "SHA-256 file inventories in project evidence and artifact manifests"
+# Retired paths are retained only for the full-history scan, including commits
+# before the private migration. They do not refer to current tracking inputs.
+description = "Historical SHA-256 file inventories in archived evidence"
 targetRules = ["generic-api-key"]
 condition = "AND"
 paths = [

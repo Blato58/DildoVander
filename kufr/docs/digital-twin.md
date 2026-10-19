@@ -4,7 +4,7 @@ Jeden generovaný Workshop viewer zobrazuje dva zdroje. V simulaci jej napájí
 dlouhodobý nativní C++ proces; v živém režimu čte odchozí ESP telemetrii.
 Web neurčuje sekvenci, journal, bezpečnost ani cílové polohy. Původní E2 bridge
 zůstává kompatibilním testovacím harnessem, nikoli aktuálním DV02 runtime.
-Práce a skutečné receipts: [KUFR-TWIN](../../docs/project/work-items/KUFR-TWIN.json).
+Práce a skutečné receipts: [privátní evidence](../../docs/development-coordination.md).
 
 ## Skutečně zjištěný výchozí stav
 
@@ -274,17 +274,17 @@ a ingest. Testy používají fake provider; Realtime/GPT-Live jsou připravené
 v nastavení se schváleným existujícím serverovým klíčem. Fyzický kufr nebyl
 ovládán ani flashován. Aktuální nasazený release je `twin-20261015-v17`;
 source/build ID `a7ee2cf3740efc92912cfe450e7c7637d98eb0596d35b2111c41db987fb86148`.
-[Cílený target v17](../../docs/project/targets/KUFR-TWIN-mic-v17.json) ověřuje
+[Historický cílený důkaz v17 v privátním archivu](../../docs/development-coordination.md) zachycuje
 opravu mikrofonní fronty na skutečném VPS: při zpoždění 603 ms rozhovor pokračoval,
 fronta zůstala do 400 ms, prošly JPEG, PCM/drain a reload bez opakování. Použit byl
 fake provider a fake zařízení Chrome; původní nastavení bylo obnoveno a ověřeno.
-[Plný softwarový baseline v16](../../docs/project/targets/KUFR-TWIN-software.json)
+[Plný softwarový baseline v16 v privátním archivu](../../docs/development-coordination.md)
 zůstává historickým důkazem; fyzickou akceptaci dál blokuje PHYSICAL.
 
 Standardní installer odmítl aktuální Nginx layout před aktivací. V17 byl aktivován
 atomickým přepnutím se soukromou zálohou a rollbackem přes existující ověřenou
 route/unit; jejich konfigurace i credentials zůstaly stejné. Obě služby jsou zdravé.
-Podrobnosti a omezení jsou v [důkazech v17](../../docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/README.md).
+Podrobnosti a omezení jsou v [privátní evidenci](../../docs/development-coordination.md).
 
 Test s 20 HTTPS polls po 50 ms a pomalým čtenářem 10 B/s naměřil z VPS na jeho
 vlastní TLS origin median 7,91 ms, p95 10,19 ms, simulační Stop 32,45 ms a
@@ -293,7 +293,7 @@ p95 247,35 ms a Stop 166,81 ms. Oba běhy zachovaly boot a průběh bez vieweru;
 pomalý čtenář neblokoval řízení. Skutečný firmware mailbox se syntetickým I/O
 zpracoval na Linuxu 100000 publikací za 16977 µs, sloučil 99999 nahraditelných
 stavů. Jde o host/VPS cestu; ESP režie ani odezva tím změřena není. Podklady jsou
-v [měřeních](../../docs/project/artifacts/KUFR-TWIN-performance-v3.json).
+v [historickém archivu měření](../../docs/development-coordination.md).
 
 Plný VPS Chrome E2E verze v11 přijal 4361 B JPEG bez photo fallbacku, čtyři 9600 B mikrofonní
 vstupy a pět 4800 B drain výstupů; návrh z backendu vysunul skutečné CAD lůžko 6

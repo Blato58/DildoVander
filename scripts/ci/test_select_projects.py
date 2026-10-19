@@ -32,7 +32,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/production/main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
-            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site", "cad"}),
+            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site"}),
             (["kufr/design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
             (["kufr/web/build-site.py"], {"site"}),
         ]:
@@ -64,13 +64,11 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
-        # The wrapper selects the hosted runtime and composite inputs, so its
-        # changes conservatively require manufacturing validation as well.
-        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository", "cad"})
+        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios.yml"), {"repository", "ios"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
 
-    def test_cad_runs_only_for_manufacturing_inputs(self):
+    def test_manufacturing_inputs_do_not_select_cad(self):
         for path in ["kufr/mechanika/final/SPECIFIKACE.md",
                      "kufr/mechanika/final/reference/inspect-sources.json",
                      "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
@@ -79,7 +77,7 @@ class ProjectSelectionTests(unittest.TestCase):
                      "scripts/ci/cad_cache.py",
                      ".github/actions/verified-cad/action.yml"]:
             with self.subTest(path=path):
-                self.assertIn("cad", self.selected(path))
+                self.assertNotIn("cad", self.selected(path))
         for path in ["kufr/mobilni-aplikace/src/main.ts", "kufr/mobilni-aplikace/.nvmrc", "kufr/web/build-site.py",
                      "kufr/contracts/package-lock.json", "kufr/backend/Program.cs",
                      "kufr/design-system/tokens.json", "kufr/design-system/ui.js",
@@ -92,7 +90,7 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected("kufr/design-system/tokens.json"),
                          {"repository", "backend", "web", "ios", "site"})
         self.assertEqual(self.selected("kufr/mechanika/final/viewer.js"), {"site"})
-        self.assertEqual(self.selected("kufr/mechanika/final/new-mechanism.py"), {"site", "cad"})
+        self.assertEqual(self.selected("kufr/mechanika/final/new-mechanism.py"), {"site"})
         self.assertEqual(self.selected("kufr/simulator/dashboard-ui.js"), {"site"})
         self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/panel.css"), {"site"})
         self.assertEqual(self.selected("kufr/firmware/src/diagnostics/servo-bench/main.cpp"), {"firmware"})
@@ -103,15 +101,15 @@ class ProjectSelectionTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(self.selected("kufr/mechanika/final/" + name), {"site"})
 
-    def test_recovery_all_runs_independent_app_and_cad_jobs(self):
-        self.assertTrue(select_recovery_projects("all")["cad"])
-        self.assertTrue(select_recovery_projects("all")["site"])
-        self.assertEqual({name for name, enabled in select_recovery_projects("cad").items() if enabled}, {"cad"})
-        for project in ("all", "site"):
-            with self.subTest(project=project):
-                self.assertTrue(select_recovery_projects(project, force_cad=True)["cad"])
-                self.assertTrue(select_recovery_projects(project, force_cad=True)["site"])
-        self.assertTrue(select_recovery_projects("backend", force_cad=True)["cad"])
+    def test_recovery_builds_exclude_cad(self):
+        self.assertNotIn("cad", PROJECTS)
+        self.assertTrue(all(select_recovery_projects("all").values()))
+        self.assertEqual({name for name, enabled in select_recovery_projects("site").items() if enabled}, {"site"})
+        with self.assertRaises(ValueError):
+            select_recovery_projects("cad")
+        for args in (("--project", "cad"), ("--project", "all", "--force-cad")):
+            result = subprocess.run(["python", str(Path(__file__).with_name("select_projects.py")), "select", *args], capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
 
     def test_presentation_inputs_select_lightweight_site_checks(self):
         for path in ["viewer.js", "viewer_style.py", "viewer_document.py",
@@ -171,14 +169,12 @@ class ProjectSelectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             check_results(selected, {name: value for name, value in jobs.items() if name != "ios"})
 
-    def test_selected_cad_is_a_required_gate(self):
-        selected = {name: "true" if name == "cad" else "false" for name in PROJECTS}
-        jobs = {name: {"result": "success" if name == "cad" else "skipped"} for name in PROJECTS}
+    def test_required_gate_has_no_cad_dependency(self):
+        selected = {name: "false" for name in PROJECTS}
+        jobs = {name: {"result": "skipped"} for name in PROJECTS}
         jobs["changes"] = {"result": "success"}
         check_results(selected, jobs)
-        for result in ("skipped", "failure", "cancelled"):
-            with self.subTest(result=result), self.assertRaises(ValueError):
-                check_results(selected, {**jobs, "cad": {"result": result}})
+
 
 
 if __name__ == "__main__":

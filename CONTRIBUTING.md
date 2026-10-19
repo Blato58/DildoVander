@@ -2,7 +2,7 @@
 
 Projekt je rozpracovaný prototyp. Architekturu určuje
 [implementační plán](kufr/docs/implementacni-plan.md), aktuální úkoly a blokace
-vedou [GitHub Issues](https://github.com/Blato58/DildoVander/issues). [Historický STATUS](docs/project/README.md) se neaktualizuje. Začni
+vede [privátní koordinace](docs/development-coordination.md). Veřejná Issues jsou pro veřejné příspěvky. Začni
 [návodem bez hardwaru](docs/public-development.md) a README dotčené komponenty.
 Vlastní zdrojový kód, dokumentace a CAD zdroje projektu používají
 [AGPL-3.0-only](LICENSE). Příspěvky do těchto částí poskytuj pod stejnou
@@ -11,7 +11,7 @@ uveď původní licenci a zachovej jejich oznámení.
 
 1. U běžné chyby otevři issue s komponentou, verzí a reprodukcí na syntetických
    datech. Zranitelnosti hlásí [SECURITY.md](SECURITY.md).
-2. Zkontroluj otevřená Issues a souběžná PR. Pracuj ve vlastní větvi nad aktuálním `main`; jeden úkol předávej jedním implementačním PR, bez následného PR jen pro tracking.
+2. Zkontroluj privátní úkoly/claims a souběžná veřejná PR. Pracuj ve vlastní větvi nad aktuálním `main`; jeden úkol předávej jedním implementačním PR. Privátní odkazy a detaily zapisuj pouze do privátního úkolu.
    Nezahrnuj nesouvisející úpravy ani generované lokální výstupy.
 3. Používej existující kontrakty a strukturu funkcí. Změnu kontraktu či
    architektury popiš s dopadem; neobnovuj Arduino profil pro kufr.

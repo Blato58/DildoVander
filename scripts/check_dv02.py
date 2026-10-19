@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Validate the DV02 coverage inventory and project skill references offline."""
 import json
-import argparse
-import hashlib
 from pathlib import Path
 import re
 
@@ -33,9 +31,6 @@ def validate_links(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--verify-source', action='store_true', help='Verify the recorded tested source bundle against this checkout')
-    args = parser.parse_args()
     coverage = json.loads((ROOT / 'kufr/docs/dv02-coverage.json').read_text(encoding='utf-8'))
     specification = (ROOT / coverage['specification']).read_text(encoding='utf-8')
     for category, prefix, count in [('requirements', 'R', 48), ('tests', 'T', 80)]:
@@ -73,25 +68,6 @@ def main():
                 f'{name}: default prompt targets another skill')
         validate_links(skill)
     validate_links(ROOT / 'kufr/docs/dv02.md')
-    if args.verify_source:
-        item = json.loads((ROOT / 'docs/project/work-items/DV02.json').read_text(encoding='utf-8'))
-        expected_subject = item['implementedSubject']['artifactDigest']
-        bundles = [json.loads(path.read_text(encoding='utf-8'))
-                   for path in (ROOT / 'docs/project/artifacts').glob('DV02-source-bundle*.json')]
-        matching = [bundle for bundle in bundles if bundle['artifactDigest'] == expected_subject]
-        require(len(matching) == 1, 'Expected exactly one recorded source bundle for the current DV02 subject')
-        bundle = matching[0]
-        fingerprint = hashlib.sha256()
-        for name, expected in sorted(bundle['inputDigests'].items()):
-            path = (ROOT / name).resolve()
-            require(path.is_relative_to(ROOT) and path.is_file(), f'Missing source input: {name}')
-            data = path.read_bytes()
-            require(hashlib.sha256(data).hexdigest() == expected, f'Stale tested source: {name}')
-            for part in (name.encode('utf-8'), data):
-                fingerprint.update(len(part).to_bytes(8, 'big'))
-                fingerprint.update(part)
-        require(fingerprint.hexdigest() == bundle['artifactDigest'], 'Source bundle digest mismatch')
-        print('PASS tested source digest: ' + bundle['artifactDigest'])
     print('PASS DV02: 48 requirements, 80 scenario families, 2 skill metadata/link workflows')
     print('Coverage is an inventory; actual receipts identify executed checks. Physical G and live skill reload remain separate.')
 

@@ -1,7 +1,7 @@
 # One DildoVander application
 
 Repository architecture, 2026-10-19. Current delivery and environment limits are
-recorded in [Issue #227](https://github.com/Blato58/DildoVander/issues/227) and
+recorded in [private acceptance](../../docs/development-coordination.md) and
 [PR #218](https://github.com/Blato58/DildoVander/pull/218). Earlier implementation
 receipts remain in the PR's commit history; the repository's historical tracker
 is unchanged. Never infer signed-device or production acceptance from this document.
