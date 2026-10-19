@@ -3,12 +3,19 @@ import argparse
 import base64
 import hashlib
 import html
+import importlib.util
 import json
 import re
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
 import zipfile
+
+
+POLICY_PATH = Path(__file__).resolve().parents[1] / 'mechanika/final/source_inputs.py'
+POLICY_SPEC = importlib.util.spec_from_file_location('site_cad_sources', POLICY_PATH)
+SOURCE_POLICY = importlib.util.module_from_spec(POLICY_SPEC)
+POLICY_SPEC.loader.exec_module(SOURCE_POLICY)
 
 
 def digest(path):
@@ -31,6 +38,8 @@ def verified_exports(root):
     manifest = json.loads((out / 'manifest.json').read_bytes())
     if report['result'] != 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE' or manifest['sources'] != report['sources']:
         raise ValueError('CAD source verification is missing')
+    if SOURCE_POLICY.file_hashes(root) != report['sources']:
+        raise ValueError('CAD source inventory changed after verification')
     for name, expected in report['sources'].items():
         if digest(safe_member(root, name)) != expected:
             raise ValueError('CAD sources changed after verification: ' + name)

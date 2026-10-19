@@ -87,7 +87,7 @@ def main():
     generation_ready = False
     if not args.force and (FINAL / 'exports/trusted-result.json').is_file():
         from cad_result import reuse_generation
-        generation_ready = reuse_generation(FINAL / 'exports')
+        generation_ready = reuse_generation(FINAL / 'exports', identity['environment'])
     regenerate.regenerate(force=args.force, generation_ready=generation_ready)
 
 

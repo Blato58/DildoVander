@@ -1,5 +1,5 @@
 name: Verify manufacturing package
-description: Reuse successful main acceptance before installing CAD, otherwise regenerate incrementally
+description: Reuse verified main or source-identical same-PR acceptance before installing CAD
 inputs:
   force:
     description: Bypass all saved generation and verification results
@@ -11,7 +11,7 @@ runs:
       id: cad-key
       shell: bash
       run: python3 scripts/ci/cad_result.py key
-    - name: Resolve immutable trusted main result
+    - name: Resolve immutable trusted CAD result
       id: trusted
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       env:
@@ -22,7 +22,7 @@ runs:
           await require('./scripts/ci/cad-result.cjs').resolve({ github, context, core }, {
             key: process.env.CAD_KEY, force: process.env.CAD_FORCE === 'true',
           });
-    - name: Restore immutable main outputs and acceptance
+    - name: Restore immutable outputs and acceptance
       id: download
       if: steps.trusted.outputs.artifact-id != ''
       continue-on-error: true
@@ -70,10 +70,19 @@ runs:
         xvfb-run -a python scripts/ci/cad_cache.py "${force[@]}"
         xvfb-run -a python scripts/ci/cad_result.py publish
     - name: Retain verified results only from canonical main
-      if: github.repository == 'Blato58/DildoVander' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number))
+      if: steps.accepted.outputs.hit != 'true' && github.repository == 'Blato58/DildoVander' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !github.event.inputs.pr_number))
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: cad-result-v1-${{ steps.cad-key.outputs.key }}
+        path: kufr/mechanika/final/exports
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 30
+    - name: Retain verified results within this PR
+      if: steps.accepted.outputs.hit != 'true' && github.repository == 'Blato58/DildoVander' && github.event_name == 'pull_request'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: cad-pr-result-v1-${{ steps.cad-key.outputs.key }}
         path: kufr/mechanika/final/exports
         include-hidden-files: true
         if-no-files-found: error
@@ -89,7 +98,7 @@ runs:
       run: |
         {
           echo '### CAD manufacturing'
-          echo "- Trusted main artifact: ${CAD_ARTIFACT_ID:-none}"
+          echo "- Trusted CAD artifact: ${CAD_ARTIFACT_ID:-none}"
           echo "- Verified result reused: ${CAD_HIT:-false}; force: $CAD_FORCE"
           if [[ "$CAD_HIT" == true ]]; then
             echo '- CAD setup, generation, renders and mechanical re-verification skipped: identical manufacturing inputs and verified bytes.'

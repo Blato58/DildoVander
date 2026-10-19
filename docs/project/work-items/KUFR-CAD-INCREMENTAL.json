@@ -6,7 +6,7 @@
   "state": "active",
   "priority": "P1",
   "sequence": 30,
-  "scope": ["scripts/ci", ".github/actions/verified-cad", ".github/workflows", "kufr/mechanika/final", "AGENTS.md", ".agents/skills/dildovander-ui/references/acceptance.md"],
+  "scope": ["scripts/ci", ".github/actions/verified-cad", ".github/workflows", "kufr/mechanika/final", "kufr/web/build-site.py", "kufr/web/test_site.py", "AGENTS.md", ".agents/skills/dildovander-ui/references/acceptance.md"],
   "dependencies": [],
   "acceptance": [
     {
@@ -14,8 +14,8 @@
       "revision": 1,
       "expected": "Unrelated software/docs and reviewed viewer edits skip CAD setup/generation/verification; mechanical/shared/unknown inputs select required checks and explicit force remains available.",
       "requiredEvidenceKinds": ["unit"],
-      "appliesTo": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
-      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-local"]
+      "appliesTo": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
+      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-final-local"]
     },
     {
       "id": "REUSE",
@@ -23,20 +23,20 @@
       "expected": "Trusted content-bound results skip unchanged work, corrupt/untrusted results never supply acceptance, per-part exports and validation-only generation reuse preserve mandatory mechanical gates.",
       "requiredEvidenceKinds": ["unit", "source_review"],
       "rule": "allOf",
-      "appliesTo": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
-      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-local", "KUFR-CAD-INCREMENTAL-review"]
+      "appliesTo": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
+      "evidenceRefs": ["KUFR-CAD-INCREMENTAL-final-local", "KUFR-CAD-INCREMENTAL-final-review"]
     },
     {
       "id": "HOSTED",
       "revision": 1,
       "expected": "Hosted required CI passes and canonical main result is reusable before CAD installation with provenance and complete output inventory checks.",
       "requiredEvidenceKinds": ["integration"],
-      "appliesTo": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
+      "appliesTo": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
       "evidenceRefs": []
     }
   ],
   "blockers": [],
-  "implementedSubject": {"artifactDigest": "06cc9eb2fae194551fe00aa049dfa3effb3ec8a3487dcbc90a6404efcc4e1186"},
-  "currentNote": "Local targeted checks and independent review passed; no full suitcase CAD rebuild was run locally. Native CadQuery smoke covers only a small synthetic box. Existing main quality ruleset inspected read-only; stable CI required name preserved.",
+  "implementedSubject": {"artifactDigest": "00ebec6742b2f3e8a60f02750b9f736e0c0c7088ad70b237aa1acec12580b1f0"},
+  "currentNote": "Initial slice20988630ee1e2b9f5fc2e43e0307e6d221615b90 pushed and remote SHA verified; PR210. First CI39178824484 failed before CAD setup on typed input; fixed with a regression. Runtime review4309345959 fixed; isolated PR reuse hardened against cross-job forgery. Final local checks/review pass; hosted rerun pending. No deployment/release/hardware mutation.",
   "nextAction": "Push the verified slice, inspect PR checks/reviews, then verify canonical main artifact reuse before closing hosted acceptance."
 }

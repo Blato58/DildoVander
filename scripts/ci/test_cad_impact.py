@@ -118,6 +118,10 @@ class CadImpactTests(unittest.TestCase):
         cad = (ROOT / ".github/workflows/kufr-cad.yml").read_text()
         site = (ROOT / ".github/workflows/kufr-site.yml").read_text()
         self.assertIn("--force-cad", ci)
+        # Missing dispatch inputs on PRs evaluate to an empty string. A typed
+        # reusable boolean must compare explicitly instead of forwarding it.
+        self.assertIn("force-cad: ${{ inputs.force_cad == true && inputs.pr_number == '' }}", ci)
+        self.assertIn("force: ${{ inputs.force_cad == true && inputs.pr_number == '' }}", ci)
         self.assertIn("force_cad:", ci)
         self.assertIn("force-cad: ${{ inputs.force_cad", ci)
         self.assertIn("force: ${{ inputs.force_cad", ci)

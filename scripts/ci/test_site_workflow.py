@@ -98,7 +98,9 @@ class PublicWorkflowTests(unittest.TestCase):
         source = (ROOT / '.github/actions/verified-cad/action.yml').read_text()
         upload = source.split('    - name: Retain verified results only from canonical main', 1)[1].split('    - name:', 1)[0]
         condition = re.search(r'^      if: (.+)$', upload, re.MULTILINE).group(1)
-        script = "const check = new Function('github', 'return (' + process.argv[1] + ')'); process.stdout.write(JSON.stringify(JSON.parse(process.argv[2]).map(c => !!check(c))));"
+        script = ("const check = new Function('github', 'steps', 'return (' + process.argv[1] + ')'); "
+                  "const steps={accepted:{outputs:{hit:'false'}}}; "
+                  "process.stdout.write(JSON.stringify(JSON.parse(process.argv[2]).map(c => !!check(c, steps))));")
         cases = [{'repository': repo, 'ref': ref, 'event_name': event,
                   'event': {'inputs': {'pr_number': pr}}}
                  for repo, ref, event, pr in [
@@ -112,6 +114,8 @@ class PublicWorkflowTests(unittest.TestCase):
                  ]]
         result = subprocess.check_output(['node', '-e', script, condition, json.dumps(cases)], text=True)
         self.assertEqual(json.loads(result), [True, True, False, False, False, False, False])
+        self.assertIn("steps.accepted.outputs.hit != 'true'", condition)
+        self.assertIn("name: cad-pr-result-v1-${{ steps.cad-key.outputs.key }}", source)
 
     def test_signing_requires_canonical_main_dispatch_and_separate_environment(self):
         source = (WORKFLOWS / 'kufr-ios-sign.yml').read_text()

@@ -16,10 +16,11 @@ class TrustedResultTests(unittest.TestCase):
         self.out = Path(self.directory.name)
         self.identity = {'sources': {'geometry.py': 'a' * 64}, 'tools': {'requirements.txt': 'b' * 64}}
         self.sources = {'geometry.py': 'a' * 64}
+        self.runtime = {'slicer': {'executable_sha256': 'f' * 64}, 'python_version': '3.11.test'}
         self.write('verification.json', {'result': 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE', 'sources': self.sources})
         self.write('slicer-validation.json', {'status': 'PASS_SLICER'})
         (self.out / 'part.stl').write_bytes(b'verified part')
-        cad_result.publish(self.out, self.identity, self.sources)
+        cad_result.publish(self.out, self.identity, self.sources, self.runtime)
 
     def write(self, name, value):
         (self.out / name).write_text(json.dumps(value), encoding='utf-8')
@@ -49,7 +50,7 @@ class TrustedResultTests(unittest.TestCase):
         (self.out / 'unexpected').unlink()
         self.write('verification.json', {'result': 'FAIL', 'sources': self.sources})
         with self.assertRaises(ValueError):
-            cad_result.publish(self.out, self.identity, self.sources)
+            cad_result.publish(self.out, self.identity, self.sources, self.runtime)
 
     def test_escaping_and_incomplete_inventory_rejected(self):
         for name in ('../escape', '/absolute', 'C:/absolute', 'nested/../escape', 'a\\b'):
@@ -96,16 +97,32 @@ class TrustedResultTests(unittest.TestCase):
         with patch.dict('sys.modules', {'source_inputs': policy,
                                       'refresh_package': types.SimpleNamespace(refresh_generation=refresh)}), \
                 patch.object(cad_result, 'inputs', return_value=(changed, updated)):
-            self.assertTrue(cad_result.reuse_generation(self.out))
+            self.assertTrue(cad_result.reuse_generation(self.out, self.runtime))
             refresh.assert_called_once_with(self.sources)
             refresh.reset_mock()
             changed['sources']['geometry.py'] = 'e' * 64
-            self.assertFalse(cad_result.reuse_generation(self.out))
+            self.assertFalse(cad_result.reuse_generation(self.out, self.runtime))
             refresh.assert_not_called()
             changed['sources']['geometry.py'] = self.identity['sources']['geometry.py']
             changed['tools']['requirements.txt'] = 'f' * 64
-            self.assertFalse(cad_result.reuse_generation(self.out))
+            self.assertFalse(cad_result.reuse_generation(self.out, self.runtime))
             refresh.assert_not_called()
+
+    def test_different_installed_slicer_runtime_regenerates_instead_of_failing_late(self):
+        import types
+        from unittest.mock import Mock
+        changed = copy.deepcopy(self.identity)
+        changed['sources']['verify.py'] = 'd' * 64
+        refresh = Mock(return_value=True)
+        policy = types.SimpleNamespace(validation_only=lambda name: name == 'verify.py')
+        runtime = copy.deepcopy(self.runtime)
+        runtime['slicer']['executable_sha256'] = 'e' * 64
+        with patch.dict('sys.modules', {'source_inputs': policy,
+                                      'refresh_package': types.SimpleNamespace(refresh_generation=refresh)}), \
+                patch.object(cad_result, 'inputs', return_value=(changed, {**self.sources, 'verify.py': 'd' * 64})):
+            self.assertFalse(cad_result.reuse_generation(self.out, runtime))
+            refresh.assert_not_called()
+        self.assertTrue((self.out / 'verification.json').exists())
 
 
 if __name__ == '__main__':

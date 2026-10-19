@@ -42,8 +42,14 @@ def source_hashes():
 
     snapshot_styles()
     inspect_data.assert_snapshot_current()
+    return file_hashes(ROOT)
+
+
+def file_hashes(root):
+    """Read the complete source inventory without generating any snapshots."""
+    root = Path(root).resolve()
     sources = {}
-    for directory, child_directories, filenames in os.walk(ROOT):
+    for directory, child_directories, filenames in os.walk(root):
         # Prune tool environments before descending; merely filtering rglob's
         # results still walks every installed CAD dependency on each cache hit.
         child_directories[:] = sorted(name for name in child_directories if name not in GENERATED_DIRECTORIES)
@@ -54,8 +60,8 @@ def source_hashes():
             path = Path(directory) / name
             if name in LOCAL_FILES or path.suffix in {".pyc", ".pyo"}:
                 continue
-            relative = path.relative_to(ROOT).as_posix()
-            if not path.resolve().is_relative_to(ROOT.resolve()):
+            relative = path.relative_to(root).as_posix()
+            if not path.resolve().is_relative_to(root):
                 raise ValueError("Source input escapes CAD source directory: " + relative)
             sources[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     return sources
