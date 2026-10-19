@@ -82,6 +82,10 @@ chrání proti regresím bez obří sady rastrových snapshotů závislých na O
 `UI_MOBILE_DIST` přidá již sestavený Companion s base `/companion/`.
 `UI_VIEWER_HTML` přidá skutečný výstup `preview_ui_fixture.py`, ověří kameru,
 mobilní panely, timeline a samostatné otevření přes `file://` s vypnutou sítí.
+`UI_INSTALLER_HTML` přidá výstup skutečného `render_page` z iOS publisheru;
+kontrola rozlišuje dostupnou/nedostupnou instalaci a její Safari recovery bez
+vyvolání instalace. Montážní fixture ověřuje zachování kroku po sbalení návodu
+a obnově vrstev; její syntetická geometrie neprokazuje pořadí fyzické montáže.
 Publikované assety neobsahují vývojové závislosti, testy ani npm lockfile.
 
 Existující syntetické DV10 browser kontroly zachovávají privacy, XSS, consent,

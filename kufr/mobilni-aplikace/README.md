@@ -1,9 +1,17 @@
 # Mobilní ovládání kufru
 
 Rozhraní Vapour Chrome používá sdílené tokeny a komponenty `kufr/design-system/`. Spodní navigace
-odděluje Ovládání, Síť kufru a Diagnostiku; Stop zůstává v horní liště i při posunu.
-Přepínač světlého/tmavého vzhledu ukládá pouze preferenci `aw-theme`. První párování
-vede přes BLE v Síti kufru, ruční LAN údaje jsou pod rozbalovacím ovládáním.
+odděluje **Provoz**, **Kufr** a **Diagnostiku**; Stop zůstává v horní liště i při posunu.
+Provoz nejprve ukazuje stav spojení, ručního řízení a přihrádek a jeden další krok.
+Živý provoz odděluje hlas kufru, tanec a text pomocí klávesnicově ovladatelných záložek;
+ruční ovládání má samostatný pohled. Přepnutí pohledu neruší probíhající akci ani textový koncept.
+Snapshot zachovává focus dostupné ruční akce; zneplatněné potvrzení přesune focus na aktuální stav.
+
+Kufr soustředí připojení uloženého zařízení i první párování přes BLE; ruční LAN údaje
+jsou pod rozbalovacím ovládáním. Diagnostika rozděluje technické úlohy do rozbalovacích sekcí.
+Stav a ukončení zkušebního rozhovoru na telefonu zůstávají dostupné i se zavřenou sekcí.
+Zkušební backendový rozhovor má vlastní ukončení a zůstává oddělený od hlasu a Stop kufru.
+Přepínač světlého/tmavého vzhledu ukládá pouze preferenci `aw-theme`.
 Webové harnessy nadále představují syntetický důkaz, nikoli ověření na iPhonu.
 
 Panely ovládání, hlasu, tance, sítě i diagnostiky importují vykreslovací funkce

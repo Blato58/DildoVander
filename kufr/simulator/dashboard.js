@@ -1,4 +1,4 @@
-import { mountDashboardUi, statusBadge, notice, emptyState } from './dashboard-ui.js';
+import { mountDashboardUi, modelGuidance, statusBadge, notice, emptyState } from './dashboard-ui.js';
 
 mountDashboardUi(document);
 
@@ -14,6 +14,7 @@ const eventCount = document.querySelector('#event-count');
 const clearEventsButton = document.querySelector('#clear-events');
 const emptyTimeline = document.querySelector('#timeline-empty');
 const freshnessLabel = document.querySelector('#model-freshness');
+const guidanceLabel = document.querySelector('#model-guidance');
 const themeButton = document.querySelector('#theme-toggle');
 const eventAnnouncement = document.querySelector('#event-announcement');
 const staticPreview = document.body.hasAttribute('data-static-preview');
@@ -55,7 +56,21 @@ const eventLabels = {
 
 let connection;
 let latestSnapshot;
+let receivedAt;
 let eventHistory = [];
+
+function renderGuidance() {
+  guidanceLabel.innerHTML = notice({
+    ...modelGuidance({
+      preview: staticPreview,
+      connected: document.body.dataset.connection === 'connected',
+      current: document.body.dataset.modelCurrent === 'true',
+      snapshot: latestSnapshot?.snapshot,
+      journalPending: latestSnapshot?.journalPending,
+    }),
+    live: false,
+  });
+}
 
 function renderSlots(state) {
   slots.replaceChildren();
@@ -72,7 +87,9 @@ function renderSlots(state) {
     const stateText = document.createElement('span');
     stateText.className = 'slot-state';
     stateText.innerHTML = statusBadge({
-      label: !state ? 'Neznámá' : available ? 'Dostupná' : 'Nedostupná',
+      label: !state ? 'Neznámá' : document.body.dataset.modelCurrent !== 'true'
+        ? available ? 'Dříve dostupná' : 'Dříve nedostupná'
+        : available ? 'Dostupná v modelu' : 'Nedostupná v modelu',
       tone: state && available && document.body.dataset.modelCurrent === 'true' ? 'success' : 'neutral',
     });
     item.append(number, title, stateText);
@@ -83,13 +100,15 @@ function renderSlots(state) {
 function renderSnapshot(message) {
   const state = message.snapshot;
   latestSnapshot = message;
+  receivedAt = new Date().toLocaleTimeString('cs-CZ');
   document.body.dataset.modelCurrent = 'true';
   document.querySelector('#mode').textContent = modeLabels[state.controlMode] ?? state.controlMode;
   document.querySelector('#phase').textContent = phaseLabels[state.phase] ?? state.phase;
   document.querySelector('#journal').textContent = message.journalPending ? 'Neuzavřený' : 'Uzavřený';
   document.querySelector('#revision').textContent = String(state.revision);
-  freshnessLabel.textContent = 'Aktuální snapshot modelu';
+  freshnessLabel.textContent = `Snapshot přijat ${receivedAt} · čas prohlížeče`;
   renderSlots(state);
+  renderGuidance();
 }
 
 function describeEvent(event) {
@@ -147,14 +166,16 @@ function setConnectionState(state) {
   if (state !== 'connected') {
     renderSlots(latestSnapshot?.snapshot);
     freshnessLabel.textContent = latestSnapshot
-      ? 'Poslední snapshot · není aktuální' : 'Stav není známý';
+      ? `Poslední snapshot ${receivedAt} · není aktuální` : 'Stav není známý';
     if (latestSnapshot) {
       document.querySelector('#phase').textContent = `Poslední: ${phaseLabels[latestSnapshot.snapshot.phase] ?? latestSnapshot.snapshot.phase}`;
     }
   } else {
+    renderSlots(latestSnapshot?.snapshot);
     freshnessLabel.textContent = latestSnapshot
       ? 'Čeká na nový snapshot · předchozí není aktuální' : 'Čeká na snapshot modelu';
   }
+  renderGuidance();
 }
 
 async function connect() {
@@ -172,6 +193,10 @@ async function connect() {
 
   const controller = new AbortController();
   connection = controller;
+  // Each observation has its own model-relative timeline; do not mix restarts.
+  eventHistory = [];
+  eventFilter.value = '';
+  renderTimeline();
   setConnectionState('connecting');
 
   try {
@@ -251,4 +276,5 @@ tokenInput.addEventListener('keydown', (event) => {
 });
 window.addEventListener('beforeunload', () => connection?.abort());
 renderSlots();
+renderGuidance();
 renderTimeline();

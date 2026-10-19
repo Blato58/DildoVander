@@ -88,6 +88,7 @@ export class DebugPanel {
   private visible = false;
   private category: DebugCategory | 'all' = 'all';
   private pending = false;
+  private cancellationPending = false;
   private photoDraftId?: string;
   private photoSequence = 0;
   private photoTimer?: number;
@@ -235,7 +236,7 @@ export class DebugPanel {
         <div class="actions">
           ${button({ label: "Otestovat personalitu · AI", variant: 'primary', attributes: {"data-debug": "conversation-ai"} })}
           ${button({ label: "Otestovat personalitu · fake", attributes: {"data-debug": "conversation-fake"} })}
-          ${button({ label: "Ukončit a smazat rozhovor", variant: 'danger', attributes: {"data-debug": "conversation-stop"} })}
+          ${button({ label: "Ukončit a připravit dalšího hosta", variant: 'danger', attributes: {"data-debug": "conversation-stop"} })}
         </div>
         <p data-conversation-status role="status"></p>
         <p data-conversation-error role="alert" hidden></p>
@@ -266,6 +267,33 @@ export class DebugPanel {
           ${button({ label: "Exportovat log JSON", attributes: {"data-debug": "export"} })}</div>
         <p data-log-count></p><ol class="debug-log" aria-label="Diagnostické události"></ol>
       </section>`;
+    // Keep test-session status and cancellation outside collapsible setup sections.
+    // This is a backend test session; it never inherits the device Stop action.
+    const sessionBar = document.createElement('section');
+    sessionBar.className = 'debug-session-bar';
+    sessionBar.setAttribute('aria-label', 'Zkušební rozhovor na telefonu');
+    const sessionLabel = document.createElement('strong');
+    sessionLabel.textContent = 'Zkušební rozhovor na telefonu';
+    sessionBar.append(sessionLabel,
+      this.element.querySelector('[data-conversation-status]')!,
+      this.element.querySelector('[data-debug="conversation-stop"]')!);
+    this.element.querySelector('.section-nav')!.after(sessionBar);
+    for (const section of this.element.querySelectorAll<HTMLElement>(':scope > .debug-card')) {
+      const heading = section.querySelector<HTMLHeadingElement>('h2')!;
+      const group = document.createElement('details');
+      group.className = 'diagnostic-group';
+      group.open = heading.id === 'debug-conversation-heading';
+      const summary = document.createElement('summary');
+      section.before(group);
+      summary.append(heading);
+      group.append(summary, section);
+    }
+    this.element.querySelector('.section-nav')!.addEventListener('click', event => {
+      const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');
+      const heading = link && this.element.querySelector<HTMLElement>(link.getAttribute('href')!);
+      const group = heading?.closest('details');
+      if (group) group.open = true;
+    });
     this.element.addEventListener('change', event => {
       if ((event.target as HTMLElement).matches('[data-server="personality"]')) this.renderPersonality();
     });
@@ -303,6 +331,8 @@ export class DebugPanel {
         this.clearServerLogs();
         this.clearCostumeDraft();
         this.actionGeneration += 1;
+        this.pending = false;
+        this.cancellationPending = false;
         this.statusSequence += 1;
         this.journal.record('background');
         this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
@@ -387,7 +417,7 @@ export class DebugPanel {
     this.button('fake').disabled ||= this.voice.server?.dialogMode === 'responses';
     this.renderServer();
     this.renderEvenings();
-    this.button('voice-stop').disabled = !this.native || (!this.pending && !this.voice.running);
+    this.button('voice-stop').disabled = !this.native || this.cancellationPending || (!this.pending && !this.voice.running);
     this.element.querySelector('[data-voice-status]')!.textContent = !this.native
       ? 'Hlasové testy jsou dostupné v nativní iOS aplikaci.'
       : `${phases[this.voice.phase] ?? phases.failed} · backend ${this.voice.mode === 'openai' ? 'AI TTS' : this.voice.mode === 'fake' ? 'FAKE' : 'neověřený'}${!this.voice.configured ? ' · přístup není nastaven' : ''}`;
@@ -572,6 +602,7 @@ export class DebugPanel {
       : '';
     this.element.querySelector('[data-conversation-status]')!.textContent = !this.native
       ? 'Zkušební rozhovor je dostupný v nativní iOS aplikaci.'
+      : this.cancellationPending ? 'Ukončuji rozhovor. S dalším hostem vyčkejte na potvrzení.'
       : this.voice.session
         ? `${phases[this.voice.phase] ?? phases.failed} · rozhovor je aktivní.`
         : selected != null
@@ -640,7 +671,7 @@ export class DebugPanel {
       || this.voice.mode !== 'openai' || server?.dialogMode !== 'responses';
     this.button('conversation-fake').disabled = busy || session || !this.voice.configured
       || this.voice.mode !== 'fake' || server?.dialogMode !== 'fake';
-    this.button('conversation-stop').disabled = !this.native
+    this.button('conversation-stop').disabled = !this.native || this.cancellationPending
       || (!this.pending && !session && !this.voice.running
         && !this.photoDraftId && (this.voice.transcript?.length ?? 0) === 0 && this.voice.selected == null);
 
@@ -723,11 +754,18 @@ export class DebugPanel {
     }
     if (!this.native) { return; }
     if (action === 'voice-stop' || action === 'conversation-stop') {
-      this.actionGeneration += 1;
+      if (this.cancellationPending) return;
+      const generation = ++this.actionGeneration;
       this.clearCostumeDraft();
       this.statusSequence += 1;
-      await bridge.stop().catch(() => undefined);
+      this.pending = true;
+      this.cancellationPending = true;
       this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
+      this.renderVoice();
+      await bridge.stop().catch(() => undefined);
+      if (generation !== this.actionGeneration) return;
+      this.cancellationPending = false;
+      this.pending = false;
       this.journal.record('voice_stopped'); await this.refreshVoiceAsync();
       if (!this.paused) { this.renderLog(); }
       return;
@@ -741,6 +779,7 @@ export class DebugPanel {
       if (this.pending) return;
       this.clearCostumeDraft(false);
       const sequence = ++this.photoSequence;
+      const generation = ++this.actionGeneration;
       this.pending = true; this.renderVoice();
       try {
         const result = await bridge.captureCostumePhoto();
@@ -756,19 +795,23 @@ export class DebugPanel {
         }, 120000);
       } catch {
         if (sequence === this.photoSequence) this.photoMessage = 'Fotoaparát není dostupný nebo povolený. Pokračujte bez fotky nebo s ručním popisem.';
-      } finally { this.pending = false; this.renderVoice(); }
+      } finally {
+        if (generation === this.actionGeneration) { this.pending = false; this.renderVoice(); }
+      }
       return;
     }
     if (this.pending) { return; }
     const errorText = this.element.querySelector<HTMLElement>('[data-voice-error]')!;
     errorText.hidden = true;
-    const generation = this.actionGeneration;
+    const generation = ++this.actionGeneration;
+    this.statusSequence += 1;
     this.pending = true; this.renderVoice();
     let code: DebugCode | null = 'voice_started';
     try {
       if (action === 'configure') { await bridge.configure(); code = 'profile_changed'; }
       else if (action === 'forget-profile') {
         await bridge.forgetProfile(); code = 'profile_forgotten';
+        if (generation !== this.actionGeneration) return;
         this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
       }
       else if (action === 'evenings-inspect') { await bridge.inspectEvenings(); code = 'evenings_checked'; }
@@ -779,11 +822,13 @@ export class DebugPanel {
           const name = this.element.querySelector<HTMLInputElement>('[data-evening-name]')!;
           if (!name.value.trim() || [...name.value].length > 80) { return; }
           await bridge.createEvening({ name: name.value.trim(), expectedEveningId: list.activeEveningId });
+          if (generation !== this.actionGeneration) return;
           name.value = '';
         } else {
           const eveningId = this.element.querySelector<HTMLSelectElement>('[data-evening-selection]')!.value;
           await bridge.activateEvening({ eveningId, expectedEveningId: list.activeEveningId });
         }
+        if (generation !== this.actionGeneration) return;
         this.element.querySelector<HTMLTextAreaElement>('[data-conversation-answer]')!.value = '';
         code = 'evening_changed';
       }
@@ -838,6 +883,7 @@ export class DebugPanel {
         const text = answer.value.trim();
         if (!text || text.length > 1000) { return; }
         await bridge.answerConversation({ text });
+        if (generation !== this.actionGeneration) return;
         answer.value = '';
         code = null;
       }
@@ -857,6 +903,7 @@ export class DebugPanel {
       // Never render provider/transport error text or credential-bearing URLs.
       if (generation !== this.actionGeneration) return;
       const state = await bridge.status().catch(() => null);
+      if (generation !== this.actionGeneration || document.hidden) return;
       if (state?.phase === 'cancelled') {
         this.journal.record('voice_stopped');
       } else {
@@ -869,9 +916,12 @@ export class DebugPanel {
         errorText.hidden = false;
       }
     } finally {
-      this.pending = false;
-      await this.refreshVoiceAsync();
-      if (!this.paused) { this.renderLog(); }
+      // A response from a cancelled guest must not unlock or refresh a newer action.
+      if (generation === this.actionGeneration) {
+        this.pending = false;
+        await this.refreshVoiceAsync();
+        if (!this.paused) { this.renderLog(); }
+      }
     }
   }
 }

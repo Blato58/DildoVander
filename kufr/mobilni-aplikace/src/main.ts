@@ -12,6 +12,7 @@ import {
 import { SimulatorDeviceConnection } from './features/device_connection/SimulatorDeviceConnection';
 import { DebugPanel } from './features/debug/DebugPanel';
 import { ProvisioningPanel } from './features/provisioning/ProvisioningPanel';
+import { operatorReadiness } from './features/device_connection/OperatorReadiness';
 
 type PendingAction = {
   kind: 'select' | 'reload';
@@ -26,6 +27,7 @@ if (app === null) {
 
 let pendingAction: PendingAction | null = null;
 let currentSnapshot: DeviceSnapshot;
+let operatorWorkspace: 'live' | 'manual' = 'live';
 let stopPending = false;
 let stopSubmitting = false;
 let stopStatus = '';
@@ -71,6 +73,40 @@ const performanceTools = document.createElement('div');
 performanceTools.className = 'performance-tools';
 controlPanel.append(performanceTools);
 performanceTools.append(voicePanel.element, dancePanel.element, conversationPanel);
+const liveTabs = document.createElement('nav');
+liveTabs.className = 'live-tabs';
+liveTabs.setAttribute('aria-label', 'Živý provoz');
+liveTabs.innerHTML = `<div role="tablist" aria-label="Způsob provozu">${[
+  ['voice', 'Hlas kufru'], ['dance', 'Tanec'], ['text', 'Text'],
+].map(([id, label], index) => `<button type="button" class="aw-button aw-button--secondary" role="tab" id="live-tab-${id}" aria-controls="live-panel-${id}" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}">${label}</button>`).join('')}</div>`;
+for (const [index, panel] of [voicePanel.element, dancePanel.element, conversationPanel].entries()) {
+  const name = ['voice', 'dance', 'text'][index];
+  panel.id = `live-panel-${name}`;
+  panel.setAttribute('role', 'tabpanel');
+  panel.setAttribute('aria-labelledby', `live-tab-${name}`);
+  panel.tabIndex = -1;
+  panel.hidden = index !== 0;
+}
+performanceTools.prepend(liveTabs);
+bindTabs(liveTabs);
+function showWorkspace(workspace: 'live' | 'manual'): void {
+  operatorWorkspace = workspace;
+  performanceTools.hidden = workspace !== 'live';
+  app!.querySelector<HTMLElement>('[data-manual-controls]')!.hidden = workspace !== 'manual';
+  for (const tab of app!.querySelectorAll<HTMLButtonElement>('[data-workspace]')) {
+    tab.setAttribute('aria-pressed', String(tab.dataset.workspace === workspace));
+  }
+}
+function openLiveAction(): void {
+  showWorkspace('live');
+  const mode = currentSnapshot.voice?.canStop ? 'voice'
+    : currentSnapshot.dance?.canStop ? 'dance'
+      : currentSnapshot.conversation?.pending || currentSnapshot.source === 'e2-simulator' ? 'text' : 'voice';
+  const tab = liveTabs.querySelector<HTMLButtonElement>(`#live-tab-${mode}`)!;
+  tab.click();
+  tab.focus();
+  performanceTools.scrollIntoView({ block: 'start', behavior: 'auto' });
+}
 const debugPanel = new DebugPanel(nativeMode, stopDevice);
 // Debug refreshes its button independently. Native fieldset disabling keeps the
 // same in-flight guard effective across those refreshes without changing telemetry.
@@ -92,8 +128,8 @@ tabs.innerHTML = `<a class="skip-link" href="#control-panel">Přejít k obsahu</
   <div class="shell-actions"><button type="button" class="aw-button aw-button--secondary theme-toggle" data-theme-toggle aria-label="Přepnout na světlý vzhled"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>
   ${button({ label: "Stop kufru", variant: 'danger', disabled: true, attributes: {"class": "shell-stop", 'data-shell-stop': true} })}</div>
   </div><div role="tablist" aria-label="Sekce aplikace">
-  <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Ovládání</button>
-  <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 9a14 14 0 0 1 18 0M6 13a9 9 0 0 1 12 0M9 17a4 4 0 0 1 6 0"/><circle cx="12" cy="21" r=".5"/></svg>Síť kufru</button>
+  <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-control" aria-controls="control-panel" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Provoz</button>
+  <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-provisioning" aria-controls="provisioning-panel" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 9a14 14 0 0 1 18 0M6 13a9 9 0 0 1 12 0M9 17a4 4 0 0 1 6 0"/><circle cx="12" cy="21" r=".5"/></svg>Kufr</button>
   <button type="button" class="aw-button aw-button--secondary" role="tab" id="tab-debug" aria-controls="debug-panel" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Diagnostika</button></div>
   <p class="shell-status" data-shell-status role="status" aria-live="polite" aria-atomic="true"></p>`;
 controlPanel.before(tabs);
@@ -177,11 +213,12 @@ const sendTextButton = conversationPanel.querySelector<HTMLButtonElement>('[type
 const cancelTurnButton = conversationPanel.querySelector<HTMLButtonElement>('[data-conversation="cancel"]')!;
 
 function renderConversation(snapshot: DeviceSnapshot): void {
-  conversationPanel.hidden = snapshot.source === 'local-fake';
   conversationPanel.querySelector<HTMLElement>('.conversation-explanation')!.textContent =
     snapshot.source === 'native-device'
       ? 'Kufr předá text své cloudové AI službě. Textové výměny uchovává paměť večera na backendu, dokud ji obsluha výslovně nesmaže nebo se nevytěsní nejstarší obsah. Telefon se připojuje jen ke kufru.'
-      : 'Simulátor vrací pevnou repliku. Text neopouští místní vývojové prostředí; žádná skutečná AI není připojena.';
+      : snapshot.source === 'e2-simulator'
+        ? 'Simulátor vrací pevnou repliku. Text neopouští místní vývojové prostředí; žádná skutečná AI není připojena.'
+        : 'Text vyžaduje připojený kufr nebo hostitelský E2 simulátor. Místní fake textové odpovědi neposkytuje.';
   const conversation = snapshot.conversation;
   visitorText.disabled = conversation?.canSubmit !== true;
   sendTextButton.disabled = conversation?.canSubmit !== true;
@@ -189,7 +226,11 @@ function renderConversation(snapshot: DeviceSnapshot): void {
   if (snapshot.phase === 'disconnected' || snapshot.phase === 'stopped' || snapshot.controlMode !== 'manual') {
     visitorText.value = '';
   }
-  conversationPanel.querySelector<HTMLElement>('[role="status"]')!.textContent = conversation?.status ?? '';
+  conversationPanel.querySelector<HTMLElement>('[role="status"]')!.textContent = conversation?.status
+    || (snapshot.source === 'local-fake' ? 'Textový rozhovor v této simulaci není dostupný.'
+      : snapshot.phase === 'disconnected' ? 'Nejprve obnovte připojení kufru.'
+        : snapshot.controlMode !== 'manual' ? 'Pro textový rozhovor převezměte řízení v ručním ovládání.'
+          : 'Vyčkejte na připravenost textového rozhovoru podle kufru.');
   const reply = conversationPanel.querySelector<HTMLElement>('.conversation-reply')!;
   reply.hidden = conversation?.reply == null;
   reply.querySelector<HTMLElement>('strong')!.textContent = conversation?.simulated ? 'SIMULOVANÁ ODPOVĚĎ' : 'Odpověď kufru';
@@ -198,6 +239,11 @@ function renderConversation(snapshot: DeviceSnapshot): void {
 
 function render(snapshot: DeviceSnapshot): void {
   const physical = snapshot.source === 'native-device';
+  const readiness = operatorReadiness(snapshot);
+  const focusedAction = document.activeElement instanceof HTMLButtonElement && app!.contains(document.activeElement)
+    ? { action: document.activeElement.dataset.action, compartment: document.activeElement.dataset.compartment,
+      workspace: document.activeElement.dataset.workspace, next: document.activeElement.hasAttribute('data-next-action') }
+    : null;
   if (snapshot.phase !== 'ready' || snapshot.controlMode !== 'manual' ||
       snapshot.busy || (pendingAction !== null &&
       pendingAction.revision !== snapshot.revision)) {
@@ -218,7 +264,7 @@ function render(snapshot: DeviceSnapshot): void {
       ? 'Probíhá výběr'
       : `Probíhá výběr ${snapshot.activeCompartment}`
     : snapshot.phase === 'stopped' ? 'Zastaveno'
-      : snapshot.phase === 'disconnected' ? 'Odpojeno' : 'Připraveno';
+      : snapshot.phase === 'disconnected' ? 'Odpojeno' : 'Klidový stav';
   const cards = Array.from({ length: 6 }, (_, index) => {
     const compartment = index + 1;
     const ready = (snapshot.readyMask & (1 << index)) !== 0;
@@ -249,19 +295,30 @@ function render(snapshot: DeviceSnapshot): void {
 
   app!.innerHTML = `
     <header>
-      <h1>Ruční ovládání</h1>
+      <h1>Provoz kufru</h1><p class="page-intro">Stav, další krok a ovládání na jednom místě.</p>
       <div class="simulation">${physical ? 'MÍSTNÍ KUFR · Nativní připojení' : `SIMULACE · ${snapshot.source === 'local-fake'
     ? 'Místní fake bez připojení'
     : 'E2 hostitelský simulátor, bez fyzického kufru'}`}</div>
     </header>
     <main>
+      <section class="operator-readiness" aria-label="Další krok">
+        <div>${statusBadge({ label: snapshot.phase === 'disconnected' ? 'Spojení chybí' : physical ? 'Místní kufr' : 'Simulace', tone: readiness.tone })}
+        <h2>${escapeHtml(readiness.title)}</h2><p>${escapeHtml(readiness.message)}</p></div>
+        ${button({ label: readiness.actionLabel, variant: 'primary', attributes: { 'data-next-action': readiness.action } })}
+      </section>
       <section class="overview" aria-label="Stav kufru">
         <div><span>Režim</span>${statusBadge({ label: modeText, tone: snapshot.controlMode === 'manual' ? 'info' : 'neutral' })}</div>
         <div><span>Stav</span>${statusBadge({ label: phaseText, tone: snapshot.phase === 'stopped' ? 'danger' : snapshot.phase === 'disconnected' ? 'warning' : snapshot.phase === 'running' ? 'info' : 'success' })}</div>
         <div><span>Připraveno</span><strong>${snapshot.phase === 'disconnected'
     ? '? / 6' : snapshot.readyMask.toString(2).replace(/0/g, '').length + ' / 6'}</strong></div>
       </section>
-      <p class="status" role="status">${escapeHtml(snapshot.status)}</p>
+      <p class="status" data-current-status tabindex="-1">${escapeHtml(snapshot.status)}</p>
+      <nav class="workspace-nav" aria-label="Úloha obsluhy">
+        ${button({ label: 'Živý provoz', attributes: { 'data-workspace': 'live', 'aria-pressed': operatorWorkspace === 'live' } })}
+        ${button({ label: 'Ruční ovládání', attributes: { 'data-workspace': 'manual', 'aria-pressed': operatorWorkspace === 'manual' } })}
+      </nav>
+      <section data-manual-controls ${operatorWorkspace === 'manual' ? '' : 'hidden'} aria-labelledby="manual-title">
+      <div class="section-heading"><h2 id="manual-title">Ruční ovládání</h2><span>${physical ? 'Místní povely v LAN' : 'Simulované povely'}</span></div>
       <div class="toolbar">
         ${snapshot.controlMode === 'observer'
     ? button({ label: physical ? 'Převzít ruční řízení' : 'Převzít řízení simulace', variant: 'primary',
@@ -285,7 +342,7 @@ function render(snapshot: DeviceSnapshot): void {
           ${notice({ title: 'Výsledek je nejistý', message: snapshot.source === 'local-fake'
     ? 'Po skutečném Stop by byla nutná místní kontrola kufru. Zde lze obnovit pouze fake stav.'
     : physical ? 'Je nutná místní kontrola kufru. Telefon neověřuje polohu přihrádky a neobchází servisní zotavení.'
-    : 'Simulátor vyžaduje servisní kontrolu mimo mobilní UI. Výsledek otevření není fyzicky ověřen.', tone: 'danger' })}
+    : 'Simulátor vyžaduje servisní kontrolu mimo mobilní UI. Výsledek otevření není fyzicky ověřen.', tone: 'danger', live: false })}
           ${snapshot.source === 'local-fake'
     ? `${button({ label: "Simulovat místní kontrolu", attributes: {"data-action": "inspect"} })}` : ''}
         </section>` : ''}
@@ -297,11 +354,22 @@ function render(snapshot: DeviceSnapshot): void {
         </div>
         <div class="compartments">${cards}</div>
       </section>
+      </section>
       <p class="footnote">${snapshot.source === 'local-fake'
     ? 'Tato stránka neposílá povely do zařízení. Stavy a časování jsou jen místní fake.'
     : physical ? 'Povely jdou přímo do spárovaného kufru v LAN. Po ACK čekejte na výsledek a zkontrolujte přihrádku.'
     : 'Povely jdou pouze do místního E2 C++ simulátoru. Žádný fyzický kufr není připojen.'}</p>
     </main>`;
+  performanceTools.hidden = operatorWorkspace !== 'live';
+  if (focusedAction) {
+    const candidates = app!.querySelectorAll<HTMLButtonElement>('button');
+    const restored = [...candidates].find(candidate => !candidate.disabled && (
+      focusedAction.action ? candidate.dataset.action === focusedAction.action && candidate.dataset.compartment === focusedAction.compartment
+        : focusedAction.workspace ? candidate.dataset.workspace === focusedAction.workspace
+          : focusedAction.next && candidate.hasAttribute('data-next-action')
+    ));
+    (restored ?? app!.querySelector<HTMLElement>('[data-current-status]'))?.focus({ preventScroll: true });
+  }
   updateStopControls(snapshot);
 }
 
@@ -334,6 +402,25 @@ app.addEventListener('click', (event) => {
   const element = target instanceof Element
     ? target
     : target instanceof Node ? target.parentElement : null;
+  const workspaceButton = element?.closest<HTMLButtonElement>('button[data-workspace]');
+  if (workspaceButton) {
+    showWorkspace(workspaceButton.dataset.workspace as 'live' | 'manual');
+    return;
+  }
+  const nextButton = element?.closest<HTMLButtonElement>('button[data-next-action]');
+  if (nextButton) {
+    if (nextButton.dataset.nextAction === 'connection') {
+      selectTab('tab-provisioning');
+      tabs.querySelector<HTMLButtonElement>('#tab-provisioning')!.focus();
+    } else if (nextButton.dataset.nextAction === 'live') {
+      openLiveAction();
+    } else {
+      showWorkspace('manual');
+      app!.querySelector<HTMLElement>('[data-manual-controls]')!.scrollIntoView({ block: 'start', behavior: 'auto' });
+      app!.querySelector<HTMLButtonElement>('[data-action="acquire"], [data-action="release"], [data-action="inspect"]')?.focus({ preventScroll: true });
+    }
+    return;
+  }
   const button = element?.closest<HTMLButtonElement>('button[data-action]') ?? null;
   if (button === null || button.disabled) {
     return;
@@ -448,10 +535,9 @@ async function initializeNativeAsync(): Promise<void> {
       ${button({ label: "Zapomenout párování", disabled: true, attributes: {"data-native": "forget"} })}
     </div>
     <p role="status"></p>`;
-  app!.before(settings);
+  provisioningPanel.element.querySelector('.page-intro')!.after(settings);
   settings.querySelector('[data-open-network]')!.addEventListener('click', () => {
-    selectTab('tab-provisioning');
-    tabs.querySelector<HTMLButtonElement>('#tab-provisioning')!.focus();
+    provisioningPanel.element.querySelector<HTMLElement>('#network-prepare')!.scrollIntoView({ block: 'start', behavior: 'auto' });
   });
   const form = settings.querySelector<HTMLFormElement>('form')!;
   const addressForm = settings.querySelector<HTMLFormElement>('[data-address]')!;

@@ -41,25 +41,25 @@
           <p id="summary" class="summary"></p>
           <div id="generation-status" aria-live="polite"></div>
           <button id="cancel-base" class="text-button" hidden>Zastavit přípravu příběhu a obrazu</button>
-          <div class="download-shelf"><button id="save-main" class="aw-button" data-export="bundle">Uložit památku</button>
+          <div class="download-shelf"><button id="save-main" class="aw-button" data-export="bundle">Uložit památku ZIP</button>
           <p class="muted small">ZIP obsahuje dostupný příběh, obraz a kartičku. Portrét se přidává jen samostatnou volbou.</p>
           <div class="downloads" aria-label="Jednotlivé soubory"><button class="text-button" data-export="story">Příběh TXT</button><button class="text-button" data-export="art">Obraz hůlky</button><button class="text-button" data-export="card">Kartička PNG</button></div></div><a class="read-story" href="#story-heading">Přečíst celý příběh</a>
         </div>
       </div>
-      <section class="story-leaf" aria-labelledby="story-heading"><div class="story-intro"><h2 id="story-heading">Její příběh.<br>A trochu tvůj.</h2><p class="fiction-label">Kouzelnická fikce pro tento večer</p></div><div id="story-body"></div></section>
+      <section class="story-leaf" aria-labelledby="story-heading"><div class="story-intro"><h2 id="story-heading">Příběh tvojí hůlky</h2><p class="fiction-label">Kouzelnická fikce pro tento večer</p></div><div id="story-body"></div></section>
       <section id="portrait-section" class="owner-section" aria-labelledby="portrait-heading" hidden>
-        <div class="section-intro"><h2 id="portrait-heading">A teď kouzelník.</h2><p>Dobrovolný soukromý portrét. Vlastní fotografii můžeš proměnit v kouzelnickou podobu; základní památka je hotová i bez ní.</p><p class="muted small">Fotografie se nejprve zobrazí jen u tebe. Odešle se až po souhlasu a stisku tlačítka.</p></div><div class="section-content portrait-workspace">
+        <div class="section-intro"><h2 id="portrait-heading">Soukromý kouzelnický portrét</h2><p>Dobrovolný soukromý portrét. Vlastní fotografii můžeš proměnit v kouzelnickou podobu; základní památka je hotová i bez ní.</p><p class="muted small">Fotografie se nejprve zobrazí jen u tebe. Odešle se až po souhlasu a stisku tlačítka.</p></div><div class="section-content portrait-workspace">
         <div id="portrait-current"></div><p id="portrait-status" class="muted" aria-live="polite"></p>
         <label class="aw-field" for="photo">Vybrat vlastní fotografii</label><input id="photo" class="aw-input" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="photo-help">
         <p id="photo-help" class="muted small">JPEG, PNG nebo WebP, nejvýše 10 MB. HEIC převeď na JPEG. Výběrem souboru se nic neodesílá.</p>
         <img id="photo-preview" class="photo-preview" alt="Místní náhled vybrané fotografie" hidden>
-        <label class="consent"><input id="photo-consent" type="checkbox"> <span>Smím tuto fotografii použít. Souhlasím s jejím odesláním na server a do OpenAI pro vytvoření soukromého portrétu. Originál, zpracované kopie a výsledky zůstanou uloženy do mého ručního smazání.</span></label>
+        <label class="consent consent-panel"><input id="photo-consent" type="checkbox"> <span>Smím tuto fotografii použít. Souhlasím s jejím odesláním na server a do OpenAI pro vytvoření soukromého portrétu. Originál, zpracované kopie a výsledky zůstanou uloženy do mého ručního smazání.</span></label>
         <button id="generate-portrait" class="aw-button" disabled>Odeslat a vytvořit portrét</button>
-        <div class="downloads"><button id="cancel-portrait" class="text-button" hidden>Zastavit rozpracovaný portrét</button><button id="revoke-consent" class="text-button">Odvolat souhlas a smazat fotografie</button><button class="text-button" data-export="portrait">Uložit portrét</button></div>
+        <div class="downloads portrait-management"><button id="cancel-portrait" class="text-button" hidden>Zastavit rozpracovaný portrét</button><button id="revoke-consent" class="text-button">Odvolat souhlas a smazat fotografie</button><button class="text-button" data-export="portrait">Uložit portrét</button></div>
         <label class="consent"><input id="include-portrait" type="checkbox"> <span>Přidat hotový portrét do mého soukromého ZIPu</span></label>
         <details id="history-panel"><summary>Dřívější verze portrétu</summary><div id="portrait-history"></div><button id="load-history" class="text-button">Načíst historii</button></details></div>
       </section>
-      <section id="owner-tools" class="owner-section" aria-labelledby="owner-heading" hidden><div class="section-intro"><h2 id="owner-heading">Tvoje památka.<br>Tvoje rozhodnutí.</h2><p>Památka ani fotografie se automaticky nemažou. Přístupový odkaz může vypršet; uložený obsah zůstává do ručního smazání.</p></div><div class="section-content">
+      <section id="owner-tools" class="owner-section" aria-labelledby="owner-heading" hidden><div class="section-intro"><h2 id="owner-heading">Přístup a sdílení</h2><p>Památka ani fotografie se automaticky nemažou. Přístupový odkaz může vypršet; uložený obsah zůstává do ručního smazání.</p></div><div class="section-content">
         <div class="actions"><button id="recovery" class="aw-button aw-button--secondary">Uložit soukromý návratový odkaz</button><button id="share-preview" class="aw-button aw-button--secondary">Sdílet hůlku a příběh</button></div>
         <p class="muted small">Návratový odkaz je soukromý klíč ke správě i portrétu. Posílej jej jen sobě. Sdílený odkaz ukazuje základní edici bez fotografií a portrétu.</p>
         <div id="issued-link" hidden><label class="aw-field" for="link-value">Vydaný odkaz</label><input id="link-value" class="aw-input" readonly><p id="link-purpose"></p><button id="copy-link" class="text-button">Kopírovat odkaz</button><button id="native-share" class="text-button" hidden>Sdílet veřejný odkaz</button></div>

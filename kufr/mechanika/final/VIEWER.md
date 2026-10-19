@@ -49,12 +49,24 @@ zaměření (240 ms). Renderer pracuje na vyžádání, DPR je nejvýše 2; změ
 velikosti canvasu a browser viewportu obnoví kreslení. Pointer cancel,
 ztráta capture a blur ruší aktivní gesta.
 
+Nad modelem zůstává název skutečného směru kamery (při otáčení **Volný pohled**),
+režim a počet viditelných dílů. **Pohled a ovládání** obsahuje také návod pro
+dotyk, myš a klávesnici. Při změně vrstev nebo izolaci je přímo nad modelem
+dostupné **Obnovit zobrazení**. Obnoví viditelnost a průhlednost výchozí pro
+aktuální režim a kameru; ponechá montážní krok, kabelové trasy, rozměry i
+případnou závadu po Stop. Servis proto zůstane odkrytý a montáž na stole
+nepřidá korpus. Skrytý díl vybraný ze seznamu má výslovně označený skrytý stav.
+
 ## Montážní průvodce
 
 **Montáž** otevře pokyny. Kompaktní lišta drží Předchozí, Instrukce s počítadlem
 a Další i při sbalení sheetu. Seznam kroků umožňuje skok; progress ukazuje
 pozici v návodu, nikoli fyzické dokončení. K dispozici je zaměření oblasti,
 restart a ukončení. Počet kroků je převzatý z `assembly-guide.json`.
+Nad tlačítky v dolní liště zůstává název aktuálního kroku, pracoviště, směr
+a souhrn dílů i po sbalení instrukcí. Dlouhý souhrn má vlastní posun;
+úplné pokyny jsou stále v panelu. Kontrolní krok ani pozice v průvodci
+nepotvrzují fyzické dokončení.
 
 Průvodce zobrazuje kumulativní fyzické osazení v kufru z `caseParts`
 (s fallbackem na `parts` u starších payloadů), periwinkle zvýraznění dílů aktuálního
@@ -259,3 +271,5 @@ python preview_ui_fixture.py --output "$env:TEMP/dv-ui-framework/viewer.html"
 Výstup trvale uvádí **SYNTETICKÁ UI FIXTURE**, nenabízí výrobní ZIP a není
 modelem kufru ani CAD či fyzickým důkazem. Test `test_viewer_document.py`
 ověřuje sestavený runtime v Node a obnovu z fallbacku bez sdíleného stromu.
+Fixture má dva výslovně syntetické kroky pro ověření práce s instrukcemi;
+nenahrazují skutečný postup z `assembly-guide.json`.

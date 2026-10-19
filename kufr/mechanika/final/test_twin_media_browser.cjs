@@ -26,13 +26,16 @@ test('real Chromium fake devices: delayed microphone recovery, JPEG, PCM drain a
         <link rel="stylesheet" href="/kufr/design-system/arcane-workshop.css"><style>${fs.readFileSync(path.join(__dirname,'viewer-workshop.css'),'utf8')}${fs.readFileSync(path.join(__dirname,'twin-viewer.css'),'utf8')}${fs.readFileSync(path.join(__dirname,'twin_media.css'),'utf8')}
         .twin-panel{top:8px;bottom:8px}.twin-panel>details{max-height:calc(100dvh - 36px)!important}</style>
         <body class="aw-root"><section class="twin-panel aw-root"><details open id="host"><summary>Browser HAL test fixture</summary></details></section>
-        <script src="/twin_media.js"></script><script>
+        <script src="/twin_media.js"></script><script type="module">
+        import * as VapourUI from '/workshop-ui-runtime.js';
+        window.VapourUI=VapourUI;
         window.hal=TwinMedia.mount(document,document.getElementById('host'),{request:async(id,route,options={})=>{
           const response=await fetch('/v1/twin/instances/'+encodeURIComponent(id)+route,options);
           if(!response.ok)throw new Error('Fixture HTTP '+response.status);return response.status===204?null:response.json();}});
         hal.sync({active:true,replay:false,role:'control',instanceId:'sim-integration',mode:'simulation',profile:'integration',bootId:'${BOOT}',status:'online'});
         </script></body></html>`);return;
     }
+    if(req.url==='/workshop-ui-runtime.js'){res.setHeader('Content-Type','text/javascript');res.end(fs.readFileSync(path.join(__dirname,'workshop-ui-runtime.js')));return;}
     if(req.url==='/twin_media.js'){res.setHeader('Content-Type','text/javascript');res.end(fs.readFileSync(path.join(__dirname,'twin_media.js')));return;}
     if(req.url?.startsWith('/kufr/design-system/')){
       const file=path.resolve(ROOT,'.'+req.url);
@@ -129,7 +132,9 @@ test('Chrome navigation preserves scoped unload cancellation through a delayed r
     const json=value=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));};
     if(req.url==='/'){
       res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><body><div id="host"></div>
-        <script src="/twin_media.js"></script><script>
+        <script src="/twin_media.js"></script><script type="module">
+        import * as VapourUI from '/workshop-ui-runtime.js';
+        window.VapourUI=VapourUI;
         window.hal=TwinMedia.mount(document,document.getElementById('host'),{request:async(id,route,options={})=>{
           const response=await fetch('/v1/twin/instances/'+encodeURIComponent(id)+route,options);
           if(!response.ok)throw new Error('Fixture HTTP '+response.status);return response.status===204?null:response.json();}});
@@ -137,6 +142,7 @@ test('Chrome navigation preserves scoped unload cancellation through a delayed r
         </script></body></html>`);return;
     }
     if(req.url==='/exit'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Departed media page</title>');return;}
+    if(req.url==='/workshop-ui-runtime.js'){res.setHeader('Content-Type','text/javascript');res.end(fs.readFileSync(path.join(__dirname,'workshop-ui-runtime.js')));return;}
     if(req.url==='/twin_media.js'){res.setHeader('Content-Type','text/javascript');res.end(fs.readFileSync(path.join(__dirname,'twin_media.js')));return;}
     if(req.url?.endsWith('/settings')){json(settings);return;}
     if(req.url?.endsWith('/media/start')||req.url?.endsWith('/media/state')){json(actor);return;}

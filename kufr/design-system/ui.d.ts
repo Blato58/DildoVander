@@ -12,7 +12,8 @@ export interface ButtonOptions {
 export declare function escapeHtml(value: unknown): string;
 export declare function button(options: ButtonOptions): string;
 export declare function statusBadge(options: { label: unknown; tone?: Tone }): string;
-export declare function notice(options: { title?: unknown; message: unknown; tone?: Tone }): string;
+/** action must be trusted application/framework HTML; live:false suppresses repeated snapshot announcements. */
+export declare function notice(options: { title?: unknown; message: unknown; detail?: unknown; action?: string; tone?: Tone; live?: boolean }): string;
 /** action must be trusted framework/application HTML. */
 export declare function emptyState(options: { title: unknown; message: unknown; action?: string }): string;
 export declare function wandCard(options: { title: unknown; subtitle?: unknown; number?: string | number; imageUrl?: string; selected?: boolean; disabled?: boolean; interactive?: boolean }): string;

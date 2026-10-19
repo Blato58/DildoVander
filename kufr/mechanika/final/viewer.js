@@ -189,6 +189,10 @@ function assemblyPartState(mesh) {
   return 'future';
 }
 function isBenchStep() { return mode === 'assembly' && currentStep()?.installation?.kind === 'bench'; }
+function assemblyWorkLabel() {
+  if (!currentStep()) return 'Příprava průvodce';
+  return {bench:'Na stole mimo kufr',inspection:'Kontrola podkladů a sestavy',wiring:'Zapojení v návrhové sestavě'}[currentStep().installation?.kind] || 'Návrhový stav v kufru';
+}
 function currentPartPatterns(step = currentStep()) { return [...(step?.parts || []),...(step?.preparedParts || [])]; }
 function casePartPatterns(step) { return step?.caseParts ?? step?.parts ?? []; }
 function benchPreviewPatterns() {
@@ -625,7 +629,7 @@ function draw() {
   el('liftvalue').textContent = lift(trayAngles[+el('tray').value-1] || 0).toFixed(1)+' mm';
   el('lidvalue').textContent = el('lid').value+'°';
   el('inspect').setAttribute('aria-pressed', String(inspectEnabled));
-  el('inspect-hint').hidden = !inspecting();
+  el('inspect-hint').hidden = !inspecting() || !!pinned;
   el('inspect-hint').textContent = pinned ? `Připnuto: ${pinned.name}. Klik na jiný objekt změní výběr; klik do prázdna nebo Zrušit výběr jej zruší.` : selected ? 'Klik na objekt připne jeho kartu a umožní změnit barvu.' : 'Inspect: názvy všech objektů zapnutých vrstev. Najeďte na díl; Servis odkryje elektroniku.';
   canvas.style.cursor = inspecting() ? 'crosshair' : drag ? 'grabbing' : 'grab';
   updatePanel(selected);
@@ -634,6 +638,7 @@ function draw() {
   updateOverlay(selected);
   el('selection-bar').hidden = !pinned;
   el('selection-title').textContent = pinned?.info?.title || pinned?.name || '';
+  updateViewportContext();
   if (cameraTransition) requestDraw();
 }
 function requestDraw() {
@@ -818,7 +823,8 @@ el('selection-details').onclick = () => setWorkshopPanel('inspector',true);
 el('selection-clear').onclick = () => { pinned = null; clearWireSelection(); requestDraw(); };
 el('hide-object').onclick = () => { if (pinned) hiddenMeshes.has(pinned.name) ? hiddenMeshes.delete(pinned.name) : hiddenMeshes.add(pinned.name); layersChanged(); };
 el('isolate-object').onclick = () => { isolateName = pinned?.name || null; layersChanged(); };
-el('show-all').onclick = () => { hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null; visualMode = 'complete'; el('visual-mode').value = 'complete'; resetView(); buildTree(); layersChanged(); };
+el('show-all').onclick = restoreVisibility;
+el('restore-view').onclick = () => { restoreVisibility(); canvas.focus({preventScroll:true}); };
 el('zoom-object').onclick = () => { if (pinned) zoomObject(pinned); };
 el('wire').onchange = () => {
   pinned = null; hovered = null; hoveredConnection = null; pointer = null;
@@ -850,12 +856,50 @@ el('service-reset').onclick = () => {
 function resetView() {
   cameraTransition = null; automaticFit = true; setView('overview');
 }
+const cameraViews = {
+  top: {angles:[-Math.PI/2,Math.PI/2-.001], label:'Shora'},
+  front: {angles:[-Math.PI/2,.01], label:'Zepředu'},
+  back: {angles:[Math.PI/2,.01], label:'Zezadu'},
+  left: {angles:[Math.PI,.01], label:'Zleva'},
+  side: {angles:[0,.01], label:'Zprava'},
+  overview: {angles:[-1.05,.66], label:'Izometrie'},
+};
 function setView(name) {
   cameraTransition = null;
-  const views = {top:[-Math.PI/2,Math.PI/2-.001],front:[-Math.PI/2,.01],back:[Math.PI/2,.01],left:[Math.PI,.01],side:[0,.01],overview:[-1.05,.66],iso:[-1.05,.66]};
-  [yaw,pitch] = views[name] || views.overview;
+  [yaw,pitch] = (cameraViews[name] || cameraViews.overview).angles;
   automaticFit = true; el('camera-menu').open = false; requestDraw();
-  for (const viewName of ['top','front','back','left','side','overview']) el('view-'+viewName).setAttribute('aria-pressed',String(viewName === name));
+}
+function geometryDefaults() {
+  const service = mode === 'service', transport = mode === 'transport';
+  return {cover:!service,case:true,beds:true,hardware:true,wands:!transport && !service,bank:!transport,textile:!transport && !service};
+}
+function resetGeometryVisibility() {
+  hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null;
+  visualMode = 'complete'; el('visual-mode').value = 'complete';
+  for (const [id,checked] of Object.entries(geometryDefaults())) el(id).checked = checked;
+  el('case-opacity').value = mode === 'service' ? .2 : 1;
+}
+function restoreVisibility() {
+  // Restore only model visibility: assembly progress, simulation faults and overlays are independent.
+  resetGeometryVisibility(); resetView(); buildTree(); layersChanged();
+}
+function updateViewportContext() {
+  const viewEntry = Object.entries(cameraViews).find(([,preset]) => {
+    const delta = yaw-preset.angles[0];
+    return Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta))) < .002 && Math.abs(pitch-preset.angles[1]) < .002;
+  });
+  el('view-name').textContent = viewEntry?.[1].label || 'Volný pohled';
+  for (const name of Object.keys(cameraViews)) el('view-'+name).setAttribute('aria-pressed',String(name === viewEntry?.[0]));
+  const changed = hiddenMeshes.size > 0 || hiddenGroups.size > 0 || isolateName !== null || visualMode !== 'complete'
+    || Object.entries(geometryDefaults()).some(([id,checked])=>el(id).checked !== checked)
+    || +el('case-opacity').value !== (mode === 'service' ? .2 : 1);
+  const visibleCount = model.meshes.reduce((count,mesh)=>count+Number(visible(mesh)),0);
+  const modeLabel = mode === 'assembly' ? assemblyWorkLabel() : {operation:'Provoz',service:'Servis',transport:'Přeprava'}[mode];
+  const visibilityLabel = isolateName ? 'izolovaný díl' : changed ? 'upravené vrstvy' : 'výchozí vrstvy';
+  el('visibility-summary').textContent = modeLabel+' · '+visibleCount+' / '+model.meshes.length+' dílů · '+visibilityLabel;
+  el('restore-view').hidden = !changed;
+  el('selection-bar').setAttribute('data-hidden-selection',String(!!pinned && !visible(pinned)));
+  if (pinned && !visible(pinned)) el('selection-title').textContent += ' · skrytý díl';
 }
 function transitionCamera(target,newDistance) {
   automaticFit = false;
@@ -929,12 +973,10 @@ function setMode(value) {
   pinned = null; hovered = null; hoveredConnection = null; pointer = null;
   clearWireSelection(); displayedMesh = undefined;
   el('object').value = ''; el('wire').value = ''; el('endpoint').value = ''; el('wire-scope').value = 'branch';
-  hiddenMeshes.clear(); hiddenGroups.clear(); isolateName = null;
+  resetGeometryVisibility();
   const transport = mode === 'transport', service = mode === 'service';
   el('lid').value = transport ? 0 : 105;
-  el('cover').checked = !service; el('case').checked = true; el('beds').checked = true; el('hardware').checked = true;
-  el('wands').checked = !transport && !service; el('bank').checked = !transport; el('textile').checked = !transport && !service;
-  el('wires').checked = service; el('case-opacity').value = service ? .2 : 1;
+  el('wires').checked = service;
   el('dimensions').checked = false;
   if (!twinViewer?.active() && (transport || mode === 'assembly')) trayAngles.fill(0);
   el('lift').value = trayAngles[+el('tray').value-1] || 0;
@@ -986,6 +1028,7 @@ function readableItems(value) {
 function updateAssembly() {
   const active = mode === 'assembly', step = currentStep(), count = assemblyGuide.steps.length;
   el('assembly-panel').hidden = !active; el('assembly-controls').hidden = !active;
+  el('assembly-current').hidden = !active;
   el('motion-toggle').hidden = active;
   el('assembly-counter').textContent = (assemblyIndex+1)+' / '+count;
   el('assembly-title').textContent = step ? (assemblyIndex+1)+'/'+count+' · '+step.title : 'Začátek montáže';
@@ -994,7 +1037,10 @@ function updateAssembly() {
   for (const [index,item] of assemblyGuide.steps.entries()) el('assembly-step').add(new Option((index+1)+'. '+item.title,String(index)));
   el('assembly-step').value = String(assemblyIndex);
   el('assembly-text').textContent = step?.instruction || (count ? 'Vyberte první krok nebo přejděte tlačítkem Další. Kroky neoznačují fyzické dokončení.' : 'Montážní data nejsou dostupná.');
-  el('assembly-context').textContent = isBenchStep() ? 'PRÁCE NA STOLE MIMO KUFR · Zobrazené díly v návrhovém vzájemném uspořádání; korpus je skrytý. Nejde o dráhu zasouvání.' : step ? 'STAV V KUFŘÍKU · Fyzicky vložené díly + mosazně zvýrazněné díly umístěné tímto krokem. Podsestavy připravené na stole se objeví až v kroku vložení. Vložení není animované.' : 'NÁVRHOVÝ PRŮVODCE · Postup ověřte na skutečném prototypu.';
+  el('assembly-context').textContent = isBenchStep() ? 'PRÁCE NA STOLE MIMO KUFR · Zobrazené díly v návrhovém vzájemném uspořádání; korpus je skrytý. Nejde o dráhu zasouvání.' : step ? 'STAV V KUFŘÍKU · Návrhově osazené díly + zvýrazněné díly umístěné tímto krokem. Podsestavy připravené na stole se objeví až v kroku vložení. Vložení není animované.' : 'NÁVRHOVÝ PRŮVODCE · Postup ověřte na skutečném prototypu.';
+  el('assembly-current-title').textContent = step ? (assemblyIndex+1)+' / '+count+' · '+step.title : 'Montáž · příprava';
+  el('assembly-current-context').textContent = step ? [assemblyWorkLabel(),step.location,step.direction].filter(Boolean).join(' · ') : 'Pozice v návodu není potvrzení fyzického dokončení.';
+  el('assembly-current-parts').textContent = step ? (step.preparedParts?.length ? 'Připravit: ' : 'V tomto kroku: ')+readableItems(step.partSummary || currentPartPatterns(step)).replaceAll('\n',' · ') : count ? count+' kroků · Další otevře první krok.' : 'Montážní data nejsou dostupná.';
   el('assembly-location').textContent = step ? ['Podsestava: '+readableItems((Array.isArray(step.subassembly) ? step.subassembly : [step.subassembly]).filter(Boolean).map(id=>(assemblyGuide.subassemblies || []).find(item=>item.id===id)?.title || id)),step.location && 'Pracoviště / poloha: '+step.location,step.direction && 'Směr vložení: '+step.direction,step.installation?.clearance_mm && 'Požadovaný přístup: '+step.installation.clearance_mm+' mm'].filter(Boolean).join('\n') : '';
   el('assembly-access').textContent = step?.access?.length ? 'Přístup rukou a nástroje:\n'+readableItems(step.access) : '';
   el('assembly-connectors').textContent = step?.connectors?.length ? 'Konektory / kabely:\n'+readableItems(step.connectors) : '';

@@ -35,8 +35,14 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
   try { browser = await chromium.launch({ headless: true, channel: process.env.DV10_BROWSER_CHANNEL || 'msedge' }); }
   catch (error) { server.close(); throw error; }
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  const calls = []; const errors = []; let view = fixture(); let delayed = false; let unavailable = false;
+  const calls = []; const errors = []; let view = fixture(); let delayed = false; let unavailable = false; let readDelayMs = 450;
   page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => {
+    const actualFetch = window.fetch;
+    window.fetch = (path, options) => actualFetch(path, window.__ignoreGuestAbort && String(path).includes('/guest/v1/')
+      ? { ...options, signal: undefined } : options);
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => !!window.__backgrounded });
+  });
   await page.route('**/guest/v1/**', async route => {
     const request = route.request(); const url = new URL(request.url());
     calls.push({ path: url.pathname, query: url.search, method: request.method(), headers: request.headers(), body: request.postData() });
@@ -53,7 +59,7 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
     if (request.method() === 'DELETE') return json({ schemaVersion: 1, receipt: { id: 'synthetic-receipt', scope: 'all', accessRevoked: true, localState: 'completed', providerState: 'not_confirmed', backupState: 'pending' } });
     if (url.pathname.includes('/deletions/')) return json({ schemaVersion: 1, receipt: { id: 'synthetic-receipt', scope: 'all', localState: 'completed', providerState: 'not_confirmed', backupState: 'pending' } });
     if (unavailable) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"schemaVersion":1,"errorCode":"access_unavailable"}' });
-    if (delayed && url.pathname.endsWith(ownerId)) { await new Promise(resolve => setTimeout(resolve, 450)); return json(fixture('STARÝ HOST')); }
+    if (delayed && url.pathname.endsWith(ownerId)) { await new Promise(resolve => setTimeout(resolve, readDelayMs)); return json(fixture('STARÝ HOST')); }
     return json(url.pathname.endsWith(otherId) ? fixture('JINÝ HOST') : view);
   });
   try {
@@ -138,6 +144,58 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
     assert.equal(await page.locator('#wand-art').isVisible(), false, 'Partial edition must not fabricate artwork');
     assert.equal(await page.locator('[data-export="story"]').isDisabled(), false);
     assert.equal(await page.locator('[data-export="art"]').isDisabled(), true);
+    view = fixture('<img src=x onerror=alert(1)>');
+    // A claim/session bootstrap can wait behind another tab. Navigating while
+    // waiting must prevent the old operation from issuing a mutation at all.
+    await page.goto(origin + `/keepsake/?k=${ownerId}`);
+    await page.locator('#wand-name').filter({ hasText: '<img src=x' }).waitFor();
+    const beforeLockedAction = calls.length;
+    await page.evaluate(() => {
+      window.__actualLockRequest = navigator.locks.request.bind(navigator.locks);
+      navigator.locks.request = async (_name, callback) => {
+        await new Promise(resolve => { window.__releaseSessionLock = resolve; });
+        return callback();
+      };
+    });
+    await page.locator('#save-main').click();
+    await page.waitForFunction(() => !!window.__releaseSessionLock);
+    await page.evaluate(id => { history.pushState({}, '', `/keepsake/?k=${id}&view=share&editionId=44444444-4444-4444-8444-444444444444`); dispatchEvent(new PopStateEvent('popstate')); }, otherId);
+    await page.locator('#wand-name').filter({ hasText: 'JINÝ HOST' }).waitFor();
+    await page.evaluate(() => { navigator.locks.request = window.__actualLockRequest; window.__releaseSessionLock(); });
+    await page.waitForTimeout(100);
+    assert.equal(calls.slice(beforeLockedAction).filter(call => call.method !== 'GET').length, 0,
+      'Old route must not bootstrap or mutate after waiting for the browser session lock');
+    assert.equal(await page.locator('#issued-link').isVisible(), false);
+    assert.equal(await page.locator('#save-main').isDisabled(), true, 'Old action completion cannot enable a missing shared export');
+
+    // Fetch implementations can finish even after abort. A hidden page must
+    // discard its response and must not restore the previous guest's content.
+    await page.goto(origin + `/keepsake/?k=${ownerId}`);
+    await page.locator('#wand-name').filter({ hasText: '<img src=x' }).waitFor();
+    await page.evaluate(() => { window.__ignoreGuestAbort = true; });
+    delayed = true;
+    const beforeBackgroundRead = calls.length;
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(50);
+    assert(calls.length > beforeBackgroundRead, 'The background race starts with an in-flight read');
+    await page.evaluate(() => { window.__backgrounded = true; document.dispatchEvent(new Event('visibilitychange')); });
+    await page.waitForTimeout(550);
+    assert.equal(await page.locator('#keepsake').isVisible(), false, 'Late read cannot restore private view in background');
+    assert.equal(await page.locator('#wand-name').textContent(), '');
+    delayed = false;
+    await page.evaluate(() => { window.__backgrounded = false; document.dispatchEvent(new Event('visibilitychange')); });
+    await page.locator('#wand-name').filter({ hasText: '<img src=x' }).waitFor();
+
+    // A slower earlier refresh must not replace a newer result on the same route.
+    delayed = true;
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(50);
+    delayed = false; view = fixture('NOVĚJŠÍ STAV');
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.locator('#wand-name').filter({ hasText: 'NOVĚJŠÍ STAV' }).waitFor();
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('#wand-name').textContent(), 'NOVĚJŠÍ STAV', 'Superseded read must not regress current content');
+    await page.evaluate(() => { window.__ignoreGuestAbort = false; });
     unavailable = true;
     await page.goto(origin + `/keepsake/?k=${ownerId}`);
     await page.getByRole('heading', { name: 'Odkaz není dostupný' }).waitFor();
@@ -156,6 +214,9 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
       if (process.env.DV10_SCREENSHOT_WIDTH) await page.setViewportSize({ width: Number(process.env.DV10_SCREENSHOT_WIDTH), height: 900 });
       await page.screenshot({ path: screenshot, fullPage: true });
     }
+    delayed = true; readDelayMs = 1000;
+    await page.evaluate(() => { window.__ignoreGuestAbort = true; document.dispatchEvent(new Event('visibilitychange')); });
+    await page.waitForTimeout(50);
     await page.locator('.delete-panel summary').click(); await page.locator('#delete-all').click();
     await assertSharedDialog(page, '#delete-dialog');
     await page.locator('#delete-confirm').fill('SMAZAT'); await page.locator('#delete-submit').click();
@@ -163,7 +224,10 @@ const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760
     assert.equal(await page.locator('#keepsake').isVisible(), false);
     assert.equal(await page.locator('#wand-art').getAttribute('src'), null, 'Deletion must clear old asset buffers');
     assert.match(await page.locator('#deletion-status').textContent(), /nepotvrzeno.*probíhá/);
+    await page.waitForTimeout(1100);
+    assert.equal(await page.locator('#keepsake').isVisible(), false, 'Read started before manual deletion must not restore deleted content');
+    assert.equal(await page.locator('#wand-name').textContent(), '');
     assert.deepEqual(errors, [], 'No page errors allowed');
-    console.log('PASS synthetic browser: explicit claim, CSRF/idempotency, no storage, 320/390/430/landscape/desktop, 200% zoom/keyboard/reduced motion, local photo opt-in, ZIP exclusion, share scope/XSS, partial/unavailable states, stale route isolation and deletion receipt. No OpenAI or iPhone acceptance claimed.');
+    console.log('PASS synthetic browser: explicit claim, CSRF/idempotency, no storage, 320/390/430/landscape/desktop, 200% zoom/keyboard/reduced motion, local photo opt-in, ZIP exclusion, share scope/XSS, partial/unavailable states, stale route/background/bootstrap-lock isolation, superseded reads and deletion receipt. No OpenAI or iPhone acceptance claimed.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

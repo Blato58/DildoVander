@@ -33,9 +33,11 @@ export function statusBadge({ label, tone = 'neutral' }) {
   return `<span class="aw-badge aw-badge--${toneClass(tone)}">${escapeHtml(label)}</span>`;
 }
 
-export function notice({ title, message, tone = 'info' }) {
+/** action is trusted application/framework markup; detail is escaped text.
+ * Use live:false for persistent snapshot-driven state to avoid repeated announcements. */
+export function notice({ title, message, detail, action = '', tone = 'info', live = true }) {
   const style = toneClass(tone);
-  return `<div class="aw-notice aw-notice--${style}" role="${style === 'danger' ? 'alert' : 'status'}">${title ? `<strong>${escapeHtml(title)}</strong>` : ''}<p>${escapeHtml(message)}</p></div>`;
+  return `<div class="aw-notice aw-notice--${style}"${live ? ` role="${style === 'danger' ? 'alert' : 'status'}"` : ''}>${title ? `<strong>${escapeHtml(title)}</strong>` : ''}<p>${escapeHtml(message)}</p>${detail ? `<p class="aw-notice-detail">${escapeHtml(detail)}</p>` : ''}${action ? `<div class="aw-notice-action">${action}</div>` : ''}</div>`;
 }
 
 /** action is trusted application/framework markup, never visitor text. */
