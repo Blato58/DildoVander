@@ -10,6 +10,9 @@ struct DebugBackendProfile {
     let baseURL: URL
     let deviceId: String
     let credential: String
+    // Opaque native-only scope, never a bearer credential or JavaScript field.
+    let accountBinding: String?
+    var usesAccountSession: Bool { accountBinding != nil }
 
 #if !os(iOS)
     // Foundation-only macOS harness uses a synthetic loopback HTTP peer.
@@ -18,6 +21,7 @@ struct DebugBackendProfile {
         self.baseURL = baseURL
         self.deviceId = deviceId
         self.credential = credential
+        self.accountBinding = nil
     }
 #endif
 
@@ -34,6 +38,20 @@ struct DebugBackendProfile {
         self.baseURL = url
         self.deviceId = deviceId
         self.credential = credential
+        self.accountBinding = nil
+    }
+
+    init(accountOrigin: URL, deviceId: String, binding: String) throws {
+        guard accountOrigin.scheme == "https", let host = accountOrigin.host, !host.isEmpty,
+              accountOrigin.user == nil, accountOrigin.password == nil, accountOrigin.query == nil,
+              accountOrigin.fragment == nil, ["", "/"].contains(accountOrigin.path),
+              !deviceId.isEmpty, deviceId.count <= 128,
+              deviceId.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }),
+              !binding.isEmpty, binding.count <= 256 else { throw DebugBackendError.invalidProfile }
+        self.baseURL = accountOrigin
+        self.deviceId = deviceId
+        self.credential = ""
+        self.accountBinding = binding
     }
 }
 
@@ -69,6 +87,7 @@ final class DebugBackendKeychain {
     }
 
     func write(_ profile: DebugBackendProfile) throws {
+        guard !profile.usesAccountSession else { throw DebugBackendError.invalidProfile }
         let data = try JSONEncoder().encode(StoredProfile(address: profile.baseURL.absoluteString,
             deviceId: profile.deviceId, credential: profile.credential))
         let attributes: [String: Any] = [kSecValueData as String: data,
@@ -390,7 +409,9 @@ enum DebugCostumeJPEG {
 @MainActor
 final class DebugBackendClient {
     typealias HTTP = (URLRequest, Int) async throws -> (Data, HTTPURLResponse)
+    typealias AccountAuthorizer = (URLRequest, String, String) async throws -> URLRequest
     private let http: HTTP
+    private let accountAuthorizer: AccountAuthorizer?
     private let transport: DebugHTTPTransport?
     private struct CleanupRecord {
         let profile: DebugBackendProfile
@@ -411,7 +432,18 @@ final class DebugBackendClient {
         }
     }
 
-    init(http: HTTP? = nil) {
+    init(http: HTTP? = nil, accountAuthorizer: AccountAuthorizer? = nil) {
+        if let accountAuthorizer = accountAuthorizer {
+            self.accountAuthorizer = accountAuthorizer
+        } else {
+#if os(iOS)
+            self.accountAuthorizer = { request, deviceId, binding in
+                try await Self.authorizeAccountRequest(request, deviceId: deviceId, binding: binding)
+            }
+#else
+            self.accountAuthorizer = nil
+#endif
+        }
         if let http = http {
             self.http = http
             transport = nil
@@ -423,6 +455,27 @@ final class DebugBackendClient {
     }
 
     deinit { transport?.invalidate() }
+
+#if os(iOS)
+    @MainActor private static func authorizeAccountRequest(_ request: URLRequest, deviceId: String, binding: String) async throws -> URLRequest {
+        guard #available(iOS 16.0, *), let identity = KufrIdentityPlugin.active else { throw DebugBackendError.invalidProfile }
+        return try await identity.authorizeDeviceRequest(request, deviceId: deviceId, binding: binding)
+    }
+#endif
+
+    func authorizedRequest(_ profile: DebugBackendProfile, _ request: URLRequest) async throws -> URLRequest {
+        guard profile.usesAccountSession else { return request }
+        guard let binding = profile.accountBinding, let authorize = accountAuthorizer else { throw DebugBackendError.invalidProfile }
+        // Check the binding anew for each upload, stream, poll and cleanup.
+        // Old owned conversations cannot inherit a different signed-in user.
+        return try await authorize(request, profile.deviceId, binding)
+    }
+
+    private func send(_ profile: DebugBackendProfile, _ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        let authorized = try await authorizedRequest(profile, request)
+        try Task.checkCancellation()
+        return try await http(authorized, limit)
+    }
 
     func openSession(_ profile: DebugBackendProfile, expectedMode: String, readyMask: Int,
                      voice: String, speed: Double, costume: DebugCostumeInput? = nil,
@@ -673,9 +726,9 @@ final class DebugBackendClient {
         let headers = ["Authorization": "Bearer \(token)", "Content-Type": contentType,
             "Idempotency-Key": idempotencyKey ?? UUID().uuidString.lowercased(), "Client-Turn-Id": turn, "Boot-Id": boot,
             "Generation": "0", "Device-Revision": "0", "Catalog-Version": "ollivander-private-party-v1"]
-        for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+        for (key, value) in headers where !profile.usesAccountSession || key != "Authorization" { request.setValue(value, forHTTPHeaderField: key) }
         // Single attempt: never resend a photo after an ambiguous network error.
-        let (data, response) = try await http(request, 16_384)
+        let (data, response) = try await send(profile, request, limit: 16_384)
         try Task.checkCancellation()
         guard response.statusCode == (method == "POST" ? 202 : 200), data.count <= 16_384,
             response.mimeType == "application/json", let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -696,12 +749,12 @@ final class DebugBackendClient {
         body.append(Data("\r\n--\(boundary)--\r\n".utf8))
         var request = URLRequest(url: profile.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.setValue(boundary, forHTTPHeaderField: "Idempotency-Key")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         try Task.checkCancellation()
-        let (data, response) = try await http(request, 16_384)
+        let (data, response) = try await send(profile, request, limit: 16_384)
         try Task.checkCancellation()
         guard data.count <= 16_384, response.statusCode == 202, response.mimeType == "application/json",
               let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -713,6 +766,16 @@ final class DebugBackendClient {
     func inspect(_ profile: DebugBackendProfile) async throws -> String {
         let token = try await accessToken(profile)
         return try await metadata(profile, token: token)
+    }
+
+    func inspectAvailability(_ profile: DebugBackendProfile) async throws -> (voiceMode: String, dialogMode: String) {
+        let token = try await accessToken(profile)
+        let value = try await json(profile, path: "v1/diagnostics", token: token)
+        guard let voice = value["voiceMode"] as? String, ["fake", "openai"].contains(voice),
+              let dialog = value["dialogMode"] as? String, ["fake", "responses"].contains(dialog),
+              value["catalogVersion"] as? String == "ollivander-private-party-v1",
+              value["audioFormat"] as? String == "pcm16-mono-32000-wav" else { throw DebugBackendError.invalidResponse }
+        return (voice, dialog)
     }
 
     func eveningList(_ profile: DebugBackendProfile, action: String = "list", name: String? = nil,
@@ -895,6 +958,9 @@ final class DebugBackendClient {
     }
 
     fileprivate func accessToken(_ profile: DebugBackendProfile) async throws -> String {
+        // Account requests use the existing cookie/CSRF session. No device token
+        // is minted, copied or exchanged; this legacy-only argument is unused.
+        if profile.usesAccountSession { return "" }
         let result = try await json(profile, path: "v1/device-access/token", token: profile.credential, method: "POST")
         guard result["deviceId"] as? String == profile.deviceId,
               let token = result["accessToken"] as? String, !token.isEmpty, token.utf8.count <= 256,
@@ -1042,13 +1108,13 @@ final class DebugBackendClient {
         components.queryItems = queryItems
         var request = URLRequest(url: components.url!)
         request.httpMethod = method
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if method != "GET" { request.setValue(key ?? UUID().uuidString.lowercased(), forHTTPHeaderField: "Idempotency-Key") }
         if let body = body {
             request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await http(request, limit)
+        let (data, response) = try await send(profile, request, limit: limit)
         try Task.checkCancellation()
         guard data.count <= limit else { throw DebugBackendError.tooLarge }
         guard (200...299).contains(response.statusCode) ||

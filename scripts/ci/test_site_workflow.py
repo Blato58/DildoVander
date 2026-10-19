@@ -27,7 +27,7 @@ class PublicWorkflowTests(unittest.TestCase):
         source = (WORKFLOWS / 'kufr-site.yml').read_text()
         self.assertEqual(re.findall(r'^  ([\w-]+):$', source.split('jobs:', 1)[1], re.MULTILINE), ['build'])
         self.assertIn('runs-on: ubuntu-24.04', source)
-        self.assertIn('uses: ./.github/actions/verified-cad', source)
+        self.assertNotIn('uses: ./.github/actions/verified-cad', source)
         self.assertIn('pack "$SITE_WORK/source" "$SITE_WORK/package"', source)
         self.assertNotIn('inputs.publish', source)
         self.assertFalse((WORKFLOWS / 'kufr-site-deploy.yml').exists())
@@ -36,33 +36,25 @@ class PublicWorkflowTests(unittest.TestCase):
         source = (WORKFLOWS / 'kufr-site.yml').read_text()
         upload = source.split('      - name: Upload immutable main package', 1)[1].split('      - name:', 1)[0]
         condition = re.search(r'^        if: (.+)$', upload, re.MULTILINE).group(1)
-        condition = condition.replace('inputs.verify-manufacturing', "inputs['verify-manufacturing']")
-        script = "const check = new Function('github', 'inputs', 'return (' + process.argv[1] + ')'); process.stdout.write(JSON.stringify(JSON.parse(process.argv[2]).map(c => !!check(c, { 'verify-manufacturing': c.verify ?? true }))));"
+        script = "const check = new Function('github', 'return (' + process.argv[1] + ')'); process.stdout.write(JSON.stringify(JSON.parse(process.argv[2]).map(c => !!check(c))));"
         cases = [{'ref': ref, 'event_name': event, 'event': {'inputs': {'pr_number': pr}}}
                  for ref, event, pr in [('refs/heads/main', 'workflow_dispatch', ''),
                                         ('refs/heads/main', 'workflow_dispatch', '42'),
                                         ('refs/pull/42/merge', 'pull_request', ''),
                                         ('refs/heads/feature', 'workflow_dispatch', ''),
                                         ('refs/heads/main', 'push', '')]]
-        cases.append({**cases[0], 'verify': False})
         result = subprocess.check_output(['node', '-e', script, condition, json.dumps(cases)], text=True)
-        self.assertEqual(json.loads(result), [True, False, False, False, False, False])
+        self.assertEqual(json.loads(result), [True, False, False, False, False])
         self.assertIn('retention-days: 1', upload)
 
-    def test_pr_site_checks_skip_every_expensive_or_publishable_step(self):
+    def test_application_build_never_invokes_manufacturing(self):
+        from ui_boundary import validate
+        validate(ROOT)
         source = (WORKFLOWS / 'kufr-site.yml').read_text()
-        for name in ['Verify source-bound CAD outputs for a complete site package',
-                     'Assemble verified site', 'Package with source provenance']:
-            with self.subTest(step=name):
-                block = source.split('      - name: ' + name, 1)[1].split('      - name:', 1)[0]
-                self.assertIn('if: inputs.verify-manufacturing', block)
-        upload = source.split('      - name: Upload immutable main package', 1)[1].split('      - name:', 1)[0]
-        self.assertIn('if: inputs.verify-manufacturing &&', upload)
-        self.assertNotIn('pip install', source)
-        self.assertNotIn('install-cad-slicer.sh', source)
-        ci = (WORKFLOWS / 'ci.yml').read_text()
-        self.assertIn("verify-manufacturing: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number == '' }}", ci)
-        self.assertIn('site, cad]', ci.split('  required:', 1)[1])
+        self.assertIn('npm run build', source)
+        self.assertNotIn('--base=/companion/', source)
+        self.assertNotIn('verify-manufacturing', source)
+        self.assertIn('site, cad]', (WORKFLOWS / 'ci.yml').read_text().split('  required:', 1)[1])
 
     def test_shared_cad_action_validates_trusted_outputs_before_installing_tools(self):
         source = (ROOT / '.github/actions/verified-cad/action.yml').read_text()

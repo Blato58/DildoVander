@@ -298,6 +298,7 @@ internal sealed partial class KeepsakeStore
             RequireAccess(connection, transaction, id, session, KeepsakeScope.Write);
             Execute(connection, transaction, "DELETE FROM dv10_links WHERE keepsake_id=$id", ("$id", id));
             Execute(connection, transaction, "DELETE FROM dv10_grants WHERE keepsake_id=$id", ("$id", id));
+            Execute(connection, transaction, "UPDATE dv10_keepsakes SET account_access_epoch=account_access_epoch+1 WHERE id=$id", ("$id", id));
             RecordRevocation(connection, transaction, id, null, "all_access_revoked");
             transaction.Commit();
         }

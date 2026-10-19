@@ -1,100 +1,63 @@
-# UI architektura Vapour Chrome
+# Vue application and Vapour Chrome
 
-Všechny současné obrazovky používají nativní HTML a ES moduly; Companion
-přidává TypeScript/Vite a na iOS Capacitor. Proto sdílíme přímo vykonatelné
-HTML komponenty a DOM interakce. React/React Native/Expo/Tamagui by vyžadovaly
-přepis fungujících aplikací i offline vieweru a nepřinesly zde další nativní
-obrazovky ke sdílení. Swift zajišťuje BLE/LAN, oprávnění, audio a životní cyklus,
-nikoli druhou implementaci UI. Existující protokolové typy zůstávají v
-`kufr/contracts`; framework nezavádí paralelní zařízeníové modely.
+The maintained online product is the Vue 3 application in
+`kufr/mobilni-aplikace`. Web and Capacitor consume the same SFCs, router and
+feature services. See [application boundaries and migration map](../docs/application-architecture.md).
+Swift owns native capabilities, not a second screen implementation.
 
-## Vlastnictví a rozšíření
+## Presentation and state
 
-- `tokens.json` je jediný ručně upravovaný zdroj designových rozhodnutí.
-  Generátor validuje schéma, hodnoty, aliasy a cykly a vytváří čtyři CSS soubory,
-  neměnné `tokens.mjs`, typy a backendové `DesignTokens.g.cs` pro offline karty.
-  Generátor také kontroluje nativní launch pozadí a vložené CSS/theme označeného
-  bloku v samostatném iOS publisheru. Tato generovaná kopie je nutná, protože
-  privátní provozní helper spouští jediný Python soubor bez okolního design adresáře.
-- `ui.js` a `ui.d.ts` jsou společné renderery a přístupné interakce. Tlačítka,
-  pole, stavové štítky, oznámení, prázdné stavy a karty hůlek sdílejí stejný kód.
-  `bindTabs` vlastní výběr, roving tabindex a šipky/Home/End; `bindDialog`
-  používá nativní modalitu a návrat focusu. API je v [kontraktu](framework.md).
-- `components/patterns.css` a `components/framework.css` vlastní vzhled a stavy.
-  Lokální CSS řeší rozložení, viewport, hustotu nebo skutečný model, nikoli
-  druhou paletu či kopii vzhledu tlačítek. Použijte sémantické tokeny.
-- Vlastník funkce drží data, autorizaci, debounce/polling, dostupnost, obnovu
-  spojení a události. Framework nesmí udělovat lease, potvrdit naměřenou polohu,
-  povolit upload ani změnit veřejný/soukromý přístup.
+- `tokens.json` remains the single design source. Use `arcane-workshop.css`,
+  semantic `--aw-*` values and shared `aw-*` styles. Generate changes with
+  `scripts/generate_design_tokens.py`; do not edit generated tokens.
+- `mobilni-aplikace/src/components` contains typed Vue primitives: `AwButton`,
+  `AwField`, `AwNotice`, `AwStatus` and `AwDialog`. Prefer slots and events over
+  markup factories. Domain components live with their feature.
+- `src/application` owns the persistent shell, lazy routes, safe login return
+  paths, notices and Pinia theme preferences. Forms and drafts stay local.
+- `features/suitcase/deviceSession.ts` owns the active transport and shallow
+  device snapshot. Native/protocol classes retain lease, revision, pinning,
+  reconciliation and Stop rules. Views cannot invent hardware readiness.
+- `features/identity` owns account/session presentation. Server authorization,
+  guest capabilities and physical phone pairing remain independent authorities.
+- `features/archive` owns route-scoped guest clients, consent and media object
+  URL lifetimes. A stale response cannot restore departed private content.
+- `features/workshop` owns model loading, GPU lifecycle and view modes. Keep
+  GPU objects and frame state outside deep Vue reactivity. Inspection and replay
+  never acquire actuator control.
 
-Novou obecnou komponentu přidejte sem, pokud je užitečná ve skutečném toku;
-doménový renderer patří sem při opakovaném použití napříč aplikacemi.
-Ověřte nejprve existující komponenty, jejich stavy a kontrakty. Text a atributy
-se escapují; `field.control` a `emptyState.action` smějí obsahovat pouze důvěryhodné
-aplikační HTML, nikdy obsah návštěvníka. Nativní HTML zachovává formulářové
-odeslání, klávesnici a systémové ovládání bez další knihovny primitiv.
+Telemetry updates patch stable Vue nodes; they must not rebuild a screen or
+replace a focused input. Physical confirmations carry their originating target
+and revision and are invalidated when either changes. Retain active operations
+across ordinary navigation; urgent Stop remains in the shell.
 
-## Skutečné spotřebitele a generační cesty
+## Application and distribution boundaries
 
-| Plocha | Zdroj a sdílené provedení | Balení a hranice |
-| --- | --- | --- |
-| Companion web/iOS, discovery, provisioning, Debug, hlas, tanec a ovládání | `mobilni-aplikace/src/main.ts` a feature panely importují `ui.js`; společné taby, pole, akce, stav a karty | Vite vytvoří tentýž UI bundle pro browser i Capacitor; Swift adaptéry zachovány |
-| Veřejná hlavní stránka | `web/index.html`, společná tlačítka a tokeny | Statické hlavní informace fungují bez JavaScriptu; `web/build-site.py` |
-| Soukromá památka, portrét a owner dialogy | `web/keepsake/app.js`, sdílené renderery a dialog | Canonical keepsake-only/full-site builder; consent, portrét a owner scope zůstávají soukromé |
-| Veřejný přehled večera a příběh | `web/keepsake/evening/evening.js`, skutečný sdílený renderer karet, oznámení a akce | Veřejné GET-only API; žádný owner, fotografie ani individuální token |
-| Simulation Lab / observer | `simulator/dashboard-ui.js`, společná pole, akce, stav a prázdné výsledky | Lokální server explicitně povoluje CSS/JS; site builder kopíruje oba moduly a označí read-only statický náhled |
-| Workshop / CAD, Twin, live a media, timeline | `mechanika/final/viewer_ui.js`, `viewer.js`, `twin_viewer.js`, `twin_media.js`, `show_timeline.js` | `viewer_document.py` vloží runtime i CSS; bez síťových importů. Generované snapshoty uchovávají samostatnou obnovu z výrobního ZIPu |
-| Servisní servo panel | `firmware/diagnostics/servo-bench/web/panel-ui.mjs` | Existující omezený Python server doručuje společné assety; bez výběru USB se zařízení neotevře |
-| Instalační iOS stránka | `backend/deploy/ip-https/ios-placeholder.html`, canonical CSS | Statický serverový stav; žádný alternativní nativní UI framework |
-| Generovaná instalace podepsané aplikace | `mobilni-aplikace/scripts/publish-ios-install.py` | Samostatný publisher nese generovaný blok canonical CSS; nevyžaduje další soubor v privátním deployment helperu. Online může načíst lokální fonty, archiv offline použije společný systémový fallback |
-| Nativní start aplikace | `mobilni-aplikace/ios/App/App/Base.lproj/LaunchScreen.storyboard` a `generate-native-assets.mjs` | Generátor tokenů vlastní pouze sRGB pozadí storyboardu; ikona již čte generované CSS. Storyboard layout, provisioning a podpis zůstávají vlastníkem iOS projektu |
-| Offline archivní karty | `backend/Features/Keepsakes/KeepsakeExports.cs` | Generované C# konstanty místo ručně kopírované palety; artwork není UI token |
-| Designové ukázky a test harnessy | `design-system/mockups`, `design-system/playground`, mobilní test harnessy | Ukázky zůstávají označené; interaktivní katalog používá skutečný `ui.js` |
+The hosted site builder consumes the compiled app, independently of CAD.
+ModelBundle data is schema/version/hash checked and published as an immutable
+release with a separate active reference. Application and model provenance need
+not share a Git SHA. An unavailable model leaves other routes usable.
+The offline packager bundles the same maintained Vue viewer with a selected
+model; it must work through `file://` without networking or account credentials.
 
-Cesty v tabulce jsou relativní ke `kufr/`. V repozitáři není samostatné
-SwiftUI UI, React aplikace ani další firmware portál. Budoucí jiný renderer
-má spotřebovat generované tokeny a zachovat kontrakty; není důvod zavádět ho
-před existencí takové aplikace. Pro jinou platformu rozšiřte generátor,
-nekopírujte paletu ručně.
+`ui.js` and its playground remain compatibility APIs for local USB service tools,
+old test harnesses and immutable archived manufacturing distributions. They are
+not the renderer for new online screens. Preserve externally required iOS
+installation pages as distribution adapters. Do not silently rewrite previously
+verified manufacturing archives when changing application code.
 
-Offline viewer má odůvodněnou generovanou kopii CSS/runtime v `final/`, protože
-samostatný výrobní ZIP neobsahuje okolní repozitář. Generuje ji existující
-`viewer_style.snapshot_styles()` a `viewer_runtime.snapshot_runtime()`. Není
-to druhý autoritativní zdroj. Geometrii kvůli UI nepřepočítávejte; pro lokální
-render použijte existující payload přes `refresh_viewer.py` nebo výslovně
-syntetický `preview_ui_fixture.py`. UI preview není výrobní export.
+## Verification
 
-## Ověření a CI
+In `kufr/mobilni-aplikace`: `npm ci`, `npm test`, `npm run typecheck`,
+`npm run build`, `npm run test:browser`. Install contract dependencies with
+`npm ci --prefix kufr/contracts` from repository root. Browser tests use isolated
+synthetic APIs, real compiled components and desktop/mobile sizes; no provider
+calls or physical control are involved. Native changes also require the macOS
+workflow and signed-device acceptance where specified.
 
-`npm test --prefix kufr/design-system` ověřuje escapování, URL/atributy,
-formulářovou sémantiku, taby, dialog, neměnnost tokenů a generátor. Drift
-generovaných výstupů a vazby exportů kontroluje `scripts/check_design_system.py`.
-TypeScript kontroluje props u Companionu; JavaScript má stejné dokumentované
-kontrakty a testované bezpečné fallbacky pro neznámé varianty.
-
-Pro browser kontroly spusťte `npm ci --prefix kufr/design-system` a
-`npx --prefix kufr/design-system playwright install chromium`, pak
-`npm run test:browser --prefix kufr/design-system`. `UI_BROWSER_CHANNEL=msedge`
-umožňuje instalovaný Edge; výchozí Chromium používá CI. Kontroly ověřují skutečné
-renderování, theme tokeny, šířky, focus, reduced motion a izolaci simulace.
-`UI_SCREENSHOT_DIR` volitelně uloží screenshoty; měřitelné layout/style kontrakty
-chrání proti regresím bez obří sady rastrových snapshotů závislých na OS.
-`UI_MOBILE_DIST` přidá již sestavený Companion s base `/companion/`.
-`UI_VIEWER_HTML` přidá skutečný výstup `preview_ui_fixture.py`, ověří kameru,
-mobilní panely, timeline a samostatné otevření přes `file://` s vypnutou sítí.
-`UI_INSTALLER_HTML` přidá výstup skutečného `render_page` z iOS publisheru;
-kontrola rozlišuje dostupnou/nedostupnou instalaci a její Safari recovery bez
-vyvolání instalace. Montážní fixture ověřuje zachování kroku po sbalení návodu
-a obnově vrstev; její syntetická geometrie neprokazuje pořadí fyzické montáže.
-Publikované assety neobsahují vývojové závislosti, testy ani npm lockfile.
-
-Existující syntetické DV10 browser kontroly zachovávají privacy, XSS, consent,
-stale odpovědi, export a úzké rozložení. Site CI provádí tyto kontroly v Chromium
-po sestavení Companionu. `scripts/ci/select_projects.py` rozlišuje známé UI
-soubory od výrobních vstupů; neznámý mechanický soubor zůstává konzervativně CAD
-vstupem. Změna vzhledu nespouští geometrii. Ruční úplný main site build stále
-vyžaduje ověřené výrobní artefakty.
-
-Browser/syntetické fixture nedokazují fyzickou polohu, nahrání firmware,
-skutečné audio/kameru ani iPhone. macOS workflow nadále ověřuje Swift a
-nepodepsaný Simulator build; podpis a nasazení zůstávají oddělené.
+Run design token drift and compatibility checks after shared styling changes:
+`python scripts/generate_design_tokens.py --check`,
+`python scripts/check_design_system.py`, and `npm test --prefix kufr/design-system`.
+Use the affected service/CAD compatibility checks when changing those consumers.
+Normal application UI verification must never run CAD generation or full
+manufacturing validation; `scripts/ci/ui_boundary.py` enforces that boundary.

@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Identity;
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace Kufr.Backend.Features.DigitalTwin;
@@ -39,35 +42,46 @@ internal static class TwinEndpoints
             context.Response.Cookies.Delete(Cookie, new CookieOptions { Secure = true, Path = "/" });
             return Results.NoContent();
         });
-        endpoints.MapGet("/v1/twin/instances", (HttpContext context, TwinAccess access, TwinStore store,
+        endpoints.MapGet("/v1/twin/instances", async (HttpContext context, TwinAccess access, TwinStore store,
             TwinHost hosts, IConfiguration configuration) =>
         {
             var session = access.Session(context.Request.Cookies[Cookie]);
-            if (session is null) { return ApiProblem.Create(context, 401, "twin_session_required"); }
-            return Results.Json(new { role = session.Principal.Role, instances = store.Ids()
-                .Where(id => CanObserve(session, id)).Select(id =>
-                {
+            var account = context.User.HasClaim(c => c.Type == AccountIdentity.SessionClaim);
+            if (session is null && !account) { return ApiProblem.Create(context, 401, "twin_session_required"); }
+            var instances = new List<object>();
+            foreach (var id in store.Ids())
+            {
+                var allowed = account ? await AccountResourceAuthorization.HasPermissionAsync(context, "workshop", id, "read") : CanObserve(session!, id);
+                if (!allowed) { continue; }
+                var canControl = hosts.IsSimulation(id) && (account
+                    ? await AccountResourceAuthorization.HasPermissionAsync(context, "workshop", id, "operate")
+                    : session!.Principal.Role == "control" && session.Principal.InstanceId == id);
                     var latest = store.Read(id);
                     var status = store.Status(latest);
-                    return new { instanceId = id, mode = configuration[$"DigitalTwin:Instances:{id}:Mode"],
+                    instances.Add(new { instanceId = id, mode = configuration[$"DigitalTwin:Instances:{id}:Mode"], canControl,
                         profile = configuration[$"DigitalTwin:Instances:{id}:Profile"]
                             ?? (configuration[$"DigitalTwin:Instances:{id}:Mode"] == "live" ? "device" : "deterministic"), online = status == "online", status,
-                        capabilities = latest?.Snapshot.Capabilities ?? ["awaiting-snapshot"] };
-                }) });
+                        capabilities = latest?.Snapshot.Capabilities ?? ["awaiting-snapshot"] });
+            }
+            return Results.Json(new { role = account ? "account" : session!.Principal.Role, instances });
         });
-        endpoints.MapGet("/v1/twin/instances/{id}", (string id, HttpContext context, TwinAccess access, TwinStore store) =>
+        endpoints.MapGet("/v1/twin/instances/{id}", async (string id, HttpContext context, TwinAccess access, TwinStore store) =>
         {
             var session = access.Session(context.Request.Cookies[Cookie]);
-            if (session is null) { return ApiProblem.Create(context, 401, "twin_session_required"); }
-            if (!CanObserve(session, id)) { return ApiProblem.Create(context, 403, "observe_forbidden"); }
+            var account = context.User.HasClaim(c => c.Type == AccountIdentity.SessionClaim);
+            if (session is null && !account) { return ApiProblem.Create(context, 401, "twin_session_required"); }
+            if (account ? !await AccountResourceAuthorization.HasPermissionAsync(context, "workshop", id, "read") : !CanObserve(session!, id))
+            { return ApiProblem.Create(context, 403, "observe_forbidden"); }
             var latest = store.Read(id);
             return latest is null ? ApiProblem.Create(context, 404, "snapshot_unavailable") : Results.Json(store.View(latest));
         });
-        endpoints.MapGet("/v1/twin/instances/{id}/recording", (string id, HttpContext context, TwinAccess access, TwinStore store) =>
+        endpoints.MapGet("/v1/twin/instances/{id}/recording", async (string id, HttpContext context, TwinAccess access, TwinStore store) =>
         {
             var session = access.Session(context.Request.Cookies[Cookie]);
-            if (session is null) { return ApiProblem.Create(context, 401, "twin_session_required"); }
-            if (!CanObserve(session, id)) { return ApiProblem.Create(context, 403, "observe_forbidden"); }
+            var account = context.User.HasClaim(c => c.Type == AccountIdentity.SessionClaim);
+            if (session is null && !account) { return ApiProblem.Create(context, 401, "twin_session_required"); }
+            if (account ? !await AccountResourceAuthorization.HasPermissionAsync(context, "workshop", id, "read") : !CanObserve(session!, id))
+            { return ApiProblem.Create(context, 403, "observe_forbidden"); }
             return Results.Json(new { schemaVersion = 1, bounded = true, snapshots = store.Recording(id)
                 .Select(envelope => new { envelope.Snapshot, envelope.ReceivedAtUtc, ageMs = 0, status = "online" }) });
         });
@@ -76,6 +90,11 @@ internal static class TwinEndpoints
         {
             if (!SameOrigin(context)) { return ApiProblem.Create(context, 403, "origin_forbidden"); }
             var session = access.Session(context.Request.Cookies[Cookie]);
+            if (context.User.HasClaim(c => c.Type == AccountIdentity.SessionClaim))
+            {
+                session = await AccountControlSessionAsync(context, id, hosts);
+                if (session is null) { return ApiProblem.Create(context, 403, "control_forbidden"); }
+            }
             if (session is null) { return ApiProblem.Create(context, 401, "twin_session_required"); }
             if (session.Principal.Role != "control" || session.Principal.InstanceId != id || !hosts.IsSimulation(id))
             {
@@ -137,10 +156,31 @@ internal static class TwinEndpoints
     internal static bool SameOrigin(HttpContext context)
     {
         var origin = context.Request.Headers.Origin.ToString();
+        if (context.User.HasClaim(c => c.Type == AccountIdentity.SessionClaim))
+        {
+            return context.Request.IsHttps && context.RequestServices.GetRequiredService<AccountConfiguration>()
+                .AllowedOrigins.Contains(origin, StringComparer.Ordinal);
+        }
         // nginx terminates TLS; expected origin is explicitly configured, never
         // derived from an untrusted forwarded header.
         var configured = context.RequestServices.GetRequiredService<IConfiguration>()["DigitalTwin:Origin"];
         return configured is not null && origin == configured;
+    }
+
+    internal static async Task<TwinSession?> AccountControlSessionAsync(HttpContext context, string id, TwinHost hosts)
+    {
+        if (!hosts.IsSimulation(id) || !await AccountResourceAuthorization.HasPermissionAsync(context, "workshop", id, "operate")) { return null; }
+        var sid = context.User.FindFirstValue(AccountIdentity.SessionClaim)!;
+        var session = await context.RequestServices.GetRequiredService<AccountDatabase>().Sessions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == sid);
+        if (session is null || session.ExpiresAt <= AccountEndpoints.Now()) { return null; }
+        // Account revocation cannot leave an unattended simulation lease for an
+        // entire login lifetime. Commands renew a short existing host lease.
+        var expiry = DateTimeOffset.UtcNow.AddSeconds(30);
+        var accountExpiry = DateTimeOffset.FromUnixTimeSeconds(session.ExpiresAt);
+        var result = new TwinSession("account:" + sid, new TwinPrincipal("control", id, "simulation"), expiry < accountExpiry ? expiry : accountExpiry);
+        hosts.RenewOwner(result);
+        context.RequestServices.GetService<TwinMediaSessions>()?.RenewOwner(result);
+        return result;
     }
     private static async Task<T?> ReadAsync<T>(HttpContext context, int maximum)
     {

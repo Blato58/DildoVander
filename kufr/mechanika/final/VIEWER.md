@@ -1,3 +1,13 @@
+# Integrated application viewer
+
+The maintained application viewer is now `/workshop`, implemented by Vue SFCs
+in `kufr/mobilni-aplikace/src/features/workshop/`. ModelBundle loading, separate
+CAD/application provenance, account-scoped observation/media and offline packaging
+are documented in [ModelBundle](../../docs/model-bundle.md). Application and
+offline UI builds do not regenerate CAD. The legacy renderer below remains the
+compatibility path for existing manufacturing exports; its observer parsers and
+headless media HAL are shared with the Vue viewer.
+
 # F2 — ovládání 3D vieweru
 
 Viewer je samostatný offline WebGL dokument. Neposílá příkazy do kufru,

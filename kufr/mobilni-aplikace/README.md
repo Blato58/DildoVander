@@ -1,27 +1,28 @@
-# Mobilní ovládání kufru
+# DildoVander: společná webová a iOS aplikace
 
-Rozhraní Vapour Chrome používá sdílené tokeny a komponenty `kufr/design-system/`. Spodní navigace
-odděluje **Provoz**, **Kufr** a **Diagnostiku**; Stop zůstává v horní liště i při posunu.
-Provoz nejprve ukazuje stav spojení, ručního řízení a přihrádek a jeden další krok.
-Živý provoz odděluje hlas kufru, tanec a text pomocí klávesnicově ovladatelných záložek;
-ruční ovládání má samostatný pohled. Přepnutí pohledu neruší probíhající akci ani textový koncept.
-Snapshot zachovává focus dostupné ruční akce; zneplatněné potvrzení přesune focus na aktuální stav.
+Vue 3 SFC s Composition API, TypeScriptem a Vue Routerem sdílejí stejné
+obrazovky na webu a v Capacitor WKWebView. Vapour Chrome dodává autoritativní
+tokeny a styl; `src/components/` obsahuje typované Vue komponenty.
+`src/application/App.vue` drží navigaci **Domov, Kufr, Dílna, Archiv, Nastavení**
+a dostupný Stop. Feature služby vlastní zařízení, účty, archiv a viewer;
+Swift adaptéry dál vlastní Bluetooth, Keychain, audio a nativní transport.
 
-Kufr soustředí připojení uloženého zařízení i první párování přes BLE; ruční LAN údaje
-jsou pod rozbalovacím ovládáním. Diagnostika rozděluje technické úlohy do rozbalovacích sekcí.
-Stav a ukončení zkušebního rozhovoru na telefonu zůstávají dostupné i se zavřenou sekcí.
-Zkušební backendový rozhovor má vlastní ukončení a zůstává oddělený od hlasu a Stop kufru.
-Přepínač světlého/tmavého vzhledu ukládá pouze preferenci `aw-theme`.
-Webové harnessy nadále představují syntetický důkaz, nikoli ověření na iPhonu.
+`/connections` soustředí uložené zařízení a BLE párování; `/suitcase`
+hlas, tanec, text a ruční řízení. `/suitcase/diagnostics` obsahuje nativní
+testy a místní USB servis. `/workshop` integruje model, montáž, simulaci,
+pozorování a replay. `/archive` a `/keepsake/` zachovávají veřejný a soukromý
+přístup hostů. `/settings` a `/settings/admin` vlastní účty a správu.
 
-Panely ovládání, hlasu, tance, sítě i diagnostiky importují vykreslovací funkce
-z [`ui.js`](../design-system/ui.js): tlačítka, označená pole, stavové štítky,
-upozornění, prázdné výsledky a karty přihrádek. Sdílený `bindTabs` řídí klávesnici,
-focus a ARIA navigaci; vlastníci panelů dál řídí obnovování a nativní spojení.
-Stejný webový bundle běží v prohlížeči i v Capacitor WKWebView na iOS.
-Lokální `style.css` skládá mobilní rozložení a safe area; vzhled a stavy prvků
-patří do sdíleného systému. Swift bridge nadále vlastní Bluetooth, Keychain a WSS.
+Přepnutí pohledu zachovává aktivní operace; revize a změna cíle ruší čekající
+potvrzení fyzického povelu. Telemetrie zachovává stabilní vstupy a focus.
+Prohlížeč začíná bez připojení: ukázku nebo simulátor volíte výslovně.
+Preference tématu migruje `aw-theme` do `dildovander.theme`; účet ani přístupové
+tokeny se do localStorage neukládají. Oprávnění účtu, lokální párování,
+spojení a ruční lease jsou samostatné hranice. Webové testy neprokazují iPhone
+ani fyzický kufr. [Architektura a migrační mapa](../docs/application-architecture.md).
 
+Následující datované záznamy popisují starší předání hardware a zachované
+nativní schopnosti; nedokládají přejímku nové Vue aplikace.
 > **D167 – Dance for me:** panel v Ovládání spouští náhodnou vlastní
 > skladbu ze SD kufru a ukazuje soubor, BPM, průběh a srozumitelné chyby.
 > Zastavit tanec ukončí show, Stop kufru také zachová bezpečnostní zotavení.
@@ -549,14 +550,25 @@ npm run build
 npm test
 ```
 
-Build provádí `tsc --noEmit && vite build`; test kontroluje nové lease, opakování totožného příkazu, chybějící výsledek a rekonciliaci po odpojení. Ani jedna kontrola neověřuje iOS podpis, LAN nebo fyzický kufr. Ve webovém fake režimu lze převzít řízení, potvrdit výběr nebo založení 1–6 a vyzkoušet Stop. Ztráta viditelnosti stránky uvolní fake lease; rozběhnutý výběr skončí jako nejistý a vyžaduje výslovnou simulovanou kontrolu. Stav se neukládá přes reload stránky.
+Build kontroluje shodu generovaného validátoru kontraktu, Vue typy přes
+`vue-tsc --noEmit` a sestaví Vite bundle. `npm test` ověřuje protokoly,
+lease, rekonciliaci a skutečné Vue komponenty; `npm run test:browser` po buildu
+ověří sestavené routy, soukromé odkazy, focus, CSP a responzivní rozložení.
+Tyto kontroly neověřují iOS podpis, LAN ani fyzický kufr.
 
-TypeScript 7 poskytuje CLI pro typovou kontrolu; testovací moduly převádí
+TypeScript 6.0.3 je připnutý kvůli kompatibilitě aktuálního `vue-tsc`;
+TypeScript 7 změnil exporty kompilátoru, které tento nástroj potřebuje.
+Testovací moduly převádí
 Node.js `stripTypeScriptTypes` v režimu `transform`, který podporuje také
 parametrové vlastnosti konstruktorů. Node zatím vypisuje upozornění na
 experimentální API. Deklarace `vite/client` pokrývají import CSS a assetů.
 
-Pro E2 simulátor nejprve sestavte mobilní web pomocí `npm run build`, spusťte E2 WSS server a pak místní most podle [návodu simulátoru](../simulator/README.md). Stránka na `http://127.0.0.1:5174` vybere simulátor podle odpovědi `/dev-mode`; Vite stránka zůstává na fake adaptéru. Web nevidí bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely a ukáže nedostupný stav; nejasný výsledek předchozího výběru vyžaduje kontrolu mimo UI. Snapshot a ACK simulátoru nejsou důkaz fyzického otevření.
+Pro E2 simulátor sestavte aplikaci, spusťte E2 WSS server a místní most podle
+[návodu simulátoru](../simulator/README.md), potom jej výslovně vyberte
+v Připojení. Aplikace se podle `/dev-mode` nepřipojuje automaticky. Web nevidí
+bearer token ani certifikát upstreamu. Po ztrátě spojení zablokuje povely;
+nejasný výsledek vyžaduje kontrolu mimo UI. Snapshot ani ACK nejsou důkaz
+fyzického otevření.
 
 Vzhled **Vapour Chrome** používá společné tokeny a lokálně balené fonty Inter
 a IBM Plex Mono z `../design-system/arcane-workshop.css`. Ovládání, Diagnostika a Síť kufru zachovávají

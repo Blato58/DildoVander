@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>KufrAccountOrigin</key>
+    <string>$(KUFR_ACCOUNT_ORIGIN)</string>
+    <key>KufrPasskeyRelyingParty</key>
+    <string>$(KUFR_PASSKEY_RP_DOMAIN)</string>
     <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>

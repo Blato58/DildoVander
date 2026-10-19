@@ -1,10 +1,12 @@
 # Komponenty a stavy Vapour Chrome
 
-Vykonatelná implementace je `ui.js` s typovým kontraktem `ui.d.ts`.
-Před vlastní komponentou použijte [sdílené API](framework.md) a
-[interaktivní katalog](playground/index.html). Níže uvedené třídy jsou CSS
-kontrakt rendererů a statických sémantických struktur, nikoli důvod kopírovat
-implementaci rendereru nebo obsluhu událostí.
+Vykonatelná aplikace používá typované Vue komponenty v
+`mobilni-aplikace/src/components/` a doménové komponenty v `src/features/`.
+Nejprve prohlédněte existující komponenty, sloty a události; nezavádějte další
+HTML-string obrazovku. [Sdílené API](framework.md) a
+[interaktivní katalog](playground/index.html) dokumentují i kompatibilní
+`ui.js`/`ui.d.ts` pro lokální servisní nástroje a staré distribuce. Níže uvedené
+třídy zůstávají společným CSS kontraktem, nikoli důvodem kopírovat chování.
 
 | Vzor | Třídy | Pravidlo |
 | --- | --- | --- |

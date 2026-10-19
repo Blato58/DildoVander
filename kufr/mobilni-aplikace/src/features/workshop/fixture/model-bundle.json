@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "modelId": "synthetic-ui-fixture",
+  "revision": "synthetic-ui-fixture",
+  "units": "mm",
+  "coordinates": "right-handed-z-up",
+  "compatibility": {
+    "viewerSchema": 1
+  },
+  "provenance": {
+    "kind": "synthetic-fixture",
+    "sourceRevision": "b703ce3886636159fb602b48384fe2ebbbdb6a2f",
+    "cadVerification": "not-verified"
+  },
+  "assets": [
+    {
+      "kind": "model-json",
+      "path": "model.json",
+      "sha256": "eace58f762505e13383facca8b6b4d5b30d241a0fa3b674f4eb59f62b5a9cc05",
+      "bytes": 11610
+    }
+  ],
+  "bundleHash": "3ccff5581ae8d449e564855d97a0484143fcf90e193e42b265c537adfdcf3307"
+}

@@ -64,8 +64,13 @@
 - Zdrojem sdíleného vzhledu je [Vapour Chrome](kufr/design-system/README.md):
   používej jeho tokeny, komponenty a pravidla přístupnosti. Lokální styl řeší
   rozložení konkrétního UI; nevytvářej další nezávislou paletu ani fontové CDN.
-- Před novou komponentou prohlédni `kufr/design-system/ui.js` a jeho interaktivní
-  `playground/`; sdílej vykonatelný renderer a chování, ne kopii HTML/CSS.
+- Aplikační obrazovky patří do společné Vue 3 aplikace v
+  `kufr/mobilni-aplikace/src/`: SFC s Composition API, Vue Router a feature stavem.
+  Web a Capacitor sdílejí komponenty; Swift vlastní nativní schopnosti. Nejprve
+  prohlédni `src/components/` a příslušnou feature. Nové online obrazovky nesmějí
+  rozšiřovat HTML-string panely, `v-html` celé obrazovky ani iframe staré aplikace.
+  `ui.js`/`playground` zůstávají kompatibilitou pro lokální servis a staré archivy.
+  Hranice a mapu rout určuje `kufr/docs/application-architecture.md`.
   Zdrojem tokenů je `tokens.json`, výstupy generuje `scripts/generate_design_tokens.py`.
   Platformové a balicí hranice popisuje [UI architektura](kufr/design-system/architecture.md).
   Zachovej vlastnictví autorizace a zařízeníových stavů ve funkci; iOS Capacitor
@@ -97,7 +102,12 @@
   regeneraci použij pouze na výslovné zadání nebo se zdůvodněním závislosti;
   samotné PR, změna větve nebo nový Codex task nejsou důvodem.
 - V `kufr/firmware/` spusť `pio run`. Čistou posloupnost lze testovat hostitelským C++ kompilátorem podle příkazu v `kufr/firmware/README.md`; testy jsou v `kufr/firmware/tests/`.
-- V `kufr/mobilni-aplikace/` je lockfile: pro reprodukovatelnou instalaci použij `npm ci`, pro kontrolu `npm test` a `npm run build` (`tsc --noEmit && vite build`). Aplikace obsahuje LAN ovládání ESP32 a nativní backend Debug; browser ani simulátor neprokazují akceptaci na iPhonu. Nativní testy a podpis ověř existujícím macOS workflow výše.
+- V `kufr/mobilni-aplikace/` použij `npm ci`, `npm test`, `npm run build`
+  (Vue typecheck a Vite) a při změně cest/rozhraní `npm run test:browser`.
+  Aplikace obsahuje LAN ovládání ESP32 a nativní backend Debug; browser ani
+  simulátor neprokazují akceptaci na iPhonu. Nativní testy a podpis ověř
+  existujícím macOS workflow výše. Běžný app/viewer build nesmí spouštět CAD
+  ani ověřování výrobního ZIPu; model má samostatnou verzi a provenance.
 - V `obludarium/firmware/` je sestavovací příkaz `pio run`; projekt je zatím jen startovní kostra.
 - `**/.pio/`, `**/node_modules/` a `**/dist/` jsou generované nebo lokální výstupy. Neupravuj je jako zdrojové soubory.
 - Po změně kódu ověř nejmenší dotčený projekt a relevantní testy. Pokud chybí hardware pro ověření skutečného efektu, uveď tuto mezeru ve výsledku.

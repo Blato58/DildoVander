@@ -118,7 +118,8 @@ error; it must never delete retained content to make room.
 After the established builds produce a Linux backend and compiled portal:
 
 ```sh
-python3 kufr/web/build-site.py --keepsake-only --destination "$RUNNER_TEMP/dv10-web"
+npm --prefix kufr/mobilni-aplikace run build
+python3 kufr/web/build-site.py --web-dist kufr/mobilni-aplikace/dist --destination "$RUNNER_TEMP/dv10-web"
 python3 kufr/backend/deploy/keepsake_release.py \
   --backend "$RUNNER_TEMP/kufr-publish" \
   --web "$RUNNER_TEMP/dv10-web" \
@@ -128,7 +129,7 @@ python3 scripts/ci/package.py pack "$RUNNER_TEMP/keepsake-release" "$RUNNER_TEMP
 
 The release packager combines backend and guest web, records each file SHA-256 and
 the source revision, rejects known DB/credential/archive paths and symlinks, and
-does not activate anything. This standalone public root is a preview artifact; production must preserve the complete existing project site and its routes using the [canonical delivery profile](DELIVERY.md). Existing CI packaging supplies its normal provenance
+does not activate anything. The web root contains the shared Vue application, including guest archive routes; production must preserve the complete application and distribution routes using the [canonical delivery profile](DELIVERY.md). Existing CI packaging supplies its normal provenance
 and extraction checks. Only compiled code belongs in the artifact; root operator
 configuration and all persistent state remain outside. The private deployment
 workflow must verify provenance/digests, stage both code trees, activate the

@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "id": "KUFR-APPLICATION",
+  "initiative": "KUFR",
+  "title": "One coherent Vue web and Capacitor application",
+  "state": "blocked",
+  "priority": "P0",
+  "sequence": 27,
+  "scope": [
+    "kufr/mobilni-aplikace",
+    "kufr/backend",
+    "kufr/web",
+    "kufr/mechanika/final",
+    "kufr/design-system",
+    "scripts/ci",
+    ".github/workflows",
+    ".agents/skills/dildovander-ui"
+  ],
+  "dependencies": [],
+  "acceptance": [
+    {
+      "id": "APPLICATION",
+      "revision": 1,
+      "expected": "One shared Vue shell and real feature components preserve suitcase, archive, administration and deep-link journeys across web and Capacitor; telemetry preserves focus and stale physical intent is invalidated.",
+      "requiredEvidenceKinds": [
+        "unit",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9"
+      },
+      "evidenceRefs": [
+        "KUFR-APPLICATION-unit-v2",
+        "KUFR-APPLICATION-browser-v2",
+        "KUFR-APPLICATION-review-v2"
+      ]
+    },
+    {
+      "id": "IDENTITY",
+      "revision": 1,
+      "expected": "Persistent controlled owner enrollment, passkey sign-in, invitations, recovery, session revocation and resource grants are enforced server-side with CSRF and privilege separation; guest and device capabilities remain independent.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+        "backendArtifactDigest": "d73c4f1c766513f77f26fe74082c83e2ac5cbee9fff3d785c25e80490070cf8f"
+      },
+      "evidenceRefs": [
+        "KUFR-APPLICATION-identity-v2",
+        "KUFR-APPLICATION-browser-v2",
+        "KUFR-APPLICATION-review-v2"
+      ]
+    },
+    {
+      "id": "RELEASES",
+      "revision": 1,
+      "expected": "Application build and viewer tests require no CAD toolchain or manufacturing artifact; validated immutable ModelBundles and the same maintained offline viewer compose independently and work through file URLs without network.",
+      "requiredEvidenceKinds": [
+        "integration",
+        "browser",
+        "source_review"
+      ],
+      "rule": "allOf",
+      "appliesTo": {
+        "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+        "releaseArtifactDigest": "9b69b23d50554d62735fd40e4246fd920ee3cfed27a0fdf6930763bcde5f05f4"
+      },
+      "evidenceRefs": [
+        "KUFR-APPLICATION-releases-v2",
+        "KUFR-APPLICATION-browser-v2",
+        "KUFR-APPLICATION-review-v2"
+      ]
+    },
+    {
+      "id": "NATIVE",
+      "revision": 1,
+      "expected": "Supported native passkey authentication, Keychain session and existing physical BLE pairing survive app resume and user switching; actual associated-domain and signed-device requirements are verified separately from synthetic web evidence.",
+      "requiredEvidenceKinds": [
+        "native_ios"
+      ],
+      "appliesTo": {
+        "iosArtifactDigest": "0b0becfa6130daafb669ef6ee1b342c9034d5f140f5f06c97a9c78dff0aba9bc"
+      },
+      "evidenceRefs": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "SIGNED-NATIVE",
+      "problem": "Windows checkout cannot establish signed iPhone passkey, associated-domain and physical BLE acceptance.",
+      "severity": "high",
+      "blocks": [
+        "NATIVE"
+      ],
+      "unblockCondition": "Run the configured macOS native checks and verify associated-domain sign-in, resume, switching and physical pairing on the authorized signed iPhone installation."
+    }
+  ],
+  "nextAction": "Run the prepared macOS native harnesses and unsigned Simulator build through PR CI, resolve review findings, then verify signed iPhone associated-domain passkeys, resume/switching and physical pairing with the authorized installation. Production activation remains separate.",
+  "currentNote": "Repository implementation and isolated software verification complete against component source digests. Shared app+identity+release checks passed; native acceptance remains explicit. No production/provider/hardware action. Public branch commit and verified push will be recorded after source handoff.",
+  "implementedSubject": {
+    "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+    "backendArtifactDigest": "d73c4f1c766513f77f26fe74082c83e2ac5cbee9fff3d785c25e80490070cf8f",
+    "releaseArtifactDigest": "9b69b23d50554d62735fd40e4246fd920ee3cfed27a0fdf6930763bcde5f05f4",
+    "iosArtifactDigest": "0b0becfa6130daafb669ef6ee1b342c9034d5f140f5f06c97a9c78dff0aba9bc"
+  }
+}

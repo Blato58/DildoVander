@@ -34,7 +34,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/firmware/src/espidf_main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
             (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site", "cad"}),
             (["kufr/design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
-            (["kufr/web/index.html"], {"site"}),
+            (["kufr/web/build-site.py"], {"site"}),
         ]:
             with self.subTest(paths=paths):
                 self.assertEqual(self.selected(*paths), expected)
@@ -44,6 +44,20 @@ class ProjectSelectionTests(unittest.TestCase):
                          {"backend", "firmware", "web", "ios", "site"})
         self.assertEqual(self.selected("kufr/simulator/bridge.cpp"), {"firmware", "web", "ios"})
         self.assertEqual(self.selected("scripts/ci/package.py"), {"repository", "backend", "firmware", "web", "site"})
+
+    def test_integrated_app_dependency_paths_select_real_consumers_without_cad(self):
+        for name in ("controller.mjs", "serial.mjs", "profiles.mjs", "auto-calibration.mjs", "mcp.mjs"):
+            self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/" + name), {"web", "ios", "site"})
+        for name in ("generate-control-validator.mjs", "control-validator-core.mjs", "generated/control-message-v1.validator.mjs"):
+            self.assertEqual(self.selected("kufr/contracts/" + name), {"backend", "firmware", "web", "ios", "site"})
+        self.assertEqual(self.selected("kufr/backend/Features/ModelReleases/ModelReleaseStore.cs"), {"backend"})
+        self.assertEqual(self.selected("kufr/mobilni-aplikace/src/features/identity/ModelReleasesPanel.vue"), {"backend", "web", "ios", "site"})
+
+    def test_account_ui_runs_real_https_account_journey_without_cad(self):
+        for path in ("src/features/identity/SignInView.vue", "tests/accounts.browser.mjs",
+                     "tests/accounts.fixture.browser.mjs"):
+            self.assertEqual(self.selected("kufr/mobilni-aplikace/" + path), {"backend", "web", "ios", "site"})
+        self.assertEqual(self.selected("kufr/mobilni-aplikace/src/application/HomeView.vue"), {"web", "ios", "site"})
 
     def test_workflow_changes_select_only_the_corresponding_build(self):
         self.assertEqual(self.selected(".github/workflows/kufr-firmware.yml"), {"repository", "firmware"})
@@ -63,11 +77,10 @@ class ProjectSelectionTests(unittest.TestCase):
                      "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
                      "scripts/ci/install-cad-slicer.sh",
                      "scripts/ci/cad_cache.py",
-                     ".github/actions/verified-cad/action.yml",
-                     "kufr/mobilni-aplikace/.nvmrc"]:
+                     ".github/actions/verified-cad/action.yml"]:
             with self.subTest(path=path):
                 self.assertIn("cad", self.selected(path))
-        for path in ["kufr/mobilni-aplikace/src/main.ts", "kufr/web/index.html",
+        for path in ["kufr/mobilni-aplikace/src/main.ts", "kufr/mobilni-aplikace/.nvmrc", "kufr/web/build-site.py",
                      "kufr/contracts/package-lock.json", "kufr/backend/Program.cs",
                      "kufr/design-system/tokens.json", "kufr/design-system/ui.js",
                      "kufr/mechanika/final/viewer.js", "kufr/mechanika/final/viewer_document.py",
@@ -90,13 +103,13 @@ class ProjectSelectionTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(self.selected("kufr/mechanika/final/" + name), {"site"})
 
-    def test_recovery_site_covers_cad_without_a_duplicate_job(self):
-        self.assertFalse(select_recovery_projects("all")["cad"])
+    def test_recovery_all_runs_independent_app_and_cad_jobs(self):
+        self.assertTrue(select_recovery_projects("all")["cad"])
         self.assertTrue(select_recovery_projects("all")["site"])
         self.assertEqual({name for name, enabled in select_recovery_projects("cad").items() if enabled}, {"cad"})
         for project in ("all", "site"):
             with self.subTest(project=project):
-                self.assertFalse(select_recovery_projects(project, force_cad=True)["cad"])
+                self.assertTrue(select_recovery_projects(project, force_cad=True)["cad"])
                 self.assertTrue(select_recovery_projects(project, force_cad=True)["site"])
         self.assertTrue(select_recovery_projects("backend", force_cad=True)["cad"])
 

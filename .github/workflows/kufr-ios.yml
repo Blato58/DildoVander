@@ -44,6 +44,8 @@ jobs:
         run: bash scripts/test-native-debug.sh
       - name: Test secure BLE status and secret whitelist
         run: bash scripts/test-native-provisioning.sh
+      - name: Test native identity origin policy and authentication bridge
+        run: bash scripts/test-native-identity.sh
       - name: Build unsigned iOS Simulator app
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App \

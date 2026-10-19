@@ -273,50 +273,6 @@ async function installer(page, origin) {
   console.log('PASS installer: truthful unavailable/ready states, Safari recovery and 320/390/1280 layout; no install invoked');
 }
 
-async function mobile(page, origin) {
-  if (!mobileDist) {
-    console.log('SKIP mobile production build: set UI_MOBILE_DIST to a build made with base=/companion/');
-    return;
-  }
-  for (const width of [320, 390, 1280]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto(`${origin}/companion/`);
-    await page.locator('[data-workspace="live"]').waitFor();
-    assert.ok((await page.locator('.simulation').textContent()).includes('Místní fake'));
-    assert.equal(await page.locator('.operator-readiness').isVisible(), true);
-    assert.equal(await page.locator('[data-manual-controls]').isVisible(), false, 'operator starts with live readiness, not actuator cards');
-    await noOverflow(page, `mobile fake ${width}`);
-    await screenshot(page, `mobile-overview-${width}`);
-    await page.locator('#live-tab-voice').focus();
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await page.locator('#live-panel-dance').isVisible(), true);
-    assert.equal(await page.locator('#live-panel-voice').isVisible(), false);
-    assert.equal(await page.locator('#live-panel-text').isVisible(), false);
-    await page.locator('#tab-control').focus();
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await page.locator('#tab-provisioning').getAttribute('aria-selected'), 'true');
-    await page.keyboard.press('End');
-    assert.equal(await page.locator('#tab-debug').getAttribute('aria-selected'), 'true');
-    await page.keyboard.press('Home');
-    assert.equal(await page.locator('#tab-control').getAttribute('aria-selected'), 'true');
-    await page.locator('[data-workspace="manual"]').click();
-    await page.locator('[data-action="acquire"]').click();
-    assert.equal(await page.locator('[data-action="select"]').first().isEnabled(), true);
-    await page.locator('[data-shell-stop]').click();
-    await page.locator('[data-action="inspect"]').waitFor();
-    assert.equal(await page.locator('[data-shell-stop]').isDisabled(), true);
-    assert.equal(await page.locator('[data-action="select"]').first().isDisabled(), true);
-    await page.locator('[data-action="inspect"]').click();
-    assert.equal(await page.locator('[data-shell-stop]').isEnabled(), true);
-    await screenshot(page, `mobile-fake-recovered-${width}`);
-    await page.locator('[data-workspace="live"]').click();
-    assert.equal(await page.locator('#live-panel-dance').isVisible(), true, 'selected live task survives manual workspace and snapshot updates');
-    assert.equal(await page.locator('#live-panel-text').isVisible(), false);
-    await assertOffline(page, `mobile fake ${width}`);
-  }
-  console.log('PASS mobile production /companion/: fake mode, keyboard tabs, Stop/recovery at 320/390/1280; no provider/device transport');
-}
-
 async function viewer(page, origin) {
   if (!viewerHtml) {
     console.log('SKIP generated offline viewer: set UI_VIEWER_HTML to preview_ui_fixture.py output');
@@ -470,7 +426,7 @@ async function main() {
     await simulator(page, origin);
     await servo(page, origin);
     await installer(page, origin);
-    await mobile(page, origin);
+    // Shared application journeys live in mobilni-aplikace/tests/application.browser.mjs.
     await viewer(page, origin);
     assert.deepEqual(blocked, [], 'all resources remain confined to this loopback static server');
     assert.deepEqual(errors, [], 'no browser console or module errors');

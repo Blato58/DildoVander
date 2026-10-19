@@ -121,20 +121,20 @@ class CadImpactTests(unittest.TestCase):
         self.assertIn("github.event.merge_group.head_sha", ci)
         self.assertIn("name: CI required\n    if: always()", ci)
 
-    def test_force_dispatch_is_explicit_and_propagates_to_both_verification_paths(self):
+    def test_force_dispatch_is_explicit_and_only_targets_manufacturing(self):
         ci = (ROOT / ".github/workflows/ci.yml").read_text()
         cad = (ROOT / ".github/workflows/kufr-cad.yml").read_text()
         site = (ROOT / ".github/workflows/kufr-site.yml").read_text()
         self.assertIn("--force-cad", ci)
         # Missing dispatch inputs on PRs evaluate to an empty string. A typed
         # reusable boolean must compare explicitly instead of forwarding it.
-        self.assertIn("force-cad: ${{ inputs.force_cad == true && inputs.pr_number == '' }}", ci)
         self.assertIn("force: ${{ inputs.force_cad == true && inputs.pr_number == '' }}", ci)
         self.assertIn("force_cad:", ci)
-        self.assertIn("force-cad: ${{ inputs.force_cad", ci)
+        self.assertNotIn("force-cad: ${{ inputs.force_cad", ci)
         self.assertIn("force: ${{ inputs.force_cad", ci)
         self.assertIn("force: ${{ inputs.force || false }}", cad)
-        self.assertIn("force: ${{ inputs.force-cad }}", site)
+        self.assertNotIn("force-cad", site)
+        self.assertNotIn("verified-cad", site)
 
 
 if __name__ == "__main__":

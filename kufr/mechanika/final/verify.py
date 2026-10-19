@@ -24,6 +24,7 @@ import assembly_access
 import verify_harness_geometry
 from slicer_validation import inspect_project, assert_saved_evidence
 import manufacturing
+from model_verification import certify_bundle, evidence_for_success
 from dataclasses import asdict
 from printability import Profile
 from artifacts import (export_names, assert_generation_snapshot, export_hashes,
@@ -376,8 +377,10 @@ def main():
             "parts":parts,"mechanics":mech_result,"harness":harness_result,"strength":strength_result,
             "assembly":assembly_result,"printing":print_result,"wire_geometry":wire_geometry,"cad_sha256":initial_cad,
             "export_sha256":verified_exports,"sources":initial_sources}
+    report["modelEvidence"] = evidence_for_success(OUT, ROOT, initial_sources)
     (OUT/"verification.json").write_text(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False),encoding="utf-8")
-    print(json.dumps({k:v for k,v in report.items() if k not in ("parts","sources","cad_sha256","export_sha256","wire_geometry")},indent=2),flush=True)
+    certify_bundle(OUT / "model-release", OUT / "verification.json", ROOT)
+    print(json.dumps({k:v for k,v in report.items() if k not in ("parts","sources","cad_sha256","export_sha256","wire_geometry","modelEvidence")},indent=2),flush=True)
 
 
 if __name__=="__main__":

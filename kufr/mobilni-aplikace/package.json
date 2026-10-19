@@ -4,18 +4,32 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "tsc --noEmit && node scripts/copy-third-party-notices.mjs && vite build",
-    "test": "node --test tests/*.test.mjs"
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "npm --prefix ../contracts run check:generated && vue-tsc --noEmit && node scripts/copy-third-party-notices.mjs && vite build",
+    "test": "node --test tests/*.test.mjs src/features/archive/*.test.mjs && vitest run",
+    "test:components": "vitest run",
+    "test:browser": "node tests/application.browser.mjs",
+    "test:accounts": "node tests/accounts.browser.mjs",
+    "test:accounts:fixture": "node tests/accounts.fixture.browser.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "@vitejs/plugin-vue": "6.0.10",
+    "@vue/test-utils": "2.5.1",
+    "happy-dom": "21.0.3",
+    "playwright": "1.62.1",
+    "typescript": "6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "4.1.12",
+    "vue-tsc": "3.3.13"
   },
   "dependencies": {
     "@capacitor/core": "8.5.3",
-    "@capacitor/ios": "8.5.3"
+    "@capacitor/ios": "8.5.3",
+    "pinia": "4.1.0",
+    "vue": "3.5.44",
+    "vue-router": "5.4.0"
   },
   "overrides": {
     "xcode": {

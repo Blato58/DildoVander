@@ -1,0 +1,31 @@
+const errors: Record<string, string> = {
+      cost_limit: 'OpenAI účet omezil dostupnost AI. Ověřte jeho kredit a limity.',
+      turn_limit: 'Rozhovor dosáhl maximálního počtu odpovědí. Spusťte nový rozhovor.',
+      dialogue_busy: 'Server právě zpracovává jiný rozhovor. Zkuste to za chvíli.',
+      realtime_unavailable: 'Realtime hlas není na serveru dostupný. Obnovte stav serveru.',
+      microphone_unavailable: 'Povolte mikrofon aplikaci v Nastavení iPhonu.',
+      realtime_live_audio_overflow: 'Odesílání mikrofonu se zpozdilo a zaplnilo zvukovou frontu. Zkuste rozhovor znovu; příčinou může být aplikace nebo odezva serveru i při stabilním připojení.',
+      realtime_live_audio_start_failed: 'iPhone nemohl spustit mikrofon a reproduktor. Ukončete rozhovor a zkuste jej znovu.',
+      realtime_live_audio_interrupted: 'iOS přerušil zvuk nebo změnil mikrofon či reproduktor. Spusťte rozhovor znovu.',
+      realtime_live_audio_route_changed: 'Změnil se mikrofon nebo reproduktor. Spusťte rozhovor znovu.',
+      realtime_live_audio_session_changed: 'iOS změnil režim zvuku během rozhovoru. Spusťte rozhovor znovu.',
+      realtime_live_audio_format_changed: 'iOS změnil formát mikrofonu. Spusťte rozhovor znovu.',
+      realtime_live_audio_engine_stopped: 'iOS zastavil zvukový vstup nebo výstup. Spusťte rozhovor znovu.',
+      realtime_live_audio_output_stalled: 'Přehrávač iOS nepředává zvuk reproduktoru. Rozhovor byl zastaven; spusťte jej znovu.',
+      realtime_live_audio_start_unstable: 'Zvukový vstup se nepodařilo stabilně spustit. Spusťte rozhovor znovu.',
+      realtime_live_audio_route_unknown: 'iOS ohlásil nerozpoznanou změnu zvuku. Spusťte rozhovor znovu.',
+      realtime_live_audio_services_reset: 'iOS restartoval zvukovou službu. Spusťte rozhovor znovu.',
+      realtime_live_audio_conversion_failed: 'Nepodařilo se převést zvuk mikrofonu. Spusťte rozhovor znovu.',
+      realtime_live_audio_failed: 'Nepodařilo se odeslat zvuk mikrofonu serveru. Ověřte připojení a spusťte rozhovor znovu.',
+      realtime_live_protocol_failed: 'Server poslal neplatnou nebo neúplnou Realtime odpověď. Spusťte rozhovor znovu.',
+      realtime_live_http_failed: 'Server odmítl hlasové spojení. Ověřte stav serveru a přístup.',
+      realtime_live_connection_failed: 'Hlasové spojení se serverem se přerušilo. Ověřte připojení a spusťte rozhovor znovu.',
+      realtime_live_connection_timeout: 'Server včas neodpověděl. Ověřte připojení a spusťte rozhovor znovu.',
+      realtime_live_tls_failed: 'iPhone nemohl ověřit zabezpečené spojení se serverem. Ověřte datum telefonu a HTTPS adresu.',
+      realtime_live_response_too_large: 'Hlasová odpověď překročila povolenou velikost. Spusťte rozhovor znovu.',
+      realtime_cleanup_failed: 'Server nepotvrdil ukončení rozhovoru. Zkuste znovu Ukončit rozhovor.',
+    };
+export function phoneError(code: string): string {
+  const technical = /^[a-z][a-z0-9_]{0,63}$/.test(code) ? ` (${code})` : '';
+  return (errors[code] ?? 'Hlasové spojení se přerušilo. Ukončete rozhovor a spusťte jej znovu.') + technical;
+}

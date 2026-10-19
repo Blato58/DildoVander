@@ -20,24 +20,32 @@ zverejneni vypne controller. Fork PR se nemeni.
 | `kufr-firmware.yml` | ESP-IDF host testy a firmware build |
 | `kufr-web.yml` | Web a offline testy |
 | `kufr-ios.yml` | Nativni Swift testy a nepodepsany iOS Simulator build na macOS |
-| `kufr-site.yml` | Rychle PR kontroly webu/vieweru a Companion; rucni main build celeho arcane-site |
+| `kufr-site.yml` | Jedna Vue aplikace a viewer fixtures bez CAD; kompatibilni nazev artefaktu arcane-site |
 | `kufr-cad.yml` | Samostatna CAD gate a naplneni sdilene cache po zmene CAD vstupu na main |
 | `kufr-ai-eval.yml` | Pouze offline synteticky corpus a parser |
 | `reuse-build.yml` | Overeni aktualniho main artefaktu pred podpisem |
 | `kufr-ios-sign.yml` | Rucni podepsane Ad Hoc IPA na macOS |
 | `pr-sync.yml` | API-only synchronizace vlastnich PR za private podminky |
 
-PR zmeny mobilu, backendu, kontraktu a verejneho webu nespousteji CAD regeneraci.
-Samostatny job `cad` je povinny pro zmeny `kufr/mechanika/final/`, sdileneho
-design-systemu, pripnuteho sliceru, Node verze a dvou dokumentu pouzitych ve
-zdrojovem snapshotu (rozmery soucastek a potvrzene zapojeni). To zahrnuje i
-Markdown uvnitr vyrobniho balicku. Job `site` v PR testuje sestaveni Companionu,
-viewer a sestaveni skutecnych statickych zdroju builderem s izolovanymi
-syntetickymi CAD fixtures; kompletni vyrobni ZIP nevytvari. Po sestaveni
-Companionu pouziva i jeho skutecne `dist`, nikoli pouze HTML fixture.
-Rucni recovery `project=site` nebo `all` stale regeneruje a overuje cely CAD
-balicek pred sestavenim publikovatelneho artefaktu. `project=cad` spusti pouze
-CAD gate. Kontrola `CI required` vyzaduje uspech vsech vybranych jobs.
+UI, backend a kontrakty nespousteji CAD regeneraci. Job `site` sestavi jednu
+Vue aplikaci z `kufr/mobilni-aplikace` na korenove ceste a baleni
+`kufr/web/build-site.py` spotrebuje pouze jeji `dist`. Neimportuje CAD Python,
+neoveruje vyrobni ZIP a nekopiruje stare Companion, simulator, guest ani viewer
+HTML/JS balicky. Viewer fixture testy nepotrebuji CAD toolchain. Guard
+`scripts/ci/ui_boundary.py` kontroluje i volane lokalni actions, web/iOS workflow
+a build entry points a odmita vyrobni generovani v UI workflow.
+
+Samostatny job `cad` zustava povinny pro skutecne vyrobni vstupy. Presny seznam
+viewer souboru v `scripts/ci/select_projects.py` je vyjimka; neznamy soubor pod
+`kufr/mechanika/final/` konzervativne vybere plne CAD kontroly. UI tokeny a
+viewer styly samy CAD nevybiraji. Zmeny kontraktu vybiraji jejich producenty a
+konzumenty. Rucni `project=site` sestavuje aplikaci bez CAD; `project=cad` pouze
+CAD; `project=all` spusti oba nezavisle. Kontrola `CI required` vyzaduje uspech
+vsech vybranych jobs. Nativni zmeny dale overuje macOS workflow.
+
+Aplikace, ModelBundle a offline distribuce maji oddelenou provenienci a
+aktivaci. Pripraveny postup, cache pravidla, persistence identity a rollback
+jsou v [application releases](../kufr/web/deploy/APPLICATION-RELEASES.md).
 
 CAD workflow po relevantnim push na `main` naplni cache vychozi vetve;
 nic nepublikuje ani nenasazuje. GitHub cache vytvorena pro `refs/pull/N/merge`

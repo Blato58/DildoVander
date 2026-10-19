@@ -297,6 +297,29 @@ class RefreshPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Generation sources changed; regenerate: geometry.py"):
             refresh.refresh_generation(self.saved_sources)
 
+    def test_validation_refresh_retires_independent_model_proof_without_rewriting_geometry(self):
+        from export_model_bundle import write_model_bundle
+        from model_verification import certify_bundle, evidence_for_success, write_generation_receipt
+        from preview_ui_fixture import fixture_payload
+        bundle = self.out / "model-release"
+        payload = fixture_payload()
+        payload["twinManifest"] = None
+        write_model_bundle(payload, bundle, source_revision="synthetic-refresh-test")
+        write_generation_receipt(bundle, self.root, self.out / "model-generation.json")
+        synthetic_report = self.out / "synthetic-model-report.json"
+        write_json(synthetic_report, {"result": "PASS_CAD_NOT_PHYSICAL_ACCEPTANCE", "physical_test_performed": False,
+                                    "sources": self.saved_sources, "modelEvidence": evidence_for_success(self.out, self.root, self.saved_sources)})
+        certify_bundle(bundle, synthetic_report, self.root)
+        geometry_before = (bundle / "model.json").read_bytes()
+        (self.root / "verify.py").write_bytes(b"new verification gate")
+        self.assertTrue(refresh.refresh_generation(self.saved_sources))
+        self.assert_no_acceptance()
+        model_manifest = json.loads((bundle / "model-bundle.json").read_bytes())
+        self.assertEqual(model_manifest["provenance"]["cadVerification"], "not-verified")
+        self.assertFalse((bundle / "cad-verification.json").exists())
+        self.assertEqual((bundle / "model.json").read_bytes(), geometry_before)
+        evidence_for_success(self.out, self.root, self.sources())
+
     def test_validation_publish_failure_cannot_leave_an_old_pass_or_archive(self):
         self.add_accepted_transports()
         (self.root / "verify.py").write_bytes(b"new verifier")

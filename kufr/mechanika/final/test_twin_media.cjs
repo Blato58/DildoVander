@@ -54,7 +54,7 @@ function mounted() {
   }
   class Worklet extends Node { constructor(){super();this.port={};worklets.push(this);} }
   const document={createElement:tag=>{const element=new Element(tag);if(tag==='canvas')canvases.push(element);return element;}};
-  const navigator={mediaDevices:{addEventListener(){},enumerateDevices:async()=>[],getUserMedia:async constraints=>{
+  const navigator={mediaDevices:{addEventListener:(name,handler)=>events.set('media-'+name,handler),removeEventListener:(name)=>events.delete('media-'+name),enumerateDevices:async()=>[],getUserMedia:async constraints=>{
     permissions.push(constraints);if(pendingPermission){const pending=pendingPermission;pendingPermission=null;await pending;}
     const track={stopped:false,addEventListener(){},stop(){this.stopped=true;}};
     const stream={getTracks:()=>[track]};streams.push(stream);return stream;
@@ -63,8 +63,8 @@ function mounted() {
     Uint8Array,Float32Array,DataView,Blob,AbortController,console,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},
     atob:text=>Buffer.from(text,'base64').toString('binary'),crypto:{randomUUID:()=>BOOT},
     Option:function(text,value){this.textContent=text;this.value=value;},
-    addEventListener:(name,callback)=>events.set(name,callback),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
-  context.window=context;require('./ui_test_runtime.cjs')(context);vm.runInNewContext(fs.readFileSync(require.resolve('./twin_media.js'),'utf8'),context);
+    addEventListener:(name,callback)=>events.set(name,callback),removeEventListener:name=>events.delete(name),setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout(){}};
+  context.window=context;require('./ui_test_runtime.cjs')(context);for(const file of ['./twin_media_core.js','./twin_media_controller.js','./twin_media.js']) vm.runInNewContext(fs.readFileSync(require.resolve(file),'utf8'),context);
   const api=context.TwinMedia.mount(document,new Element(),{request:async(id,path,options={})=>{
     const request={id,path,...options};requests.push(request);
     if(pendingRequest?.path===path){const pending=pendingRequest;pendingRequest=null;await pending.promise;}
@@ -75,7 +75,7 @@ function mounted() {
   }});
   const get=key=>elements.get(key),flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
   const activate=async()=>{api.sync({...source});await flush();await get('speaker').onclick();await get('mic').onclick();};
-  return {api,get,requests,permissions,streams,contexts,worklets,timers,canvases,flush,activate,event:name=>events.get(name)?.(),
+  return {api,get,requests,permissions,streams,contexts,worklets,timers,canvases,flush,activate,events,event:name=>events.get(name)?.(),
     hold:path=>{let resolve,reject;const promise=new Promise((done,fail)=>{resolve=done;reject=fail;});pendingRequest={path,promise};resolve.reject=reject;return resolve;},
     holdResume:()=>{let resolve;pendingResume=new Promise(done=>{resolve=done;});return resolve;},
     setMediaState:state=>{currentState=state;},
@@ -124,6 +124,22 @@ test('settings/source sync never prompts permissions; observer/live/replay/deter
     await app.get('mic').onclick();await app.get('speaker').onclick();await app.get('start').onclick();
     assert.equal(app.permissions.length,0);assert.equal(app.requests.length,count);
   }
+});
+test('disposing canonical HAL removes listeners, clears private dialogue and ends capture before correlated cancellation',async()=>{
+  const app=mounted();await app.activate();await app.get('start').onclick();await app.flush();
+  await app.api.handle(output('dialogue','1',{text:'private transient words'}));
+  assert.equal(app.get('dialogue').children.length,1);
+  assert.equal(app.events.has('pagehide'),true);assert.equal(app.events.has('media-devicechange'),true);
+  app.api.dispose();await app.flush();app.api.dispose();
+  assert.equal(app.events.has('pagehide'),false);assert.equal(app.events.has('media-devicechange'),false);
+  assert.equal(app.api.state().actor,null);assert.equal(app.api.state().captureBytes,0);
+  assert.equal(app.get('dialogue').children.length,0);assert.equal(app.contexts[0].state,'closed');
+  for(const stream of app.streams) assert.equal(stream.getTracks().every(track=>track.stopped),true);
+  const requests=app.requests.length;
+  app.worklets[0].port.onmessage({data:new Float32Array(4800)});await app.flush();
+  assert.equal(app.requests.length,requests,'late capture after disposal cannot upload');
+  const cancellations=app.requests.filter(item=>item.path==='/media/cancel');assert.equal(cancellations.length,1);
+  assert.deepEqual(Object.keys(JSON.parse(cancellations[0].body)).sort(),['bootId','epoch','sessionId']);
 });
 test('actual activation/start handlers send native admission only, input begins only at native listening',async()=>{
   const app=mounted();await app.activate();assert.equal(app.permissions.length,1);assert.equal(app.contexts[0].sampleRate,24000);

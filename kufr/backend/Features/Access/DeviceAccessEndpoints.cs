@@ -30,6 +30,10 @@ internal static class DeviceAccessEndpoints
 
     public static string? Authenticate(HttpContext context, DeviceAccessStore access)
     {
+        if (!context.Request.Headers.ContainsKey("Authorization") && context.Items["dv-account-device"] is string deviceId)
+        {
+            return deviceId;
+        }
         return TryReadBearer(context, out var token)
             ? access.VerifyAccessToken(token)
             : null;

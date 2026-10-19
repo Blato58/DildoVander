@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Identity;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace Kufr.Backend.Features.DigitalTwin;
@@ -9,16 +10,16 @@ internal static class TwinMediaEndpoints
     internal static IEndpointRouteBuilder MapTwinMedia(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/v1/twin/instances/{id}");
-        group.MapGet("/settings", (string id, HttpContext context, TwinAccess access, TwinMediaSettingsStore settings) =>
+        group.MapGet("/settings", async (string id, HttpContext context, TwinAccess access, TwinMediaSettingsStore settings) =>
         {
-            var authorization = Control(context, access, id, false);
+            var authorization = await ControlAsync(context, access, id, false);
             if (authorization.Error is not null) { return authorization.Error; }
             var value = settings.Read(id);
             return value is null ? ApiProblem.Create(context, 409, "settings_unavailable") : Results.Json(value);
         });
         group.MapPut("/settings", async (string id, HttpContext context, TwinAccess access, TwinMediaSessions media) =>
         {
-            var authorization = Control(context, access, id, true);
+            var authorization = await ControlAsync(context, access, id, true);
             if (authorization.Error is not null) { return authorization.Error; }
             var change = await ReadJsonAsync<TwinMediaSettingsChange>(context);
             if (change is null) { return ApiProblem.Create(context, 400, "invalid_settings"); }
@@ -27,7 +28,7 @@ internal static class TwinMediaEndpoints
         });
         group.MapPost("/media/start", async (string id, HttpContext context, TwinAccess access, TwinMediaSessions media) =>
         {
-            var authorization = Control(context, access, id, true);
+            var authorization = await ControlAsync(context, access, id, true);
             if (authorization.Error is not null) { return authorization.Error; }
             var start = await ReadJsonAsync<TwinMediaStart>(context);
             if (start is null) { return ApiProblem.Create(context, 400, "invalid_media_start"); }
@@ -36,23 +37,23 @@ internal static class TwinMediaEndpoints
         });
         group.MapPost("/media/cancel", async (string id, HttpContext context, TwinAccess access, TwinMediaSessions media) =>
         {
-            var authorization = Control(context, access, id, true);
+            var authorization = await ControlAsync(context, access, id, true);
             if (authorization.Error is not null) { return authorization.Error; }
             var cancel = await ReadJsonAsync<TwinMediaCancel>(context);
             if (cancel is null) { return ApiProblem.Create(context, 400, "invalid_media_cancel"); }
             var error = await media.CancelAsync(id, authorization.Session!, cancel);
             return error is null ? Results.NoContent() : ApiProblem.Create(context, 409, error);
         });
-        group.MapGet("/media/state", (string id, HttpContext context, TwinAccess access, TwinMediaSessions media) =>
+        group.MapGet("/media/state", async (string id, HttpContext context, TwinAccess access, TwinMediaSessions media) =>
         {
-            var authorization = Control(context, access, id, false);
+            var authorization = await ControlAsync(context, access, id, false);
             if (authorization.Error is not null) { return authorization.Error; }
             var state = media.State(id, authorization.Session!);
             return state is null ? ApiProblem.Create(context, 409, "media_owner_required") : Results.Json(state);
         });
         group.MapGet("/media/output", async (string id, HttpContext context, TwinAccess access, TwinMediaSessions media) =>
         {
-            var authorization = Control(context, access, id, false);
+            var authorization = await ControlAsync(context, access, id, false);
             if (authorization.Error is not null) { return authorization.Error; }
             var result = await media.OutputAsync(id, authorization.Session!);
             if (result.Error is not null) { return ApiProblem.Create(context, 409, result.Error); }
@@ -65,7 +66,7 @@ internal static class TwinMediaEndpoints
         });
         group.MapPost("/media/played", async (string id, HttpContext context, TwinAccess access, TwinMediaSessions media) =>
         {
-            var authorization = Control(context, access, id, true);
+            var authorization = await ControlAsync(context, access, id, true);
             if (authorization.Error is not null) { return authorization.Error; }
             var played = await ReadJsonAsync<TwinMediaPlayed>(context);
             if (played is null) { return ApiProblem.Create(context, 400, "invalid_media_played"); }
@@ -78,7 +79,7 @@ internal static class TwinMediaEndpoints
     }
     private static async Task<IResult> InputAsync(string id, HttpContext context, TwinAccess access, TwinMediaSessions media, bool photo)
     {
-        var authorization = Control(context, access, id, true);
+        var authorization = await ControlAsync(context, access, id, true);
         if (authorization.Error is not null) { return authorization.Error; }
         if (context.Request.ContentType != (photo ? "image/jpeg" : "application/octet-stream"))
         { return ApiProblem.Create(context, 400, "invalid_media_content_type"); }
@@ -99,9 +100,14 @@ internal static class TwinMediaEndpoints
         catch (Exception error) when (error is InvalidDataException or BadHttpRequestException)
         { return ApiProblem.Create(context, 413, "media_body_limit"); }
     }
-    private static (TwinSession? Session, IResult? Error) Control(HttpContext context, TwinAccess access, string id, bool write)
+    internal static async Task<(TwinSession? Session, IResult? Error)> ControlAsync(HttpContext context, TwinAccess access, string id, bool write)
     {
         var session = access.Session(context.Request.Cookies["__Host-kufr-twin"]);
+        if (context.User.HasClaim(c => c.Type == AccountIdentity.SessionClaim))
+        {
+            session = await TwinEndpoints.AccountControlSessionAsync(context, id, context.RequestServices.GetRequiredService<TwinHost>());
+            if (session is null) { return (null, ApiProblem.Create(context, 403, "simulation_media_forbidden")); }
+        }
         if (session is null) { return (null, ApiProblem.Create(context, 401, "twin_session_required")); }
         if (session.Principal.Role != "control" || session.Principal.Mode != "simulation" || session.Principal.InstanceId != id)
         { return (null, ApiProblem.Create(context, 403, "simulation_media_forbidden")); }

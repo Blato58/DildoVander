@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "test": "node verify-fixtures.mjs && node verify-backend-openapi.mjs && node verify-media-frame.mjs && node verify-media-control.mjs"
+    "generate": "node generate-control-validator.mjs",
+    "check:generated": "node generate-control-validator.mjs --check",
+    "test": "npm run check:generated && node --disallow-code-generation-from-strings verify-fixtures.mjs && node verify-control-validator.mjs && node verify-backend-openapi.mjs && node verify-media-frame.mjs && node verify-media-control.mjs"
   },
   "devDependencies": {
     "ajv": "8.20.0",

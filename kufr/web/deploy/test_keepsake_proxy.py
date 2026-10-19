@@ -15,9 +15,10 @@ class ProxyTests(unittest.TestCase):
         config = proxy.render_compatibility("keepsake.example.invalid")
         guard = '    if ($request_uri ~ "^[^?]*%") { return 404; }'
         locations = re.findall(r'location ~ "\^[^\n]+\n(.*?)\n}', config, re.DOTALL)
+        locations = [block for block in locations if "proxy_pass " in block]
         expected_locations = len(proxy.ROUTES) + len({route for method, route, source in proxy.CONTRACT["routes"]})
         self.assertEqual(expected_locations, len(locations))
-        self.assertEqual(expected_locations, config.count(guard))
+        self.assertEqual(expected_locations + 1, config.count(guard))  # app API prefix also rejects escaped paths
         for block in locations:
             self.assertTrue(block.startswith(guard + "\n"), "Raw paths must be checked before method/proxy handling")
 
@@ -42,6 +43,13 @@ class ProxyTests(unittest.TestCase):
         self.assertTrue(proxy.allowed("GET", asset))
         self.assertFalse(proxy.allowed("DELETE", asset))
         self.assertFalse(proxy.allowed("POST", asset + "/claim"))
+
+    def test_account_association_keeps_exact_guest_post_capability_boundary(self):
+        path = f"/guest/v1/keepsakes/{ID}/account-associations"
+        self.assertTrue(proxy.allowed("POST", path))
+        self.assertFalse(proxy.allowed("GET", path))
+        self.assertFalse(proxy.allowed("DELETE", path))
+        self.assertFalse(proxy.allowed("POST", path + "/other-account"))
 
     def test_compatibility_map_matches_real_source_declarations(self):
         backend = Path(__file__).resolve().parents[2] / "backend"

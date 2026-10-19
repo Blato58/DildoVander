@@ -43,12 +43,18 @@ def select_projects(paths):
             selected["backend"] = True
         if path.startswith("kufr/firmware/diagnostics/servo-bench/web/") or path == "kufr/firmware/diagnostics/servo-bench/tools/serve_panel.py":
             selected["site"] = True
+            if PurePosixPath(path).name in {"controller.mjs", "serial.mjs", "profiles.mjs", "auto-calibration.mjs", "mcp.mjs"}:
+                selected["web"] = selected["ios"] = True
         elif path.startswith("kufr/firmware/"):
             selected["firmware"] = True
         if path.startswith("kufr/mobilni-aplikace/"):
             selected["web"] = True
             selected["ios"] = True
             selected["site"] = True
+            if path.startswith("kufr/mobilni-aplikace/src/features/identity/") or PurePosixPath(path).name in {
+                "accounts.browser.mjs", "accounts.fixture.browser.mjs"
+            }:
+                selected["backend"] = True
         if path.startswith(("kufr/web/", "kufr/mechanika/", "kufr/design-system/")):
             selected["site"] = True
         if path.startswith("kufr/design-system/"):
@@ -102,10 +108,9 @@ def check_results(selected, jobs):
 
 def select_recovery_projects(project, force_cad=False):
     selected = {name: project in ("all", name) for name in PROJECTS}
-    # Recovery site builds already run full CAD verification before packaging.
-    if project == "all":
-        selected["cad"] = False
-    if force_cad and not selected["site"]:
+    # Application assembly and manufacturing recovery are independent jobs.
+    # An explicit CAD override selects only the separate manufacturing lane.
+    if force_cad:
         selected["cad"] = True
     return selected
 
@@ -120,7 +125,7 @@ def write_cad_summary(paths, selected, recovery=None):
         summary.write("### CAD impact\n\n")
         summary.write(f"- Manufacturing job selected: {str(selected['cad']).lower()}\n")
         if recovery:
-            summary.write(f"- Explicit recovery scope: {recovery}; site recovery verifies manufacturing once.\n")
+            summary.write(f"- Explicit recovery scope: {recovery}; application and manufacturing jobs remain independent.\n")
         elif causes:
             summary.write("- Affected owners: " + ", ".join(plan["owners"]) + "\n")
             for cause in causes[:12]:

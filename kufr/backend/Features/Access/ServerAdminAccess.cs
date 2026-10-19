@@ -7,9 +7,12 @@ internal sealed class ServerAdminAccess
 {
     public const string DebugDeviceId = "debug-server-admin";
     private readonly byte[]? credentialHash;
+    private readonly bool serviceCredentialEnabled;
 
     public ServerAdminAccess(IConfiguration configuration)
     {
+        serviceCredentialEnabled = !configuration.GetValue<bool>("ApplicationIdentity:Enabled")
+            || configuration.GetValue<bool>("Backend:Admin:LegacyServiceCredentialEnabled");
         var hash = configuration["Backend:Admin:CredentialSha256"];
         if (!string.IsNullOrEmpty(hash))
         {
@@ -24,7 +27,7 @@ internal sealed class ServerAdminAccess
 
     public bool Verify(string credential)
     {
-        return credentialHash is not null
+        return serviceCredentialEnabled && credentialHash is not null
             && credential.Length is > 0 and <= 256
             && CryptographicOperations.FixedTimeEquals(
                 credentialHash,
@@ -36,6 +39,11 @@ internal sealed class ServerAdminAccess
 
     public bool Authenticate(HttpContext context)
     {
+        if (!context.Request.Headers.ContainsKey("Authorization")
+            && Kufr.Backend.Features.Identity.AccountRoles.IsAdmin(context.User))
+        {
+            return true;
+        }
         var header = context.Request.Headers.Authorization.ToString();
         return header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
             && Verify(header[7..]);

@@ -26,9 +26,12 @@ internal sealed class TwinAccess
     private readonly Dictionary<string, TwinSession> sourceTokens = new(StringComparer.Ordinal);
     private readonly Lock gate = new();
     private readonly TimeProvider clock;
+    private readonly bool legacyServiceSessionsEnabled;
     public TwinAccess(IConfiguration configuration, TimeProvider clock)
     {
         this.clock = clock;
+        legacyServiceSessionsEnabled = !configuration.GetValue<bool>("ApplicationIdentity:Enabled")
+            || configuration.GetValue<bool>("DigitalTwin:LegacyServiceSessionsEnabled");
         foreach (var entry in configuration.GetSection("DigitalTwin:Credentials").GetChildren())
         {
             var role = entry["Role"];
@@ -93,6 +96,7 @@ internal sealed class TwinAccess
     }
     public TwinSession? CreateSession(string? credential, string? existingSessionId = null)
     {
+        if (!legacyServiceSessionsEnabled) { return null; }
         var principal = Verify(credential);
         if (principal is null || principal.Role == "ingest") { return null; }
         lock (gate)
@@ -119,6 +123,7 @@ internal sealed class TwinAccess
     }
     public TwinSession? Session(string? id)
     {
+        if (!legacyServiceSessionsEnabled) { return null; }
         lock (gate)
         {
             return id is not null && sessions.TryGetValue(id, out var session) && session.Expires > clock.GetUtcNow()

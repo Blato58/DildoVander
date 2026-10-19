@@ -52,6 +52,7 @@ struct NativeDebugTests {
         do { _ = try DebugBackendProfile(address: "https://example.test", deviceId: "real-esp", credential: "secret"); fatalError("Physical identity accepted") }
         catch DebugBackendError.invalidProfile { }
         let wav = makeWav()
+        try await verifyAccountTransport()
         assert(DebugBackendClient.validWav(wav))
         assert(!DebugBackendClient.validWav(Data()))
         var malformed = wav; malformed[25] = 0
@@ -352,6 +353,58 @@ struct NativeDebugTests {
         number(4, 38, 4); number(16, 16, 4); number(20, 1, 2); number(22, 1, 2)
         number(24, 32_000, 4); number(28, 64_000, 4); number(32, 2, 2); number(34, 16, 2); number(40, 2, 4)
         return Data(bytes)
+    }
+}
+
+// Exercise the actual client with a native-only authorizer seam. The account
+// fixture has no raw device/admin credential and cannot mint a device token.
+private func verifyAccountTransport() async throws {
+    let profile = try DebugBackendProfile(accountOrigin: URL(string: "https://accounts.example.test/")!,
+        deviceId: "physical-kufr-1", binding: "native-session-one")
+    assert(profile.usesAccountSession && profile.credential.isEmpty)
+    let peer = AccountDebugPeer()
+    let client = DebugBackendClient(http: peer.request, accountAuthorizer: peer.authorize)
+    let state = try await client.inspectAvailability(profile)
+    assert(state.dialogMode == "responses" && state.voiceMode == "openai")
+    assert(peer.paths == ["/v1/diagnostics"] && peer.authorizationCount == 1)
+    peer.binding = "native-session-two"
+    do { _ = try await client.inspectAvailability(profile); fatalError("Previous account binding reused") }
+    catch DebugBackendError.invalidProfile { }
+    assert(peer.paths.count == 1)
+    let unconfigured = DebugBackendClient(http: peer.request)
+#if !os(iOS)
+    do { _ = try await unconfigured.inspectAvailability(profile); fatalError("Account request fell back to bearer transport") }
+    catch DebugBackendError.invalidProfile { }
+#endif
+    do { try DebugBackendKeychain(service: "kufr-native-account-transport-test").write(profile)
+        fatalError("Account binding persisted as developer credential") }
+    catch DebugBackendError.invalidProfile { }
+}
+
+private final class AccountDebugPeer {
+    var binding = "native-session-one"
+    var authorizationCount = 0
+    var paths: [String] = []
+    func authorize(_ original: URLRequest, deviceId: String, binding: String) async throws -> URLRequest {
+        guard binding == self.binding else { throw DebugBackendError.invalidProfile }
+        assert(original.value(forHTTPHeaderField: "Authorization") == nil)
+        assert(deviceId == "physical-kufr-1")
+        authorizationCount += 1
+        var request = original
+        request.setValue("synthetic-native-only-cookie", forHTTPHeaderField: "Cookie")
+        request.setValue(deviceId, forHTTPHeaderField: "X-DV-Device-Id")
+        return request
+    }
+    func request(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        assert(request.value(forHTTPHeaderField: "Authorization") == nil)
+        assert(request.value(forHTTPHeaderField: "Cookie") == "synthetic-native-only-cookie")
+        assert(request.value(forHTTPHeaderField: "X-DV-Device-Id") == "physical-kufr-1")
+        assert(request.url?.path == "/v1/diagnostics")
+        paths.append(request.url!.path)
+        let data = try JSONSerialization.data(withJSONObject: ["dialogMode": "responses", "voiceMode": "openai",
+            "catalogVersion": "ollivander-private-party-v1", "audioFormat": "pcm16-mono-32000-wav"])
+        return (data, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!)
     }
 }
 

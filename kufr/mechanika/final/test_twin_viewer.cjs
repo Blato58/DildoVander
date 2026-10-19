@@ -147,7 +147,7 @@ function mounted(role='observer', location={origin:'https://twin.example',protoc
     }};
   context.window=context;
   require('./ui_test_runtime.cjs')(context);
-  vm.runInNewContext(fs.readFileSync(require.resolve('./twin_viewer.js'),'utf8'),context);
+  for(const file of ['./twin_core.js','./twin_viewer.js']) vm.runInNewContext(fs.readFileSync(require.resolve(file),'utf8'),context);
   const api=context.DigitalTwin.mount(document,{twinManifest:{...manifest,slots:[{slot:1,components:{tray:'tray_1'},liftComponents:['tray_1'],rotationComponents:['cam_1']}]}},
     {activate(){},deactivate(){},clear(){},apply:(angles,grb,reported)=>{applies.push(angles);grbFrames.push(grb);reports.push(reported);},select:name=>selections.push(name)});
   const get=id=>elements.get(id);

@@ -1,0 +1,279 @@
+[
+  {
+    "name": "empty telemetry mapping",
+    "operations": [
+      {
+        "path": [
+          "twinManifest"
+        ],
+        "value": {}
+      }
+    ]
+  },
+  {
+    "name": "unmapped telemetry component",
+    "operations": [
+      {
+        "path": [
+          "twinManifest"
+        ],
+        "value": {
+          "schemaVersion": 1,
+          "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "hardwareProfile": "B-effects",
+          "slots": [
+            {
+              "slot": 1,
+              "components": {
+                "servo": "missing-component"
+              },
+              "liftComponents": [],
+              "rotationComponents": [],
+              "channels": {
+                "servoPca": 0,
+                "vibrationPca": 1,
+                "ledStart": 0,
+                "ledCount": 6
+              }
+            }
+          ],
+          "kinematics": {
+            "liftMaxMm": 1,
+            "angleMinDegrees": 0,
+            "angleMaxDegrees": 180,
+            "samples": [
+              {
+                "angleDegrees": 0,
+                "liftMm": 0
+              },
+              {
+                "angleDegrees": 180,
+                "liftMm": 1
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "non-monotonic telemetry samples",
+    "operations": [
+      {
+        "path": [
+          "twinManifest"
+        ],
+        "value": {
+          "schemaVersion": 1,
+          "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "hardwareProfile": "B-effects",
+          "slots": [],
+          "kinematics": {
+            "liftMaxMm": 1,
+            "angleMinDegrees": 0,
+            "angleMaxDegrees": 180,
+            "samples": [
+              {
+                "angleDegrees": 0,
+                "liftMm": 0
+              },
+              {
+                "angleDegrees": 0,
+                "liftMm": 1
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "incomplete telemetry law",
+    "operations": [
+      {
+        "path": [
+          "twinManifest"
+        ],
+        "value": {
+          "schemaVersion": 1,
+          "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "hardwareProfile": "B-effects",
+          "slots": [],
+          "kinematics": {
+            "liftMaxMm": 1,
+            "angleMinDegrees": 0,
+            "angleMaxDegrees": 180,
+            "samples": [
+              {
+                "angleDegrees": 0,
+                "liftMm": 0
+              },
+              {
+                "angleDegrees": 180,
+                "liftMm": 0.5
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "vertex outside declared bounds",
+    "operations": [
+      {
+        "path": [
+          "meshes",
+          0,
+          "vertices",
+          0
+        ],
+        "value": -1000000000
+      }
+    ]
+  },
+  {
+    "name": "missing hierarchy parent",
+    "operations": [
+      {
+        "path": [
+          "meshes",
+          0,
+          "parentId"
+        ],
+        "value": "missing-parent"
+      }
+    ]
+  },
+  {
+    "name": "invalid dynamic cable lift weights",
+    "operations": [
+      {
+        "path": [
+          "routes"
+        ],
+        "value": [
+          {
+            "id": "invalid-route-test",
+            "from": "source",
+            "to": "destination",
+            "points": [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                1,
+                0,
+                0
+              ]
+            ],
+            "point_lift_weights": {
+              "1": [
+                0,
+                2
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "invalid parked cable route",
+    "operations": [
+      {
+        "path": [
+          "routes"
+        ],
+        "value": [
+          {
+            "id": "invalid-route-test",
+            "from": "source",
+            "to": "destination",
+            "points": [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                1,
+                0,
+                0
+              ]
+            ],
+            "transport_points": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "moving cable point outside route",
+    "operations": [
+      {
+        "path": [
+          "routes"
+        ],
+        "value": [
+          {
+            "id": "invalid-route-test",
+            "from": "source",
+            "to": "destination",
+            "points": [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                1,
+                0,
+                0
+              ]
+            ],
+            "moving_points": {
+              "9": "source"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "unknown dynamic endpoint",
+    "operations": [
+      {
+        "path": [
+          "routes"
+        ],
+        "value": [
+          {
+            "id": "invalid-route-test",
+            "from": "source",
+            "to": "destination",
+            "points": [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                1,
+                0,
+                0
+              ]
+            ],
+            "moving_endpoints": [
+              {
+                "endpoint": "unrelated-endpoint"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -7,6 +7,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--model-releases"]) { await ModelReleaseTests.RunAsync(); return; }
+if (args is ["--identity"]) { await AccountIdentityTests.RunAsync(); return; }
+if (args is ["--identity-fixture"]) { await AccountIdentityTests.RunBrowserFixtureAsync(); return; }
 if (args is ["--keepsake-fixture"]) { KeepsakeHttpFixture.Run(); return; }
 if (args is ["--keepsake"]) { KeepsakeOutcomeJournalTests.Run(); await KeepsakeCoreTests.RunAsync(); return; }
 if (args is ["--twin"]) { await TwinTests.RunAsync(); return; }

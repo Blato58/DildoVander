@@ -9,7 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: true
@@ -41,6 +41,17 @@ jobs:
           dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore
           dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --twin
           dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --twin-media
+          dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --identity
+      - name: Build the shared application for real account journeys
+        run: |
+          npm ci --prefix kufr/contracts
+          npm ci --prefix kufr/mobilni-aplikace
+          npm run build --prefix kufr/mobilni-aplikace
+          npx --prefix kufr/mobilni-aplikace playwright install --with-deps chromium
+      - name: Real HTTPS passkey and invitation browser journeys
+        env:
+          KUFR_TESTS_DLL: kufr/backend-tests/bin/Release/net10.0/linux-x64/BackendTests.dll
+        run: npm run test:accounts:fixture --prefix kufr/mobilni-aplikace
       - name: Publish self-contained Linux binary
         run: dotnet publish kufr/backend/backend.csproj -c Release -r linux-x64 --self-contained true --no-build --no-restore -o "$RUNNER_TEMP/kufr-publish"
       - name: HTTP smoke tests

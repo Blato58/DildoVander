@@ -51,10 +51,14 @@ private final class DebugCostumeCamera: NSObject, UIImagePickerControllerDelegat
 public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
     public let identifier = "KufrDebugPlugin"
     public let jsName = "KufrDebug"
-    public let pluginMethods: [CAPPluginMethod] = ["status", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog", "readServerLogs", "captureCostumePhoto", "discardCostumePhoto"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["status", "useAccount", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "runOpeningSpeech", "startConversation", "answerConversation", "startRecording", "finishRecording", "speakSystem", "stop", "shareLog", "readServerLogs", "captureCostumePhoto", "discardCostumePhoto"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     private var profile: DebugBackendProfile?
+    private var legacyProfileRequested = false
+    private var deviceDialogMode: String?
+    private var accountProfileBinding: String?
+    private var previousAccountCleanupPending = false
     private var logTask: Task<Void, Never>?
     private let profileKeychain = DebugBackendKeychain()
     private var evenings: DebugEveningList?
@@ -90,6 +94,20 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     public override func load() {
         synthesizer.delegate = self
         observeAudioInterruptions()
+        observers.append(NotificationCenter.default.addObserver(forName: Notification.Name("KufrIdentityAccountChanged"), object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self = self, let binding = self.profile?.accountBinding ?? self.accountProfileBinding else { return }
+                if #available(iOS 16.0, *), let identity = KufrIdentityPlugin.active,
+                   (try? identity.accountDeviceBinding()) == binding { return }
+                self.stopWork()
+                let generation = self.generation
+                Task { @MainActor in
+                    if let cleanup = self.cleanupTask { await cleanup.value }
+                    guard generation == self.generation else { return }
+                    self.detachAccountProfile()
+                }
+            }
+        })
         for name in [UIApplication.didEnterBackgroundNotification, UIApplication.protectedDataWillBecomeUnavailableNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 // NotificationCenter's main queue is not a Swift actor annotation.
@@ -130,6 +148,10 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
             self.restoreProfile()
             call.resolve(["configured": self.profile != nil, "running": self.task != nil || self.player != nil || self.realtimePlayer != nil || self.synthesizer.isSpeaking || self.microphone != nil || self.cleanupTask != nil || self.conversationClient?.hasPendingCleanup == true,
                           "phase": self.phase, "mode": self.mode,
+                          "accessMode": self.profile.map { $0.usesAccountSession ? "account" : "legacy-service" } ?? "none",
+                          "deviceId": self.profile?.deviceId as Any? ?? NSNull(),
+                          "dialogMode": self.deviceDialogMode as Any? ?? NSNull(),
+                          "previousAccountCleanupPending": self.previousAccountCleanupPending,
                           "session": self.dialogSession != nil || self.realtimeSession != nil || self.handsFreeSession != nil,
                           "recording": self.microphone != nil, "handsFree": self.handsFreeSession != nil,
                           "errorCode": (self.lastError as Any?) ?? NSNull(),
@@ -161,12 +183,47 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                     try Task.checkCancellation()
                     guard UIApplication.shared.applicationState == .active,
                           self.profile?.baseURL == profile.baseURL, self.profile?.deviceId == profile.deviceId,
-                          self.profile?.credential == profile.credential else { throw CancellationError() }
+                          self.profile?.credential == profile.credential,
+                          self.profile?.accountBinding == profile.accountBinding else { throw CancellationError() }
                     call.resolve(page.bridgeValue)
                 } catch {
                     call.reject("Logy nelze načíst. Ověřte přístup správce a verzi serveru.", "logs_failed")
                 }
             }
+        }
+    }
+
+    @objc func useAccount(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard self.canStart(), let deviceId = call.getString("deviceId"),
+                  #available(iOS 16.0, *), let identity = KufrIdentityPlugin.active else {
+                call.reject("Přihlaste se a vyberte povolený kufr.", "account_unavailable"); return
+            }
+            do {
+                let candidate = try DebugBackendProfile(accountOrigin: identity.configuredAccountOrigin(),
+                    deviceId: deviceId, binding: identity.accountDeviceBinding())
+                self.logTask?.cancel()
+                self.profile = nil; self.legacyProfileRequested = false; self.accountProfileBinding = nil
+                self.mode = "unknown"; self.deviceDialogMode = nil; self.serverModes = nil; self.evenings = nil
+                self.generation += 1
+                let generation = self.generation
+                self.phase = "checking"
+                self.task = Task { @MainActor in
+                    do {
+                        let availability = try await DebugBackendClient().inspectAvailability(candidate)
+                        try Task.checkCancellation()
+                        guard self.generation == generation, UIApplication.shared.applicationState == .active else { throw CancellationError() }
+                        self.profile = candidate; self.legacyProfileRequested = false
+                        self.accountProfileBinding = candidate.accountBinding
+                        self.mode = availability.voiceMode; self.deviceDialogMode = availability.dialogMode
+                        self.serverModes = nil; self.evenings = nil; self.transcript = []; self.selected = nil; self.timings = [:]
+                        self.phase = "idle"; self.task = nil; call.resolve()
+                    } catch {
+                        if self.generation == generation { self.task = nil; self.phase = "failed" }
+                        call.reject("Účet nebo oprávnění k vybranému kufru nebylo ověřeno. Obnovte přihlášení a cloudová oprávnění.", "account_access_failed")
+                    }
+                }
+            } catch { call.reject("Nativní přihlášení není dostupné nebo vypršelo.", "account_unavailable") }
         }
     }
 
@@ -176,11 +233,12 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 call.reject("Nastavení není dostupné.", "busy"); return
             }
             self.logTask?.cancel()
-            self.restoreProfile()
-            let saved = self.profile
+            // The developer recovery profile is restored only after this
+            // explicit action; normal status never selects a stored bearer.
+            let saved = try? self.profileKeychain.read()
             self.configurationCall = call
-            let alert = UIAlertController(title: "Serverový / testovací přístup", message:
-                "Přístup se uloží do Keychain tohoto iPhonu a zachová při aktualizaci aplikace. Credential se nikdy nezobrazí ve webu ani logu. Prázdné pole ponechá uložený credential pouze pro stejnou adresu a identitu.", preferredStyle: .alert)
+            let alert = UIAlertController(title: "Vývojová servisní obnova", message:
+                "Oddělený starší servisní profil. Běžná diagnostika používá přihlášený účet. Credential zůstává v Keychain a nevstupuje do webu ani logu; prázdné pole jej ponechá jen pro stejnou adresu a identitu.", preferredStyle: .alert)
             alert.addTextField {
                 $0.text = saved?.baseURL.absoluteString ?? DebugProfileDraft.defaultAddress
                 $0.keyboardType = .URL; $0.autocapitalizationType = .none; $0.autocorrectionType = .no
@@ -204,6 +262,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                         deviceId: alert?.textFields?[1].text ?? "", credential: alert?.textFields?[2].text ?? "", saved: saved)
                     try self.profileKeychain.write(updated)
                     self.profile = updated
+                    self.legacyProfileRequested = true; self.deviceDialogMode = nil; self.accountProfileBinding = nil
                     self.mode = "unknown"; self.serverModes = nil; self.evenings = nil; self.phase = "idle"; call.resolve()
                 } catch {
                     self.phase = "failed"
@@ -217,7 +276,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
     }
 
     private func restoreProfile() {
-        guard profile == nil, UIApplication.shared.applicationState == .active,
+        guard legacyProfileRequested, profile == nil, UIApplication.shared.applicationState == .active,
               UIApplication.shared.isProtectedDataAvailable else { return }
         do { profile = try profileKeychain.read() }
         catch { phase = "failed" }
@@ -225,15 +284,34 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
 
     @objc func forgetProfile(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.canStart() else { call.reject("Nejprve ukončete probíhající test.", "busy"); return }
-            do {
-                try self.profileKeychain.remove()
-                self.logTask?.cancel()
-                self.profile = nil; self.mode = "unknown"; self.serverModes = nil; self.evenings = nil
-                self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "idle"
-                call.resolve()
-            } catch { call.reject("Uložený přístup nebyl smazán.", "profile_remove_failed") }
+            let accountProfile = self.profile?.usesAccountSession == true || self.accountProfileBinding != nil
+            self.stopWork()
+            let generation = self.generation
+            Task { @MainActor in
+                if let cleanup = self.cleanupTask { await cleanup.value }
+                guard generation == self.generation else { call.reject("Přístup se mezitím změnil.", "cancelled"); return }
+                if accountProfile { self.detachAccountProfile() }
+                guard self.canStart() else { call.reject("Server nepotvrdil úklid servisního testu. Použijte znovu Stop.", "busy"); return }
+                do {
+                    try self.profileKeychain.remove()
+                    self.logTask?.cancel()
+                    self.profile = nil; self.mode = "unknown"; self.serverModes = nil; self.evenings = nil
+                    self.legacyProfileRequested = false; self.deviceDialogMode = nil; self.accountProfileBinding = nil
+                    self.transcript = []; self.selected = nil; self.timings = [:]; self.phase = "idle"
+                    call.resolve()
+                } catch { call.reject("Uložený přístup nebyl smazán.", "profile_remove_failed") }
+            }
         }
+    }
+
+    @MainActor private func detachAccountProfile() {
+        previousAccountCleanupPending = previousAccountCleanupPending || conversationClient?.hasPendingCleanup == true
+            || realtimeSession != nil || handsFreeSession != nil || dialogSession != nil
+        // The old cookie binding is unusable after account change. Preserve an
+        // explicit unresolved-cleanup warning; never retry as the next user.
+        conversationClient = nil; realtimeSession = nil; handsFreeSession = nil; dialogSession = nil
+        profile = nil; legacyProfileRequested = false; accountProfileBinding = nil; mode = "unknown"; deviceDialogMode = nil
+        serverModes = nil; evenings = nil; transcript = []; selected = nil; timings = [:]; phase = "cancelled"
     }
 
     @objc func inspectBackend(_ call: CAPPluginCall) { start(call, expectedMode: nil) }
@@ -693,6 +771,9 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                 call.reject("Nejdříve nastavte serverový přístup.", "unavailable"); return
             }
             let revision = call.getString("expectedRevision")
+            if change && profile.usesAccountSession {
+                call.reject("Změny serveru proveďte ve správě aplikace s potvrzením a novým ověřením účtu.", "account_admin_confirmation_required"); return
+            }
             if change && revision == nil { call.reject("Obnovte stav serveru.", "invalid_mode"); return }
             self.generation += 1
             let generation = self.generation
@@ -750,10 +831,10 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate
                         self.phase = "playing"
                         self.mode = expectedMode
                     } else {
-                        let mode = try await client.inspect(profile)
+                        let availability = try await client.inspectAvailability(profile)
                         try Task.checkCancellation()
                         guard self.generation == generation else { throw CancellationError() }
-                        self.mode = mode; self.phase = "idle"
+                        self.mode = availability.voiceMode; self.deviceDialogMode = availability.dialogMode; self.phase = "idle"
                     }
                     if self.generation == generation { self.task = nil }
                     call.resolve()

@@ -103,6 +103,8 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
     requestAnimationFrame:callback => frames.push(callback),
   };
   require('./ui_test_runtime.cjs')(context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'viewer_engine_core.js'),'utf8'), context);
+  context.F2GraphicsCore=context.window.F2GraphicsCore;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'viewer.js'),'utf8'), context);
   const flush = () => { let count=0; while (frames.length) { if (++count>1000) throw new Error('Animation did not finish'); clockNow+=100; frames.shift()(clockNow); } };
   const frame = (timestamp,liveNow=timestamp) => { if (Number.isFinite(liveNow)) clockNow=liveNow; const pending = frames.splice(0); for (const callback of pending) callback(timestamp); };

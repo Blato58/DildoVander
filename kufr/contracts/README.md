@@ -37,10 +37,20 @@ výsledek a souhrnný cenový odhad. Schéma `GptLiveEvent` popisuje nové
 události; Realtime zůstává oddělený režim. Starší klient musí před novou
 volbou aktualizovat strict schéma.
 
-`control-validator-core.mjs` je společný strict JSON/schema validátor pro
-Node i nativní mobilní adaptér. Node wrapper `control-validator.mjs` načítá
-stejné schéma ze souboru; mobil jej importuje do Vite balíčku. Duplicity,
-necelé numerické tokeny a délkové limity se kontrolují v obou prostředích.
+`control-validator-core.mjs` vlastní strict JSON parser a délkové limity.
+`control-validator.mjs` používá statický Ajv standalone validátor v
+`generated/control-message-v1.validator.mjs`; stejnou cestu spotřebovává Node
+i nativní mobilní adaptér. Prohlížeč nekompiluje schéma pomocí `new Function`
+a nepotřebuje CSP výjimku `unsafe-eval`. Duplicity, necelé numerické tokeny,
+neplatné UTF-8 i délkové limity se kontrolují v obou prostředích.
+
+Po změně autoritativního `control-message-v1.schema.json` spusť v tomto
+adresáři `npm run generate`. Generátor používá pinned Ajv/UUID format a
+zaznamenává SHA-256 schématu; generovaný modul ručně neupravuj.
+`npm run check:generated` ověří přesný obsah výstupu. `npm test` kontroluje
+drift, fixture zprávy při zakázaném generování kódu a shodu s původním AJV
+validátorem pro fixture, mutace a striktní syrové zprávy. AJV compiler patří
+jen do generátoru a Node ověření; runtime importuje pouze čisté helpery.
 
 `control-message-v1.schema.json` je rozpracovaný lokální WSS protokol verze 1
 podle kapitoly 5 [implementačního plánu](../docs/implementacni-plan.md).

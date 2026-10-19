@@ -28,8 +28,8 @@ def render_document(payload):
         "__WORKSHOP_DESIGN_SYSTEM__": snapshot_styles().read_text(encoding="utf-8"),
         "__WORKSHOP_VIEWER_STYLE__": (ROOT / "viewer-workshop.css").read_text(encoding="utf-8-sig"),
         "__WORKSHOP_UI_RUNTIME__": bundle_ui_runtime(),
-        "__SHOW_TIMELINE_SCRIPT__": (ROOT / "show_timeline.js").read_text(encoding="utf-8"),
-        "__VIEWER_SCRIPT__": (ROOT / "viewer.js").read_text(encoding="utf-8"),
+        "__SHOW_TIMELINE_SCRIPT__": (ROOT / "timeline_core.js").read_text(encoding="utf-8") + "\n" + (ROOT / "show_timeline.js").read_text(encoding="utf-8"),
+        "__VIEWER_SCRIPT__": (ROOT / "viewer_engine_core.js").read_text(encoding="utf-8") + "\n" + (ROOT / "viewer.js").read_text(encoding="utf-8"),
         "__MODEL_DATA__": json.dumps(payload, separators=(",", ":")).replace("<", "\\u003c"),
     }
     for placeholder, content in replacements.items():
@@ -37,6 +37,7 @@ def render_document(payload):
     document = document.replace("</head>", "<style>" + (ROOT / "twin-viewer.css").read_text(encoding="utf-8") + "</style></head>")
     document = document.replace("</head>", "<style>" + (ROOT / "twin_media.css").read_text(encoding="utf-8") + "</style></head>")
     # Load before the main renderer so its optional runtime hooks exist at mount.
-    twin_script = (ROOT / "twin_media.js").read_text(encoding="utf-8") + "\n" + (ROOT / "twin_viewer.js").read_text(encoding="utf-8")
+    twin_script = "\n".join((ROOT / filename).read_text(encoding="utf-8") for filename in (
+        "twin_media_core.js", "twin_media_controller.js", "twin_media.js", "twin_core.js", "twin_viewer.js"))
     document = document.replace("<script>const model=", "<script>" + twin_script + "</script>\n<script>const model=")
     return document

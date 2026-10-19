@@ -37,8 +37,14 @@ def package(backend, web, output, revision):
     if web_manifest.is_file():
         provenance = json.loads(web_manifest.read_text(encoding="utf-8"))
         if web_manifest == site_manifest:
-            if provenance.get("schema") != 1 or provenance.get("source_sha") != revision:
-                raise ValueError("Full site must come from the same committed source")
+            legacy_site = provenance.get("schema") == 1 and provenance.get("source_sha") == revision
+            application = (provenance.get("schemaVersion") == 2
+                           and provenance.get("artifactType") == "application"
+                           and provenance.get("applicationSourceRevision") == revision
+                           and provenance.get("applicationSourceDirty") is False
+                           and provenance.get("apiContractVersion") == 1)
+            if not (legacy_site or application):
+                raise ValueError("Application must come from the same committed source")
         elif (provenance.get("schemaVersion") != 1 or provenance.get("sourceRevision") != revision
               or provenance.get("sourceDirty") is not False):
             raise ValueError("Standalone web must come from the same clean committed source")
@@ -52,8 +58,8 @@ def package(backend, web, output, revision):
         if provenance.get("sha256") != actual:
             raise ValueError("Web inventory differs from its build manifest")
     sources = []
-    # web is a public root, including /keepsake and /design-system. Preserve it
-    # verbatim instead of nesting the root under the portal's URL directory.
+    # The compiled application is the public root. Legacy schema-1 recovery
+    # inputs remain readable without rewriting existing archived releases.
     for component, root in (("backend", backend), ("web", web)):
         if root.is_symlink():
             raise ValueError("Source root must not be a symlink")

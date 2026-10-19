@@ -1,8 +1,11 @@
 # Shared runtime contract
 
-Vapour Chrome keeps native HTML, browser ES modules, vanilla TypeScript and
-Capacitor. Import `arcane-workshop.css` once and `ui.js` from the same shared
-directory. There are no runtime dependencies or framework build step.
+The maintained application uses Vue 3 SFCs, Composition API, TypeScript, Vite,
+Vue Router and Capacitor. Import `arcane-workshop.css` once. Discover shared
+Vue primitives in `mobilni-aplikace/src/components/` and domain components in
+`src/features/`. See [application boundaries](../docs/application-architecture.md).
+The functions below document compatibility for local service tools and archived
+standalone distributions; do not use them to create new application screens.
 
 `tokens.json` is the token source. Run `python scripts/generate_design_tokens.py`
 from the repository root after editing it; `--check` checks all committed CSS,

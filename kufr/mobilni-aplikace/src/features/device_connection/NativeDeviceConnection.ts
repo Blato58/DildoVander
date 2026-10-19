@@ -1,6 +1,5 @@
 import { registerPlugin } from '@capacitor/core';
-import schema from '../../../../contracts/control-message-v1.schema.json';
-import { createControlValidator } from '../../../../contracts/control-validator-core.mjs';
+import { validateControlMessage } from '../../../../contracts/control-validator.mjs';
 import type { DeviceSnapshot } from './FakeDeviceConnection';
 import { NativeControlSocket, type NativeTransportBridge } from './NativeControlSocket';
 import { ProtocolDeviceConnection } from './SimulatorDeviceConnection';
@@ -20,7 +19,6 @@ interface KufrNativeBridge extends NativeTransportBridge {
 }
 
 export const nativeBridge = registerPlugin<KufrNativeBridge>('KufrDeviceTransport');
-const validate = createControlValidator(schema);
 const encoder = new TextEncoder();
 
 export class NativeDeviceConnection extends ProtocolDeviceConnection {
@@ -34,7 +32,7 @@ export class NativeDeviceConnection extends ProtocolDeviceConnection {
       autoConnect: false,
       createSocket: () => new NativeControlSocket(nativeBridge,
         route.host ? { host: route.host, deviceId: route.deviceId } : undefined),
-      parseFrame: (frame) => validate(encoder.encode(frame)) as Record<string, unknown>,
+      parseFrame: (frame) => validateControlMessage(encoder.encode(frame)) as Record<string, unknown>,
     });
     this.route = route;
   }

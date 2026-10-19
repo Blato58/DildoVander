@@ -55,7 +55,7 @@ final class DebugRealtimeSession {
         var request = URLRequest(url: profile.baseURL.appendingPathComponent("v1/conversations/\(conversation)/realtime-turns"))
         request.httpMethod = "POST"
         request.httpBody = requestData
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if !profile.usesAccountSession { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.setValue(UUID().uuidString.lowercased(), forHTTPHeaderField: "Idempotency-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/x-ndjson", forHTTPHeaderField: "Accept")
@@ -63,6 +63,8 @@ final class DebugRealtimeSession {
         let startedAt = ProcessInfo.processInfo.systemUptime
         let expected: [String: Any] = ["deviceId": profile.deviceId, "bootId": boot, "conversationId": conversation,
                                         "clientTurnId": turn, "generation": 0, "deviceRevision": 0]
+        request = try await client.authorizedRequest(profile, request)
+        try Task.checkCancellation()
         let stream = DebugRealtimeStream(request: request, expectedCorrelation: expected)
         defer { stream.cancel() }
         var firstAudioMs: Double?

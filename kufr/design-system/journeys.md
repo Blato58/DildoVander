@@ -6,13 +6,22 @@ routes or capabilities. Keep Czech action names literal and guest stories playfu
 
 ## Operator
 
-The Capacitor/web Companion starts in **Provoz**: source of state, readiness,
-the current blocker and a supported next action precede controls. Live voice,
-text and dance retain their own feature owners; manual control is a deliberate
-task with lease and snapshot validation. **Kufr** owns connection, pairing and
-network preparation. **Diagnostika** groups backend test sessions, service
-configuration and logs. Backend test conversations remain distinct from a guest
-conversation owned by the ESP32. Opening a view never starts a session or AI work.
+The shared Vue web/Capacitor application starts at **Domov**, with actual
+connection readiness and the current public evening. **Kufr** (`/suitcase`)
+owns live voice, text, dance and deliberate manual operation. **Připojení**
+(`/connections`) owns local pairing, network preparation and the independent
+account/device association. **Diagnostika** (`/suitcase/diagnostics`) groups
+native phone tests and explicit local USB service. **Dílna**, **Archiv** and
+**Nastavení** share the same persistent shell. Backend phone test conversations
+remain distinct from a guest conversation owned by the ESP32. Opening a view
+never starts a session, AI work, USB connection or hardware lease.
+
+Account sign-in uses passkeys, with explicit reauthentication for sensitive
+administration. Account roles/grants, guest capability links and physical BLE
+proof/pinning remain separate. User changes clear active user control and private
+derived views; independent Keychain hardware pairing is retained for explicit
+reconnection. Linking a guest keepsake to an account is an explicit owner action
+bound to that account and access epoch; a public/share link cannot do it.
 
 Keep Stop available across navigation. Changing a tab preserves drafts and
 ongoing operations; it does not cancel them. In-flight physical commands are

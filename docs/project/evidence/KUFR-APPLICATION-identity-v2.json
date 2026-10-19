@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-identity-v2",
+  "observedAtUtc": "2026-10-19T03:23:58.833602+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "073f8df6aa85d896415acdbdd26f3ccb3a34a11c58aa74525f093ae7002f6ad9",
+    "backendArtifactDigest": "d73c4f1c766513f77f26fe74082c83e2ac5cbee9fff3d785c25e80490070cf8f"
+  },
+  "method": "dotnet build kufr/backend-tests/BackendTests.csproj --no-restore; dotnet run --project kufr/backend-tests/BackendTests.csproj --no-build -- --identity; real HTTPS accounts browser fixture as recorded in browser receipt.",
+  "environment": "Windows 11 checkout, pinned Node24.21.0, Chrome via Playwright, .NET10, MSVC portable C++; isolated loopback services/temp stores.",
+  "limitations": [
+    "No production deployment, provider call, credential rotation, firmware flashing or real actuator execution.",
+    "Synthetic WebAuthn/browser devices and portable C++ are software evidence; no signed iPhone, physical BLE/audio/assembly acceptance.",
+    "Canonical source snapshot normalizes UTF-8 text to LF; platform-specific compiled binaries and native signing are separate artifacts.",
+    "Native bridge code was source-reviewed; Swift execution is pending macOS CI. Cross-tab authentication ordering is outside the module-local logout guarantee."
+  ],
+  "observation": "Final build0warnings/errors and identity suite PASS. Actual P256 WebAuthn assertions; controlled enrollment/invitation/recovery, last-owner/key constraints, recent-auth confirmation, own-key naming/cross-account404, grant+session revocation, origin/CSRF, exact device/read-v-operate evening API, simulator media authorization, persistent SQLite versioned upgrade/passkey-session-grant preservation/private backup restore/newer-schema rejection, target-bound archive ticket replay/expiry/concurrent consumption/A-B asset isolation/revocation race. --identity also ran model store/API regressions. Earlier full default backend, --keepsake, --twin and --twin-media passed before final bounded naming/recovery change; their dated scope is retained. Final deterministic EOF normalization is validated by strict contract parity and exact unchanged45-file runtime inventory; prior runtime/browser/backend/release checks transfer through this explicit proof. No controller, C#, UI, native or mechanical source changed.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v2.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v1.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v2.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-identity-v1"
+  ],
+  "supersedesReason": "Generator trims its redundant final blank line through the real generation path. Strict contracts/parity suite passed; all45 compiled application files remain byte-identical. No other source changed."
+}
