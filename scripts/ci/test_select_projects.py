@@ -50,7 +50,9 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
-        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository", "cad"})
+        # This wrapper/filter is covered by repository/actionlint checks. Actual
+        # manufacturing commands live in the separately selected verified-cad action.
+        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios.yml"), {"repository", "ios"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
 

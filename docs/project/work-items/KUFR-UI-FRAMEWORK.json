@@ -32,30 +32,30 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "artifactDigest": "59b31038eeca0d3ed7674ae95c24d2aae36c5d2baca06090364cb2f3ea5ba3e2"
+        "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
       },
       "evidenceRefs": [
-        "KUFR-UI-FRAMEWORK-unit",
-        "KUFR-UI-FRAMEWORK-browser",
-        "KUFR-UI-FRAMEWORK-source-review"
+        "KUFR-UI-FRAMEWORK-unit-v2",
+        "KUFR-UI-FRAMEWORK-browser-v2",
+        "KUFR-UI-FRAMEWORK-source-review-v2"
       ]
     }
   ],
   "blockers": [],
-  "currentNote": "Implementace ef07324ca4b85ca83bb4e7bc4cfeeff41ad02904 dokončena a ověřena, Push-CurrentBranch.ps1 úspěšně ověřil identické vzdálené SHA na origin/codex/unified-ui-framework. PR211 navazuje na dosud otevřený baseline PR209 (codex/vapour-chrome-ui); běží cílené GitHub CI. Lokální software/render/balení a nezávislé review jsou přijaté; merge, macOS CI a nativní/produkční/fyzické hranice se hodnotí zvlášť. Bez nasazení, podpisu, placených AI volání a fyzických pohybů.",
+  "currentNote": "Implementace ef07324ca4b85ca83bb4e7bc4cfeeff41ad02904 a tracking 6d54e075cd7cc2acc77b4f84fcbe895814641aaa byly úspěšně pushnuté a ověřené skriptem Push-CurrentBranch.ps1. PR211 navazuje na otevřený baseline PR209. Lokální runtime/render/balení a nezávislé review prošly; následná úprava výhradně CI filtru je ověřena20 cílenými testy a nezávislým review, úplný aktuální slice má cad=false. Před merge se znovu vyhodnotí poslední GitHub CI a všechna review. Bez nasazení, podpisu, placených AI volání a fyzických pohybů.",
   "implementedSubject": {
-    "artifactDigest": "59b31038eeca0d3ed7674ae95c24d2aae36c5d2baca06090364cb2f3ea5ba3e2"
+    "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
   },
   "closure": {
     "outcome": "accepted",
     "reason": "Lokální software, balení a skutečné renderované chování ověřeny; nezávislé review bez otevřeného nálezu. Nativní/produkční/fyzické hranice zůstávají samostatné.",
     "subject": {
-      "artifactDigest": "59b31038eeca0d3ed7674ae95c24d2aae36c5d2baca06090364cb2f3ea5ba3e2"
+      "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
     },
     "evidenceRefs": [
-      "KUFR-UI-FRAMEWORK-unit",
-      "KUFR-UI-FRAMEWORK-browser",
-      "KUFR-UI-FRAMEWORK-source-review"
+      "KUFR-UI-FRAMEWORK-unit-v2",
+      "KUFR-UI-FRAMEWORK-browser-v2",
+      "KUFR-UI-FRAMEWORK-source-review-v2"
     ],
     "acceptedCriteria": [
       {
@@ -69,12 +69,12 @@
         ],
         "rule": "allOf",
         "appliesTo": {
-          "artifactDigest": "59b31038eeca0d3ed7674ae95c24d2aae36c5d2baca06090364cb2f3ea5ba3e2"
+          "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
         },
         "evidenceRefs": [
-          "KUFR-UI-FRAMEWORK-unit",
-          "KUFR-UI-FRAMEWORK-browser",
-          "KUFR-UI-FRAMEWORK-source-review"
+          "KUFR-UI-FRAMEWORK-unit-v2",
+          "KUFR-UI-FRAMEWORK-browser-v2",
+          "KUFR-UI-FRAMEWORK-source-review-v2"
         ]
       }
     ]

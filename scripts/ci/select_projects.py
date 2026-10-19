@@ -17,7 +17,6 @@ BUILD_WORKFLOWS = {
     ".github/workflows/kufr-ios-sign.yml": "ios",
     ".github/workflows/kufr-ai-eval.yml": "ai-eval",
     ".github/workflows/kufr-site.yml": "site",
-    ".github/workflows/kufr-cad.yml": "cad",
 }
 
 CAD_INPUTS = {

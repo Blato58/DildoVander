@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-UI-FRAMEWORK-browser-v2",
+  "kind": "browser",
+  "observedAtUtc": "2026-10-19T00:10:51.182928+00:00",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-UI-FRAMEWORK",
+      "criterionId": "SHARED-UI",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "method": "Pinned Node24.21.0 with Playwright1.62.1 and installed Edge: design-system/tests/browser.cjs using UI_MOBILE_DIST, UI_VIEWER_HTML and UI_SCREENSHOT_DIR; both existing synthetic DV10 browser suites; parent visible in-app Browser + screenshot inspection.",
+  "environment": "Windows11 local checkout; locked existing dependencies; pinned Node24.21.0 for simulator/browser and selected final checks; Python3.14.4; .NET10.0.401; synthetic loopback/file browser fixtures only.",
+  "observation": "Evidence transfer from v1: application/runtime/browser bytes are unchanged from ef07324. Additional PASS: CI selection12 and workflow8 tests; full current slice selects backend,firmware,web,ios,site,repository and explicitly cad=false. Independent Sol6.1/high review approved filter-only wrapper selection; geometry and verified-cad action edits plus explicit manual recovery still select manufacturing. Canceled initial own CI39179443606 when it unnecessarily selected CAD; baseline PR209 run untouched. PASS: playground dark/light at320/390/768/1280, 200% text, canonical computed palette/fonts/radius/touch, field associations, reduced motion, tab disabled skipping and keyboard, native modal containment/Escape/focus restore. Static simulator and disconnected servo at390/1280 without fetch/WS/serial attempts. Actual production Companion at320/390/1280: fake-mode acquire, keyboard tabs, Stop and inspected recovery. Actual generated synthetic viewer390/1280: WebGL/camera projection/reset, mobile dock, native timeline; exactly document-only resource requests. Literal file:// fixture also passes with browser network offline. DV10 public/private320/390/430/landscape/desktop, 200% zoom, consent/share/privacy/XSS/stale scopes, exports and canonical dialog/touch/focus pass. Zero browser console/module errors in framework suite. Parent inspected rendered mobile/viewer/public screenshots and visible Browser consumer states. Source identity: 100 sorted changed/untracked repository-relative source paths excluding docs/project, each UTF8 path+NUL+LF-normalized bytes+NUL, relative to a4d9f32862e263e6c45d87a227fe8f4d24ea401d. Final source identity e00cc96819e8d82e2ae52392e418642c05eaf2b093a4c3464684ed8feb4c0ed7, 100 paths under the same sorted path+NUL+LF-bytes+NUL algorithm relative to a4d9f32862e263e6c45d87a227fe8f4d24ea401d.",
+  "limitations": [
+    "Synthetic/offline browser evidence does not establish physical device, signed iPhone, VoiceOver, audio/camera quality, deployment or paid provider acceptance. Swift files, signing and device protocols remain unchanged; macOS CI is assessed separately.",
+    "No CAD/STL/mesh regeneration or full source-bound manufacturing ZIP verification. Actual offline assembler, synthetic geometry/ZIP fallback and literal file loading were tested.",
+    "Three existing platform-dependent web Python skips. Full scripts/ci Windows suite: 51 tests, 10 skips and one pre-existing Unix executable-mode assertion failure (438 versus 493); targeted changed CI suites pass. Linux CI remains the Unix permission authority.",
+    "Repository has zero solution files; exact-root Roslyn reported cold/missing syntax cache and no solutions. Narrow C# constants migration used scoped source inspection and successful actual .NET10.0.401 offline keepsake tests; no compiler-reference completeness claim.",
+    "Impeccable mechanical detector warnings include unresolved imported-style hierarchy/padding and absent raw-source image assets; actual theme/layout/font/dialog browser checks and source CSS resolve changed UI concerns. Existing public inline editorial text-button remains intentionally distinct from toolbar buttons."
+  ],
+  "supersedes": [
+    "KUFR-UI-FRAMEWORK-browser"
+  ],
+  "supersedesReason": "Only CAD wrapper filter selection and its regression expectation changed after v1. git diff --quiet ef07324 -- kufr confirms all application, runtime, token and browser test bytes are identical; project tracking-only LF normalization is excluded from source identity. Runtime/browser evidence transfers explicitly; new CI selection and independent source review were performed."
+}
