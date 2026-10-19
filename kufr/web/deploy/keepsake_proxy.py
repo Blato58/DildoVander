@@ -11,6 +11,9 @@ GUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 ROOT = "/guest/v1/keepsakes/" + GUID
 ROUTES = [
     (ROOT + "/account-associations", {"POST"}),
+    ("/guest/v1/chronicle", {"GET"}),
+    ("/guest/v1/duels/" + GUID, {"GET"}),
+    ("/guest/v1/duels/" + GUID + "/choices", {"POST"}),
     ("/guest/v1/evening", {"GET"}),
     ("/guest/v1/evenings/" + GUID + "/keepsakes/" + GUID + "/editions/" + GUID + "/assets/" + GUID, {"GET"}),
     ("/guest/v1/(?:bootstrap|claim|recover|share-claim)", {"POST"}),
@@ -18,7 +21,7 @@ ROUTES = [
     (ROOT + "/assets/" + GUID, {"GET"}),
     (ROOT + "/history", {"GET"}),
     (ROOT + "/(?:recovery-links|share-links)", {"POST", "DELETE"}),
-    (ROOT + "/(?:exports|portrait-consents|portrait-uploads|portraits|revoke-access)", {"POST"}),
+    (ROOT + "/(?:exports|portrait-consents|portrait-uploads|portraits|revoke-access|wizard-identity)", {"POST"}),
     (ROOT + "/(?:recovery-links|share-links)/" + GUID, {"DELETE"}),
     (ROOT + "/portrait", {"DELETE"}),
     (ROOT + "/(?:portraits|generation)/" + GUID + "/cancel", {"POST"}),
@@ -30,7 +33,9 @@ CONTRACT = json.loads(Path(__file__).with_name("backend-route-contract.json").re
 
 def route_pattern(template):
     parts = re.split(r"(\{[^}]+\})", template)
-    variables = {"channel": "(?:stable|development)", "hash": "[0-9a-f]{64}"}
+    variables = {"channel": "(?:stable|development)", "hash": "[0-9a-f]{64}",
+                 "deviceId": "[A-Za-z0-9_-]{1,128}", "sourceId": "[A-Za-z0-9_.:-]{1,240}",
+                 "scope": "(?:conversation|guest|evening)", "subject": "[A-Za-z0-9_.:-]{1,240}"}
     # Twin instance IDs follow TwinSnapshot.Id, rather than conversation GUIDs.
     if template.startswith("/v1/twin/"):
         variables["id"] = "[A-Za-z0-9_.-]{1,96}"
@@ -137,6 +142,7 @@ def render(host, guest_only=True):
     # Fragment claim links load the same app directly. Redirects can lose claim
     # handling order, and a broad prefix would accidentally serve API callbacks.
     for route in ('/keepsake', '/keepsake/', '/keepsake/index.html',
+                  '/keepsake/duel.html', '/keepsake/chronicle.html',
                   '/keepsake/evening', '/keepsake/evening/', '/keepsake/evening/index.html'):
         lines.extend([
             'location = ' + route + ' {',

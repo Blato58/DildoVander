@@ -93,6 +93,13 @@ test('native send failure closes once and stale callbacks cannot reopen it', asy
 });
 
 const fixture = JSON.parse(await readFile(new URL('../../contracts/fixtures/valid/state-snapshot.json', import.meta.url)));
+function offlineFixture(overrides = {}) {
+  return { state: 'ready', armed: false, quiet: false, generation: 7, missing: [], readyMask: 63,
+    outboxCount: 0, catalogVersion: 'ollivander-private-party-v1', bankVersion: 'synthetic-fixture',
+    audioBytes: 1, audioCapacityBytes: 2, streamWorkingBytes: 2, ambientEnabled: false,
+    bankVoice: 'fixture', voiceCompatible: true, ...overrides };
+}
+
 
 test('native manual path uses strict shared schema and matching identity before control', async () => {
   const native = bridge();
@@ -352,4 +359,111 @@ test('route is captured before listener registration and remains bound after BLE
   assert.equal(native.connected[0].deviceId, 'kufr-1');
   assert.deepEqual(Object.keys(native.connected[0]).sort(), ['connectionId', 'deviceId', 'host']);
   socket.close();
+});
+
+test('offline handoff requires native authenticated context, current lease and matched boot acknowledgement', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+  });
+  await settle(); native.emit('open');
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+    snapshot: { ...fixture, controlMode: 'standalone', controlLeaseId: null } }));
+  await assert.rejects(connection.requestOffline('offline_arm'), /ruční řízení/);
+  let completed = false;
+  const preflight = connection.requestOffline('offline_preflight').then(value => { completed = true; return value; });
+  await settle();
+  const sent = JSON.parse(native.sent.at(-1).frame);
+  const offline = offlineFixture();
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'offline.ack', requestMessageId: randomUUID(), bootId: fixture.bootId, accepted: true, offline }));
+  await settle(); assert.equal(completed, false);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'offline.ack', requestMessageId: sent.messageId, bootId: fixture.bootId, accepted: true, offline }));
+  assert.equal((await preflight).generation, 7);
+  const leaseId = randomUUID();
+  native.emit('frame', JSON.stringify({ ...fixture, controlMode: 'manual', controlLeaseId: leaseId, eventSequence: fixture.eventSequence + 1 }));
+  const arm = connection.requestOffline('offline_arm');
+  await settle();
+  const armed = JSON.parse(native.sent.at(-1).frame);
+  assert.equal(armed.generation, 7); assert.equal(armed.expectedRevision, fixture.revision); assert.equal(armed.controlLeaseId, leaseId);
+  const rejected = assert.rejects(arm, /přerušena/);
+  connection.suspend(); await rejected;
+});
+
+test('unknown offline command is never replayed after timeout or reconnect', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+  });
+  try {
+    await settle(); native.emit('open');
+    const hello = JSON.parse(native.sent.at(-1).frame);
+    native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+      snapshot: { ...fixture, phase: 'ready', activeCommandId: null, controlMode: 'manual', controlLeaseId: randomUUID() } }));
+    const preflight = connection.requestOffline('offline_preflight');
+    await settle();
+    native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'offline.ack',
+      requestMessageId: JSON.parse(native.sent.at(-1).frame).messageId, bootId: fixture.bootId,
+      accepted: true, errorCode: null, offline: offlineFixture() }));
+    await preflight;
+    const arm = connection.requestOffline('offline_arm');
+    await settle();
+    native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'offline.ack',
+      requestMessageId: JSON.parse(native.sent.at(-1).frame).messageId, bootId: fixture.bootId,
+      accepted: true, errorCode: null, offline: offlineFixture({ armed: true }) }));
+    await arm;
+    const command = connection.requestOffline('offline_start', 2, undefined, { shortVariant: true });
+    const failure = assert.rejects(command, /není známý/);
+    await settle();
+    const start = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+    assert.equal(start.compartment, 2); assert.equal(start.shortVariant, true);
+    const [id, timeout] = [...timers.entries()].find(([, timer]) => timer.milliseconds === 4000);
+    timers.delete(id); timeout.callback(); await failure;
+    await assert.rejects(connection.requestOffline('offline_start', 2), /preflight/);
+    connection.suspend(); connection.connect(); await settle(); native.emit('open'); await settle();
+    const reconnect = JSON.parse(native.sent.at(-1).frame);
+    assert.equal(reconnect.type, 'hello');
+    native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: reconnect.messageId,
+      snapshot: { ...fixture, phase: 'ready', activeCommandId: null, controlMode: 'standalone', controlLeaseId: null } }));
+    assert.equal(native.sent.map(value => JSON.parse(value.frame)).filter(value => value.type === 'offline_start').length, 1);
+  } finally { connection.suspend(); }
+});
+
+test('old socket close cannot invalidate a pending offline command on its replacement', async () => {
+  const sockets = [];
+  const makeSocket = () => {
+    const listeners = new Map();
+    const socket = { readyState: 1, sent: [],
+      addEventListener(type, callback) { listeners.set(type, callback); },
+      send(frame) { socket.sent.push(JSON.parse(frame)); },
+      close() { socket.readyState = 3; listeners.get('close')?.({}); },
+      emit(type, data) { listeners.get(type)?.(data); },
+    };
+    sockets.push(socket); return socket;
+  };
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId, createSocket: makeSocket,
+  });
+  const old = sockets[0]; old.emit('open', {});
+  old.emit('message', { data: JSON.stringify({ ...fixture, controlMode: 'standalone', controlLeaseId: null }) });
+  connection.suspend(); connection.connect();
+  const current = sockets[1]; current.emit('open', {});
+  current.emit('message', { data: JSON.stringify({ ...fixture, controlMode: 'standalone', controlLeaseId: null }) });
+  await assert.rejects(connection.requestOffline('quiet'), /výslovné/);
+  const quiet = connection.requestOffline('quiet', undefined, undefined, { enabled: false });
+  const command = current.sent.at(-1); assert.equal(command.enabled, false);
+  old.emit('close', {});
+  current.emit('message', { data: JSON.stringify({ protocolVersion: 1, type: 'offline.ack',
+    requestMessageId: command.messageId, bootId: fixture.bootId, accepted: true,
+    errorCode: null, offline: offlineFixture({ quiet: false, ambientEnabled: false, generation: 2 }) }) });
+  assert.equal((await quiet).quiet, false);
+  const ambient = connection.requestOffline('offline_ambient', undefined, undefined, { enabled: true });
+  const ambientCommand = current.sent.at(-1); assert.equal(ambientCommand.enabled, true);
+  current.emit('message', { data: JSON.stringify({ protocolVersion: 1, type: 'offline.ack',
+    requestMessageId: ambientCommand.messageId, bootId: fixture.bootId, accepted: true,
+    errorCode: null, offline: offlineFixture({ quiet: false, ambientEnabled: true, generation: 2 }) }) });
+  assert.equal((await ambient).ambientEnabled, true);
+  connection.suspend();
 });

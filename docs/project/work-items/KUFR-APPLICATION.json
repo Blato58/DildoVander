@@ -20,7 +20,7 @@
   "acceptance": [
     {
       "id": "APPLICATION",
-      "revision": 2,
+      "revision": 3,
       "expected": "One shared Vue shell and real feature components preserve suitcase, archive, administration and deep-link journeys across web and Capacitor; telemetry preserves focus and stale physical intent is invalidated.",
       "requiredEvidenceKinds": [
         "unit",
@@ -29,17 +29,17 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "e7b13293f289dee99c6f85810300fa523bdb368e851af5702fe93014df5b7af0"
+        "applicationArtifactDigest": "10558330559928859746b1cac3456bf7ed1fc71e9774d5f2e8f6a00e9d5a76a1"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-unit-v5",
-        "KUFR-APPLICATION-browser-v7",
-        "KUFR-APPLICATION-review-v7"
+        "KUFR-APPLICATION-unit-v6",
+        "KUFR-APPLICATION-browser-v8",
+        "KUFR-APPLICATION-review-v8"
       ]
     },
     {
       "id": "IDENTITY",
-      "revision": 2,
+      "revision": 3,
       "expected": "Persistent controlled owner enrollment, passkey sign-in, invitations, recovery, session revocation and resource grants are enforced server-side with CSRF and privilege separation; guest and device capabilities remain independent.",
       "requiredEvidenceKinds": [
         "integration",
@@ -47,18 +47,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "e7b13293f289dee99c6f85810300fa523bdb368e851af5702fe93014df5b7af0",
-        "backendArtifactDigest": "28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c"
+        "applicationArtifactDigest": "10558330559928859746b1cac3456bf7ed1fc71e9774d5f2e8f6a00e9d5a76a1",
+        "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-identity-v6",
-        "KUFR-APPLICATION-browser-v7",
-        "KUFR-APPLICATION-review-v7"
+        "KUFR-APPLICATION-identity-v7",
+        "KUFR-APPLICATION-browser-v8",
+        "KUFR-APPLICATION-review-v8"
       ]
     },
     {
       "id": "RELEASES",
-      "revision": 2,
+      "revision": 3,
       "expected": "Application build and viewer tests require no CAD toolchain or manufacturing artifact; validated immutable ModelBundles and the same maintained offline viewer compose independently and work through file URLs without network.",
       "requiredEvidenceKinds": [
         "integration",
@@ -67,34 +67,32 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "e7b13293f289dee99c6f85810300fa523bdb368e851af5702fe93014df5b7af0",
-        "releaseArtifactDigest": "2736a0a37c114001e5d5fe2a9c18a1c42a7e5fdbc2339a98cd693ebc795e62c1"
+        "applicationArtifactDigest": "10558330559928859746b1cac3456bf7ed1fc71e9774d5f2e8f6a00e9d5a76a1",
+        "releaseArtifactDigest": "32fb53fea2589f9bc2073025b884462b4cdc855a1fdfc50a326f5040d8191d85"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-releases-v6",
-        "KUFR-APPLICATION-browser-v7",
-        "KUFR-APPLICATION-review-v7"
+        "KUFR-APPLICATION-releases-v7",
+        "KUFR-APPLICATION-browser-v8",
+        "KUFR-APPLICATION-review-v8"
       ]
     },
     {
       "id": "NATIVE",
-      "revision": 2,
+      "revision": 3,
       "expected": "Supported native passkey authentication, Keychain session and existing physical BLE pairing survive app resume and user switching; actual associated-domain and signed-device requirements are verified separately from synthetic web evidence.",
       "requiredEvidenceKinds": [
         "native_ios"
       ],
       "appliesTo": {
-        "iosArtifactDigest": "d7012db3036515f573b2c29e19657bd0e36facf47155910140cc68cbdbd9ec9b"
+        "iosArtifactDigest": "4ee53fbe35aad5f4a76c6d70d4df6885df222a699a241afb0c7d18e4b6a9b540"
       },
-      "evidenceRefs": [
-        "KUFR-APPLICATION-native-v2"
-      ]
+      "evidenceRefs": []
     }
   ],
   "blockers": [
     {
       "id": "SIGNED-NATIVE",
-      "problem": "Current source-v7 passed macOS native harnesses and unsigned iOS Simulator build in CI39202887317. Signed iPhone associated-domain passkeys, Keychain resume/switching, actual public/media runtime and physical BLE possession remain unaccepted.",
+      "problem": "Source-v8 Show integration has current local software proof. Fresh macOS Swift/unsigned Simulator CI is pending; signed iPhone associated-domain passkeys, Keychain resume/switching, actual native public/media runtime and physical BLE possession remain unaccepted. Prior native-v2 proves source-v7 only.",
       "severity": "high",
       "blocks": [
         "NATIVE"
@@ -102,12 +100,12 @@
       "unblockCondition": "Verify those behaviors on the authorized signed iPhone installation against the canonical HTTPS associated domain and the physical suitcase; retain the successful macOS CI software evidence."
     }
   ],
-  "nextAction": "Verify signed iPhone associated-domain passkeys, Keychain resume/switching, native public model/media and physical pairing on the authorized installation. Source handoff uses PR218 CI/review gates; production activation remains separate.",
-  "currentNote": "Implementationeb9336132735a7d988270deb18abf2e980afa5a6 pushed and remoteverified. PR218 current Codex review completed with no findings; all relevant threads resolved. Final251app tests/build and HTTPS/account/application/media/offline checks passed. CurrentCI39202887317 native/backend/web/site/tracking/host checks passed; manufacturing firmware/CAD still pending at this observation. No production/provider/hardware action.",
+  "nextAction": "Complete current-head PR218 CI and reviews, then authorized merge. Record fresh macOS software evidence separately; signed iPhone/domain/Keychain/native-media/physical pairing acceptance and production activation remain separate.",
+  "currentNote": "Accepted Show Pack main838ac64 integrated into canonical Vue, obsolete standalone screens removed. Current local314app tests/build, HTTPS/account/application/Director/Archive/Debug/media/offline checks and backend/genuine portable C++ checks pass. Source-v8/runtime-v6 identify exact bytes. PR218 requires current-head CI and reviews before merge; no production/provider/hardware action.",
   "implementedSubject": {
-    "applicationArtifactDigest": "e7b13293f289dee99c6f85810300fa523bdb368e851af5702fe93014df5b7af0",
-    "backendArtifactDigest": "28ad047b485de7aa57e5957de4a27428e4876fb577fd310ce0fc7ea70dd2b97c",
-    "releaseArtifactDigest": "2736a0a37c114001e5d5fe2a9c18a1c42a7e5fdbc2339a98cd693ebc795e62c1",
-    "iosArtifactDigest": "d7012db3036515f573b2c29e19657bd0e36facf47155910140cc68cbdbd9ec9b"
+    "applicationArtifactDigest": "10558330559928859746b1cac3456bf7ed1fc71e9774d5f2e8f6a00e9d5a76a1",
+    "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea",
+    "releaseArtifactDigest": "32fb53fea2589f9bc2073025b884462b4cdc855a1fdfc50a326f5040d8191d85",
+    "iosArtifactDigest": "4ee53fbe35aad5f4a76c6d70d4df6885df222a699a241afb0c7d18e4b6a9b540"
   }
 }

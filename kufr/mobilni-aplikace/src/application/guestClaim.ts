@@ -10,3 +10,9 @@ export function consumeEnrollment(): { kind: 'invite' | 'recovery'; token: strin
   delete window.__dildovanderEnrollment;
   return enrollment ?? null;
 }
+
+export function consumeDuelGrant(): { token: string; side: 'left' | 'right' } | null {
+  const grant = window.__dildovanderDuelGrant;
+  delete window.__dildovanderDuelGrant;
+  return grant && /^[A-Za-z0-9_-]{43}$/.test(grant.token) && ['left', 'right'].includes(grant.side) ? grant : null;
+}

@@ -15,5 +15,12 @@
 .archive-view input[type='checkbox'] { margin-inline-end: .5rem; }
 .archive-private-preview { max-width: 18rem; max-height: 20rem; object-fit: contain; }
 .archive-view .aw-input { max-width: 100%; }
+.archive-identity dl { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr); gap: .5rem 1rem; }
+.archive-identity dd { margin: 0; overflow-wrap: anywhere; }
+.archive-duel-sides, .archive-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.archive-duel-rounds { display: grid; gap: 1rem; padding-inline-start: 1.5rem; }
+.archive-view table { width: 100%; border-collapse: collapse; }
+.archive-view th, .archive-view td { padding: .65rem; text-align: start; border-bottom: 1px solid var(--aw-border); overflow-wrap: anywhere; }
+@media (max-width: 520px) { .archive-duel-sides, .archive-counts, .archive-identity dl { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 780px) { .archive-workspace, .archive-edition { grid-template-columns: minmax(0, 1fr); } .archive-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 390px) { .archive-index { grid-template-columns: minmax(0, 1fr); } }

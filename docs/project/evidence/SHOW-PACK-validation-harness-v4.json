@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "SHOW-PACK-validation-harness-v4",
+  "observedAtUtc": "2026-10-19T04:55:59.146304+00:00",
+  "kind": "integration",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "SHOW-PACK-OPERATIONS",
+      "criterionId": "HARNESS",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "421a9dc1b8928480915f0f18cdf8f64e58faf62348d29f51fa48545cf5716d41",
+    "validationArtifactDigest": "aecd861467f84452fe5180b4ecebc74e3deb5aa1bc408cdf2351d53844dfbaf3",
+    "policyVersion": "show-pack-2026.10.19.1"
+  },
+  "method": "Actual legacy baseline/candidate compilation+12case comparison, four current host suites, actual HTTP harnesses,2Node lifecycle regressions, independent read-only source review and complete input-digest comparison.",
+  "environment": "Windows x64, MSVC19.51, Node; production runtime unchanged from pinned .NET/ESP builds in source-v3.",
+  "limitations": [
+    "Local MSVC/Windows/Node validation is not a claim of final Linux CI or physical acceptance.",
+    "No paid provider, deployment, signing or flash."
+  ],
+  "observation": "Only validation inputs changed: historical helper compiles without altering matching virtual hooks; repeated signal-terminated server cleanup no longer waits for an already-emitted exit. All shipping-source hashes remain exact source-v3. Strict legacy assertions and actual HTTP behavior retained; Linux CI remains the merge gate.",
+  "artifactRefs": [
+    "docs/project/artifacts/SHOW-PACK-source-v4.json",
+    "docs/project/artifacts/SHOW-PACK-validation-v4.json",
+    "docs/project/artifacts/SHOW-PACK-legacy-parity-v4.json"
+  ]
+}

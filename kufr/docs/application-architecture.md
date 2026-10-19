@@ -40,13 +40,21 @@ remain the authority for local snapshots, lease and command reconciliation.
 | Companion, `/app/` | `/suitcase` | explicit target; local pairing gates |
 | discovery and provisioning | `/connections` | installation and account scoped |
 | Debug panels | `/suitcase/diagnostics` | capability and role checked |
+| Show Pack Director | `/suitcase/director` | exact device read/operate/manage; Stop has priority |
 | Workshop viewer | `/workshop` | public model, explicit live authorization |
 | simulator observer | `/workshop?mode=simulation` | isolated simulator target |
 | local USB servo service | `/suitcase/diagnostics` | explicit local Web Serial; no network proxy |
 | `/keepsake/evening/` | `/archive` | public evening, never owner data |
 | `/keepsake/` | `/keepsake/` | scoped guest claim/session |
 | account and administration | `/settings`, `/settings/admin` | server enforced |
+| published chronicle and duel links | `/archive/chronicle`, `/archive/duel` | public projection; separate duel move grant |
 | installer manifests, downloads | existing distribution URLs | distribution exception |
+
+Show Pack's legacy `/keepsake/duel.html` and `/keepsake/chronicle.html` load the
+same application through exact compatibility routes. Duel grants remain in
+one-use memory after early fragment capture; an account never substitutes for a
+player grant. Private prophecy remains a guest-owner capability. Linked accounts
+can read public wizard identities without acquiring that private authority.
 
 Do not redirect API mutations, guest exchanges, native callbacks or downloads.
 No route mount may start AI work, obtain a control lease or issue an actuator

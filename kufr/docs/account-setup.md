@@ -232,6 +232,16 @@ servisní integrace musí být vědomé a dočasné rozhodnutí; běžný dashbo
 nenabízí jako obcházení účtu. Samostatné firmware/device credentialy, guest
 claims a ingest identita se tímto přepínačem nemění.
 
+Director otevřete z Kufru na `/suitcase/director` a vyberte přidělený kufr.
+Běžné řízení a Stop používají jeho grant; odhalení proroctví, ukončení večera,
+hráčské granty a import výsledků vyžadují příslušné oprávnění, potvrzení a čerstvé
+přihlášení. Místní offline režim používá spárovaný kufr a jeho bezpečnostní stav
+i bez WAN. Zvolený vzdálený kufr se nesmí zaměnit za jiný místně připojený kus.
+Kronika nabízí oprávněné kufry a jejich existující večery. Hráčský odkaz duelu
+opravňuje jen danou stranu ke konkrétní hře; přihlášený účet ho nenahrazuje.
+Vazba památky na účet zpřístupní veřejnou kouzelnickou identitu. Soukromé
+proroctví nadále vyžaduje původní vlastnický přístup hosta a odemčení serverem.
+
 Windows webové a backendové testy nepotvrzují podpis, provisioning profil,
 Apple Associated Domains ani skutečný passkey/audio/export na iPhonu.
 Nativní kontrola zahrnuje `scripts/test-native-identity.sh` a skutečný unsigned

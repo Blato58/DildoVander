@@ -1,3 +1,4 @@
+import type { OfflineCommandKind, OfflineCommandOptions } from '../device_connection/SimulatorDeviceConnection';
 import { computed, ref, shallowRef } from 'vue';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { FakeDeviceConnection, type DeviceSnapshot } from '../device_connection/FakeDeviceConnection';
@@ -193,6 +194,18 @@ export const deviceSession = {
   snapshot, target, pending, stopPending, message, native, savedDevice, discovered, bleDevices, bleStatus, bleMessage, blePending, journalEntries,
   connected: computed(() => snapshot.value !== null && snapshot.value.phase !== 'disconnected'),
   refreshSaved: () => perform(refreshSaved), connectSaved, discoverLocal, setAddress, pairManual, forgetDevice, useDemo, useSimulator, disconnect, stop,
+  requestOffline: async (kind: OfflineCommandKind, compartment?: number, commandId?: string, options?: OfflineCommandOptions) => {
+    const current = connection;
+    const epoch = connectionEpoch;
+    const lifecycle = generation;
+    if (target.value !== 'native' || !(current instanceof NativeDeviceConnection) || !snapshot.value
+      || snapshot.value.source !== 'native-device' || snapshot.value.phase === 'disconnected') {
+      throw new Error('Místní Show vyžaduje výslovně připojený a ověřený skutečný kufr.');
+    }
+    const result = await current.requestOffline(kind, compartment, commandId, options);
+    if (epoch !== connectionEpoch || lifecycle !== generation || current !== connection) throw new Error('Vybraný kufr se změnil; výsledek patří původnímu spojení.');
+    return result;
+  },
   acquire: () => connection?.acquire() ?? false,
   release: () => connection?.release(),
   select: (compartment: number) => connection?.select(compartment) ?? false,

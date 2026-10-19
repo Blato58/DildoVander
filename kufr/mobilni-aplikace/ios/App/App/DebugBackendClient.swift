@@ -452,6 +452,30 @@ enum DebugCostumeJPEG {
     }
 }
 
+// A reserved urgent slot keeps Stop available while a Director refresh owns
+// four pending reads. It does not authorize a route or retry a mutation.
+struct DebugShowRequestSlots {
+    private var requests: [UUID: Bool] = [:]
+    mutating func begin(urgent: Bool) -> UUID? {
+        if urgent {
+            guard !requests.values.contains(true) else { return nil }
+        } else {
+            guard requests.values.filter({ !$0 }).count < 4 else { return nil }
+        }
+        let id = UUID()
+        requests[id] = urgent
+        return id
+    }
+    mutating func finish(_ id: UUID) { requests.removeValue(forKey: id) }
+    mutating func clear() { requests.removeAll() }
+    static func isUrgent(suffix: String, method: String, body: String?) -> Bool {
+        guard method == "POST", let body, body.utf8.count <= 65_536,
+              let value = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any] else { return false }
+        if suffix == "/commands" { return ["stop", "cancel-speech"].contains(value["kind"] as? String ?? "") }
+        return suffix.range(of: "^/duels/[A-Za-z0-9_-]+/cancel$", options: .regularExpression) != nil
+    }
+}
+
 @MainActor
 final class DebugBackendClient {
     typealias HTTP = (URLRequest, Int) async throws -> (Data, HTTPURLResponse)
@@ -720,6 +744,50 @@ final class DebugBackendClient {
             response.mimeType == "application/json", let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { throw DebugBackendError.invalidResponse }
         return result
+    }
+
+    func showRequest(_ profile: DebugBackendProfile, deviceId: String, suffix: String,
+                     method: String, body: String? = nil, confirmed: Bool = false) async throws -> (status: Int, body: Any) {
+        guard deviceId.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil,
+              !profile.usesAccountSession || profile.deviceId == deviceId,
+              !deviceId.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              suffix.utf8.count <= 1024, !suffix.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              ["GET", "POST"].contains(method) else { throw DebugBackendError.invalidProfile }
+        let allowedGet = "^(|/(identities|prophecies|duels)(\\?eveningId=[A-Za-z0-9%_-]+)?|/duels/[A-Za-z0-9_-]+)$"
+        let allowedPost = "^/(commands|end-evening|offline-outcomes|prophecies/[A-Za-z0-9_-]+/reveal|duels|duels/[A-Za-z0-9_-]+/(start|cancel|grants|grants/revoke))$"
+        guard suffix.range(of: method == "GET" ? allowedGet : allowedPost, options: .regularExpression) != nil,
+              (method == "GET" && body == nil) || (method == "POST" && body != nil && body!.utf8.count <= 65_536
+                && (try? JSONSerialization.jsonObject(with: Data(body!.utf8))) is [String: Any]),
+              let url = URL(string: "/v1/show/devices/\(deviceId)\(suffix)", relativeTo: profile.baseURL)?.absoluteURL,
+              url.host == profile.baseURL.host, url.scheme == profile.baseURL.scheme, url.port == profile.baseURL.port else {
+            throw DebugBackendError.invalidResponse
+        }
+        let sensitive = method == "POST" && (suffix == "/end-evening" || suffix == "/offline-outcomes"
+            || suffix.hasSuffix("/reveal") || suffix.hasSuffix("/grants") || suffix.hasSuffix("/grants/revoke"))
+        guard !profile.usesAccountSession || !sensitive || confirmed else {
+            throw DebugBackendError.serverCode("confirmation_required")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if profile.usesAccountSession && sensitive { request.setValue("yes", forHTTPHeaderField: "X-DV-Confirm") }
+        if !profile.usesAccountSession { request.setValue("Bearer \(profile.credential)", forHTTPHeaderField: "Authorization") }
+        if let body {
+            request.httpBody = Data(body.utf8)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let (data, response) = try await send(profile, request, limit: 1_048_576)
+        try Task.checkCancellation()
+        // Recheck the native account binding before returning private Show data.
+        // Prepared headers from an earlier account are never reused for a new one.
+        if profile.usesAccountSession { _ = try await authorizedRequest(profile, request) }
+        let jsonResponse = response.mimeType == "application/json"
+            || (response.statusCode >= 400 && response.mimeType == "application/problem+json")
+        guard data.count <= 1_048_576, data.isEmpty || jsonResponse else {
+            throw DebugBackendError.invalidResponse
+        }
+        let object: Any = data.isEmpty ? NSNull() : try JSONSerialization.jsonObject(with: data)
+        return (response.statusCode, object)
     }
 
     func inspect(_ profile: DebugBackendProfile) async throws -> String {

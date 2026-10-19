@@ -74,7 +74,7 @@ private final class DebugCostumeCamera: NSObject, UIImagePickerControllerDelegat
 public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDelegate {
     public let identifier = "KufrDebugPlugin"
     public let jsName = "KufrDebug"
-    public let pluginMethods: [CAPPluginMethod] = ["status", "useAccount", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "startConversation", "speakSystem", "stop", "shareLog", "readServerLogs", "captureCostumePhoto", "discardCostumePhoto", "attachCostumePhoto", "inspectMemory", "deleteConversationMemory"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["status", "useAccount", "configure", "forgetProfile", "inspectEvenings", "createEvening", "activateEvening", "inspectBackend", "inspectServer", "changeServerModes", "startConversation", "speakSystem", "stop", "shareLog", "readServerLogs", "captureCostumePhoto", "discardCostumePhoto", "attachCostumePhoto", "inspectMemory", "deleteConversationMemory", "showRequest"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     private var profile: DebugBackendProfile?
@@ -84,6 +84,42 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
     private var previousAccountCleanupPending = false
     private var logTask: Task<Void, Never>?
     private let profileKeychain = DebugBackendKeychain()
+
+    private var showTasks: [UUID: Task<Void, Never>] = [:]
+    private var showSlots = DebugShowRequestSlots()
+
+    // Native identity/profile ownership supplies the origin and credentials.
+    // The bridge accepts only a selected device and the bounded Show API grammar.
+    @objc func showRequest(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.restoreProfile()
+            guard let profile = self.profile,
+                  UIApplication.shared.applicationState == .active,
+                  UIApplication.shared.isProtectedDataAvailable,
+                  let deviceId = call.getString("deviceId"),
+                  !profile.usesAccountSession || profile.deviceId == deviceId,
+                  let suffix = call.getString("suffix"), let method = call.getString("method") else {
+                call.reject("Přihlaste se a zvolte povolený kufr; servisní profil vyžaduje výslovné nastavení.", "invalid_profile"); return
+            }
+            let generation = self.generation
+            let body = call.getString("body")
+            guard let id = self.showSlots.begin(urgent: DebugShowRequestSlots.isUrgent(suffix: suffix, method: method, body: body)) else {
+                call.reject("Požadavek už probíhá; obnovte stav. Místní Stop zůstává dostupný.", "show_busy"); return
+            }
+            self.showTasks[id] = Task { @MainActor in
+                defer { self.showTasks.removeValue(forKey: id); self.showSlots.finish(id) }
+                do {
+                    let result = try await DebugBackendClient().showRequest(profile, deviceId: deviceId,
+                        suffix: suffix, method: method, body: body, confirmed: call.getBool("confirm") == true)
+                    try self.requireCurrent(generation)
+                    call.resolve(["status": result.status, "body": result.body])
+                } catch {
+                    // An interrupted mutation has an unknown outcome; never retry it.
+                    call.reject("Server neodpověděl; výsledek povelu není ověřený. Obnovte stav, souhlas a případně ověření správce v Nastavení.", DebugHandsFreeSession.failureCode(for: error))
+                }
+            }
+        }
+    }
     private var evenings: DebugEveningList?
     private var task: Task<Void, Never>?
     private let synthesizer = AVSpeechSynthesizer()
@@ -171,6 +207,7 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
         logTask?.cancel()
         task?.cancel()
         imageTask?.cancel()
+        showTasks.values.forEach { $0.cancel() }
         observers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
@@ -828,6 +865,8 @@ public class KufrDebugPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesizerDe
     }
 
     @MainActor private func stopWork() {
+        showTasks.values.forEach { $0.cancel() }
+        showSlots.clear()
         logTask?.cancel()
         generation += 1
         discardPhotoDraft()

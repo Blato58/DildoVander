@@ -7,6 +7,38 @@ tokeny a styl; `src/components/` obsahuje typované Vue komponenty.
 a dostupný Stop. Feature služby vlastní zařízení, účty, archiv a viewer;
 Swift adaptéry dál vlastní Bluetooth, Keychain, audio a nativní transport.
 
+Režie Show Pack je skutečná Vue obrazovka na `/suitcase/director`, dostupná z Provozu.
+Starý vstup `/#director` přesměruje na tuto cestu. Používá přihlášený účet,
+konkrétní nakonfigurovaný kufr a stejný omezený transport na webu i iOS;
+obrazovka nevyžaduje adresu serveru ani raw bearer.
+Backend kontroluje read/operate/manage grant. Citlivé odhalení, herní grant,
+import offline výsledků a konec večera vyžadují potvrzení a čerstvý passkey.
+Běžné zásahy a Stop nečekají na nové přihlášení. Stop má přednostní cestu i při
+čekajícím běžném požadavku a zůstává v globálním Stop po odchodu z režie.
+Přepnutí účtu nebo vybraného zařízení ruší starý kontext synchronně.
+
+Režie zachovává revize, generaci návštěvy a TTL zásahů 30 s; nejistý výsledek
+se nikdy automaticky neopakuje. Backendové přijetí není potvrzení zvuku nebo
+fyzického účinku. Stop porovnává čerstvý report stejné deviceStopRevision.
+Místní offline preflight/Arm/start/ticho/ambient mají vlastní autentizované WSS;
+Arm vyžaduje výslovně získaný ruční lease v Provozu. Import označuje výsledky
+operator_relay a potvrzuje outbox až po přijetí shodného operationId serverem.
+
+Souboj vyžaduje dvě dokončené identity a souhlas obou hostů. Herní odkazy mají
+jednorázově zachycený fragment a žijí pouze v paměti; opuštění pohledu, změna
+účtu/zařízení/večera nebo ukončení souboje odstraní operátorovy kopie.
+Veřejný přehled grant neobsahuje a jeho origin dodává backend.
+`/archive/duel` a `/archive/chronicle` jsou Vue cesty; staré
+`/keepsake/duel.html` a `/keepsake/chronicle.html` zůstávají přesné aliasy.
+Soukromé znění proroctví zůstává návštěvníkovi. Ukončení večera nemaže archiv.
+
+Opakovatelné syntetické browser ověření běží proti sestavenému Vue dist pomocí
+`node scripts/check-director-browser.mjs`; nemění backend, nevolá provider ani
+hardware. `check-director-flows.mjs` a `check-director-remote-stop.mjs` jsou
+kompatibilní vstupy stejné udržované sady. Skutečné account/backend testy vlastní
+izolovaný HTTPS fixture. Žádný browser výsledek neprokazuje přijetí na iPhonu.
+
+
 `/connections` soustředí uložené zařízení a BLE párování; `/suitcase`
 hlas, tanec, text a ruční řízení. `/suitcase/diagnostics` obsahuje nativní
 testy a místní USB servis. `/workshop` integruje model, montáž, simulaci,

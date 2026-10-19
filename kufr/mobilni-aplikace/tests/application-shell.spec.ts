@@ -44,9 +44,12 @@ import App from '../src/application/App.vue';
 import { account } from '../src/features/identity/session';
 import { nativeDebug } from '../src/features/suitcase/nativeDebug';
 import { deviceSession } from '../src/features/suitcase/deviceSession';
+import { directorStop, registerDirectorStop, clearDirectorStop } from '../src/features/director/directorStop';
+import { servoBench } from '../src/features/suitcase/servoBench';
 
 describe('application account boundary', () => {
   beforeEach(() => {
+    clearDirectorStop();
     vi.clearAllMocks();
     account.value = { id: 'first', displayName: 'First', roles: [] };
   });
@@ -73,4 +76,20 @@ describe('application account boundary', () => {
       await cleanup;
     }
   });
+});
+
+describe('global Director Stop participant',()=>{
+ it('starts all independent Stop paths while routine Director work is busy and clears retired account synchronously',async()=>{
+  account.value={id:'first',displayName:'First',roles:[]};
+  const forever=new Promise<void>(()=>{});const remote=vi.fn(()=>forever);const clear=vi.fn();
+  registerDirectorStop({canStop:()=>true,busy:()=>false,stop:remote,clear});
+  vi.mocked(nativeDebug.cancel).mockReturnValue(forever);nativeDebug.status.value.running=true;
+  servoBench.connected.value=true;vi.mocked(servoBench.stop).mockReturnValue(forever);
+  const wrapper=mount(App,{global:{plugins:[createPinia()],stubs:{RouterLink:true,RouterView:true}}});
+  const stop=wrapper.findAll('button').find(button=>button.text()==='Stop')!;
+  expect(stop.attributes('disabled')).toBeUndefined();await stop.trigger('click');await Promise.resolve();
+  expect(remote).toHaveBeenCalledOnce();expect(nativeDebug.cancel).toHaveBeenCalledOnce();expect(servoBench.stop).toHaveBeenCalledOnce();expect(deviceSession.stop).toHaveBeenCalled();
+  account.value={id:'second',displayName:'Second',roles:[]};expect(clear).toHaveBeenCalledOnce();expect(directorStop.value).toBeNull();
+  wrapper.unmount();nativeDebug.status.value.running=false;servoBench.connected.value=false;
+ });
 });

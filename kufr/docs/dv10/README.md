@@ -1,5 +1,12 @@
 # DV10 — soukromá památka z kufru
 
+[Show Pack](../show-pack.md) přidává verzovanou kouzelnickou identitu, veřejnou
+sběratelskou kartu, owner proroctví, souboj a kroniku do stejné Vue aplikace.
+Historický stav nasazení níže neprokazuje nasazení těchto nových funkcí. Starší
+edice zůstávají čitelné bez identity; výslovné vytvoření identity nespouští
+hromadné placené doplňování. Zamčené znění proroctví není v DTO ani exportu.
+Veřejné QR a oddělená práva k fotografii a portrétu zůstávají zachovaná.
+
 Kanonický zdroj archivu je v `kufr/mobilni-aplikace/src/features/archive/`;
 hostovaný web i Capacitor používají stejné Vue SFC. Relativní `/guest/v1` API,
 SQLite autorita a bounded worker žijí v existujícím .NET backendu. Web i API

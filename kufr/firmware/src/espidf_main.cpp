@@ -47,6 +47,8 @@
 #include "features/network_provisioning/EspIdfBleProvisioning.h"
 #include "features/firmware_update/EspIdfFirmwareUpdate.h"
 #include "features/sd_assets/EspIdfSdAssets.h"
+#include "features/offline_show/EspIdfOfflineShow.h"
+#include "features/show_cues/DeviceShowRuntime.h"
 
 namespace {
 
@@ -430,12 +432,23 @@ extern "C" void app_main() {
   static LocalControlOwner owner(
       identity.DeviceId(), bootId, controlRuntime, runtimeState, conversation,
       backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock, &backendNetwork, &dance);
+  static kufr::offline::EspIdfOutboxStorage offlineStorage(nvsStatus == ESP_OK);
+  static kufr::offline::EspIdfOfflineAudio offlineAudio(backendNetwork.DanceAudio());
+  offlineAudio.Begin();
+  static kufr::offline::OfflineShow offline(controlRuntime, runtimeState, deviceControl,
+      presentation, presentationPort, offlineAudio, offlineStorage, identity.DeviceId(),
+      bootId, bootId);
+  owner.BindOffline(offline);
+  static DeviceShowRuntime deviceShow(controlRuntime, runtimeState, presentationPort,
+      offline, offlineAudio, backendNetwork.ShowCues(), bootId);
   bool serverStarted = false;
   uint64_t retryServerAtMs = 0;
   bool advertisementStarted = false;
   uint64_t retryAdvertisementAtMs = 0;
   bool rawButton = false, button = false, gestureConsumed = false;
   bool hardwareFaultHandled = false;
+  bool hardwareWasInspected = effects.Healthy();
+  uint8_t pendingButtonAction = 0; // 1: prepared offline scene; 2: explicit online voice.
   uint64_t buttonChangedAt = 0, buttonPressedAt = 0;
   bool lastTraceWasDance = false;
   PresentationIdentity<97> observedPresentationId;
@@ -453,14 +466,15 @@ extern "C" void app_main() {
     TurnProposal pendingProposal;
     maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() &&
+        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
     // The whole-cycle deadline precedes physical output processing, even when
     // per-phase calibration timeouts would still allow the sequence to run.
     presentation.CheckDeadline(nowMs);
     effects.Tick(nowMs);
     const bool selfTestReady = kufr::ota::BootSelfTestReady(
-        nvsStatus == ESP_OK && journal.IsHealthy() && stationStarted,
+        nvsStatus == ESP_OK && journal.IsHealthy() && stationStarted &&
+            (!kufr::offline::CompiledBank().complete || offlineAudio.Available()),
         hardware.ProfileSelected(), calibrated, effects.Healthy());
     firmwareUpdate.Tick(nowMs, station.HasIp(), selfTestReady,
         maintenance.safeIdle && !maintenance.networkHeld && !sdAssets.Reserved());
@@ -489,11 +503,14 @@ extern "C" void app_main() {
       advertisementStarted = advertisement.Start(identity.DeviceId());
       retryAdvertisementAtMs = nowMs + 5000;
     }
-    if (effects.Healthy()) hardwareFaultHandled = false;
+    if (effects.Healthy()) { hardwareFaultHandled = false; hardwareWasInspected = true; }
     if (calibrated && !effects.Healthy() && !hardwareFaultHandled) {
       hardwareFaultHandled = true;
       SelectionStep stopped;
       dance.StopDance();
+      // Initial boot inspection is still required; it does not revoke a saved
+      // offline opt-in. A fault after inspection does revoke it like Stop.
+      if (hardwareWasInspected) offline.Stop();
       controlRuntime.Stop(stopped);
       backendNetwork.StopVoice();
       steps.OnStep(stopped);
@@ -505,15 +522,29 @@ extern "C" void app_main() {
       if (button) {
         buttonPressedAt = nowMs;
         gestureConsumed = false;
-        if (controlRuntime.HasAutonomousPresentation() || controlRuntime.HasDecoration() || selectionSequence.IsBusy() || dance.Reserved()) {
+        const bool ambientWasActive = offline.AmbientActive();
+        if (ambientWasActive) offline.PrepareInteraction();
+        if (!ambientWasActive && (offline.Active() || controlRuntime.HasAutonomousPresentation() || controlRuntime.HasDecoration() || selectionSequence.IsBusy() || dance.Reserved())) {
+          pendingButtonAction = 0;
           SelectionStep stopped;
           dance.StopDance();
+          offline.Stop();
           controlRuntime.Stop(stopped);
           backendNetwork.StopVoice();
           steps.OnStep(stopped);
           gestureConsumed = true;
         }
       } else if (!gestureConsumed && !maintaining) {
+        pendingButtonAction = offline.Armed() ? 1 : controlRuntime.OfflineAuthority() ? 0 : 2;
+      }
+    }
+    // Cancellation is immediate; a newly accepted audio owner waits for the
+    // bounded previous player to quiesce so no old completion can mute it.
+    if (pendingButtonAction && !maintaining && offline.PrepareInteraction()) {
+      const uint8_t action = pendingButtonAction;
+      pendingButtonAction = 0;
+      if (action == 1) offline.StartNext(nowMs);
+      else {
         const auto voice = backendNetwork.VoiceStatus();
         if (voice.phase != "idle" && voice.phase != "unavailable") backendNetwork.StopVoice();
         else {
@@ -538,11 +569,24 @@ extern "C" void app_main() {
       controlRuntime.SetExternalActivity(dance.Reserved());
       presentation.CheckDeadline(effectNowMs);
       presentationPort.Tick(effectNowMs);
+      offline.SetVoice(backendNetwork.VoiceStatus().voice);
+      deviceShow.SetVoice(backendNetwork.VoiceStatus().voice);
+      deviceShow.Tick(effectNowMs, !maintaining && !dance.Reserved() &&
+          !deviceControl.HasManualControl(),
+          !conversation.HasActiveTurn() && !backendNetwork.IsConversationVoiceBusy());
+      if (deviceShow.TakeRemoteStop()) {
+        dance.StopDance();
+        backendNetwork.StopVoice();
+      }
+      offline.Tick(effectNowMs, !maintaining && !dance.Reserved() &&
+          !deviceControl.HasManualControl() && !conversation.HasActiveTurn() &&
+          !backendNetwork.IsVoiceBusy() && !deviceShow.Active() &&
+          (!backendNetwork.IsOnline() || controlRuntime.OfflineAuthority()));
     });
     owner.PumpReply(backendNetwork);
     // Owner has applied urgent Stop/lease changes before any autonomous start.
     inbox.RunIfNoUrgent([&]() {
-      if (!maintaining && !dance.Reserved() && !deviceControl.HasManualControl() && effects.Healthy())
+      if (!controlRuntime.OfflineAuthority() && !maintaining && !dance.Reserved() && !deviceControl.HasManualControl() && effects.Healthy())
         backendNetwork.BeginPendingPresentation(presentation, clock.NowMs());
     });
     backendNetwork.FinishPresentation(presentation);
@@ -595,7 +639,7 @@ extern "C" void app_main() {
     // Publish idle only after all admissions in this iteration have completed.
     maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() &&
+        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());
     maintenanceLock.unlock();
     vTaskDelay(pdMS_TO_TICKS(ControlLoopPeriodMs));

@@ -1,0 +1,2229 @@
+{
+  "schemaVersion": 1,
+  "packId": "dildovander-show-pack",
+  "packVersion": "2026.10.19.1",
+  "manifestSha256": "b841bf04f46dbc73f9262e748a25f27db90dcabdad3efc990c4b04b7e46fdd6a",
+  "tracking": "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+  "meaning": "Current software consumers and checks for all86 requirements, including the shared Vue Director, WizardIdentity, private prophecy, Duel and Chronicle migration. Historical SHOW-PACK receipts identify their original source; KUFR-APPLICATION receipts bind the integrated Vue source. Software checks do not establish every36 scenario on hardware/provider/iPhone; SHOW-PACK-OPERATIONS retains external gates.",
+  "requirements": [
+    {
+      "id": "ARC-01",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-02",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-03",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-04",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-05",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-06",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-07",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-08",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-09",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-10",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-11",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "ARC-12",
+      "specification": "specs/01-ARCHITEKTURA-A-KONTRAKTY.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show",
+        "kufr/firmware/src/features/device_control",
+        "kufr/contracts/control-message-v1.schema.json"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/backend-tests/ShowDeviceCueTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "SHOW-01",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowCoordinator.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "SHOW-02",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowCoordinator.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "SHOW-03",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowCoordinator.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "SHOW-04",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowCoordinator.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "SHOW-05",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowCoordinator.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "FIN-01",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowSceneLibrary.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/Conversations/ConversationAutonomousLive.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "FIN-02",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowSceneLibrary.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/Conversations/ConversationAutonomousLive.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "FIN-03",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowSceneLibrary.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/Conversations/ConversationAutonomousLive.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "FIN-04",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowSceneLibrary.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/Conversations/ConversationAutonomousLive.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "SHOW-06",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowCoordinator.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/GptLive/AutonomousLiveDialogue.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "FIN-05",
+      "specification": "specs/02-REZIE-A-PROCEDURALNI-FINALE.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowSceneLibrary.cs",
+        "kufr/backend/Features/Show/ShowSceneExecution.cs",
+        "kufr/backend/Features/Conversations/ConversationAutonomousLive.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "WAND-01",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowRepertoire.cs",
+        "kufr/backend/Features/Conversations/PartyWandCatalog.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "WAND-02",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowRepertoire.cs",
+        "kufr/backend/Features/Conversations/PartyWandCatalog.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "WAND-03",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowRepertoire.cs",
+        "kufr/backend/Features/Conversations/PartyWandCatalog.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MOOD-01",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowContracts.cs",
+        "kufr/backend/Features/Show/ShowCoordinator.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MOOD-02",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowContracts.cs",
+        "kufr/backend/Features/Show/ShowCoordinator.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MOOD-03",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowContracts.cs",
+        "kufr/backend/Features/Show/ShowCoordinator.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "AMB-01",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
+        "kufr/backend/Features/Show/ShowRepertoire.cs",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.vue",
+        "kufr/mobilni-aplikace/src/features/director/DirectorSession.ts"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/backend-tests/ShowSpeechProviderTests.cs",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.spec.ts",
+        "kufr/mobilni-aplikace/tests/director.browser.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "AMB-02",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
+        "kufr/backend/Features/Show/ShowRepertoire.cs",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.vue",
+        "kufr/mobilni-aplikace/src/features/director/DirectorSession.ts"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/backend-tests/ShowSpeechProviderTests.cs",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.spec.ts",
+        "kufr/mobilni-aplikace/tests/director.browser.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "WAND-04",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowRepertoire.cs",
+        "kufr/backend/Features/Conversations/PartyWandCatalog.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MOOD-04",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/backend/Features/Show/ShowContracts.cs",
+        "kufr/backend/Features/Show/ShowCoordinator.cs"
+      ],
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "AMB-03",
+      "specification": "specs/03-OSOBNOSTI-NALADY-A-AMBIENT.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "sources": [
+        "kufr/firmware/src/features/offline_show/OfflineShow.cpp",
+        "kufr/backend/Features/Show/ShowRepertoire.cs",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.vue",
+        "kufr/mobilni-aplikace/src/features/director/DirectorSession.ts"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/mobilni-aplikace/src/features/director/DirectorPanel.spec.ts",
+        "kufr/mobilni-aplikace/tests/director.browser.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "ID-01",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "ID-02",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "ID-03",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "ID-04",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "ID-05",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "PRO-01",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "PRO-02",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "PRO-03",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "ID-06",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Keepsakes/KeepsakeProvider.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "PRO-04",
+      "specification": "specs/04-MAGICKA-IDENTITA-A-PROROCTVI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "sources": [
+        "kufr/backend/Features/Keepsakes/WizardIdentity.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs",
+        "kufr/mobilni-aplikace/src/features/archive/WizardIdentity.vue",
+        "kufr/mobilni-aplikace/src/features/archive/PrivateProphecy.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-01",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-02",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-03",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-04",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-05",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-06",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-07",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "MEM-08",
+      "specification": "specs/05-PAMET-A-KRONIKA-VECERA.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "sources": [
+        "kufr/backend/Features/Memory/ChronicleMemoryStore.cs",
+        "kufr/backend/Features/Memory/EveningLoreStore.cs",
+        "kufr/mobilni-aplikace/src/features/archive/ChronicleView.vue"
+      ],
+      "checks": [
+        "kufr/backend-tests/ChronicleTests.cs",
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/EveningMemoryTests.cs",
+        "kufr/backend-tests/MemoryShowDeletionTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "DUEL-01",
+      "specification": "specs/06-SOUBOJ-HOSTU.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "sources": [
+        "kufr/backend/Features/Show/DuelStore.cs",
+        "kufr/backend/Features/Show/DuelRules.cs",
+        "kufr/backend/Features/Show/DuelCommentary.cs",
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp",
+        "kufr/backend-tests/ShowSpeechProviderTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "DUEL-02",
+      "specification": "specs/06-SOUBOJ-HOSTU.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "sources": [
+        "kufr/backend/Features/Show/DuelStore.cs",
+        "kufr/backend/Features/Show/DuelRules.cs",
+        "kufr/backend/Features/Show/DuelCommentary.cs",
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "DUEL-03",
+      "specification": "specs/06-SOUBOJ-HOSTU.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "sources": [
+        "kufr/backend/Features/Show/DuelStore.cs",
+        "kufr/backend/Features/Show/DuelRules.cs",
+        "kufr/backend/Features/Show/DuelCommentary.cs",
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "DUEL-04",
+      "specification": "specs/06-SOUBOJ-HOSTU.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "sources": [
+        "kufr/backend/Features/Show/DuelStore.cs",
+        "kufr/backend/Features/Show/DuelRules.cs",
+        "kufr/backend/Features/Show/DuelCommentary.cs",
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "DUEL-05",
+      "specification": "specs/06-SOUBOJ-HOSTU.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "sources": [
+        "kufr/backend/Features/Show/DuelStore.cs",
+        "kufr/backend/Features/Show/DuelRules.cs",
+        "kufr/backend/Features/Show/DuelCommentary.cs",
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "DUEL-06",
+      "specification": "specs/06-SOUBOJ-HOSTU.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "sources": [
+        "kufr/backend/Features/Show/DuelStore.cs",
+        "kufr/backend/Features/Show/DuelRules.cs",
+        "kufr/backend/Features/Show/DuelCommentary.cs",
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "DUEL-07",
+      "specification": "specs/06-SOUBOJ-HOSTU.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "sources": [
+        "kufr/backend/Features/Show/DuelStore.cs",
+        "kufr/backend/Features/Show/DuelRules.cs",
+        "kufr/backend/Features/Show/DuelCommentary.cs",
+        "kufr/mobilni-aplikace/src/features/archive/DuelView.vue",
+        "kufr/mobilni-aplikace/src/features/archive/showClient.ts"
+      ],
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs",
+        "kufr/backend-tests/ShowDeviceCueTests.cs",
+        "kufr/firmware/tests/device_show_cues_test.cpp"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "OPS-01",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-02",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-03",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-04",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-05",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-06",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-07",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-08",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OPS-09",
+      "specification": "specs/07-DIRECTOR-MODE-IOS-A-WEB.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/mobilni-aplikace/src/features/director",
+        "kufr/backend/Features/Show/ShowEndpoints.cs",
+        "kufr/backend/Features/Show/ShowArchiveEndpoints.cs"
+      ],
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs",
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/mobilni-aplikace/scripts/check-director-flows.mjs",
+        "kufr/mobilni-aplikace/scripts/check-director-remote-stop.mjs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-01",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-02",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-03",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-04",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-05",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-06",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-07",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "OFF-08",
+      "specification": "specs/08-OFFLINE-SHOW.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "sources": [
+        "kufr/firmware/src/features/offline_show",
+        "kufr/firmware/offline-bank/manifest.json",
+        "kufr/backend/Features/Show/OfflineOutcomes.cs"
+      ],
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": [
+        "real_provider",
+        "native_ios",
+        "physical_acceptance"
+      ]
+    },
+    {
+      "id": "QA-01",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-02",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-03",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-04",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-05",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-06",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-07",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-08",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-09",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    },
+    {
+      "id": "QA-10",
+      "specification": "specs/09-INTEGRACE-TESTY-A-PREDANI.md",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "sources": [
+        "kufr/docs/show-pack.md",
+        "docs/project/work-items/SHOW-PACK-INTEGRATION.json",
+        ".agents/skills"
+      ],
+      "checks": [
+        "scripts/project_status.py",
+        "scripts/check_design_system.py"
+      ],
+      "state": "implemented_software_verified",
+      "externalGates": []
+    }
+  ],
+  "acceptanceScenarios": [
+    {
+      "id": "E2E-01",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "checks": [
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/ChronicleTests.cs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-02",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-03",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-04",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-05",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-06",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/firmware/tests/physical_effects_test.cpp"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-07",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-08",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-09",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-10",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-11",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/firmware/tests/physical_effects_test.cpp"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-12",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/device_control_runtime_test.cpp",
+        "kufr/firmware/tests/physical_effects_test.cpp"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-13",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-14",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-15",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-16",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "authorized_real_provider_pilot"
+      ]
+    },
+    {
+      "id": "E2E-17",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "authorized_real_provider_pilot"
+      ]
+    },
+    {
+      "id": "E2E-18",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "authorized_real_provider_pilot"
+      ]
+    },
+    {
+      "id": "E2E-19",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-20",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-21",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-22",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "checks": [
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/ChronicleTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-23",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "checks": [
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/ChronicleTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-24",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "MEMORY",
+      "checks": [
+        "kufr/backend-tests/CommonShowLifecycleTests.cs",
+        "kufr/backend-tests/ChronicleTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-25",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-26",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DIRECTOR",
+      "checks": [
+        "kufr/backend-tests/ShowDirectorTests.cs",
+        "kufr/backend-tests/AutonomousLiveTests.cs",
+        "kufr/backend-tests/CharacterOperationTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-27",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-28",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-29",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-30",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-31",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-32",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OFFLINE",
+      "checks": [
+        "kufr/firmware/tests/offline_show_test.cpp",
+        "kufr/firmware/tests/test_offline_bank.py",
+        "kufr/backend-tests/OfflineOutcomeTests.cs"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-33",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    },
+    {
+      "id": "E2E-34",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "IDENTITY",
+      "checks": [
+        "kufr/backend-tests/WizardIdentityTests.cs",
+        "kufr/backend-tests/KeepsakeCoreTests.cs",
+        "kufr/mobilni-aplikace/scripts/archive-show.browser.mjs",
+        "kufr/mobilni-aplikace/src/features/archive/show.spec.ts"
+      ],
+      "state": "software_path_verified",
+      "externalGates": []
+    },
+    {
+      "id": "E2E-35",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "DUEL",
+      "checks": [
+        "kufr/backend-tests/DuelTests.cs",
+        "kufr/backend-tests/DuelCommentaryTests.cs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "authorized_real_provider_pilot"
+      ]
+    },
+    {
+      "id": "E2E-36",
+      "workItem": "SHOW-PACK-INTEGRATION",
+      "criterion": "OPERATOR",
+      "checks": [
+        "kufr/mobilni-aplikace/scripts/check-director-browser.mjs"
+      ],
+      "state": "software_path_verified_external_gate_open",
+      "externalGates": [
+        "actual_audio_or_device_acceptance"
+      ]
+    }
+  ],
+  "externalAcceptanceWorkItem": "SHOW-PACK-OPERATIONS"
+}

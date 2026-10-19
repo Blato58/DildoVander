@@ -28,7 +28,16 @@
     { "$ref": "#/$defs/selectionResult" },
     { "$ref": "#/$defs/stateSnapshot" },
     { "$ref": "#/$defs/safetyStop" },
-    { "$ref": "#/$defs/safetyReset" }
+    { "$ref": "#/$defs/safetyReset" },
+    {"$ref": "#/$defs/offlinepreflight"},
+    {"$ref": "#/$defs/quiet"},
+    {"$ref": "#/$defs/offlineoutbox"},
+    {"$ref": "#/$defs/offlinearm"},
+    {"$ref": "#/$defs/offlinestart"},
+    {"$ref": "#/$defs/offlinesyncack"},
+    {"$ref": "#/$defs/offlineack"},
+    {"$ref": "#/$defs/offlineoutboxreply"},
+    {"$ref": "#/$defs/offlineambient"}
   ],
   "$defs": {
     "danceStart": {
@@ -764,6 +773,500 @@
         "bootId": { "$ref": "#/$defs/uuid" },
         "controlLeaseId": { "$ref": "#/$defs/uuid" },
         "inspectionConfirmed": { "const": true }
+      }
+    },
+    "offlinepreflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "type"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "type": {
+          "const": "offline_preflight"
+        }
+      }
+    },
+    "quiet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "type",
+        "enabled"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "type": {
+          "const": "quiet"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "offlineoutbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "type"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "type": {
+          "const": "offline_outbox"
+        }
+      }
+    },
+    "offlinearm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "type",
+        "controlLeaseId",
+        "generation",
+        "expectedRevision"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "type": {
+          "const": "offline_arm"
+        },
+        "controlLeaseId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "generation": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/safeInteger"
+        }
+      }
+    },
+    "offlinestart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "type",
+        "generation",
+        "expectedRevision",
+        "compartment",
+        "shortVariant"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "type": {
+          "const": "offline_start"
+        },
+        "generation": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "compartment": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "shortVariant": {
+          "type": "boolean"
+        }
+      }
+    },
+    "offlinesyncack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "type",
+        "commandId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "type": {
+          "const": "offline_sync_ack"
+        },
+        "commandId": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    },
+    "offlineStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "armed",
+        "quiet",
+        "generation",
+        "readyMask",
+        "outboxCount",
+        "catalogVersion",
+        "bankVersion",
+        "audioBytes",
+        "audioCapacityBytes",
+        "streamWorkingBytes",
+        "missing",
+        "ambientEnabled",
+        "bankVoice",
+        "voiceCompatible"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "ready",
+            "audio_only",
+            "missing_assets",
+            "incompatible_catalog",
+            "calibration_required",
+            "recovery_required"
+          ]
+        },
+        "armed": {
+          "type": "boolean"
+        },
+        "quiet": {
+          "type": "boolean"
+        },
+        "generation": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "readyMask": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63
+        },
+        "outboxCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "catalogVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "bankVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "audioBytes": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "audioCapacityBytes": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "streamWorkingBytes": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "missing": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "ambientEnabled": {
+          "type": "boolean"
+        },
+        "bankVoice": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "voiceCompatible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "offlineOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "deviceId",
+        "bootId",
+        "generation",
+        "localEveningId",
+        "eveningId",
+        "sourceMode",
+        "compartment",
+        "catalogVersion",
+        "startedAtDeviceMs",
+        "completedAtDeviceMs",
+        "timeConfidence",
+        "outcome"
+      ],
+      "properties": {
+        "operationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "generation": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "localEveningId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "eveningId": {
+          "type": "null"
+        },
+        "sourceMode": {
+          "enum": [
+            "offline_scripted",
+            "operator"
+          ]
+        },
+        "compartment": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "catalogVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "startedAtDeviceMs": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "completedAtDeviceMs": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "timeConfidence": {
+          "const": "boot_monotonic"
+        },
+        "outcome": {
+          "const": "completed_by_timing"
+        }
+      }
+    },
+    "offlineack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "bootId",
+        "requestMessageId",
+        "accepted",
+        "errorCode",
+        "offline"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "offline.ack"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "requestMessageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          ]
+        },
+        "offline": {
+          "$ref": "#/$defs/offlineStatus"
+        }
+      }
+    },
+    "offlineambient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "messageId",
+        "deviceId",
+        "bootId",
+        "type",
+        "enabled"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "messageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/deviceId"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "type": {
+          "const": "offline_ambient"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "offlineoutboxreply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "bootId",
+        "requestMessageId",
+        "accepted",
+        "errorCode",
+        "offline",
+        "records"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "offline.outbox"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "requestMessageId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          ]
+        },
+        "offline": {
+          "$ref": "#/$defs/offlineStatus"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/offlineOutcome"
+          }
+        }
       }
     }
   }

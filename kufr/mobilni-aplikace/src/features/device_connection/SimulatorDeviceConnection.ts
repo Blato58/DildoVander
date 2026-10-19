@@ -56,9 +56,75 @@ export interface ProtocolConnectionOptions {
   autoConnect?: boolean;
 }
 
+export type OfflineCommandKind = 'offline_preflight' | 'offline_arm' | 'offline_start' | 'quiet'
+  | 'offline_ambient' | 'offline_outbox' | 'offline_sync_ack';
+export interface OfflineCommandOptions { enabled?: boolean; shortVariant?: boolean }
+export interface OfflineShowStatus {
+  state: 'ready' | 'audio_only' | 'missing_assets' | 'incompatible_catalog' | 'calibration_required' | 'recovery_required';
+  armed: boolean; quiet: boolean; generation: number; readyMask: number; outboxCount: number;
+  catalogVersion: string; bankVersion: string; audioBytes: number; audioCapacityBytes: number;
+  streamWorkingBytes: number; missing: string[]; ambientEnabled: boolean; bankVoice: string; voiceCompatible: boolean;
+}
+export interface OfflineOutbox { type: 'offline.outbox'; offline: OfflineShowStatus; records: unknown[] }
+
 // One owner of lease, command retry and uncertain-result reconciliation, shared
 // by the development proxy and the native pinned-TLS transport.
 export class ProtocolDeviceConnection {
+  private offlineStatus: OfflineShowStatus | null = null;
+  private offlinePending: { id: string; kind: OfflineCommandKind; bootId: string; resolve: (value: OfflineShowStatus | OfflineOutbox) => void;
+    reject: (error: Error) => void; timer: number } | null = null;
+
+  private invalidateOffline(message: string): void {
+    this.offlineStatus = null;
+    if (!this.offlinePending) return;
+    window.clearTimeout(this.offlinePending.timer);
+    this.offlinePending.reject(new Error(message));
+    this.offlinePending = null;
+  }
+
+  requestOffline(kind: OfflineCommandKind, compartment?: number, commandId?: string,
+    options: OfflineCommandOptions = {}): Promise<OfflineShowStatus | OfflineOutbox> {
+    if (!['offline_preflight', 'offline_arm', 'offline_start', 'quiet', 'offline_ambient', 'offline_outbox', 'offline_sync_ack'].includes(kind)
+      || this.options.source !== 'native-device' || !this.device || this.state.phase === 'disconnected'
+      || this.offlinePending) return Promise.reject(new Error('Místní autentizovaná cesta není připravená.'));
+    if (kind === 'offline_arm' && (!this.device.controlLeaseId || this.state.controlMode !== 'manual')) {
+      return Promise.reject(new Error('Arm vyžaduje platné ruční řízení; převezměte je v Provozu.'));
+    }
+    if ((kind === 'offline_arm' || kind === 'offline_start') && (!this.offlineStatus || this.offlineStatus.state !== 'ready')) {
+      return Promise.reject(new Error('Nejprve obnovte místní preflight; kufr musí potvrdit připravenost.'));
+    }
+    if (kind === 'offline_start' && (!Number.isInteger(compartment) || compartment! < 1 || compartment! > 6
+      || !this.offlineStatus?.armed || this.state.phase !== 'ready' || this.state.busy)) {
+      return Promise.reject(new Error('Start vyžaduje výslovnou přihrádku 1–6, Arm a klidový stav kufru.'));
+    }
+    if (kind === 'offline_sync_ack' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(commandId ?? '')) {
+      return Promise.reject(new Error('Potvrzení synchronizace vyžaduje přesné ID importovaného výsledku.'));
+    }
+    const messageId = crypto.randomUUID();
+    const message: Record<string, unknown> = { type: kind, messageId,
+      deviceId: this.device.deviceId, bootId: this.device.bootId };
+    if (kind === 'offline_arm' || kind === 'offline_start') Object.assign(message, {
+      generation: this.offlineStatus!.generation, expectedRevision: this.device.revision,
+      ...(kind === 'offline_arm' ? { controlLeaseId: this.device.controlLeaseId }
+        : { compartment, shortVariant: options.shortVariant === true }),
+    });
+    if (kind === 'quiet' || kind === 'offline_ambient') {
+      if (typeof options.enabled !== 'boolean') return Promise.reject(new Error('Zadejte výslovné zapnutí nebo vypnutí.'));
+      message.enabled = options.enabled;
+    }
+    if (kind === 'offline_sync_ack') message.commandId = commandId;
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        this.offlinePending = null; this.offlineStatus = null;
+        reject(new Error('Výsledek místního povelu není známý. Obnovte preflight; povel se neopakuje.'));
+      }, 4000);
+      this.offlinePending = { id: messageId, kind, bootId: this.device!.bootId, resolve, reject, timer };
+      if (!this.send(message)) {
+        window.clearTimeout(timer); this.offlinePending = null;
+        reject(new Error('Místní spojení není dostupné. Použijte fyzické zastavení kufru.'));
+      }
+    });
+  }
   private static readonly nativeFailures: Record<string, string> = {
     invalid_identity: 'Uložené párování není platné.',
     certificate_mismatch: 'Kufr má jiný bezpečnostní klíč než uložené párování. Ověřte zařízení a servisní párování.',
@@ -180,6 +246,7 @@ export class ProtocolDeviceConnection {
     });
     socket.addEventListener('close', (event) => {
       if (this.socket === socket) {
+        this.invalidateOffline('Místní spojení se přerušilo. Výsledek povelu není známý; povel se neopakuje.');
         this.rememberUnresolvedCommand();
         this.socket = null;
         this.device = null;
@@ -297,6 +364,7 @@ export class ProtocolDeviceConnection {
   }
 
   suspend(): void {
+    this.invalidateOffline('Místní cesta byla přerušena. Výsledek není známý a povel se neopakuje.');
     this.conversation.invalidate();
     this.suspended = true;
     this.pendingCommand = null;
@@ -318,6 +386,7 @@ export class ProtocolDeviceConnection {
   }
 
   stop(): void {
+    this.invalidateOffline('Stop zneplatnil čekající místní povel. Obnovte preflight.');
     if (!this.device) {
       return;
     }
@@ -411,12 +480,31 @@ export class ProtocolDeviceConnection {
         return;
       }
       const acquisitionCompleted = this.acquirePending && candidate.controlMode === 'manual';
+      if (this.device?.bootId !== candidate.bootId) {
+        this.invalidateOffline('Kufr se restartoval. Obnovte místní preflight.');
+        this.offlineStatus = null;
+      }
       this.applySnapshot(candidate);
       if (this.stableSince === null) { this.stableSince = performance.now(); }
       // A single welcome followed by another immediate close is not recovery.
       if (performance.now() - this.stableSince >= 5000) { this.reconnectAttempt = 0; }
       if (message.type === 'welcome' || acquisitionCompleted) {
         this.clearRequestTimeout();
+      }
+    } else if (message.type === 'offline.ack' || message.type === 'offline.outbox') {
+      const pending = this.offlinePending;
+      if (!pending || pending.id !== message.requestMessageId || pending.bootId !== message.bootId
+        || message.type !== (pending.kind === 'offline_outbox' ? 'offline.outbox' : 'offline.ack')) return;
+      const offline = message.offline as OfflineShowStatus | undefined;
+      if (typeof message.accepted !== 'boolean' || !offline || !Number.isSafeInteger(offline.generation)
+        || offline.generation < 0 || typeof offline.armed !== 'boolean' || typeof offline.state !== 'string') return;
+      window.clearTimeout(pending.timer); this.offlinePending = null;
+      if (message.accepted === false) {
+        this.offlineStatus = null;
+        pending.reject(new Error(`Kufr odmítl povel: ${String(message.errorCode)}.`));
+      } else {
+        this.offlineStatus = { ...offline };
+        pending.resolve(message.type === 'offline.outbox' ? message as unknown as OfflineOutbox : offline);
       }
     } else if (message.type === 'voice.ack') {
       this.voice.receive(message);

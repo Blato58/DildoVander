@@ -16,11 +16,12 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 | Area | Actual checks and boundary |
 | --- | --- |
-| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 91 Node regressions and 160 Vue tests across 27 files passed. The standalone build checked contracts, Vue types and 173 Vite modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
+| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 121 Node regressions and 193 Vue tests across 29 files passed (314 total). The standalone build checked contracts, Vue types and shared lazy feature modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
+| Show Pack Vue | `node tests/director.browser.mjs` and `node scripts/archive-show.browser.mjs`: compiled Director two-operator conflict, scoped grants, urgent/lost Stop, route navigation, guest wizard identity/private prophecy, scoped duel moves, chronicle zero/tie/withdrawn and authorized event selection; actual partial PNG bytes, keyboard and 1440/390 px layouts. All APIs in these suites are synthetic. |
 | Rendered application | `npm run test:browser`: shared navigation, direct reload, legacy destinations, unknown routes, early private claim capture, explicit demo, focus across heartbeats, stale confirmation, Stop, theme, keyboard, 1440/390/320 px layouts and 200% text. The shell measures the bottom navigation so enlarged labels do not conceal the end of the page. |
 | Accounts | `npm run test:accounts:fixture`: actual HTTPS backend, controlled private owner delivery, Chrome virtual WebAuthn authenticator, real passkey verifier and naming, invitation/replay denial, Viewer authorization, logout and safe return. A held real logout response proves that a new sign-in waits for its cookie update. Fixture configuration excludes providers; its normal shutdown removes its private temporary database and keys. |
-| Backend | Build with zero warnings/errors; default regression and `--identity`, `--keepsake`, `--model-releases`, `--twin`, `--twin-media`. Tests cover real P256 WebAuthn, roles/grants/CSRF/origins, concurrency, recovery, last-owner/key rules, migration/backup restoration, private archive tickets/assets and revocation. |
-| Portable firmware integration | `python kufr/simulator/native/build_host.py --output …` built the genuine portable C++ twin with MSVC. `--twin-media` used this executable for framing, cancellation, backpressure, input ownership and software drain. No ESP32 was connected or flashed. |
+| Backend | Build with zero warnings/errors; current default regression and `--identity`, `--show`, `--show-live-boundary`, `--twin`, `--twin-media`; archive/model suites also passed before the Show integration. Tests cover real P256 WebAuthn, roles/grants/CSRF/origins, concurrency, recovery, last-owner/key rules, migration/backup restoration, private archive tickets/assets and revocation. |
+| Portable firmware integration | `python -B kufr/firmware/tests/run_show_tests.py` passed 20 offline checks and 55 actual firmware serialized messages; offline bank tests passed 3/3. `python kufr/simulator/native/build_host.py --output …` rebuilt the genuine portable C++ twin with MSVC; host 18/18 and media 21/21 passed. `--twin-media` used this executable for framing, cancellation, backpressure, input ownership and software drain. No ESP32 was connected or flashed. |
 | Workshop offline | `node tests/workshop-offline.browser.mjs` opened the maintained bundled viewer through `file://` with networking disabled: desktop/mobile, selection, camera, assembly, visibility, source-semantic overlays and cable motion; zero network requests and page errors. Models were explicitly synthetic. |
 | Workshop media | `node tests/workshop-media.browser.mjs` against compiled production `dist` and its strict CSP: same-origin hashed capture worklet, fake browser devices and isolated API responses, two PCM frames, one accepted photo, software drain, zero CSP violations/external requests/page errors. Packaged Capacitor URL-policy cases are separate assertions. This is not WKWebView, acoustic or provider evidence. |
 | Model and release integrity | Shared browser/.NET rejection corpus, stdlib model export/certification tests, scoped source policy and validation refresh, bounded ZIP binding, immutable storage, idempotent publication and failed-publication protection. No mechanical calculations were substituted with fixtures. |
@@ -30,6 +31,24 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 The browser suites block external traffic. Paid providers, real actuator
 execution and manufacturing publication were not part of these checks.
+The integration also preserves accepted Show Pack main revision
+`838ac64983bb7eb8a989d5026fbda542a9370e4d`. Its Director, wizard identity,
+private prophecy, duel and chronicle use the shared Vue application. Account
+Show authorization checks exact device grants and route aliases; firmware cue
+polling and physical outcome reports retain device authority. An operator relay
+is labelled separately. Routine Stop has reserved native request capacity;
+ordinary offline actions reject a selected-cloud/local-device mismatch.
+Chronicle administration lists authorized devices and existing evenings, accepts
+opaque historical evening IDs, and rejects a mismatched response. Public duel
+choices use only the scoped player grant. Linked accounts receive public wizard
+identities and do not acquire private prophecy access.
+
+Production browser verification exposed a Windows line-ending error in early
+capability capture: the raw CRLF inline script hash differed from the browser's
+HTML-normalized LF hash. The Vite CSP hook now hashes parser-normalized text;
+LF, CRLF and CR regressions preserve the strict policy. Compiled browser checks
+cover the actual early grant capture and reject CSP violations.
+
 The final integration preserves main revision
 `09a7cb32c7148b812ebbcd1326d3e16ba8d4ba9a`: the canonical GPT Live and
 Realtime engines, persistent native audio WebSockets and scoped conversation
@@ -78,10 +97,9 @@ including non-`.json` assets. They do not execute Foundation TLS/delegate behavi
 ## Unverified boundaries
 
 - Windows cannot run Xcode or the Swift harnesses. The macOS job in PR run
-  `39196137977` passed native transport, Debug, BLE policy, Identity and the
-  unsigned iOS Simulator build. `KUFR-APPLICATION-native-v1` records that software
-  result separately for the earlier source; the merged native changes require
-  a fresh macOS run. Signed-device acceptance remains inconclusive.
+  `39202887317` passed native transport, Debug, BLE policy, Identity and the
+  unsigned iOS Simulator build for source-v7. `KUFR-APPLICATION-native-v2` records
+  that result; the new Show integration requires a fresh macOS run. Signed-device acceptance remains inconclusive.
 - Actual passkey associated domains, signing, Keychain upgrade/resume behavior,
   physical BLE possession, LAN reachability, iPhone audio/camera and real hardware
   remain device acceptance steps. Browser and portable C++ tests do not prove them.

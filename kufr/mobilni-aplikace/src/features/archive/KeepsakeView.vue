@@ -10,6 +10,9 @@ import { useArchiveMedia, type ArchiveMediaClient } from './useArchiveMedia';
 import { AccountArchiveClient } from './accountArchive';
 import ArchiveDialog from './ArchiveDialog.vue';
 import ArchiveDownload from './ArchiveDownload.vue';
+import WizardIdentity from './WizardIdentity.vue';
+import PrivateProphecy from './PrivateProphecy.vue';
+import { publicIdentity, ownerProphecy } from './showContracts';
 import './archive.css';
 const route = useRoute(); const router = useRouter();
 const client = createArchiveClient();
@@ -43,6 +46,8 @@ const canReadPortrait = computed(() => owner.value || accountRead.value && recor
 const edition = computed(() => record.value?.sharedEditionId ? record.value.editions.find(item => item.id === record.value?.sharedEditionId) : record.value?.editions.filter(item => item.publicationState !== 'private_history').at(-1));
 const portrait = computed(() => record.value?.portraits.filter(item => isUuid(item.assetId) && item.editionId === edition.value?.id && record.value?.assets.some(asset => asset.id === item.assetId && asset.kind === 'portrait_image')).at(-1));
 const paragraphs = computed(() => edition.value?.story?.text.split(/\n\s*\n/) ?? []);
+const identity = computed(() => record.value?.wizardIdentities?.find(item => item.editionId === edition.value?.id));
+const prophecy = computed(() => owner.value ? record.value?.prophecies?.find(item => item.editionId === edition.value?.id) : undefined);
 const baseJob = computed(() => record.value?.jobs.filter(job => job.kind === 'base').at(-1));
 const portraitJob = computed(() => record.value?.jobs.filter(job => job.kind === 'portrait').at(-1));
 const pending = (state?: string) => !!state && !['completed', 'ready', 'failed', 'cancelled', 'archived_private'].includes(state);
@@ -71,12 +76,15 @@ async function load() {
     if (accountRead.value && (view.accountLinked !== true || view.readOnly !== true)) throw new GuestError(503);
     const oldArt = edition.value?.artworkAssetId;
     const oldPortrait = portrait.value?.assetId;
+    view.wizardIdentities = (view.wizardIdentities ?? []).map(publicIdentity).filter(item => item !== null);
+    view.prophecies = !accountRead.value && shareEdition.value === undefined && view.readOnly !== true
+      ? (view.prophecies ?? []).map(ownerProphecy).filter(item => item !== null) : [];
     record.value = view;
     if (oldArt !== edition.value?.artworkAssetId || !media.artworkUrl.value) await media.artwork(edition.value?.artworkAssetId ? assetPath(edition.value.artworkAssetId) : undefined);
     check(); if (sequence !== loadSequence) return;
     if (oldPortrait !== portrait.value?.assetId || !portraitMedia.artworkUrl.value) await portraitMedia.artwork(portrait.value?.assetId ? assetPath(portrait.value.assetId) : undefined);
     check(); if (sequence !== loadSequence) return;
-    if (view.jobs.some(job => pending(job.state))) timer = setTimeout(() => load(), 5000);
+    if (view.jobs.some(job => pending(job.state)) || view.prophecies.some(item => item.state === 'locked')) timer = setTimeout(() => load(), 5000);
   } catch (error) { if (sequence === loadSequence) report(error); }
 }
 async function action(work: (check: () => void) => Promise<void>) {
@@ -122,7 +130,14 @@ function canExport(format: string) {
   if (format === 'art') return !!edition.value.artworkAssetId;
   if (format === 'portrait') return canReadPortrait.value && !!portrait.value;
   if (readOnly.value) return record.value?.assets.some(asset => asset.editionId === edition.value?.id && asset.kind === `export_${format}`);
-  return format !== 'card' || !!edition.value.story && !!edition.value.artworkAssetId;
+  return format !== 'card' || !!edition.value.story && (!!edition.value.artworkAssetId || !!identity.value);
+}
+async function createIdentity() {
+  await action(async check => {
+    if (!owner.value || !edition.value || identity.value) return;
+    await client.mutate(path('/wizard-identity'), { data: { editionId: edition.value.id } }); check();
+    await load(); check();
+  });
 }
 async function exportFile(format: string) {
   await action(async check => {
@@ -225,6 +240,12 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
           <label v-if="owner"><input v-model="includePortrait" type="checkbox" :disabled="!portrait || busy">Přidat soukromý portrét do mého ZIP</label>
           <button v-if="owner && pending(baseJob?.state)" class="aw-button aw-button--secondary" :disabled="busy" @click="cancelJob('base')">Zastavit přípravu památky</button>
         </div></div>
+      <WizardIdentity :identity="identity" />
+      <button v-if="owner && edition && !identity" class="aw-button aw-button--secondary" :disabled="busy" @click="createIdentity">Vytvořit kouzelnickou identitu této edice</button>
+      <p v-if="owner && edition && !identity" class="archive-caption">Doplní autorskou fikci pro tuto edici bez dalšího AI volání. Obrázek tím nevznikne.</p>
+      <p v-if="identity && !edition?.artworkAssetId" class="archive-muted">Identita je připravená jako text a kartička. Obraz není potvrzený; nic jej nenahrazuje. ZIP a PNG mohou obsahovat pouze dostupné části.</p>
+      <PrivateProphecy v-if="owner" :prophecy="prophecy" />
+      <p v-if="accountRead" class="archive-muted">Soukromé proroctví je dostupné jen vlastníkovi přes jeho návštěvnický nebo návratový odkaz. Připojení k účtu nepředává toto oprávnění.</p>
       <section class="archive-story"><h2>Příběh jedné nepravděpodobné hůlky</h2><p class="archive-caption">Kouzelnická fikce pro tento večer</p><p v-for="(paragraph, index) in paragraphs" :key="index">{{ paragraph }}</p><p v-if="!paragraphs.length">Archivář ještě píše její průšvihy. Dostupné části památky si můžeš uložit už teď.</p></section>
       <section v-if="accountRead && canReadPortrait && portrait" class="aw-card"><h2>Soukromý kouzelnický portrét</h2><p>Výsledný portrét byl společně s památkou výslovně připojen k tomuto účtu. Zdrojová fotografie není součástí tohoto přístupu.</p><img v-if="portraitMedia.artworkUrl.value" :src="portraitMedia.artworkUrl.value" class="archive-private-preview" alt="Soukromý kouzelnický portrét"><p v-if="portrait.synthetic">SYNTETICKÁ UKÁZKA PORTRÉTU</p><button class="aw-button aw-button--secondary" :disabled="!canExport('portrait')" @click="exportFile('portrait')">Uložit portrét</button></section>
       <section v-if="owner" class="aw-card" aria-labelledby="portrait-title"><h2 id="portrait-title">Soukromý kouzelnický portrét</h2><p>Výběr fotografie vytvoří jen místní náhled. Teprve tlačítko a aktuální souhlas ji odešlou ke zpracování OpenAI. Veřejné sdílení portrét neobsahuje.</p>

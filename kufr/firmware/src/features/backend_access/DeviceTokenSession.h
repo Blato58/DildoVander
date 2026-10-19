@@ -19,6 +19,8 @@ class DeviceTokenSession final {
   bool HasToken(uint64_t nowMs) const;
   const char* AccessToken(uint64_t nowMs) const;
   bool IsRevoked() const;
+  // Read only by this session's existing network owner before publishing a copy.
+  uint64_t AccessTokenExpiresAtMs() const { return expiresAtMs_; }
 
  private:
   bool RequestToken(uint64_t nowMs, bool afterUnauthorized);

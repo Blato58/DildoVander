@@ -6,7 +6,7 @@ const harness = vi.hoisted(() => ({
   saved: vi.fn(), forget: vi.fn(), pair: vi.fn(), setAddress: vi.fn(), discover: vi.fn(),
   refreshBle: vi.fn(), stopDebug: vi.fn(), forgetProfile: vi.fn(), disconnectBench: vi.fn(),
   adapters: [] as Array<{ connect: ReturnType<typeof vi.fn>; acquire: ReturnType<typeof vi.fn>;
-    release: ReturnType<typeof vi.fn>; suspend: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; uncertain: string;
+    requestOffline: ReturnType<typeof vi.fn>; release: ReturnType<typeof vi.fn>; suspend: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; uncertain: string;
     publish: (value: DeviceSnapshot) => void }>,
 }));
 vi.mock('@capacitor/core', () => ({
@@ -17,7 +17,7 @@ vi.mock('@capacitor/core', () => ({
 vi.mock('../device_connection/NativeDeviceConnection', () => ({
   nativeBridge: { savedDevice: harness.saved, forget: harness.forget, pair: harness.pair, setAddress: harness.setAddress, discover: harness.discover },
   NativeDeviceConnection: class {
-    connect = vi.fn(); acquire = vi.fn(); release = vi.fn(); suspend = vi.fn(); stop = vi.fn(); uncertain = 'selection-in-flight';
+    connect = vi.fn(); acquire = vi.fn(); release = vi.fn(); suspend = vi.fn(); stop = vi.fn(); requestOffline = vi.fn(); uncertain = 'selection-in-flight';
     constructor(public publish: (value: DeviceSnapshot) => void) { harness.adapters.push(this); }
   },
 }));
@@ -104,4 +104,21 @@ describe('explicit device connection boundary', () => {
     adapter.publish({ ...state, phase: 'stopped', status: 'Stopped by device' });
     expect(session.stopPending.value).toBe(false); expect(session.message.value).toBe('Stopped by device');
   });
+  it('offline Show requires a live native snapshot and fences late receipts after disconnect', async () => {
+    await expect(session.requestOffline('offline_preflight')).rejects.toThrow('skutečný kufr');
+    await session.connectSaved(); const adapter = harness.adapters[0];
+    await expect(session.requestOffline('offline_preflight')).rejects.toThrow('skutečný kufr');
+    expect(adapter.requestOffline).not.toHaveBeenCalled();
+    adapter.publish({ source: 'native-device', phase: 'ready', controlMode: 'manual', readyMask: 63,
+      activeCompartment: null, busy: false, status: 'native fixture' });
+    adapter.requestOffline.mockResolvedValueOnce({ state: 'missing_assets', generation: 2 });
+    await expect(session.requestOffline('offline_preflight')).resolves.toEqual({ state: 'missing_assets', generation: 2 });
+    expect(adapter.acquire).not.toHaveBeenCalled();
+    const deferredReceipt = deferred<unknown>(); adapter.requestOffline.mockReturnValueOnce(deferredReceipt.promise);
+    const pending = session.requestOffline('offline_arm');
+    const rejection = expect(pending).rejects.toThrow('původnímu spojení');
+    session.disconnect(); deferredReceipt.resolve({ state: 'ready', armed: true }); await rejection;
+    expect(adapter.requestOffline).toHaveBeenCalledTimes(2);
+  });
+
 });

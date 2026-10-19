@@ -38,6 +38,17 @@ internal sealed class WandDecisionService : IDisposable
     internal bool Available => fixture is not null || http is not null;
     internal long Reservation(WandDecisionInput input) => WandDecisionBudget.Reservation(input, Model);
 
+    internal static WandDecisionResult OperatorOverride(WandDecisionInput input, int compartment)
+    {
+        if (compartment is < 1 or > 6 || input.Revision < 0 || input.AvailabilityRevision < 0
+            || (input.ReadyMask & (1 << (compartment - 1))) == 0
+            || input.ExcludeCompartment == compartment)
+        { return new(WandDecisionStatus.Stale, null, [], "Zvolená hůlka není dostupná.", input.Revision, input.AvailabilityRevision); }
+        // Explicit operator provenance does not invent a host quote or AI decision.
+        return new(WandDecisionStatus.ValidProposal, compartment, [], "Výběr obsluhy; zařízení musí znovu ověřit snapshot.",
+            input.Revision, input.AvailabilityRevision, OperationState: "operator_proposal_only");
+    }
+
     internal async Task<WandDecisionResult> DecideAsync(WandDecisionInput input, CancellationToken token)
     {
         if (input.ReadyMask is < 0 or > 63 || input.Evidence.Count > 64 || input.AvailabilityRevision < 0)

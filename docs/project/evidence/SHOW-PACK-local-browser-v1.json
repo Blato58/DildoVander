@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "SHOW-PACK-local-browser-v1",
+  "observedAtUtc": "2026-10-19T03:54:30.636382+00:00",
+  "kind": "browser",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "DUEL",
+      "criterionRevision": 1,
+      "result": "pass"
+    },
+    {
+      "workItemId": "SHOW-PACK",
+      "criterionId": "OPERATOR",
+      "criterionRevision": 1,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "artifactDigest": "38b1b327b78cfb1667649857a7bb0066c8fcb88d5f6dcfac4c0ab7990bfbab33",
+    "policyVersion": "show-pack-2026.10.19.1"
+  },
+  "method": "Existing Playwright/Edge repeatable harnesses with real local backend; explicit synthetic HTTPS transport.",
+  "environment": "Windows x64, pinned .NET10.0.303, Python3.14, MSVC19.51, PlatformIO7.1.3 ESP-IDF6.1, Node/Vite8.3.4 and installed Edge.",
+  "limitations": [
+    "Deterministic/fake fixtures only; no paid provider, signed iPhone, deployed service or physical/audio acceptance.",
+    "Approved offline recordings remain missing_assets24/0bytes; separate SHOW-PACK-OPERATIONS gates."
+  ],
+  "observation": "Actual source rendered in Edge/Playwright with isolated real fake-mode backend. Director1280x900/390x844/320x740/844x390; real grants/revoke,3 guest rounds/result, prophecy, end, chronicle1280/390/320. Priority Stop bypassed held request; late response ignored; lost response unknown/no replay. No overflow/page exceptions. Owner/public identity browser fixtures also passed in implementation scope; no real provider/photo claim.",
+  "artifactRefs": [
+    "docs/project/artifacts/SHOW-PACK-source-v1.json",
+    "docs/project/artifacts/SHOW-PACK-validation-v1.json",
+    "docs/project/artifacts/SHOW-PACK-director-mobile.png",
+    "docs/project/artifacts/SHOW-PACK-chronicle-mobile.png",
+    "docs/project/artifacts/SHOW-PACK-remote-stop-mobile.png"
+  ]
+}

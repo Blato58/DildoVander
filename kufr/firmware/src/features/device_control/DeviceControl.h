@@ -107,6 +107,7 @@ class DeviceControl {
   bool AcquireManualControl(const std::string& leaseId, uint64_t nowMs);
   bool RenewManualLease(const std::string& leaseId, uint64_t nowMs);
   bool DisconnectManualControl(SelectionStep& step);
+  bool ReleaseIdleManualControl(const std::string& leaseId, uint64_t nowMs);
 
   CommandReceipt AcceptSelection(const SelectionCommand& command,
                                  bool authenticated, uint64_t nowMs);
@@ -133,6 +134,10 @@ class DeviceControl {
   bool OwnsManualLease(const std::string& leaseId) const;
   bool OwnsLiveManualLease(const std::string& leaseId, uint64_t nowMs) const;
   bool HasAutonomousPresentation() const;
+  bool CanRecordOperation() const { return journal_.CanBeginOperation(); }
+  bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
+    return journal_.WasTimedPresentationCompleted(id, slot);
+  }
   CommandJournal::Lookup FindOperation(const std::string& id, uint8_t slot,
                                       uint64_t fingerprint) const { return journal_.Find(id, slot, fingerprint); }
 

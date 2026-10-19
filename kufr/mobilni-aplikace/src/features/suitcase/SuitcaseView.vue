@@ -52,6 +52,7 @@ function submit(): void { if (fixtureText.value && text.value.trim() && device.s
     <header class="feature-heading"><p class="aw-eyebrow">Provoz</p><h1>Kufr</h1>
       <p>Hlas, tanec a ruční ovládání podle potvrzeného stavu kufru.</p>
       <RouterLink to="/connections" class="aw-button aw-button--secondary">{{ device.connected.value ? 'Spravovat připojení' : 'Připojit kufr' }}</RouterLink>
+      <RouterLink to="/suitcase/director" class="aw-button aw-button--secondary">Režie kufru</RouterLink>
     </header>
     <section v-if="!snapshot" class="aw-card" aria-labelledby="unavailable-title">
       <h2 id="unavailable-title">Kufr není připojený</h2><p>Nejprve vyberte skutečný kufr v Připojení. Pro prohlídku webu je dostupná označená místní ukázka.</p>

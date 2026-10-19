@@ -12,8 +12,23 @@
     <title>DildoVander</title>
     <script>
       // Claims are capabilities. Remove fragments before imports, routing or requests.
-      if (location.pathname.startsWith('/keepsake')) {
-        window.__dildovanderGuestClaim = location.hash.slice(1);
+      const duelEntry = () => ['/keepsake/duel.html', '/archive/duel'].includes(location.pathname.replace(/\/$/, ''));
+      const captureDuel = () => {
+        if (!duelEntry()) return;
+        if (location.hash) {
+          delete window.__dildovanderDuelGrant;
+          const match = location.hash.match(/^#grant=([A-Za-z0-9_-]{43})&side=(left|right)$/);
+          const reversed = location.hash.match(/^#side=(left|right)&grant=([A-Za-z0-9_-]{43})$/);
+          if (match) window.__dildovanderDuelGrant = { token: match[1], side: match[2] };
+          else if (reversed) window.__dildovanderDuelGrant = { token: reversed[2], side: reversed[1] };
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      };
+      captureDuel();
+      window.addEventListener('hashchange', captureDuel);
+      window.addEventListener('pagehide', () => { delete window.__dildovanderDuelGrant; });
+      if (duelEntry() || location.pathname.startsWith('/keepsake')) {
+        if (!duelEntry()) window.__dildovanderGuestClaim = location.hash.slice(1);
         if (location.hash) history.replaceState(null, '', location.pathname + location.search);
         const robots = document.createElement('meta');
         robots.name = 'robots'; robots.content = 'noindex, nofollow, noarchive';

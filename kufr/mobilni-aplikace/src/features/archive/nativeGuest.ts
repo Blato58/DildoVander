@@ -11,13 +11,24 @@ const bridge = registerPlugin<NativeGuestBridge>('KufrIdentity');
 const maximumUpload = 8 * 1024 * 1024;
 const maximumDownload = 32 * 1024 * 1024;
 const uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
-const keepsakePath = new RegExp(`^/guest/v1/keepsakes/${uuidPattern}(?:/(?:history|assets/${uuidPattern}|recovery-links|share-links|revoke-access|portrait-consents|portrait-uploads|portraits|(?:portraits|generation)/${uuidPattern}/cancel|exports|portrait|account-associations))?$`);
+const keepsakePath = new RegExp(`^/guest/v1/keepsakes/${uuidPattern}(?:/(?:history|assets/${uuidPattern}|recovery-links|share-links|revoke-access|portrait-consents|portrait-uploads|portraits|(?:portraits|generation)/${uuidPattern}/cancel|exports|portrait|account-associations|wizard-identity))?$`);
 const publicAsset = new RegExp(`^/guest/v1/evenings/${uuidPattern}/keepsakes/${uuidPattern}/editions/${uuidPattern}/assets/${uuidPattern}$`);
+const ownerHeaders = new Set([
+  'accept',
+  'content-type',
+  'x-dv10-csrf',
+  'idempotency-key',
+  'x-dv10-consent',
+]);
 export function validateGuestRequest(path: string, method: string) {
   if (path.length > 4096 || !['GET', 'POST', 'DELETE'].includes(method)) throw new GuestError(400);
   const parsed = new URL(path, 'https://guest.invalid');
   if (parsed.origin !== 'https://guest.invalid' || parsed.hash || parsed.pathname !== path.split('?')[0]) throw new GuestError(400);
-  if (parsed.pathname === '/guest/v1/evening') {
+  if (parsed.pathname === '/guest/v1/chronicle' || new RegExp(`^/guest/v1/duels/${uuidPattern}$`).test(parsed.pathname)) {
+    if (method !== 'GET' || parsed.search) throw new GuestError(400);
+  } else if (new RegExp(`^/guest/v1/duels/${uuidPattern}/choices$`).test(parsed.pathname)) {
+    if (method !== 'POST' || parsed.search) throw new GuestError(400);
+  } else if (parsed.pathname === '/guest/v1/evening') {
     if (method !== 'GET' || [...parsed.searchParams.keys()].some(key => !['cursor', 'limit'].includes(key))) throw new GuestError(400);
   } else if (publicAsset.test(parsed.pathname)) {
     if (method !== 'GET' || parsed.search) throw new GuestError(400);
@@ -32,7 +43,7 @@ export function validateGuestRequest(path: string, method: string) {
     if (!allowedMethods.includes(method)) throw new GuestError(400);
     if (parsed.search && (method !== 'GET' || parsed.searchParams.get('view') !== 'share'
       || !new RegExp(`^${uuidPattern}$`).test(parsed.searchParams.get('editionId') ?? '')
-      || parsed.searchParams.size !== 2 || [...parsed.searchParams.keys()].some(key => !['view', 'editionId'].includes(key)))) throw new GuestError(400);
+      || [...parsed.searchParams.keys()].length !== 2 || [...parsed.searchParams.keys()].some(key => !['view', 'editionId'].includes(key)))) throw new GuestError(400);
   } else throw new GuestError(400);
   return path;
 }
@@ -54,9 +65,13 @@ export function createNativeGuestTransport(native: NativeGuestBridge): typeof fe
     const check = () => { if (init.signal?.aborted) throw new DOMException('Route changed', 'AbortError'); };
     check();
     const headers: Record<string, string> = {};
+    const duelChoice = new RegExp(`^/guest/v1/duels/${uuidPattern}/choices$`).test(path) && init.method === 'POST';
     new Headers(init.headers).forEach((value, key) => {
       const name = key.toLowerCase();
-      if (!['accept', 'content-type', 'x-dv10-csrf', 'idempotency-key', 'x-dv10-consent'].includes(name)) throw new GuestError(400);
+      if (name === 'authorization') {
+        if (!duelChoice || !/^Bearer [A-Za-z0-9_-]{43}$/.test(value)) throw new GuestError(400);
+      } else if (!ownerHeaders.has(name)) throw new GuestError(400);
+      if (duelChoice && !['accept', 'content-type', 'authorization'].includes(name)) throw new GuestError(400);
       headers[name] = value;
     });
     let bytes: Uint8Array | undefined;
@@ -76,6 +91,9 @@ export function createNativeGuestTransport(native: NativeGuestBridge): typeof fe
   };
 }
 let sessionQueue: Promise<void> = Promise.resolve();
+export function createGuestTransport(): typeof fetch {
+  return Capacitor.isNativePlatform() ? createNativeGuestTransport(bridge) : (input, init) => fetch(input, init);
+}
 export function createArchiveClient() {
   if (!Capacitor.isNativePlatform()) return new ArchiveClient();
   const lock = (action: () => Promise<void>) => { const next = sessionQueue.then(action, action); sessionQueue = next.catch(() => {}); return next; };

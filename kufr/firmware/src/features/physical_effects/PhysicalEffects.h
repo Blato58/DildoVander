@@ -30,6 +30,7 @@ class PhysicalIo {
 
 class PhysicalEffects final {
  public:
+  static constexpr uint32_t VibrationDurationMs = 150;
   explicit PhysicalEffects(PhysicalIo& io) : io_(io) {}
   bool Configure(const std::array<ServoCalibration, 6>& calibration,
                  uint64_t revision);

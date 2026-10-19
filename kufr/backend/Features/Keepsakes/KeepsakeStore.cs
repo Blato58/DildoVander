@@ -1,3 +1,4 @@
+using Kufr.Backend.Features.Conversations;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -16,11 +17,13 @@ internal sealed partial class KeepsakeStore
     private readonly TimeProvider clock;
     private readonly IConfiguration configuration;
     private readonly IDataProtector replayProtector;
+    private readonly EveningMemoryStore? memoryStore;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public KeepsakeStore(IConfiguration configuration, TimeProvider clock, IDataProtectionProvider? protectionProvider = null)
+    public KeepsakeStore(IConfiguration configuration, TimeProvider clock, IDataProtectionProvider? protectionProvider = null, EveningMemoryStore? memoryStore = null)
     {
         this.configuration = configuration;
+        this.memoryStore = memoryStore;
         this.clock = clock;
         var databasePath = configuration["Backend:DatabasePath"]
             ?? throw new InvalidOperationException("Backend:DatabasePath is required.");
@@ -154,7 +157,7 @@ internal sealed partial class KeepsakeStore
     {
         if (string.IsNullOrWhiteSpace(key) || key.Length > 128) { throw new KeepsakeException("invalid_idempotency_key"); }
     }
-    private static string? Replay(SqliteConnection connection, SqliteTransaction transaction,
+    private static string? Replay(SqliteConnection connection, SqliteTransaction? transaction,
         string scope, string key, string body)
     {
         ValidateKey(key);
@@ -170,6 +173,21 @@ internal sealed partial class KeepsakeStore
         "INSERT INTO dv10_idempotency(scope,operation_key,body_hash,result) VALUES($s,$k,$b,$r)",
         ("$s", scope), ("$k", key), ("$b", Hash(body)), ("$r", result));
 
+    internal void RequireOutcomeNotDeleted(string deviceId, string outcomeId)
+    {
+        lock (gate)
+        {
+            using var connection = Open();
+            using var command = Command(connection, null,
+                "SELECT deleted FROM dv10_keepsakes WHERE outcome_key=$outcome",
+                ("$outcome", Hash(deviceId + "\n" + outcomeId)));
+            if (command.ExecuteScalar() is long deleted && deleted != 0)
+            {
+                throw new KeepsakeException("outcome_deleted", 410);
+            }
+        }
+    }
+
     public IssuedKeepsake Issue(KeepsakeIssueSnapshot snapshot)
     {
         if (string.IsNullOrWhiteSpace(snapshot.OutcomeId) || snapshot.OutcomeId.Length > 128
@@ -177,6 +195,7 @@ internal sealed partial class KeepsakeStore
             || snapshot.Slot is < 1 or > 6 || string.IsNullOrWhiteSpace(snapshot.CatalogId)
             || snapshot.CatalogId.Length > 128 || snapshot.OfficialName.Length > 160
             || snapshot.CatalogFacts.Length > 4000 || snapshot.PhysicalEvidence.Length > 1000
+            || (snapshot.SourceConversationId is not null && !Guid.TryParseExact(snapshot.SourceConversationId, "D", out _))
             || (snapshot.EveningId is not null && !Guid.TryParseExact(snapshot.EveningId, "D", out _)))
         {
             throw new KeepsakeException("invalid_outcome_snapshot");
@@ -193,7 +212,8 @@ internal sealed partial class KeepsakeStore
                 var existingId = reader.GetString(0);
                 if (reader.GetInt32(2) != 0) { throw new KeepsakeException("outcome_deleted", 410); }
                 var document = JsonSerializer.Deserialize<Document>(reader.GetString(1), Json)!;
-                if (document.Snapshot != snapshot) { throw new KeepsakeException("outcome_snapshot_conflict", 409); }
+                if ((document.Snapshot with { SourceConversationId = snapshot.SourceConversationId }) != snapshot
+                    || (document.Snapshot.SourceConversationId is not null && document.Snapshot.SourceConversationId != snapshot.SourceConversationId)) { throw new KeepsakeException("outcome_snapshot_conflict", 409); }
                 return new(existingId);
             }
             reader.Close();
@@ -212,12 +232,16 @@ internal sealed partial class KeepsakeStore
     private sealed record Document(KeepsakeIssueSnapshot Snapshot)
     {
         public int Revision { get; set; }
+        public string? ProphecyUnlockReason { get; set; }
         public int ConsentVersion { get; set; }
         public bool PortraitConsent { get; set; }
         public string? ConsentPolicy { get; set; }
         public string? CurrentBaseJob { get; set; }
         public string? CurrentPortraitJob { get; set; }
         public bool NeedsBaseGeneration { get; set; } = true;
+        public HashSet<string> PublishedIdentityEvents { get; init; } = [];
+        public List<WizardIdentity> WizardIdentities { get; init; } = [];
+        public List<StoredProphecy> Prophecies { get; init; } = [];
         public List<KeepsakeEdition> Editions { get; init; } = [];
         public List<KeepsakePortrait> Portraits { get; init; } = [];
         public List<KeepsakeUpload> Uploads { get; init; } = [];

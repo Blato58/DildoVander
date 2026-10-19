@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-review-v8",
+  "observedAtUtc": "2026-10-19T06:10:29.679689+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 3,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 3,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 3,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "10558330559928859746b1cac3456bf7ed1fc71e9774d5f2e8f6a00e9d5a76a1",
+    "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea",
+    "releaseArtifactDigest": "32fb53fea2589f9bc2073025b884462b4cdc855a1fdfc50a326f5040d8191d85",
+    "iosArtifactDigest": "4ee53fbe35aad5f4a76c6d70d4df6885df222a699a241afb0c7d18e4b6a9b540"
+  },
+  "method": "Independent Sol6.1/high read-only combined source/test-source review of Show integration and narrow follow-ups; parent inspected staged combined integration and actual rendered outputs.",
+  "environment": "Windows11; Node24.21.0, Chrome Playwright, .NET10, MSVC portable C++ host; isolated loopback and temporary stores.",
+  "limitations": [
+    "No production deployment, paid provider call, credential rotation, signing, firmware flashing or physical actuator execution.",
+    "Chrome virtual WebAuthn and native bridges are synthetic. Genuine portable C++ software checks do not prove signed iPhone, BLE possession, acoustic output or physical assembly.",
+    "Source-v8 normalizes UTF-8 text to LF, preserves binary bytes and Git modes; compiled artifacts have separate runtime inventory.",
+    "Fresh macOS Swift harnesses and unsigned Simulator build remain required for the Show native changes; previous native-v2 is historical."
+  ],
+  "observation": "No remaining actionable finding. Closed route-alias authorization bypass, firmware cue/report impersonation, urgent Stop capacity, local device mismatch, stale poll/response restoration, opaque event response binding, secure UUID fallback and newline-normalized strict CSP. Reviewer ran no builds/tests/index or mutations; execution belongs to parent and bounded workers.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v8.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v6.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-review-v7"
+  ],
+  "supersedesReason": "Accepted main Show Pack838ac64 is ported into the shared Vue application, requiring new current-source verification and criterion revision3. Earlier receipts retain their dated scope."
+}

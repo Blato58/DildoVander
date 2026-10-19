@@ -47,6 +47,31 @@ void TestConnectionAndLease() {
   assert(!Parse("{" + Common("state.get") + Boot() + Lease() + "}", message));
 }
 
+void TestOfflineEnvelope() {
+  LocalControlMessage message;
+  for (const char* type : {"offline_preflight", "offline_outbox"}) {
+    assert(Parse("{" + Common(type) + Boot() + "}", message));
+    assert(!Parse("{" + Common(type) + Boot() + ",\"generation\":1}", message));
+  }
+  for (const char* type : {"quiet", "offline_ambient"}) {
+    assert(Parse("{" + Common(type) + Boot() + ",\"enabled\":true}", message));
+    assert(message.enabled);
+    assert(Parse("{" + Common(type) + Boot() + ",\"enabled\":false}", message));
+    assert(!message.enabled);
+    assert(!Parse("{" + Common(type) + Boot() + "}", message));
+  }
+  assert(Parse("{" + Common("offline_arm") + Boot() + Lease() +
+      ",\"generation\":4,\"expectedRevision\":9}", message));
+  assert(!Parse("{" + Common("offline_arm") + Boot() +
+      ",\"generation\":4,\"expectedRevision\":9}", message));
+  const std::string start = "{" + Common("offline_start") + Boot() +
+      ",\"generation\":4,\"expectedRevision\":9,\"compartment\":6,\"shortVariant\":true}";
+  assert(Parse(start, message));
+  assert(message.kind == LocalControlMessageKind::OfflineStart && message.shortVariant && message.compartment == 6);
+  assert(!Parse(start.substr(0, start.size() - 1) + ",\"shortVariant\":false}", message));
+  assert(Parse("{" + Common("offline_sync_ack") + Boot() + ",\"commandId\":\"" + Id + "\"}", message));
+}
+
 void TestTextAndHostileJson() {
   LocalControlMessage message;
   assert(Parse(Text("Ahoj, \\u010desky \\ud83e\\ude84"), message));
@@ -115,6 +140,7 @@ int main(int argc, char** argv) {
   assert(dance.kind == LocalControlMessageKind::DanceStop);
   assert(!Parse("{" + common + ",\"type\":\"dance.stop\",\"expectedRevision\":1}", dance));
   TestConnectionAndLease();
+  TestOfflineEnvelope();
   TestTextAndHostileJson();
   TestPhysicalEnvelope();
   // Shared repository fixtures are supplied by the local/CI runner.

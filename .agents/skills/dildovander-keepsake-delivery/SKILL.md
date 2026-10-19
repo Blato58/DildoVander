@@ -5,6 +5,13 @@ description: Prepare or validate DV10 VPS code delivery, private archive configu
 
 # DV10 VPS delivery and recovery
 
+For Show Pack read [the integrated runbook](../../../kufr/docs/show-pack.md).
+Package all new assets via the existing keepsake-only build; regenerate exact
+proxy examples with keepsake_proxy.py. Preserve both existing SQLite files,
+tombstones, pending offline imports and ambiguous AI attempts during recovery.
+Public routes grant neither operator nor duel-side rights. Source changes do
+not authorize production flags, paid commentary/audio, release, signing or flash.
+
 Read [VPS_HANDOFF](../../../kufr/docs/dv10/VPS_HANDOFF.md), the applicable
 AGENTS, and the DV10 work item. Work from the actual repository root. Use the
 existing .NET backend, same-origin guest web and private deploy orchestration;

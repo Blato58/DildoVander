@@ -1,0 +1,195 @@
+Show director deterministic tests passed; no provider/audio/device acceptance claim.
+Operator override revision/expiry/provenance tests passed.
+Device cue mailbox tests passed with fake provider only; hardware playback remains separate evidence.
+Show speech SDK transport tests passed: PCM/voice, bounded content, single dispatch and cancelled-buffer wiping (no network).
+Common online show lifecycle tests passed (synthetic admission/closure race, actual outcome endpoint, no paid calls).
+Canonical memory/show deletion HTTP tests passed (conversation/guest/evening, archived editions, lore, late outcomes).
+Chronicle tests passed.
+Offline outcome import tests passed (isolated SQLite; no device or provider).
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://127.0.0.1:59571
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\vojtech.petrik\.codex\worktrees\8a22\DildoVander\kufr
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 POST http://127.0.0.1:59571/v1/show/devices/device-a/duels - application/json;+charset=utf-8 -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: POST /v1/show/devices/{deviceId}/duels/'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 401.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: POST /v1/show/devices/{deviceId}/duels/'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 POST http://127.0.0.1:59571/v1/show/devices/device-a/duels - 401 - application/json;+charset=utf-8 39.3972ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 POST http://127.0.0.1:59571/v1/show/devices/device-a/duels - application/json;+charset=utf-8 -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: POST /v1/show/devices/{deviceId}/duels/'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type 'DuelView' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: POST /v1/show/devices/{deviceId}/duels/'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 POST http://127.0.0.1:59571/v1/show/devices/device-a/duels - 200 - application/json;+charset=utf-8 15.7610ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:59571/v1/show/devices/device-b/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /v1/show/devices/{deviceId}/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 404.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /v1/show/devices/{deviceId}/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:59571/v1/show/devices/device-b/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - 404 - application/json;+charset=utf-8 0.9784ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://127.0.0.1:59571/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 404.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://127.0.0.1:59571/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - 404 - application/json;+charset=utf-8 4.2573ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type 'DuelView' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET https://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - 200 - application/json;+charset=utf-8 1.2275ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 POST http://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee/choices - application/json;+charset=utf-8 -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: POST /guest/v1/duels/{id:guid}/choices'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 403.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: POST /guest/v1/duels/{id:guid}/choices'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 POST https://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee/choices - 403 - application/json;+charset=utf-8 1.1648ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 POST http://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee/choices - application/json;+charset=utf-8 -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: POST /guest/v1/duels/{id:guid}/choices'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 403.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: POST /guest/v1/duels/{id:guid}/choices'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 POST https://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee/choices - 403 - application/json;+charset=utf-8 1.6193ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 404.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET https://duel.test/guest/v1/duels/290239b4-788f-462b-88e2-5a95dc1f1fee - 404 - application/json;+charset=utf-8 0.7422ms
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://127.0.0.1:59573
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\vojtech.petrik\.codex\worktrees\8a22\DildoVander\kufr
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://duel.test/guest/v1/duels/70b069ee-723f-4895-bdc9-b0a6c6d1f9e0 - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type 'DuelView' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET https://duel.test/guest/v1/duels/70b069ee-723f-4895-bdc9-b0a6c6d1f9e0 - 200 - application/json;+charset=utf-8 30.3726ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://duel.test/guest/v1/duels/70b069ee-723f-4895-bdc9-b0a6c6d1f9e0 - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type 'DuelView' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET https://duel.test/guest/v1/duels/70b069ee-723f-4895-bdc9-b0a6c6d1f9e0 - 200 - application/json;+charset=utf-8 2.7941ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://duel.test/guest/v1/duels/70b069ee-723f-4895-bdc9-b0a6c6d1f9e0 - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 404.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET https://duel.test/guest/v1/duels/70b069ee-723f-4895-bdc9-b0a6c6d1f9e0 - 404 - application/json;+charset=utf-8 2.0886ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://duel.test/guest/v1/duels/df4fe95d-1416-4eab-9615-718248acfdd2 - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type 'DuelView' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET https://duel.test/guest/v1/duels/df4fe95d-1416-4eab-9615-718248acfdd2 - 200 - application/json;+charset=utf-8 2.6309ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://duel.test/guest/v1/duels/df4fe95d-1416-4eab-9615-718248acfdd2 - - -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Http.Result.JsonResult[1]
+      Setting HTTP status code 404.
+info: Microsoft.AspNetCore.Http.Result.JsonResult[3]
+      Writing value of type '<>f__AnonymousType78`2' as Json.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'HTTP: GET /guest/v1/duels/{id:guid}'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET https://duel.test/guest/v1/duels/df4fe95d-1416-4eab-9615-718248acfdd2 - 404 - application/json;+charset=utf-8 3.1915ms
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+Duel deterministic rules, SQLite, replay, grants, timeout, cancellation and HTTP authorization tests passed.
+Wizard identity/prophecy tests passed (synthetic, UTC/DST, public boundaries, exports).
+Keepsake admin manual batch tests passed (synthetic, no inference).
+Keepsake core tests passed (synthetic offline fixtures; no paid calls).
+Keepsake outcome journal tests passed: correlation, atomic outbox, producer isolation, replay, cancellation and independent retention.
+Firmware release tests passed.
+Character director offline tests passed (no Live/audio/hardware claims).
+{"metric":"director_overhead","iterations":10000,"medianMs":0.0012,"p95Ms":0.0018,"maximumMs":1.106,"source":"synthetic local CPU, no Live latency"}
+DV01 snapshot/publication/anonymous history tests passed.
+DV01 fake Live integration passed (no provider/audio hardware).
+Conversation media lifecycle tests passed.
+Costume image tests passed.
+Realtime stream, selection, resampling and journal tests passed.
+Live production selection, startup and persistent audio frame tests passed.
+Personality prompt, provider requests, persistence and conversation policy tests passed.
+Autonomous Live: frozen prompts/policy, numeric timelines, timed long Czech input, delegation ordering/duplicates, stale correction, playback, failure diagnostics and native wire passed.
+Hybrid memory: identity/scopes/revisions/consent, durable outbox, OpenAI REST fixtures, deletion and manual-only archive retention passed.
+Voice provider, resampling and runtime tests passed.
+Server mode tests passed.
+Server log tests passed.
+Backend clock tests: expiry, restart, fake voice, cost accounting and migrations passed

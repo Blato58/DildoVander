@@ -5,13 +5,21 @@ description: Design or change DildoVander DV01 persona, adult/chaos roast, drama
 
 # DildoVander character design
 
+For Show Pack repertoire, mood, procedural finale and anonymous callbacks, read
+[the integrated contract](../../../kufr/docs/show-pack.md). Extend ShowRepertoire,
+ShowSceneLibrary and actual Live consumption while preserving the original
+catalog. ShowCoordinator persists direction; CharacterDirector remains pure.
+Personal anchors and anonymous EveningLore are separate scopes. A planned line
+is not documented speech: use the audio submission proxy without claiming exact
+words. Run backend `--show` and DV01 replay for changed behavior.
+
 Read [DV01 implementation and gates](../../../kufr/docs/dv01.md) and the relevant
 sections of the [character bible](../../../kufr/docs/dv01-specification.md).
 Use the tracked project workflow for substantive changes. Preserve original
 persona hashes, voice, model configuration and catalog identities.
 
 Separate an authorial style change from evidence, consent, selection or physical
-contracts. Director is deterministic and has no I/O. An appearance/money joke or
+contracts. CharacterDirector is deterministic and has no I/O. An appearance/money joke or
 profanity is not itself an integrity failure; invented hidden personal facts,
 withdrawn consent, wrong wand, duplicate reveal and Stop violations are failures.
 Never soften ordinary comeback or short answers automatically. Adult is the

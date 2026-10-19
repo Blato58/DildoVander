@@ -168,6 +168,7 @@ class SecretScanIntegrationTests(unittest.TestCase):
                 "Microsoft.AspNetCore.Authentication.BearerToken.dll": digest,
                 "kufr/contracts/verify-backend-openapi.mjs": digest,
                 "NativeAccessToken.swift": digest,
+                "kufr/design-system/tokens.d.mts": digest,
             }, indent=2))
         self.commit("File inventories")
         self.assertEqual([], self.scan(0))

@@ -5,6 +5,17 @@ description: Implement DildoVander's shared Vue web/Capacitor application and in
 
 # DildoVander UI
 
+For Show Pack's existing Capacitor/web Director use
+[the operational contract](../../../kufr/docs/show-pack.md). Distinguish backend
+direction, physical state and unknown/cached results. Operator unlock does not
+return another guest's revelation. Verify real API flows, two-operator conflicts,
+local short/quiet/ambient and delayed socket close. The mobile
+`scripts/check-director-browser.mjs` uses an isolated fake backend; verify the
+served checkout/port before accepting screenshots. Package identity, duel and
+chronicle Vue components through the compiled application consumed by
+`kufr/web/build-site.py --web-dist`. Keep legacy guest URLs as explicit routes,
+without restoring separate HTML applications.
+
 Read the current `AGENTS.md`, applicable nested instructions and component
 README first. Then read `kufr/design-system/README.md` and the relevant
 `style-guide.md`, `components.md`, `accessibility.md`, `screens.md`. Paths are

@@ -8,6 +8,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { request as httpRequest } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { stopChildProcess } from './child-process-lifecycle.mjs';
 
 const port = await new Promise(resolvePort => {
   const socket = createServer(); socket.listen(0, '127.0.0.1', () => {
@@ -45,13 +46,11 @@ function launch(overrides = {}) {
   processHandle.stdout.on('data', b => serverLog += b); processHandle.stderr.on('data', b => serverLog += b);
 }
 async function stop() {
-  if (processHandle?.exitCode === null) {
-    const end = new Promise(resolveEnd => processHandle.once('exit', resolveEnd)); processHandle.kill(); await end;
-  }
+  await stopChildProcess(processHandle);
 }
 async function ready() {
   for (let n = 0; n < 150; n++) {
-    if (processHandle.exitCode !== null) { throw new Error(`listener exited: ${serverLog}`); }
+    if (processHandle.exitCode !== null || processHandle.signalCode !== null) { throw new Error(`listener exited: ${serverLog}`); }
     try { await fetch(`http://127.0.0.1:${port}/`); return; } catch {}
     await new Promise(r => setTimeout(r, 50));
   }

@@ -1,6 +1,6 @@
 import { ref, readonly } from 'vue';
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { isTwinAccountPath } from './accountPaths';
+import { isTwinAccountPath, isShowAccountPath, isChronicleAdminPath } from './accountPaths';
 import { throwIfAborted } from '../../application/cancellation.mjs';
 
 export interface Account { id: string; displayName: string; roles: string[] }
@@ -45,7 +45,7 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
   const generation = authGeneration;
   const eveningPath = path === '/v1/evenings' && ['GET', 'POST'].includes(init.method ?? 'GET')
     || /^\/v1\/evenings\/[0-9a-f-]{36}\/active$/i.test(path) && init.method === 'PUT';
-  if (!path.startsWith('/app/v1/') && !isTwinAccountPath(path) && !eveningPath) throw new Error('Neplatná cesta účtu.');
+  if (!path.startsWith('/app/v1/') && !isTwinAccountPath(path) && !isShowAccountPath(path, init.method ?? 'GET') && !isChronicleAdminPath(path, init.method ?? 'GET') && !eveningPath) throw new Error('Neplatná cesta účtu.');
   throwIfAborted(init.signal);
   const method = init.method ?? 'GET';
   const headers = new Headers(init.headers);
@@ -76,7 +76,7 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
 export async function accountRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const generation = authGeneration;
   throwIfAborted(signal);
-  if (!path.startsWith('/app/v1/') && !isTwinAccountPath(path)) throw new Error('Neplatná cesta účtu.');
+  if (!path.startsWith('/app/v1/') && !isTwinAccountPath(path) && !isShowAccountPath(path, method) && !isChronicleAdminPath(path, method)) throw new Error('Neplatná cesta účtu.');
   const serialized = body === undefined ? undefined : JSON.stringify(body);
   const sensitive = method !== 'GET' && path.startsWith('/app/v1/admin/')
     || method === 'DELETE' && path.startsWith('/app/v1/passkeys/');

@@ -51,6 +51,7 @@ struct NativeDebugTests {
         do { _ = try DebugBackendProfile(address: "https://example.test", deviceId: "real-esp", credential: "secret"); fatalError("Physical identity accepted") }
         catch DebugBackendError.invalidProfile { }
         try await verifyAccountTransport()
+        try await verifyShowTransport()
         try await testEngineCapabilities(profile: profile)
         try await testSessionOwnership(profile: profile)
         try await testGuestAndMemoryScopes(profile: profile)
@@ -307,6 +308,96 @@ struct NativeDebugTests {
     do { try DebugBackendKeychain(service: "kufr-native-account-transport-test").write(profile)
         fatalError("Account binding persisted as developer credential") }
     catch DebugBackendError.invalidProfile { }
+}
+
+@MainActor private func verifyShowTransport() async throws {
+    var slots = DebugShowRequestSlots()
+    let reads = (0..<4).map { _ in slots.begin(urgent: false)! }
+    assert(slots.begin(urgent: false) == nil)
+    assert(DebugShowRequestSlots.isUrgent(suffix: "/commands", method: "POST", body: "{\"kind\":\"stop\"}"))
+    assert(DebugShowRequestSlots.isUrgent(suffix: "/duels/duel-1/cancel", method: "POST", body: "{}"))
+    assert(!DebugShowRequestSlots.isUrgent(suffix: "/commands", method: "POST", body: "{\"kind\":\"override\"}"))
+    let stop = slots.begin(urgent: true)!
+    assert(slots.begin(urgent: true) == nil)
+    slots.finish(stop)
+    assert(slots.begin(urgent: true) != nil)
+    reads.forEach { slots.finish($0) }
+    slots.clear()
+    assert(slots.begin(urgent: false) != nil)
+    let profile = try DebugBackendProfile(accountOrigin: URL(string: "https://debug.example.test")!,
+        deviceId: "physical-kufr-1", binding: "account-one")
+    let peer = ShowDebugPeer()
+    let client = DebugBackendClient(http: peer.request, accountAuthorizer: peer.authorize)
+    let invalidRequests: [(String, String, String?)] = [("/../admin/modes", "GET", nil), ("/commands?target=other", "POST", "{}"),
+        ("/commands\n", "POST", "{}"), ("/device-cues", "GET", nil), ("/commands", "DELETE", nil),
+        ("/commands", "POST", "[]"), ("", "GET", "{}"), ("/commands", "POST", String(repeating: "x", count: 65_537))]
+    for (suffix, method, body) in invalidRequests {
+        do { _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: suffix, method: method, body: body)
+            fatalError("Unsafe Show proxy accepted") } catch { }
+    }
+    do { _ = try await client.showRequest(profile, deviceId: "other-device", suffix: "", method: "GET")
+        fatalError("Account Show scope changed") } catch DebugBackendError.invalidProfile { }
+    for suffix in ["/end-evening", "/offline-outcomes", "/prophecies/outcome-1/reveal", "/duels/duel-1/grants", "/duels/duel-1/grants/revoke"] {
+        do { _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: suffix, method: "POST", body: "{}")
+            fatalError("Unconfirmed sensitive Show mutation admitted") }
+        catch DebugBackendError.serverCode(let code) { assert(code == "confirmation_required") }
+    }
+    assert(peer.calls == 0)
+    let state = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "", method: "GET")
+    assert(state.status == 200 && (state.body as? [String: Any])?["revision"] as? Int == 4)
+    _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/commands", method: "POST", body: "{}", confirmed: true)
+    assert(peer.confirmation == nil) // routine controls never require recent passkey or inferred consent
+    _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/end-evening", method: "POST", body: "{}", confirmed: true)
+    assert(peer.confirmation == "yes")
+    peer.status = 409
+    let conflict = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/duels", method: "POST", body: "{}")
+    assert(conflict.status == 409 && peer.calls == 4) // mutation conflicts are never retried
+    peer.status = 403; peer.mime = "application/problem+json"; peer.payload = "{\"code\":\"recent_passkey_required\"}"
+    let denied = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "/end-evening", method: "POST", body: "{}", confirmed: true)
+    assert(denied.status == 403 && (denied.body as? [String: Any])?["code"] as? String == "recent_passkey_required")
+    assert(peer.calls == 5)
+    peer.changeAccountDuringResponse = true
+    do { _ = try await client.showRequest(profile, deviceId: profile.deviceId, suffix: "", method: "GET")
+        fatalError("Previous account private Show response exposed") } catch DebugBackendError.invalidProfile { }
+    assert(peer.calls == 6)
+    let legacy = try DebugBackendProfile(address: "https://debug.example.test", deviceId: "debug-service", credential: "synthetic-service")
+    let service = DebugBackendClient(http: { request, _ in
+        assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-service")
+        assert(request.value(forHTTPHeaderField: "Cookie") == nil)
+        return (Data("{}".utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"])!)
+    })
+    _ = try await service.showRequest(legacy, deviceId: profile.deviceId, suffix: "/end-evening", method: "POST", body: "{}")
+}
+
+@MainActor private final class ShowDebugPeer {
+    var calls = 0
+    var status = 200
+    var mime = "application/json"
+    var payload = "{\"revision\":4}"
+    var binding = "account-one"
+    var confirmation: String?
+    var changeAccountDuringResponse = false
+    func authorize(_ original: URLRequest, deviceId: String, binding: String) async throws -> URLRequest {
+        guard binding == self.binding else { throw DebugBackendError.invalidProfile }
+        assert(deviceId == "physical-kufr-1" && original.value(forHTTPHeaderField: "Authorization") == nil)
+        assert(original.url?.host == "debug.example.test" && original.url!.path.hasPrefix("/v1/show/devices/physical-kufr-1"))
+        var request = original
+        request.setValue("synthetic-account-cookie", forHTTPHeaderField: "Cookie")
+        request.setValue("synthetic-csrf", forHTTPHeaderField: "X-DV-CSRF")
+        request.setValue(deviceId, forHTTPHeaderField: "X-DV-Device-Id")
+        return request
+    }
+    func request(_ request: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        assert(limit == 1_048_576 && request.value(forHTTPHeaderField: "Cookie") == "synthetic-account-cookie")
+        assert(request.value(forHTTPHeaderField: "X-DV-Device-Id") == "physical-kufr-1")
+        assert(request.value(forHTTPHeaderField: "X-DV-CSRF") == "synthetic-csrf")
+        confirmation = request.value(forHTTPHeaderField: "X-DV-Confirm")
+        calls += 1
+        if changeAccountDuringResponse { binding = "account-two" }
+        return (Data(payload.utf8), HTTPURLResponse(url: request.url!, statusCode: status,
+            httpVersion: nil, headerFields: ["Content-Type": mime])!)
+    }
 }
 
 @MainActor private final class AccountDebugPeer {

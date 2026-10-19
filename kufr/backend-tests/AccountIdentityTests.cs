@@ -11,6 +11,7 @@ using Kufr.Backend.Features.DigitalTwin;
 using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.ModelReleases;
 using Kufr.Backend.Features.Keepsakes;
+using Kufr.Backend.Features.Show;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -135,6 +136,7 @@ internal static class AccountIdentityTests
         Check((await operatorClient.PostAsJsonAsync("/v1/twin/instances/granted-twin/commands", new { action = "stop" })).StatusCode == HttpStatusCode.Forbidden, "observe cannot control live workshop");
         await AccountMigrationTests.RunAsync(fixture.App);
         await AccountArchiveHttpTests.RunAsync(fixture.App, owner, operatorClient, ownerId);
+        await AccountShowTests.RunAsync(fixture.App, owner, operatorClient, stranger, operatorId);
         await SimulationAndStepUpAsync(fixture, owner, ownerKey, operatorClient, operatorKey, operatorId);
         await SeedAsync(fixture.App, db => db.ResourceGrants.Where(x => x.Id == "device-grant").ExecuteDeleteAsync());
         Check((await operatorClient.GetAsync("/v1/test-device")).StatusCode == HttpStatusCode.Unauthorized, "grant revocation immediate");
@@ -148,6 +150,7 @@ internal static class AccountIdentityTests
         Check((await stranger.GetAsync("/app/v1/account")).StatusCode == HttpStatusCode.Unauthorized, "role change revokes existing sessions");
         Check((await operatorClient.GetAsync("/v1/test-account-simulation/sim-auth")).StatusCode == HttpStatusCode.Unauthorized, "session revocation also removes private simulation authorization");
         Check((await operatorClient.GetAsync("/v1/evenings")).StatusCode == HttpStatusCode.Unauthorized, "revoked session cannot read evenings");
+        Check((await operatorClient.GetAsync("/v1/show/devices/granted-device")).StatusCode == HttpStatusCode.Unauthorized, "revoked account session cannot observe Show");
         await SignInAsync(stranger, operatorKey);
         var fresh = await CsrfAsync(stranger);
         Check(fresh.GetProperty("account").GetProperty("roles")[0].GetString() == "Viewer", "signin reads current role");
@@ -480,6 +483,8 @@ internal static class AccountIdentityTests
                 ["ApplicationIdentity:AllowedOrigins:0"] = "https://localhost", ["ApplicationIdentity:Bootstrap:TokenSha256"] = AccountEndpoints.Hash(Bootstrap),
                 ["ApplicationIdentity:RequestsPerMinute"] = "120",
                 ["Keepsake:Enabled"] = "true", ["Keepsake:GenerationEnabled"] = "true",
+                ["Keepsake:Origin"] = "https://localhost", ["Keepsake:PublicDeviceId"] = "granted-device",
+                ["Show:DeviceCueSpeechMode"] = "off",
                 ["Keepsake:DataRoot"] = Path.Combine(root, "guest-content"), ["Keepsake:DataProtectionRoot"] = Path.Combine(root, "keys"),
                 ["Backend:DatabasePath"] = Path.Combine(root, "guest.sqlite"),
                 ["ModelReleases:Enabled"] = "true", ["ModelReleases:Root"] = Path.Combine(root, "models"),
@@ -501,12 +506,24 @@ internal static class AccountIdentityTests
             builder.Services.AddSingleton(services => new ConversationStore(TimeProvider.System,
                 services.GetRequiredService<OperationJournal>(), eveningMemory: services.GetRequiredService<EveningMemoryStore>()));
             builder.Services.AddSingleton<KeepsakeStore>();
+            builder.Services.AddSingleton(sp => new ShowCoordinator(builder.Configuration, sp.GetRequiredService<OperationJournal>(),
+                sp.GetRequiredService<EveningMemoryStore>(), TimeProvider.System));
+            builder.Services.AddSingleton<ShowSpeechProvider>(); builder.Services.AddSingleton<ShowDeviceCueBridge>();
+            builder.Services.AddSingleton<IDuelIdentitySource, DuelIdentitySource>();
+            builder.Services.AddSingleton<IDuelShowSlot, DuelShowSlot>(); builder.Services.AddSingleton<DuelStore>();
+            builder.Services.AddSingleton<OfflineOutcomeStore>();
+            builder.Services.AddRateLimiter(options => {
+                options.AddPolicy("keepsake", _ => System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("fixture"));
+                options.AddPolicy("keepsake-public", _ => System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("fixture"));
+            });
             builder.Services.AddSingleton<TwinAccess>(); builder.Services.AddSingleton<TwinStore>(); builder.Services.AddSingleton<TwinHost>();
             var app = builder.Build();
             await AccountProvisioning.MigrateAsync(app.Services);
             await app.InitializeAccountsAsync();
             app.UseWebSockets(); app.UseRateLimiter(); app.UseAccountIdentity(); app.MapAccountEndpoints(); app.MapDigitalTwin(); app.MapModelReleases();
             app.MapConversations();
+            app.MapShowEndpoints(); app.MapShowDeviceCues(); app.MapDuels(); app.MapShowArchiveEndpoints();
+            app.MapOfflineOutcomeEndpoints(); app.MapShowChronicle();
             app.MapGet("/v1/test-device", (HttpContext context, DeviceAccessStore access) =>
                 DeviceAccessEndpoints.Authenticate(context, access) is { } id ? Results.Text(id) : Results.Unauthorized());
             app.MapPost("/guest/v1/test", () => Results.NoContent());
@@ -542,6 +559,7 @@ internal static class AccountIdentityTests
                 app.MapFallbackToFile("index.html", staticOptions);
             }
             await app.StartAsync();
+            app.Configuration["Keepsake:Origin"] = app.Urls.Single().Replace("127.0.0.1", "localhost");
             if (browserMode)
             {
                 app.Services.GetRequiredService<AccountConfiguration>().AllowedOrigins[0] = app.Urls.Single().Replace("127.0.0.1", "localhost");

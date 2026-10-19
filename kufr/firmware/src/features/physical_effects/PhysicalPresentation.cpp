@@ -158,6 +158,13 @@ void PhysicalPresentation::Tick(uint64_t nowMs) {
   if (clockNowMs_) nowMs = clockNowMs_(clockContext_);
   nowMs_ = nowMs;
   if (phase_ == Phase::Idle) return;
+  if (phase_ == Phase::Pulse) {
+    if (!effects_.Healthy() || nowMs < lastObservedAt_ || runtime_.Generation() != diagnostics_.generation || nowMs >= accentExpiresAt_)
+      EndPulse(true);
+    else if (nowMs >= pulseUntil_) EndPulse(false);
+    lastObservedAt_ = nowMs;
+    return;
+  }
   if (phase_ == Phase::Accent) {
     if (!effects_.Healthy() || nowMs < lastObservedAt_ || nowMs < startedAt_ ||
         runtime_.Generation() != diagnostics_.generation || nowMs >= accentExpiresAt_ || nowMs - startedAt_ >= accent_->maxDurationMs ||
@@ -178,6 +185,7 @@ void PhysicalPresentation::Tick(uint64_t nowMs) {
   switch (phase_) {
     case Phase::Idle:
     case Phase::Accent: return;
+    case Phase::Pulse: return;
     case Phase::Score:
       if (nowMs - phaseAt_ < CurrentStep().durationMs) return;
       effects_.Disable();
@@ -268,7 +276,7 @@ void PhysicalPresentation::DisableAndFault() {
     diagnostics_.state = "fault";
     diagnostics_.evidence = "unknown";
   }
-  const bool wasAccent = phase_ == Phase::Accent;
+  const bool wasAccent = phase_ == Phase::Accent || phase_ == Phase::Pulse;
   if (audio_ && !wasAccent) audio_->StopCues();
   effects_.Fault();
   effects_.Highlight(0, 0, 0, 0);
@@ -305,9 +313,9 @@ bool PhysicalPresentation::ValidateCompletionClock(void* context) {
 
 bool PhysicalPresentation::StartAccent(const char* sceneId, const std::string& intentId,
                                        uint64_t generation, uint64_t expiresAtMs,
-                                       uint64_t nowMs) {
+                                       uint64_t nowMs, uint8_t target, bool preserveConversationSnapshot) {
   if (phase_ != Phase::Idle || intentId.empty() || intentId.size() > 96 ||
-      nowMs >= expiresAtMs || generation != runtime_.Generation() || !effects_.Healthy()) return false;
+      target > 6 || nowMs >= expiresAtMs || generation != runtime_.Generation() || !effects_.Healthy()) return false;
   const PresentationScore::AccentScene* candidate = nullptr;
   for (const auto& scene : PresentationScore::Accents)
     if (std::string(scene.sceneId) == sceneId) candidate = &scene;
@@ -326,12 +334,13 @@ bool PhysicalPresentation::StartAccent(const char* sceneId, const std::string& i
       if ((!supported && effect.required) || (supported && (effect.target <= 0 || effect.target > 6))) return false;
     }
   }
-  if (!runtime_.ReserveDecoration(generation)) return false;
+  if (!runtime_.ReserveDecoration(generation, preserveConversationSnapshot)) return false;
   diagnostics_ = PresentationDiagnostics{};
   diagnostics_.operationId = intentId; diagnostics_.bootId = bootId_;
   diagnostics_.sceneId = candidate->sceneId; diagnostics_.sceneVersion = candidate->sceneVersion;
   diagnostics_.sceneHash = candidate->sceneHash; diagnostics_.variant = candidate->variant;
   diagnostics_.generation = generation; diagnostics_.calibrationId = effects_.CalibrationRevision();
+  diagnostics_.slot = target; accentTarget_ = target;
   diagnostics_.state = "running"; diagnostics_.evidence = "commanded";
   accent_ = candidate; accentExpiresAt_ = expiresAtMs;
   startedAt_ = phaseAt_ = lastObservedAt_ = nowMs_ = nowMs;
@@ -385,7 +394,8 @@ bool PhysicalPresentation::TickAccent() {
       green = static_cast<uint8_t>(cue.fromGreen + (static_cast<int64_t>(cue.green) - cue.fromGreen) * progress / duration);
       blue = static_cast<uint8_t>(cue.fromBlue + (static_cast<int64_t>(cue.blue) - cue.fromBlue) * progress / duration);
     }
-    const uint8_t mask = static_cast<uint8_t>(1u << (cue.target - 1));
+    const uint8_t target = accentTarget_ ? accentTarget_ : static_cast<uint8_t>(cue.target);
+    const uint8_t mask = static_cast<uint8_t>(1u << (target - 1));
     if (!effects_.IlluminateAtLevel(mask, red, green, blue, cue.level)) return false;
     if (red * cue.level / 255 || green * cue.level / 255 || blue * cue.level / 255) diagnostics_.none = false;
     if (firstObservation || cue.kind == PresentationScore::CueKind::LedFade) {
@@ -393,7 +403,7 @@ bool PhysicalPresentation::TickAccent() {
       event.kind = "commanded"; event.phaseId = definition.phaseId;
       event.phaseIndex = scoreIndex_; event.timeMs = nowMs_; event.dueAt = phaseAt_ + cue.offsetMs;
       event.evidence = "commanded"; event.reason = "led-only";
-      event.slot = static_cast<uint8_t>(cue.target); event.mask = mask;
+      event.slot = target; event.mask = mask;
       event.red = red; event.green = green; event.blue = blue;
       event.level = cue.level;
       diagnostics_.Append(event);
@@ -419,8 +429,39 @@ void PhysicalPresentation::EndAccent(bool cancelled) {
 }
 
 bool PhysicalPresentation::CancelAccent(const std::string& intentId, uint64_t generation) {
+  if (phase_ == Phase::Pulse && intentId == diagnostics_.operationId.data() && generation == diagnostics_.generation) {
+    EndPulse(true); return true;
+  }
   if (phase_ != Phase::Accent || intentId != diagnostics_.operationId.data() ||
       generation != diagnostics_.generation) return false;
   EndAccent(true);
   return true;
+}
+
+bool PhysicalPresentation::StartVibrationPreset(const char* preset, const std::string& intentId,
+    uint64_t generation, uint64_t expiresAtMs, uint64_t nowMs, uint8_t target, bool preserveConversationSnapshot) {
+  if (std::string(preset) != "presentation-search-pulse" || phase_ != Phase::Idle || target < 1 || target > 6 ||
+      intentId.empty() || intentId.size() > 96 || generation != runtime_.Generation() || nowMs >= expiresAtMs ||
+      !effects_.Ready(target) || !effects_.IsResting(target)) return false;
+  const PresentationScore::Step* pulse = nullptr;
+  for (const auto& step : PresentationScore::Main)
+    if (step.stage == PresentationScore::Stage::Prepare && step.vibration) { pulse = &step; break; }
+  if (!pulse || !pulse->durationMs || pulse->durationMs > PhysicalEffects::VibrationDurationMs ||
+      nowMs + pulse->durationMs >= expiresAtMs || !runtime_.ReserveDecoration(generation, preserveConversationSnapshot)) return false;
+  if (!effects_.StartVibration(target)) { runtime_.ReleaseDecoration(generation); return false; }
+  diagnostics_ = {}; diagnostics_.operationId = intentId; diagnostics_.bootId = bootId_;
+  diagnostics_.sceneId = preset; diagnostics_.sceneHash = PresentationScore::MainSceneHash;
+  diagnostics_.sceneVersion = PresentationScore::MainSceneVersion; diagnostics_.generation = generation;
+  diagnostics_.calibrationId = effects_.CalibrationRevision(); diagnostics_.slot = target;
+  diagnostics_.state = "running"; diagnostics_.evidence = "commanded";
+  accentExpiresAt_ = expiresAtMs; pulseUntil_ = nowMs + pulse->durationMs;
+  nowMs_ = startedAt_ = lastObservedAt_ = nowMs; phase_ = Phase::Pulse;
+  return true;
+}
+
+void PhysicalPresentation::EndPulse(bool cancelled) {
+  effects_.Disable();
+  diagnostics_.state = cancelled ? "cancelled" : "completed";
+  diagnostics_.evidence = cancelled ? "unknown" : "timed-complete";
+  runtime_.ReleaseDecoration(diagnostics_.generation); phase_ = Phase::Idle;
 }

@@ -6,6 +6,13 @@ a nastavení jsou její routy. `/ios/` a instalační manifesty zůstávají
 samostatnou distribuční výjimkou. Připravený kód ani tato dokumentace
 neznamenají provedené produkční nasazení.
 
+[Show Pack](../docs/show-pack.md) rozšiřuje stejné Vue obrazovky o identitu,
+sběratelskou kartu, soukromé proroctví, duel a kroniku. Veřejné cesty
+`/archive/chronicle` a `/archive/duel` mají výslovné kompatibilní odkazy z
+`/keepsake/chronicle.html` a `/keepsake/duel.html`; nejde o další HTML aplikace.
+Oprávnění pro vlastníka památky, tah duelu a obsluhu zůstávají oddělená.
+Proxy generuj z `deploy/keepsake_proxy.py`, bez obecného API catch-all.
+
 `build-site.py --web-dist <dist> --destination <nový-adresář>` balí výhradně
 hotovou aplikaci. Neimportuje CAD Python, negeneruje geometrii, neověřuje
 výrobní ZIP a nekopíruje staré Companion, simulátor, guest ani viewer balíčky.

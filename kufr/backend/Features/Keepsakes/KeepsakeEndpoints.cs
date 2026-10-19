@@ -56,6 +56,11 @@ internal static partial class KeepsakeEndpoints
                     Path = "/", MaxAge = TimeSpan.FromDays(30), IsEssential = true });
             return Results.Json(new { schemaVersion = 1, csrfToken = session.CsrfToken });
         });
+        group.MapPost("/keepsakes/{id:guid}/wizard-identity", async (HttpContext c, string id, KeepsakeStore store) =>
+        {
+            var request = await BodyAsync<EditionRequest>(c);
+            return Results.Json(store.CreateLegacyWizardIdentity(id, Session(c), request.EditionId));
+        });
         foreach (var kind in new[] { "claim", "recover", "share-claim" })
         {
             var exchange = kind;
@@ -200,7 +205,7 @@ internal static partial class KeepsakeEndpoints
     private static object Project(KeepsakeView v) => new
     {
         schemaVersion = 1, locator = v.Id, v.Revision, v.RetentionMode, deleteAfterUtc = (string?)null,
-        v.State, v.ReadOnly, v.PortraitConsent, v.PortraitConsentVersion,
+        v.State, v.ReadOnly, v.PortraitConsent, v.PortraitConsentVersion, v.WizardIdentities, v.Prophecies,
         snapshot = new { v.Snapshot.OfficialName, v.Snapshot.CatalogId, v.Snapshot.CatalogVersion, v.Snapshot.Slot, v.Snapshot.PhysicalEvidence },
         editions = v.Editions.Select(e => new { e.Id, e.Story, e.ArtworkAssetId, e.Synthetic, e.PublicationState, e.CreatedAt }),
         portraits = v.Portraits.Select(p => new { p.Id, p.EditionId, p.UploadId, p.Variant, p.AssetId, p.Synthetic, p.CreatedAt }),

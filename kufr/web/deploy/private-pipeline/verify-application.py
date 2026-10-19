@@ -82,9 +82,9 @@ def verify(base, local, expected_sha, fetch=get):
     status, headers, body = fetch(base, '/site-manifest.json')
     require(status == 200 and json.loads(body) == manifest and 'no-store' in headers.get('Cache-Control', ''), 'Published schema-2 receipt differs')
     entry = (local / 'index.html').read_bytes()
-    for path in ('/', '/signin', '/settings/admin', '/suitcase', '/suitcase/diagnostics', '/workshop', '/archive',
+    for path in ('/', '/signin', '/settings/admin', '/suitcase', '/suitcase/diagnostics', '/suitcase/director', '/workshop', '/archive', '/archive/duel', '/archive/chronicle',
                  '/app/index.html', '/companion/index.html', '/simulator/index.html', '/workshop/viewer.html',
-                 '/keepsake/', '/keepsake/evening/'):
+                 '/keepsake/', '/keepsake/evening/', '/keepsake/duel.html', '/keepsake/chronicle.html'):
         status, headers, body = fetch(base, path)
         require(status == 200 and body == entry and 'no-store' in headers.get('Cache-Control', ''), 'Application deep link differs: ' + path)
         require(headers.get('Referrer-Policy') == 'no-referrer', 'Application referrer policy differs: ' + path)

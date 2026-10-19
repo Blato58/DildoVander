@@ -11,6 +11,7 @@ class CommandJournal {
   virtual ~CommandJournal() {}
 
   virtual bool HasPending() const = 0;
+  virtual bool CanBeginOperation() const { return !HasPending(); }
   virtual uint8_t PendingCompartment() const = 0;
   virtual uint8_t ReadyMask() const = 0;
   virtual bool Begin(const std::string& commandId, uint8_t compartment) = 0;

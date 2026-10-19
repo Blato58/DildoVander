@@ -89,6 +89,7 @@ internal sealed partial class KeepsakeStore
         lock (gate)
         {
             using var connection = Open();
+            PreRevokeAdminDeletionSources(connection, previewId, key, expectedDigest);
             using var transaction = connection.BeginTransaction();
             const string operationScope = "admin-batch-delete";
             var body = previewId + ":" + explicitConfirm + ":" + expectedDigest;
@@ -111,8 +112,9 @@ internal sealed partial class KeepsakeStore
                 else
                 {
                     var scope = ParseAdminScope(scopeName);
-                    // Validate the entire immutable set before the first revocation. A missing,
-                    // changed, or newly ingested target rolls back the whole confirmation.
+                    // Revalidate the entire set under the archive write fence.
+                    // A race aborts archive mutation; earlier privacy revocations
+                    // intentionally remain conservative in the separate memory DB.
                     foreach (var target in targets)
                     {
                         KeepsakeAdminTarget current;
@@ -219,7 +221,39 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    private KeepsakeAdminTarget CaptureAdminTarget(SqliteConnection connection, SqliteTransaction transaction,
+    private void PreRevokeAdminDeletionSources(SqliteConnection connection, string previewId, string key, string expectedDigest)
+    {
+        var body = previewId + ":delete:" + expectedDigest;
+        if (Replay(connection, null, "admin-batch-delete", key, body) is not null) { return; }
+        using var command = Command(connection, null,
+            "SELECT scope,targets_json,digest,confirmed_batch_id FROM dv10_admin_previews WHERE id=$id", ("$id", previewId));
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) { throw new KeepsakeException("admin_preview_not_found", 404); }
+        var scope = ParseAdminScope(reader.GetString(0));
+        var targets = JsonSerializer.Deserialize<KeepsakeAdminTarget[]>(reader.GetString(1), Json)!;
+        if (reader.GetString(2) != expectedDigest) { throw new KeepsakeException("admin_preview_changed", 409); }
+        var confirmed = !reader.IsDBNull(3);
+        reader.Close();
+        if (confirmed || scope != KeepsakeDeleteScope.All) { return; }
+        // Validate the whole approved set before any privacy revocation. The
+        // original confirmation transaction revalidates it again before delete.
+        foreach (var target in targets)
+        {
+            KeepsakeAdminTarget current;
+            try { current = CaptureAdminTarget(connection, null, target.Id, scope); }
+            catch (KeepsakeException exception) when (exception.Code == "keepsake_not_found")
+            {
+                throw new KeepsakeException("admin_preview_changed", 409);
+            }
+            if (current != target) { throw new KeepsakeException("admin_preview_changed", 409); }
+        }
+        foreach (var target in targets)
+        {
+            RevokeDeletionMemorySources(target.Id, Load(connection, null, target.Id), scope);
+        }
+    }
+
+    private KeepsakeAdminTarget CaptureAdminTarget(SqliteConnection connection, SqliteTransaction? transaction,
         string id, KeepsakeDeleteScope scope)
     {
         var document = Load(connection, transaction, id);

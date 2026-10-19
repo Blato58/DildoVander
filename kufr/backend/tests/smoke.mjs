@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { stopChildProcess } from './child-process-lifecycle.mjs';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -39,15 +40,29 @@ function start() {
   for (const stream of [server.stdout, server.stderr]) { stream.on('data', chunk => { output += chunk.toString(); }); }
 }
 async function stop() {
-  if (server?.exitCode === null) { const ended = new Promise(resolve => server.once('exit', resolve)); server.kill(); await ended; }
+  await stopChildProcess(server);
 }
 async function ready() {
   for (let index = 0; index < 120; index++) {
-    if (server.exitCode !== null) { throw new Error(`Backend exited: ${output}`); }
+    if (server.exitCode !== null || server.signalCode !== null) { throw new Error(`Backend exited: ${output}`); }
     try { if ((await fetch(`${baseUrl}/healthz`)).ok) { return; } } catch { }
     await new Promise(resolve => setTimeout(resolve, 50));
   }
   throw new Error(`Backend did not start: ${output}`);
+}
+function parseJsonResponse(text, { method, path, status, contentType }) {
+  try { return JSON.parse(text); }
+  catch {
+    // Never echo visitor content, credentials or query parameters into CI logs.
+    const diagnostics = output.slice(-20_000).split(/\r?\n/).map(line => line.trim());
+    const exceptionTypes = diagnostics.filter(line => /^(?:System|Microsoft|Kufr)\.[\w.]+Exception:/.test(line))
+      .map(line => line.slice(0, line.indexOf(':')));
+    const frames = diagnostics.filter(line => line.startsWith('at Kufr.Backend.')).slice(-5);
+    throw new Error(`Expected JSON from ${method} ${path}: HTTP ${status}, `
+      + `content-type=${contentType ?? 'none'}, bytes=${Buffer.byteLength(text)}`
+      + (exceptionTypes.length ? `; server exceptions=${[...new Set(exceptionTypes)].join(',')}` : '')
+      + (frames.length ? `\n${frames.join('\n')}` : ''));
+  }
 }
 async function call(path, { method = 'GET', token, key, body, raw, headers = {} } = {}) {
   const response = await fetch(baseUrl + path, {
@@ -56,7 +71,9 @@ async function call(path, { method = 'GET', token, key, body, raw, headers = {} 
     body: raw ?? (body ? JSON.stringify(body) : undefined)
   });
   if (path.startsWith('/v1/')) { assert.equal(response.headers.get('cache-control'), 'no-store'); }
-  return { status: response.status, result: response.status === 204 ? null : await response.json() };
+  return { status: response.status, result: response.status === 204 ? null : parseJsonResponse(await response.text(), {
+    method, path: new URL(response.url).pathname, status: response.status, contentType: response.headers.get('content-type')
+  }) };
 }
 const post = (path, options) => call(path, { method: 'POST', ...options });
 const remove = (path, token, key = randomUUID(), body) => call(path, { method: 'DELETE', token, key, body });
@@ -101,6 +118,29 @@ try {
   assert.equal(created.status, 201); const id = created.result.conversationId;
   assert.equal((await post('/v1/conversations', { token: tokenA, key: createKey, body })).result.conversationId, id);
   assert.equal((await post('/v1/conversations', { token: tokenA, key: createKey, body: { ...body, generation: 1 } })).status, 409);
+
+  // Opaque catalog versions may be admitted for compatibility, but neither
+  // unified engine may reserve or complete a selection against that catalog.
+  const opaqueBody = { ...body, deviceId: 'device-b', bootId: randomUUID(), catalogVersion: 'fixture-opaque-catalog' };
+  const opaque = await post('/v1/conversations', { token: tokenB, key: randomUUID(), body: opaqueBody });
+  assert.equal(opaque.status, 201);
+  for (const engine of ['gpt-live', 'realtime-live']) {
+    const opaquePath = `/v1/conversations/${opaque.result.conversationId}/${engine}`;
+    const opaqueKey = randomUUID();
+    const invalid = request(opaqueBody);
+    for (let retry = 0; retry < 2; retry++) {
+      const rejected = await post(opaquePath, { token: tokenB, key: opaqueKey, body: invalid });
+      assert.equal(rejected.status, 400);
+      assert.equal(rejected.result.code, 'invalid_request');
+      assert.ok(!rejected.result.operationId, 'unknown catalog never publishes a completed operation');
+    }
+    const unreserved = await post(opaquePath, { token: tokenB, key: opaqueKey,
+      body: { ...invalid, catalogVersion: body.catalogVersion } });
+    assert.equal(unreserved.status, 409);
+    assert.equal(unreserved.result.code, 'conversation_version_mismatch', 'schema rejection did not reserve a poisoned idempotency key');
+  }
+  assert.equal((await remove(`/v1/conversations/${opaque.result.conversationId}`, tokenB)).status, 204);
+
   for (const engine of ['gpt-live', 'realtime-live']) {
     const unavailable = await post(`/v1/conversations/${id}/${engine}`, { token: tokenA, key: randomUUID(), body: request(body) });
     assert.equal(unavailable.status, 409); assert.equal(unavailable.result.code, 'realtime_unavailable');

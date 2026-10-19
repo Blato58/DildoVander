@@ -63,6 +63,8 @@ jobs:
           npx playwright install --with-deps chromium
           npm run test:browser
           node tests/debug.browser.mjs
+          node tests/director.browser.mjs
+          node scripts/archive-show.browser.mjs
           node tests/workshop-offline.browser.mjs
           node tests/workshop-media.browser.mjs
       - name: Check real compiled application inputs without CAD

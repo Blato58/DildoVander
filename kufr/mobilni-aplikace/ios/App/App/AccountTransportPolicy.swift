@@ -37,9 +37,54 @@ enum AccountTransportPolicy {
         return type == "application/octet-stream" && path.hasPrefix("/models/bundles/") && limit == 96 * 1024 * 1024
     }
 
+    static func show(path: String, method: String, query: [URLQueryItem]) -> Bool {
+        guard !path.contains("%"), !path.contains("\\"), !path.contains("#"), !path.contains("//"), !path.hasSuffix("/"),
+              !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else { return false }
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count >= 4, Array(parts.prefix(3)) == ["v1", "show", "devices"],
+              !parts[3].isEmpty, parts[3].count <= 128,
+              parts[3].allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == ".") }) else { return false }
+        let suffix = Array(parts.dropFirst(4))
+        if method == "GET" {
+            if suffix.count == 1 && ["identities", "prophecies", "duels"].contains(suffix[0]) {
+                guard query.count == 1, query[0].name == "eveningId", let evening = query[0].value else { return false }
+                return !evening.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && evening.count <= 240
+                    && !evening.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+            }
+            return query.isEmpty && (suffix.isEmpty || (suffix.count == 2 && suffix[0] == "duels" && UUID(uuidString: suffix[1]) != nil))
+        }
+        guard method == "POST", query.isEmpty else { return false }
+        if suffix.count == 1 { return ["commands", "end-evening", "offline-outcomes", "duels"].contains(suffix[0]) }
+        if suffix.count == 3, suffix[0] == "prophecies", suffix[2] == "reveal" {
+            return !suffix[1].isEmpty && suffix[1].count <= 128 && suffix[1].allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+        }
+        guard suffix.count >= 3, suffix[0] == "duels", UUID(uuidString: suffix[1]) != nil else { return false }
+        return (suffix.count == 3 && ["start", "cancel", "grants"].contains(suffix[2]))
+            || (suffix.count == 4 && suffix[2] == "grants" && suffix[3] == "revoke")
+    }
+
+    static func guestUsesCookies(path: String) -> Bool {
+        let route = URLComponents(string: path)?.path ?? ""
+        return route != "/guest/v1/evening" && !route.hasPrefix("/guest/v1/evenings/")
+            && route != "/guest/v1/chronicle" && !route.hasPrefix("/guest/v1/duels/")
+    }
+
+    static func guestHeader(path: String, method: String, name: String, value: String) -> Bool {
+        guard value.utf8.count <= 1024, !value.contains("\r"), !value.contains("\n") else { return false }
+        let key = name.lowercased()
+        if !guestUsesCookies(path: path) {
+            if ["accept", "content-type"].contains(key) { return true }
+            return key == "authorization" && method == "POST" && path.hasSuffix("/choices")
+                && guest(path: path, method: method) && value.hasPrefix("Bearer ") && value.count == 50
+                && value.dropFirst(7).allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+        }
+        return ["accept", "content-type", "x-dv10-csrf", "idempotency-key", "x-dv10-consent"].contains(key)
+    }
+
     static func device(path: String, method: String, query: [URLQueryItem]) -> Bool {
         guard !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }),
               !path.contains("%"), !path.contains("\\"), path.hasPrefix("/v1/") else { return false }
+        if show(path: path, method: method, query: query) { return true }
         if path == "/v1/admin/logs" {
             return method == "GET" && query.allSatisfy { ["after", "limit", "level", "traceId", "operationId"].contains($0.name) && ($0.value?.count ?? 0) <= 128 }
         }
@@ -85,6 +130,12 @@ enum AccountTransportPolicy {
               !path.contains(".."), !path.contains("\\"), !path.contains("#"),
               let components = URLComponents(string: path), components.scheme == nil, components.host == nil else { return false }
         let route = components.path
+        if route == "/guest/v1/chronicle" { return method == "GET" && components.query == nil }
+        let duel = route.split(separator: "/").map(String.init)
+        if duel.count >= 4, Array(duel.prefix(3)) == ["guest", "v1", "duels"] {
+            return components.query == nil && UUID(uuidString: duel[3]) != nil
+                && ((duel.count == 4 && method == "GET") || (duel.count == 5 && duel[4] == "choices" && method == "POST"))
+        }
         if method == "POST", ["/guest/v1/bootstrap", "/guest/v1/claim", "/guest/v1/recover", "/guest/v1/share-claim"].contains(route) { return components.query == nil }
         if route == "/guest/v1/evening" {
             return method == "GET" && components.queryItems?.contains(where: { !["cursor", "limit"].contains($0.name) || ($0.value?.count ?? 0) > 256 }) != true
@@ -107,13 +158,24 @@ enum AccountTransportPolicy {
         if segments.count == 5 {
             if ["recovery-links", "share-links"].contains(segments[4]) { return method == "POST" || method == "DELETE" }
             if segments[4] == "portrait" { return method == "DELETE" }
-            return method == "POST" && ["revoke-access", "portrait-consents", "portrait-uploads", "portraits", "exports", "account-associations"].contains(segments[4])
+            return method == "POST" && ["revoke-access", "portrait-consents", "portrait-uploads", "portraits", "exports", "account-associations", "wizard-identity"].contains(segments[4])
         }
         return method == "POST" && segments.count == 7 && ["portraits", "generation"].contains(segments[4])
             && UUID(uuidString: segments[5]) != nil && segments[6] == "cancel"
     }
 
     static func account(path: String, method: String) -> Bool {
+        if let parts = URLComponents(string: path), parts.scheme == nil, parts.host == nil, parts.fragment == nil,
+           !parts.percentEncodedPath.contains("%"), !path.contains("\\"), path.count <= 4096 {
+            if show(path: parts.path, method: method, query: parts.queryItems ?? []) { return true }
+            if method == "GET", parts.path == "/v1/admin/show/chronicle", let query = parts.queryItems,
+               query.count == 2, Set(query.map { $0.name }) == Set(["deviceId", "eveningId"]),
+               let device = query.first(where: { $0.name == "deviceId" })?.value, !device.isEmpty, device.count <= 128,
+               device.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == ".") }),
+               let evening = query.first(where: { $0.name == "eveningId" })?.value,
+               !evening.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, evening.count <= 240,
+               !evening.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) { return true }
+        }
         if method == "GET", let query = URLComponents(string: path), query.scheme == nil, query.host == nil,
            query.path == "/app/v1/admin/operations/logs", path.count <= 1024 {
             return query.queryItems?.contains(where: { !["after", "level"].contains($0.name) || ($0.value?.count ?? 0) > 32 }) != true

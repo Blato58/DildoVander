@@ -5,6 +5,13 @@ description: Author or change DV10 visitor keepsake story, wand design, generate
 
 # DV10 keepsake design
 
+For wizard identities, cards, prophecies, duels and chronicles read
+[Show Pack](../../../kufr/docs/show-pack.md). Extend the stored DV10 edition and
+WizardIdentity allowlist. Locked revelation never enters DTOs or exports. Text
+and PNG remain useful without an image; an authorial identity is fiction and
+never fabricates an image. Two visits sharing one catalog prop retain separate
+digital identities.
+
 Use for DV10 content, image prompts, card composition and visitor UX. Read the
 current DV10 specification in `kufr/docs/dv10/README.md` if present, the actual contracts
 in `kufr/backend/Features/Keepsakes/`, the relevant catalog and the tracked UI skill.

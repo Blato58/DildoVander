@@ -24,14 +24,15 @@ function captureWorkletAsset() {
 
 // Vite rewrites asset URLs before this hook. Hash the actual early claim script,
 // retaining a strict policy without an unsafe-inline script exception.
-function applicationCsp() {
+export function applicationCsp() {
   return {
     name: 'application-csp', apply: 'build',
     transformIndexHtml: {
       order: 'post',
       handler(html) {
         const hashes = [...html.matchAll(/<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi)]
-          .map(match => `'sha256-${createHash('sha256').update(match[1]).digest('base64')}'`);
+          // HTML parsing normalizes CRLF and CR before CSP hashes inline text.
+          .map(match => `'sha256-${createHash('sha256').update(match[1].replace(/\r\n?/g, '\n')).digest('base64')}'`);
         const policy = ["default-src 'none'", `script-src 'self' ${hashes.join(' ')}`,
           "style-src 'self'", "img-src 'self' blob: data:", "font-src 'self'",
           "connect-src 'self' https: wss:", "media-src 'self' blob:", "worker-src 'self' blob:",

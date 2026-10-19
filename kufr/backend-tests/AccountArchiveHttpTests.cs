@@ -20,6 +20,7 @@ internal static class AccountArchiveHttpTests
         var job = store.LeaseNext()!;
         var fake = new FakeKeepsakeProvider();
         Check(store.Complete(job, await fake.GenerateAsync(store.Dispatch(job)!, default)), "offline fixture generated");
+        store.CreateLegacyWizardIdentity(issued.Id, guest.Token, store.Read(issued.Id, guest.Token).Editions.Single().Id);
         var proof = store.AuthorizeAccountAssociation(issued.Id, guest.Token);
         async Task<string> TicketAsync()
         {
@@ -35,6 +36,9 @@ internal static class AccountArchiveHttpTests
         var view = await accountA.GetAsync(path);
         Check(view.IsSuccessStatusCode && view.Headers.CacheControl?.NoStore == true, "account-linked private read is not cached");
         var json = JsonDocument.Parse(await view.Content.ReadAsStringAsync()).RootElement;
+        Check(json.GetProperty("wizardIdentities").GetArrayLength() == 1, "linked account reads explicit public wizard identity");
+        Check(!json.TryGetProperty("prophecies", out var prophecy) || prophecy.ValueKind == JsonValueKind.Null || prophecy.GetArrayLength() == 0,
+            "linked account is not upgraded to guest owner private prophecy authority");
         var assetId = json.GetProperty("assets")[0].GetProperty("id").GetString();
         Check((await accountA.GetAsync(path + "/assets/" + assetId)).IsSuccessStatusCode, "linked image access belongs to target account");
         Check((await accountB.GetAsync(path)).StatusCode == HttpStatusCode.NotFound

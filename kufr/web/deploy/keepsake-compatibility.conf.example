@@ -36,6 +36,30 @@ location = /keepsake/index.html {
     add_header X-Robots-Tag "noindex, nofollow" always;
     add_header X-Content-Type-Options "nosniff" always;
 }
+location = /keepsake/duel.html {
+    if ($request_uri !~ "^/keepsake/duel[.]html(?:[?]|$)") { return 404; }
+    if ($request_method !~ "^(GET|HEAD)$") { return 405; }
+    root /var/www/dildovander/current;
+    try_files /index.html =404;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    access_log off;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
+location = /keepsake/chronicle.html {
+    if ($request_uri !~ "^/keepsake/chronicle[.]html(?:[?]|$)") { return 404; }
+    if ($request_method !~ "^(GET|HEAD)$") { return 405; }
+    root /var/www/dildovander/current;
+    try_files /index.html =404;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    access_log off;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
 location = /keepsake/evening {
     if ($request_uri !~ "^/keepsake/evening(?:[?]|$)") { return 404; }
     if ($request_method !~ "^(GET|HEAD)$") { return 405; }
@@ -73,6 +97,63 @@ location = /keepsake/evening/index.html {
     add_header X-Content-Type-Options "nosniff" always;
 }
 location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/account-associations$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 16m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header Forwarded '';
+    proxy_set_header X-Forwarded-Host '';
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/guest/v1/chronicle$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 16m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header Forwarded '';
+    proxy_set_header X-Forwarded-Host '';
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/guest/v1/duels/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 16m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header Forwarded '';
+    proxy_set_header X-Forwarded-Host '';
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/guest/v1/duels/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/choices$" {
     if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 16m;
@@ -224,7 +305,7 @@ location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
     add_header Cache-Control "no-store" always;
     add_header Referrer-Policy "no-referrer" always;
 }
-location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(?:exports|portrait-consents|portrait-uploads|portraits|revoke-access)$" {
+location ~ "^/guest/v1/keepsakes/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(?:exports|portrait-consents|portrait-uploads|portraits|revoke-access|wizard-identity)$" {
     if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:POST)$") { return 405; }
     client_max_body_size 16m;
@@ -539,6 +620,44 @@ location = /workshop/viewer.html {
     add_header Referrer-Policy "no-referrer" always;
     add_header X-Content-Type-Options "nosniff" always;
 }
+
+location = /suitcase/director {
+    if ($request_uri !~ "^/suitcase/director(?:[?]|$)") { return 404; }
+    if ($request_method !~ "^(GET|HEAD)$") { return 405; }
+    root /var/www/dildovander/current;
+    try_files /index.html =404;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
+
+location = /archive/duel {
+    if ($request_uri !~ "^/archive/duel(?:[?]|$)") { return 404; }
+    if ($request_method !~ "^(GET|HEAD)$") { return 405; }
+    root /var/www/dildovander/current;
+    try_files /index.html =404;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    access_log off;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
+
+location = /archive/chronicle {
+    if ($request_uri !~ "^/archive/chronicle(?:[?]|$)") { return 404; }
+    if ($request_method !~ "^(GET|HEAD)$") { return 405; }
+    root /var/www/dildovander/current;
+    try_files /index.html =404;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    access_log off;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
+
 location = /site-manifest.json {
     root /var/www/dildovander/current;
     try_files $uri =404;
@@ -2046,6 +2165,468 @@ location ~ "^/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
     proxy_send_timeout 65s;
     proxy_buffering off;
     proxy_request_buffering off;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/content$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/commands$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/identities$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/prophecies$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/prophecies/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/reveal$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/end\-evening$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/offline\-outcomes$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/offline\-outcomes$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/duels$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET|POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/duels/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/duels/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/start$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/duels/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/cancel$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/duels/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/grants$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/duels/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/grants/revoke$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/admin/show/chronicle$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/admin/show/evenings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/end$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/admin/show/evenings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/chronicle\-editions$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/admin/show/chronicle/sources/[A-Za-z0-9_.:-]{1,240}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:DELETE)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/device\-cues$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/device\-cues/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/audio$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/device\-cues/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ack$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
     add_header Cache-Control "no-store" always;
     add_header Referrer-Policy "no-referrer" always;
 }

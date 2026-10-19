@@ -1,11 +1,33 @@
 export interface ArchiveAsset { id: string; kind: string; mediaType: string; length: number; sha256?: string; editionId?: string }
 export interface Story { title: string; text: string }
-export interface GalleryItem { locator: string; editionId: string; officialName: string; catalogId: string; slot: number | null; synthetic: boolean; story: Story; assets: ArchiveAsset[] }
+import { secureUuid } from '../../application/identifiers.mjs';
+import type { Prophecy } from './showContracts';
+export interface WizardIdentity {
+  editionId: string; visibility: 'public_fiction'; wizardAlias: string; houseOrGuild: string;
+  dubiousSpecialization: string; signatureAbility: string; weakness: string; ministryAssessment: string;
+  wandBond: string; motto: string; microStory: string; omen: string;
+}
+const identityLimits = { wizardAlias: 60, houseOrGuild: 160, dubiousSpecialization: 160,
+  signatureAbility: 160, weakness: 160, ministryAssessment: 160, wandBond: 160,
+  motto: 120, microStory: 900, omen: 160 } as const;
+/** Explicit public allowlist; private phases and provenance never enter the view. */
+export function publicIdentity(raw: unknown): WizardIdentity | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const source = raw as Record<string, unknown>;
+  if (source.visibility !== 'public_fiction') return null;
+  const result: Record<string, string> = { visibility: 'public_fiction', editionId: isUuid(source.editionId) ? source.editionId : '' };
+  for (const [field, maximum] of Object.entries(identityLimits)) {
+    if (typeof source[field] !== 'string' || (source[field] as string).length > maximum) return null;
+    result[field] = source[field] as string;
+  }
+  return result as unknown as WizardIdentity;
+}
+export interface GalleryItem { locator: string; editionId: string; officialName: string; catalogId: string; slot: number | null; synthetic: boolean; story: Story; assets: ArchiveAsset[]; wizardIdentity?: WizardIdentity | null }
 export interface GalleryPage { schemaVersion: number; evening: { id: string; label: string } | null; latest: GalleryItem | null; items: GalleryItem[]; nextCursor?: string }
 export interface Edition { id: string; story?: Story; artworkAssetId?: string; synthetic: boolean; publicationState: string }
 export interface Portrait { id: string; editionId: string; assetId: string; synthetic: boolean; createdAt: string }
 export interface Job { id: string; kind: string; state: string }
-export interface Keepsake { schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; accountLinked?: boolean; sharedEditionId?: string; snapshot: { officialName: string; slot: number }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[] }
+export interface Keepsake { schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; accountLinked?: boolean; sharedEditionId?: string; snapshot: { officialName: string; slot: number }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[]; wizardIdentities?: WizardIdentity[]; prophecies?: Prophecy[] }
 export interface DeletionReceipt { id: string; scope: string; localState: string; providerState: string; backupState: string }
 export class GuestError extends Error {
   readonly status: number;
@@ -35,10 +57,11 @@ const text = (value: unknown, limit: number) => typeof value === 'string' ? valu
 
 export function projectGalleryItem(raw: any): GalleryItem | null {
   if (!raw || !isUuid(raw.locator) || !isUuid(raw.editionId)) return null;
+  const identity = publicIdentity(raw.wizardIdentity);
   return {
     locator: raw.locator, editionId: raw.editionId, officialName: text(raw.officialName, 240), catalogId: text(raw.catalogId, 120),
     slot: Number.isInteger(raw.slot) && raw.slot >= 1 && raw.slot <= 6 ? raw.slot : null, synthetic: raw.synthetic === true,
-    story: { title: text(raw.story?.title, 240), text: text(raw.story?.text, 32000) },
+    story: { title: text(raw.story?.title, 240), text: text(raw.story?.text, 32000) }, wizardIdentity: identity?.editionId === raw.editionId ? identity : null,
     assets: (Array.isArray(raw.assets) ? raw.assets : []).filter((asset: any) => asset && isUuid(asset.id)
       && publicMedia[asset.kind] && typeof asset.mediaType === 'string' && mediaEssence(asset.mediaType) === publicMedia[asset.kind])
       .map((asset: any) => ({ id: asset.id, kind: asset.kind, mediaType: mediaEssence(asset.mediaType), length: asset.length, sha256: text(asset.sha256, 64) }))
@@ -93,9 +116,9 @@ export class ArchiveClient {
     const body = method === 'GET' ? undefined : options.bytes ?? JSON.stringify({ schemaVersion: 1, ...options.data });
     let identity = '';
     if (method !== 'GET') {
-      if (options.bytes && !this.uploadKeys.has(options.bytes)) this.uploadKeys.set(options.bytes, crypto.randomUUID());
+      if (options.bytes && !this.uploadKeys.has(options.bytes)) this.uploadKeys.set(options.bytes, secureUuid());
       identity = `${method}:${path}:${options.bytes ? this.uploadKeys.get(options.bytes) + ':' + options.consentVersion : body}`;
-      if (!this.keys.has(identity)) this.keys.set(identity, crypto.randomUUID());
+      if (!this.keys.has(identity)) this.keys.set(identity, secureUuid());
       headers['Idempotency-Key'] = this.keys.get(identity)!;
       headers['Content-Type'] = options.bytes?.type || 'application/json';
       if (this.csrf) headers['X-DV10-CSRF'] = this.csrf;

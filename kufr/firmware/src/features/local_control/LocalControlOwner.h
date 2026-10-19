@@ -13,6 +13,7 @@ class LocalControlTransport;
 class LocalConversationNetworkPort;
 class ConversationRuntimeState;
 class LocalConversationReplyPort;
+namespace kufr { namespace offline { class OfflineShow; } }
 
 // One control-task consumer for a transport already admitted by TLS/bearer.
 // Tick owns Poll + runtime Tick under an urgent-event guard. Do not tick the
@@ -37,6 +38,7 @@ class LocalControlOwner final {
   void Tick();
   void SetMaintenance(bool active) { maintenance_ = active; }
   void SetDanceAdmission(bool allowed) { danceAdmission_ = allowed; }
+  void BindOffline(kufr::offline::OfflineShow& offline) { offline_ = &offline; }
   void PumpReply(LocalConversationReplyPort& replies);
   bool CompleteTurn(const std::string& clientTurnId, uint64_t generation);
 
@@ -73,4 +75,5 @@ class LocalControlOwner final {
   bool hello_ = false;
   bool maintenance_ = false;
   bool danceAdmission_ = false;
+  kufr::offline::OfflineShow* offline_ = nullptr;
 };

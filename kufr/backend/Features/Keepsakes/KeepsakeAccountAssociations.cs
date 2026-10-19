@@ -86,7 +86,9 @@ internal sealed partial class KeepsakeStore
             var portraits = document.Portraits.Where(portrait => assetIds.Contains(portrait.AssetId)).ToArray();
             var ready = document.Editions.Any(edition => assetIds.Contains(edition.ArtworkAssetId));
             return new(id, document.Snapshot, "manual_only", ready ? "ready" : "pending", document.Editions,
-                portraits, [], [], assets, true, null, document.Revision);
+                portraits, [], [], assets, true, null, document.Revision,
+                WizardIdentities: document.WizardIdentities.Where(identity => document.Editions.Any(edition =>
+                    edition.Id == identity.EditionId && edition.PublicationState != "private_history")).Select(ToCard).ToArray());
         }
     }
 

@@ -8,6 +8,7 @@ import { notifications, dismissNotice, notify } from './notifications';
 import { account, refreshIdentity, hasRole } from '../features/identity/session';
 import { deviceSession } from '../features/suitcase/deviceSession';
 import { nativeDebug } from '../features/suitcase/nativeDebug';
+import { directorStop, clearDirectorStop } from '../features/director/directorStop';
 import { servoBench } from '../features/suitcase/servoBench';
 
 const route = useRoute();
@@ -28,9 +29,11 @@ const navigation = [
 const connected = computed(() => Boolean(deviceSession.snapshot.value && deviceSession.snapshot.value.phase !== 'disconnected'));
 const deviceCanStop = computed(() => connected.value && deviceSession.snapshot.value?.phase !== 'stopped');
 const phoneActive = computed(() => nativeDebug.status.value.running || nativeDebug.status.value.session || nativeDebug.pending.value);
-const stopBusy = computed(() => (deviceCanStop.value || phoneActive.value)
+const directorCanStop = computed(() => directorStop.value?.canStop() ?? false);
+const stopBusy = computed(() => (deviceCanStop.value || phoneActive.value || directorCanStop.value)
   && (!deviceCanStop.value || deviceSession.stopPending.value)
   && (!phoneActive.value || nativeDebug.cancellationPending.value)
+  && (!directorCanStop.value || directorStop.value?.busy())
   && !servoBench.connected.value);
 const targetLabel = computed(() => ({ unavailable: 'Kufr není připojen', demo: 'Ukázka · bez zařízení', simulator: 'Simulátor · bez fyzických pohonů', native: 'Místní kufr' })[deviceSession.target.value]);
 const canAdmin = computed(() => hasRole('Owner') || hasRole('Administrator'));
@@ -40,10 +43,12 @@ async function stop(): Promise<void> {
   const requests: Promise<unknown>[] = [Promise.resolve().then(() => deviceSession.stop())];
   if (servoBench.connected.value) requests.push(Promise.resolve().then(() => servoBench.stop()));
   if (phoneActive.value) requests.push(nativeDebug.cancel());
+  if (directorCanStop.value && directorStop.value) requests.push(directorStop.value.stop());
   const results = await Promise.allSettled(requests);
   if (results.some(result => result.status === 'rejected')) notify('Stop se nepodařilo potvrdit. Zkontrolujte spojení a bezpečný stav zařízení.', 'danger');
 }
-watch(() => account.value?.id, (next, previous) => {
+watch(() => account.value ? `${account.value.id}:${account.value.roles.join(',')}` : '', (next, previous) => {
+  if (next !== previous) clearDirectorStop();
   if (previous && next !== previous) {
     nativeDebug.invalidatePrivateState();
     void Promise.resolve(deviceSession.clearUserGrants()).catch(() => notify('Oprávnění této instalace se nepodařilo vyčistit. Odpojte ji před změnou uživatele.', 'danger'));
@@ -95,7 +100,7 @@ onBeforeUnmount(() => {
         <div class="header-actions">
           <label class="theme-control"><span class="sr-only">Barevný režim</span><select v-model="preferences.theme" aria-label="Barevný režim"><option value="dark">Tmavý</option><option value="light">Světlý</option><option value="system">Systém</option></select></label>
           <RouterLink v-if="!account" class="account-link" to="/signin">Přihlásit se</RouterLink><RouterLink v-else class="account-link" to="/settings">{{ account.displayName }}</RouterLink>
-          <AwButton variant="danger" :disabled="!deviceCanStop && !phoneActive && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
+          <AwButton variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
         </div>
       </header>
       <div class="notification-stack" aria-label="Oznámení"><AwNotice v-for="notice in notifications" :key="notice.id" :tone="notice.tone"><div class="notification-content">{{ notice.message }}<button aria-label="Zavřít oznámení" @click="dismissNotice(notice.id)">×</button></div></AwNotice></div>

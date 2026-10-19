@@ -7,8 +7,13 @@ export const router = createRouter({
     { path: '/suitcase', name: 'suitcase', component: () => import('../features/suitcase/SuitcaseView.vue'), meta: { title: 'Kufr', keepAlive: true } },
     { path: '/connections', name: 'connections', component: () => import('../features/suitcase/ConnectionsView.vue'), meta: { title: 'Připojení', keepAlive: true } },
     { path: '/suitcase/diagnostics', name: 'diagnostics', component: () => import('../features/suitcase/DiagnosticsView.vue'), meta: { title: 'Diagnostika', keepAlive: true } },
+    { path: '/suitcase/director', name: 'director', component: () => import('../features/director/DirectorPanel.vue'), meta: { title: 'Režie', private: true } },
     { path: '/workshop', name: 'workshop', component: () => import('../features/workshop/WorkshopView.vue'), meta: { title: 'Dílna' } },
     { path: '/archive', name: 'archive', component: () => import('../features/archive/ArchiveView.vue'), meta: { title: 'Archiv' } },
+    { path: '/archive/duel', name: 'duel', component: () => import('../features/archive/DuelView.vue'), meta: { title: 'Souboj', private: true } },
+    { path: '/archive/chronicle', name: 'chronicle', component: () => import('../features/archive/ChronicleView.vue'), meta: { title: 'Kronika' } },
+    { path: '/keepsake/duel.html', redirect: to => ({ path: '/archive/duel', query: to.query }) },
+    { path: '/keepsake/chronicle.html', redirect: to => ({ path: '/archive/chronicle', query: to.query }) },
     { path: '/keepsake/:pathMatch(.*)*', name: 'keepsake', component: () => import('../features/archive/KeepsakeView.vue'), meta: { title: 'Moje památka', private: true } },
     { path: '/signin', name: 'signin', component: () => import('../features/identity/SignInView.vue'), meta: { title: 'Přihlášení', private: true } },
     { path: '/settings', name: 'settings', component: () => import('../features/identity/SettingsView.vue'), meta: { title: 'Nastavení', private: true } },
@@ -24,6 +29,7 @@ export const router = createRouter({
 });
 
 router.beforeEach(to => {
+  if (to.hash === '#director' && ['/', '/suitcase', '/suitcase/diagnostics'].includes(to.path)) return {path: '/suitcase/director'};
   if (['/keepsake/evening/', '/keepsake/evening', '/keepsake/evening/index.html'].includes(to.path)) {
     return { path: '/archive', query: to.query };
   }

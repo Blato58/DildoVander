@@ -6,6 +6,7 @@ import { useArchiveMedia } from './useArchiveMedia';
 import ArchiveDialog from './ArchiveDialog.vue';
 import ArchiveDownload from './ArchiveDownload.vue';
 import AccountArchiveList from '../identity/AccountArchiveList.vue';
+import WizardIdentity from './WizardIdentity.vue';
 import './archive.css';
 const client = createArchiveClient();
 const media = useArchiveMedia(client);
@@ -82,7 +83,7 @@ async function shareFile() { try { await media.shareFile(); } catch (error) { if
   <section class="archive-view" aria-labelledby="archive-title">
     <div><h1 id="archive-title">Najdi svoji hůlku.</h1><p>Vyber jméno z přehledu. Obraz, příběh i památku k uložení najdeš hned vedle.</p></div>
     <AccountArchiveList />
-    <div class="archive-actions"><button class="aw-button aw-button--secondary" :disabled="busy" @click="refresh()">{{ busy ? 'Načítám…' : 'Obnovit přehled' }}</button><RouterLink to="/keepsake/">Soukromá památka</RouterLink></div>
+    <div class="archive-actions"><button class="aw-button aw-button--secondary" :disabled="busy" @click="refresh()">{{ busy ? 'Načítám…' : 'Obnovit přehled' }}</button><RouterLink to="/keepsake/">Soukromá památka</RouterLink><RouterLink to="/archive/chronicle">Večerní kronika</RouterLink></div>
     <p class="aw-notice" role="status" aria-live="polite">{{ message }}</p>
     <div v-if="items.length" class="archive-workspace">
       <section aria-labelledby="archive-list-title"><h2 id="archive-list-title">Hůlky večera</h2><p class="archive-muted">{{ eveningLabel }}</p>
@@ -97,6 +98,7 @@ async function shareFile() { try { await media.shareFile(); } catch (error) { if
             <div class="archive-actions"><button v-for="action in [{ kind: 'export_zip', label: 'Uložit památku ZIP' }, { kind: 'export_story', label: 'Příběh TXT' }, { kind: 'base_image', label: 'Obraz hůlky' }, { kind: 'export_card', label: 'Kartička PNG' }]" :key="action.kind" class="aw-button aw-button--secondary" :disabled="busy || !selected.assets.some(asset => asset.kind === action.kind)" @click="download(action.kind)">{{ action.label }}</button></div><p class="archive-muted">Nedostupný soubor se může ještě připravovat. Dostupné části zůstávají k uložení.</p>
           </div></div>
         <section class="archive-story"><h3>Příběh jedné nepravděpodobné hůlky</h3><p class="archive-caption">Kouzelnická fikce pro tento večer</p><p v-for="(paragraph, index) in paragraphs" :key="index">{{ paragraph }}</p></section>
+        <WizardIdentity :identity="selected.wizardIdentity" />
       </article>
     </div>
     <p v-else>Jakmile kufr připraví první edici aktivního večera, objeví se tady. Tenhle odkaz si můžeš nechat otevřený.</p>

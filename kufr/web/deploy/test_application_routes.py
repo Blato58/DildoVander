@@ -20,14 +20,15 @@ class ApplicationRoutingTests(unittest.TestCase):
     def test_only_deliberate_page_routes_receive_the_app(self):
         config = proxy.render_compatibility('keepsake.example.invalid')
         pages = set(re.findall(r'location = ([^ ]+) \{\n(?:(?!\n}).)*?try_files /index.html =404;', config, re.DOTALL))
-        for route in ('/', '/suitcase', '/suitcase/diagnostics', '/connections', '/workshop',
-                      '/archive', '/signin', '/settings', '/settings/admin', '/keepsake/', '/keepsake/evening/'):
+        for route in ('/', '/suitcase', '/suitcase/diagnostics', '/suitcase/director', '/connections', '/workshop',
+                      '/archive', '/archive/duel', '/archive/chronicle', '/signin', '/settings', '/settings/admin', '/keepsake/', '/keepsake/evening/'):
             self.assertIn(route, pages)
         for route in ('/app/index.html', '/companion/index.html', '/simulator/index.html',
-                      '/workshop/index.html', '/workshop/viewer.html', '/keepsake/index.html', '/keepsake/evening/index.html'):
+                      '/workshop/index.html', '/workshop/viewer.html', '/keepsake/index.html', '/keepsake/evening/index.html',
+                      '/keepsake/duel.html', '/keepsake/chronicle.html'):
             self.assertIn(route, pages)
         for route in ('/app/v1/session', '/guest/v1/claim', '/auth/callback', '/ios/manifest.plist',
-                      '/workshop/model.zip', '/v1/unknown', '/assets/missing.js', '/unknown'):
+                      '/workshop/model.zip', '/v1/unknown', '/assets/missing.js', '/unknown', '/keepsake/other.html'):
             self.assertNotIn(route, pages)
         self.assertNotIn('try_files $uri /index.html', config)
         self.assertIn('location / { return 404; }', config)
@@ -35,7 +36,8 @@ class ApplicationRoutingTests(unittest.TestCase):
 
     def test_guest_shell_load_preserves_claim_and_private_headers(self):
         config = proxy.render_compatibility('keepsake.example.invalid')
-        for route in ('/keepsake', '/keepsake/', '/keepsake/index.html',
+        for route in ('/archive/duel', '/archive/chronicle',
+                      '/keepsake', '/keepsake/', '/keepsake/index.html', '/keepsake/duel.html', '/keepsake/chronicle.html',
                       '/keepsake/evening', '/keepsake/evening/', '/keepsake/evening/index.html'):
             block = config.split('location = ' + route + ' {', 1)[1].split('\n}', 1)[0]
             for header in ('no-store', 'no-referrer', 'noindex, nofollow'):

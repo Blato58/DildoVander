@@ -14,7 +14,7 @@ paths = [
   '''^docs/project/artifacts/KUFR-TWIN-MIC-QUEUE-deploy-v1/twin-release\.json$''',
 ]
 regexTarget = "line"
-regexes = ['''^\s*"[^"\r\n]+\.(py|cs|cpp|h|cjs|mjs|js|ts|swift|json|md|dll|pdb|exe|so|dylib)":\s*"[0-9a-f]{64}"\s*,?\s*$''']
+regexes = ['''^\s*"[^"\r\n]+\.(py|cs|cpp|h|cjs|mjs|js|ts|mts|swift|json|md|dll|pdb|exe|so|dylib)":\s*"[0-9a-f]{64}"\s*,?\s*$''']
 
 [[allowlists]]
 description = "CAD component identifier, not an API credential"

@@ -1,5 +1,21 @@
 # Sdílené kontrakty kufru
 
+## Show Pack
+
+[HTTP rozšíření](show-openapi-v1.json) popisuje autorizované Director, duel,
+proroctví, kroniku a offline import. `verify-show-api.mjs` kontroluje zdrojové
+routy, oddělené scopes a omezená těla; spouští jej standardní `npm test`.
+Autoritativní výsledky zůstávají v C# DTO a stávajícím SQLite, nikoli v UI.
+
+Lokální control v1 nově obsahuje `offline_preflight`, `offline_arm`,
+`offline_start` (včetně `shortVariant`), `quiet`/`offline_ambient` s `enabled`,
+`offline_outbox`, `offline_sync_ack` a odpovědi `offline.ack`/`offline.outbox`.
+Outbox může mít osm timing-confirmed záznamů a nejvýše 8192 B; ostatní meze
+zůstávají. Arm potřebuje platný místní lease, nová generace odstaví staré povely.
+Preflight přiznává hlas banky, kompatibilitu a chybějící assety. Synchronizace
+nikdy nepřenáší příkazy pohonům ani nepřepisuje původní večer.
+Provozní návod a externí brány jsou v [Show Pack](../docs/show-pack.md).
+
 ## Autonomní Live a paměť (D143)
 
 Opt-in actor větev rozšiřuje `GptLiveEvent` o `playback_checkpoint`
@@ -86,7 +102,8 @@ kolize se stejným klíčem, ale jiným tělem vrací 409.
 Každý přijímač musí před validací schématu odmítnout neplatné UTF-8,
 duplicitní JSON klíče, desetinný/exponenciální zápis celočíselných polí a
 control zprávy nad 2048 bajtů, s výjimkou `conversation.text` a `conversation.result` do 8192 bajtů
-a 1000 znaků textu. Samotné JSON Schema
+a 1000 znaků textu. Odpověď `offline.outbox` má samostatnou mez 8192 bajtů
+a nejvýše osm dokončených timing-confirmed záznamů. Samotné JSON Schema
 tyto vlastnosti syrové zprávy neověří. Validace schématu nenahrazuje ověření
 TLS identity, tokenu, `bootId`, ručního lease, monotónního času, revision,
 idempotence a journalu. Hodnota `selectionSource` je pouze auditní údaj,
@@ -174,7 +191,7 @@ Skutečný firmware/telefon musí nové operace teprve zapojit.
 D97 přidává skutečný `conversation.result` s `simulated:false`; simulátor nadále
 vrací true. Limit reply je 500 Unicode znaků (firmware nejvýše 2000 UTF-8 bajtů),
 stejně jako backend. `conversation.text` i `conversation.result` mají obálku do
-8192 bajtů kvůli escapování; jiné control zprávy zůstávají do 2048. Strict klient
+8192 bajtů kvůli escapování; ostatní control zprávy kromě nového `offline.outbox` zůstávají do 2048. Strict klient
 přebírá nové schéma a limit. Původ backendu neprokazuje placenou AI, TTS ani pohyb.
 
 D98 konkretizuje místní HTTPS `POST /v1/pair` pro již servisně provisionovanou

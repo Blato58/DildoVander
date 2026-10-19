@@ -39,6 +39,20 @@ describe('native guest transport shares real SFC contracts without account crede
     await expect(transport('/guest/v1/bootstrap', { method: 'POST', headers: { Authorization: 'Bearer device-secret' } })).rejects.toThrow();
     expect(nativeBridge.guestRequest).not.toHaveBeenCalled();
   });
+  it('allows only the exact public Show reads, owner identity action and isolated scoped duel choice header', async () => {
+    nativeBridge.guestRequest.mockResolvedValue({ status: 200, headers: { 'content-type': 'application/json' }, bodyBase64: encode({}) });
+    const transport = createNativeGuestTransport(nativeBridge);
+    await transport('/guest/v1/chronicle', { credentials: 'omit' });
+    await transport(`/guest/v1/duels/${id}`, { credentials: 'omit' });
+    await transport(`/guest/v1/duels/${id}/choices`, { method: 'POST', credentials: 'omit', headers: { Authorization: 'Bearer ' + 'x'.repeat(43), 'Content-Type': 'application/json' }, body: JSON.stringify({ side: 'left', round: 1, revision: 1, action: 'strike', operationKey: id }) });
+    expect(nativeBridge.guestRequest.mock.calls[2][0].headers.authorization).toBe('Bearer ' + 'x'.repeat(43));
+    expect(validateGuestRequest(`/guest/v1/keepsakes/${id}/wizard-identity`, 'POST')).toContain('/wizard-identity');
+    for (const [path, method] of [['/guest/v1/chronicle', 'POST'], [`/guest/v1/duels/${id}`, 'DELETE'], [`/guest/v1/duels/${id}/choices`, 'GET'], [`/guest/v1/duels/${id}?grant=secret`, 'GET']]) expect(() => validateGuestRequest(path, method)).toThrow();
+    await expect(transport('/guest/v1/chronicle', { headers: { Authorization: 'Bearer ' + 'x'.repeat(43) } })).rejects.toThrow();
+    await expect(transport(`/guest/v1/duels/${id}/choices`, { method: 'POST', headers: { Authorization: 'Bearer account-token' } })).rejects.toThrow();
+    await expect(transport(`/guest/v1/duels/${id}/choices`, { method: 'POST', headers: { 'X-DV10-CSRF': 'owner-session' } })).rejects.toThrow();
+    expect(nativeBridge.guestRequest).toHaveBeenCalledTimes(3);
+  });
   it('rejects late native binary responses after route invalidation', async () => {
     let complete!: (value: object) => void;
     nativeBridge.guestRequest.mockReturnValue(new Promise(resolve => complete = resolve));

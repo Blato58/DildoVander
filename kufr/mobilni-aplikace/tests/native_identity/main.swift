@@ -85,3 +85,37 @@ require(!AccountTransportPolicy.guest(path: "/guest/v1/keepsakes/\(id)/portrait-
 require(!AccountTransportPolicy.guest(path: "/app/v1/session", method: "GET"), "guest bridge accepted account path")
 require(!AccountTransportPolicy.guest(path: "/guest/v1/evenings/anything", method: "GET"), "unscoped public path accepted")
 print("PASS native account and guest route/method policy, public pagination, share edition, portrait upload/deletion, simulation media boundaries")
+
+let show = "/v1/show/devices/case.s3"
+require(AccountTransportPolicy.account(path: show, method: "GET"), "account Show state unavailable")
+require(AccountTransportPolicy.device(path: show + "/commands", method: "POST", query: []), "bound native Show command unavailable")
+for suffix in ["commands", "end-evening", "offline-outcomes", "duels", "prophecies/" + id + "/reveal", "duels/" + id + "/start", "duels/" + id + "/cancel", "duels/" + id + "/grants", "duels/" + id + "/grants/revoke"] {
+    require(AccountTransportPolicy.account(path: show + "/" + suffix, method: "POST"), "Show POST missing " + suffix)
+}
+for suffix in ["identities", "prophecies", "duels"] {
+    require(AccountTransportPolicy.account(path: show + "/" + suffix + "?eveningId=" + id, method: "GET"), "Show scoped list missing")
+    require(!AccountTransportPolicy.account(path: show + "/" + suffix + "?eveningId=" + id + "&deviceId=other", method: "GET"), "Show extra query accepted")
+}
+for invalid in [show + "/commands?deviceId=other", "/v1/show/device-cues", "/v1/show/offline-outcomes", "/v1/show/devices/../commands", show + "/duels/" + id + "/arbitrary"] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "POST"), "Show proxy broadened")
+}
+require(!AccountTransportPolicy.account(path: show + "/commands", method: "DELETE"), "Show method broadened")
+require(AccountTransportPolicy.guest(path: "/guest/v1/chronicle", method: "GET"), "public chronicle unavailable")
+require(AccountTransportPolicy.guest(path: "/guest/v1/duels/" + id, method: "GET"), "public duel unavailable")
+let choice = "/guest/v1/duels/" + id + "/choices"
+require(AccountTransportPolicy.guest(path: choice, method: "POST"), "guest choice unavailable")
+require(!AccountTransportPolicy.guestUsesCookies(path: choice), "duel choice used owner cookie jar")
+require(!AccountTransportPolicy.guestUsesCookies(path: "/guest/v1/chronicle"), "chronicle used owner cookies")
+require(AccountTransportPolicy.guestUsesCookies(path: "/guest/v1/keepsakes/" + id), "owner cookie isolation lost")
+require(AccountTransportPolicy.guestHeader(path: choice, method: "POST", name: "Authorization", value: "Bearer " + String(repeating: "a", count: 43)), "scoped duel grant unavailable")
+require(!AccountTransportPolicy.guestHeader(path: choice, method: "POST", name: "Cookie", value: "secret"), "guest cookie forwarding allowed")
+require(!AccountTransportPolicy.guestHeader(path: choice, method: "POST", name: "X-DV10-CSRF", value: "owner"), "guest choice accepted owner CSRF")
+require(!AccountTransportPolicy.guestHeader(path: "/guest/v1/keepsakes/" + id, method: "GET", name: "Authorization", value: "Bearer " + String(repeating: "a", count: 43)), "duel grant crossed owner boundary")
+require(!AccountTransportPolicy.guestHeader(path: choice, method: "POST", name: "Authorization", value: "Bearer short"), "unbounded-purpose bearer accepted")
+require(AccountTransportPolicy.guest(path: "/guest/v1/keepsakes/" + id + "/wizard-identity", method: "POST"), "owner legacy identity unavailable")
+print("PASS Show native policy and isolated guest duel grants (source/macOS execution required)")
+
+require(AccountTransportPolicy.account(path: show + "/duels?eveningId=Legacy%20evening", method: "GET"), "opaque legacy Show evening rejected")
+require(!AccountTransportPolicy.account(path: show + "/duels?eveningId=%0a", method: "GET"), "control character evening accepted")
+require(AccountTransportPolicy.account(path: "/v1/admin/show/chronicle?eveningId=Legacy%20evening&deviceId=case.s3", method: "GET"), "bounded legacy chronicle unavailable")
+require(!AccountTransportPolicy.account(path: "/v1/admin/show/chronicle?eveningId=x&deviceId=case.s3&deviceId=other", method: "GET"), "duplicate chronicle keys accepted")

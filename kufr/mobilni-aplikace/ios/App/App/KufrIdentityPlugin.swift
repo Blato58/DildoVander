@@ -99,6 +99,13 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         configuration.timeoutIntervalForRequest = 60
         return URLSession(configuration: configuration, delegate: AccountNoRedirect(), delegateQueue: nil)
     }()
+    private lazy var publicGuestSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil; config.httpShouldSetCookies = false
+        config.urlCache = nil; config.urlCredentialStorage = nil
+        config.timeoutIntervalForRequest = 60
+        return URLSession(configuration: config, delegate: AccountNoRedirect(), delegateQueue: nil)
+    }()
     private var guestCookiesRestored = false
     private var publicTransfers: [UUID: PublicResourceTransfer] = [:]
     private var publicCancellationWaiters: [UUID: [CAPPluginCall]] = [:]
@@ -162,7 +169,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
                 request.httpMethod = method
                 request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
-                let permitted = ["accept", "content-type", "x-dv-csrf", "x-dv-device-id", "idempotency-key", "session-id", "boot-id", "media-epoch", "input-epoch", "input-sequence"]
+                let permitted = ["accept", "content-type", "x-dv-csrf", "x-dv-confirm", "x-dv-device-id", "idempotency-key", "session-id", "boot-id", "media-epoch", "input-epoch", "input-sequence"]
                 for (name, value) in call.getObject("headers") ?? [:] {
                     guard permitted.contains(name.lowercased()), let text = value as? String, text.count <= 1024,
                           !text.contains("\r"), !text.contains("\n") else { throw AccountError.invalidPath }
@@ -222,23 +229,22 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
                 request.httpMethod = method
                 request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
-                let normalizedPath = URLComponents(string: path)?.path ?? ""
-                let publicRead = normalizedPath == "/guest/v1/evening" || normalizedPath.hasPrefix("/guest/v1/evenings/")
+                let publicRead = !AccountTransportPolicy.guestUsesCookies(path: path)
                 // Public browsing must not reveal a guest identity to the server.
                 request.httpShouldHandleCookies = !publicRead
                 if !publicRead { restoreGuestCookies(origin: origin) }
                 let headers = call.getObject("headers") ?? [:]
-                let permitted = ["accept", "content-type", "x-dv10-csrf", "idempotency-key", "x-dv10-consent"]
                 for (name, value) in headers {
-                    guard permitted.contains(name.lowercased()), let text = value as? String,
-                          text.utf8.count <= 1024, !text.contains("\r"), !text.contains("\n") else { throw AccountError.invalidPath }
+                    guard let text = value as? String,
+                          AccountTransportPolicy.guestHeader(path: path, method: method, name: name, value: text) else { throw AccountError.invalidPath }
                     request.setValue(text, forHTTPHeaderField: name)
                 }
                 if let encoded = call.getString("bodyBase64") {
-                    guard !publicRead, encoded.utf8.count <= 11184812, let data = Data(base64Encoded: encoded), data.count <= 8388608 else { throw AccountError.invalidResponse }
+                    guard method != "GET", encoded.utf8.count <= 11184812, let data = Data(base64Encoded: encoded),
+                          data.count <= (publicRead ? 16384 : 8388608) else { throw AccountError.invalidResponse }
                     request.httpBody = data
                 }
-                let (data, response) = try await guestSession.data(for: request)
+                let (data, response) = try await (publicRead ? publicGuestSession : guestSession).data(for: request)
                 guard let http = response as? HTTPURLResponse, http.url?.host == origin.host,
                       data.count <= 33554432 else { throw AccountError.invalidResponse }
                 if !publicRead { try persistGuestCookie(origin: origin) }
