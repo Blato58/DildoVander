@@ -58,7 +58,7 @@
       <p class="aw-muted">Zvolte cíl, připravte jeden pokus pomocí Arm a spusťte jej samostatně. Hodnoty jsou ruční záznamy; poloha, úhel ani doraz se neměří.</p>
       <div id="calibration-fields" class="controls"></div>
       <label class="aw-field" for="cal-range">Cílová šířka posuvníkem (µs)</label>
-      <input id="cal-range" class="cal-range" type="range" min="1000" max="2000" step="25" value="1500" aria-describedby="cal-help">
+      <input id="cal-range" class="cal-range" type="range" min="500" max="2400" step="25" value="1500" aria-describedby="cal-help">
       <div class="actions presets" aria-label="Změnit cílovou hodnotu bez pohybu">
         <button id="cal-minus" class="aw-button aw-button--secondary" type="button">−25 µs</button>
         <button id="cal-1200" class="aw-button aw-button--secondary" type="button">1200 µs</button>
@@ -87,7 +87,7 @@
     <section class="bench-section" aria-labelledby="auto-title">
       <h2 id="auto-title">Asistované hledání jedné meze</h2>
       <p class="aw-notice">Zůstaňte u serva a poslouchejte. Při drhnutí nebo vrčení okamžitě stiskněte Drhne / vrčí a vypněte V+. Panel zvuk ani doraz nerozpoznává.</p>
-      <p class="aw-muted">Každý směr začíná uloženým středem vybraného kanálu. Krok 25 µs, pulz 1500 ms, začátky nejméně 3 s od sebe, pouze 1000–2000 µs. Pro každý krok proběhne samostatné Arm. Druhý směr se sám nespustí.</p>
+      <p class="aw-muted">Každý směr začíná uloženým středem vybraného kanálu. Krok 25 µs, pulz 1500 ms, začátky nejméně 3 s od sebe; meze oznamuje firmware. Pro každý krok proběhne samostatné Arm. Druhý směr se sám nespustí.</p>
       <p id="auto-context" class="aw-mono">Vyžaduje uložený ruční střed.</p>
       <div id="auto-actions" class="actions"></div>
       <p id="auto-state" role="status" aria-live="polite">Automatické kroky nejsou spuštěny.</p>

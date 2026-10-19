@@ -1,7 +1,7 @@
 export const PROFILE_STORAGE_KEY = "dildovander.servo-bench.manual-profiles.v1";
 const POINTS = ["min", "center", "max"];
 const emptyChannels = () => Array.from({ length: 6 }, () => ({ label: "", min: null, center: null, max: null }));
-const validWidth = value => value === null || (Number.isInteger(value) && value >= 1000 && value <= 2000);
+const validWidth = value => value === null || (Number.isInteger(value) && value >= 1 && value <= 9999);
 
 export function validProfile(profile) {
   if (!profile || typeof profile.label !== "string" || profile.label.length > 80 ||
@@ -69,16 +69,20 @@ export class ManualProfiles {
     const evidence = proposal?.candidateEvidence;
     const candidate = proposal?.candidateUs;
     const direction = proposal?.direction;
+    const minimumUs = Number.isInteger(state.calibrationMinimumUs) ? state.calibrationMinimumUs : 1000;
+    const maximumUs = Number.isInteger(state.calibrationMaximumUs) ? state.calibrationMaximumUs : 3000;
     const idle = state.connected && state.baseline && !state.fault && !state.error && !state.pending &&
       !state.writing && !state.armedUntil && state.calibrationSupported === true;
     if (!profile || !proposal || !Number.isInteger(profile.center) || !idle || proposal.active || proposal.stopConfirmed !== true || proposal.channel !== channel ||
-      !Number.isInteger(candidate) || candidate < 1000 || candidate > 2000 || !["min", "max"].includes(direction) ||
+      !Number.isInteger(candidate) || candidate < minimumUs ||
+      candidate > maximumUs || !["min", "max"].includes(direction) ||
       proposal.centerUs !== profile.center || proposal.profileSignature !== JSON.stringify(profile) ||
       !evidence || evidence.completed !== true || evidence.channel !== channel || evidence.pulseWidthUs !== candidate ||
       evidence.centerUs !== profile.center || evidence.direction !== direction ||
       !["noise", "bound"].includes(proposal.reason) ||
       (proposal.reason === "noise" && (candidate !== proposal.previousUs || candidate === proposal.currentUs)) ||
-      (proposal.reason === "bound" && (candidate !== proposal.currentUs || candidate !== (direction === "min" ? 1000 : 2000))) ||
+      (proposal.reason === "bound" && (candidate !== proposal.currentUs ||
+        candidate !== (direction === "min" ? minimumUs : maximumUs))) ||
       (direction === "min" ? candidate >= profile.center : candidate <= profile.center)) {
       return false;
     }

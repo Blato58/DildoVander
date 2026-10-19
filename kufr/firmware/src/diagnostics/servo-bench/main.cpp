@@ -119,9 +119,17 @@ extern "C" void app_main() {
   // Keep UART0's console pin mapping; use USB-UART, not native USB-OTG.
   const bool uartReady = uart_driver_install(UART_NUM_0, 256, 0, 0, nullptr, 0) == ESP_OK;
   if (!ready || !uartReady) controller.Fault();
-  outputs.Report(ready && uartReady && !controller.Faulted() ?
-      "READY PWM FULL_OFF; GPIO1=SDA GPIO14=SCL no OE control PCA=0x40 nominal 50Hz; diag=i2c-errors-v2 read_timeout_ms=20; calibration=v1; type help" :
-      "NOT READY; PWM state not guaranteed; cut servo power, check wiring and restart");
+  if (ready && uartReady && !controller.Faulted()) {
+    char message[192];
+    std::snprintf(message, sizeof(message),
+        "READY PWM FULL_OFF; GPIO1=SDA GPIO14=SCL no OE control PCA=0x40 nominal 50Hz; "
+        "diag=i2c-errors-v2 read_timeout_ms=20; calibration=v2 "
+        "calibration_min_us=%u calibration_max_us=%u; type help",
+        ServoBench::CalibrationMinimumUs, ServoBench::CalibrationMaximumUs);
+    outputs.Report(message);
+  } else {
+    outputs.Report("NOT READY; PWM state not guaranteed; cut servo power, check wiring and restart");
+  }
   for (;;) {
     controller.Tick(static_cast<uint64_t>(esp_timer_get_time()));
     uint8_t byte = 0;
