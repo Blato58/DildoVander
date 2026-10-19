@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-DEPENDABOT-SYNC-hosted-backend-v2",
+  "observedAtUtc": "2026-10-19T06:28:31.488645Z",
+  "kind": "integration",
+  "result": "pass",
+  "subject": {
+    "artifactDigest": "e28318b69d4f6598bf2ace3f7c808ecbce7ae2a80eb3c63d706a0dcb6070e167"
+  },
+  "claims": [
+    {
+      "workItemId": "KUFR-DEPENDABOT-SYNC",
+      "criterionId": "BACKEND",
+      "criterionRevision": 2,
+      "result": "pass"
+    }
+  ],
+  "environment": "GitHub Ubuntu24/macOS15 at generator main9bc7c66; read-only API validation from Windows.",
+  "method": "Manual workflow_dispatch dependabot-generate.yml for original bot commit; inspect completed backend job and immutable artifact12166649516; download exact payload and run trusted publisher with dryRun=true and GET-only API adapter.",
+  "observation": "Original PR198 af8bcf9 regenerated on Ubuntu with actual NuGet force-evaluate then locked restore. Both runtime graphs preserved; SQLite10.0.13 matches project and referenced test lock. Actual publisher dry-run using only live GET API adapters accepted payload and proposed exactly backend-tests/packages.lock.json, no writes/CI dispatch.",
+  "limitations": [
+    "Historical manual rehearsal verifies actual platform generation and complete payload validation. A live future bot-branch commit/event has not been observed; automatic mutation/race/dispatch recovery is covered by regression fixtures.",
+    "No deployment, signing, paid provider calls or physical-device acceptance."
+  ],
+  "artifactRefs": [
+    "https://github.com/Blato58/DildoVander/actions/runs/39209712939",
+    "docs/project/artifacts/KUFR-DEPENDABOT-SYNC-rehearsals-v2/backend.json",
+    "docs/project/artifacts/KUFR-DEPENDABOT-SYNC-rehearsals-v2/validation.json"
+  ]
+}
