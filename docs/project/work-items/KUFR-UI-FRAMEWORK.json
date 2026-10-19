@@ -42,7 +42,7 @@
     }
   ],
   "blockers": [],
-  "currentNote": "Softwarový framework, migrace všech existujících ploch, lokální deterministické a renderované kontroly dokončeny. Commit/push a PR CI se zapisují po skutečném Git předání. Checkout vychází z dosud otevřeného baseline PR209; aktuální slice mění vykonatelné sdílení a zachovává jeho schválenou Vapour Chrome identitu. Bez produkčního nasazení, podpisu, placených AI volání a fyzických pohybů.",
+  "currentNote": "Implementace ef07324ca4b85ca83bb4e7bc4cfeeff41ad02904 dokončena a ověřena, Push-CurrentBranch.ps1 úspěšně ověřil identické vzdálené SHA na origin/codex/unified-ui-framework. PR211 navazuje na dosud otevřený baseline PR209 (codex/vapour-chrome-ui); běží cílené GitHub CI. Lokální software/render/balení a nezávislé review jsou přijaté; merge, macOS CI a nativní/produkční/fyzické hranice se hodnotí zvlášť. Bez nasazení, podpisu, placených AI volání a fyzických pohybů.",
   "implementedSubject": {
     "artifactDigest": "59b31038eeca0d3ed7674ae95c24d2aae36c5d2baca06090364cb2f3ea5ba3e2"
   },
