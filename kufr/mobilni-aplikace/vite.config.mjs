@@ -1,10 +1,22 @@
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 const localDirectory = relative => fileURLToPath(new URL(relative, import.meta.url));
+
+function applicationBuildIdentity() {
+  try {
+    const options = { cwd: localDirectory('./'), encoding: 'utf8', windowsHide: true };
+    const revision = execFileSync('git', ['rev-parse', 'HEAD'], options).trim();
+    const dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], options).trim().length > 0;
+    return { revision: /^[0-9a-f]{40}$/.test(revision) ? revision : null, dirty };
+  } catch {
+    return { revision: null, dirty: null };
+  }
+}
 
 function captureWorkletAsset() {
   const { CAPTURE_WORKLET_SOURCE } = createRequire(import.meta.url)('../mechanika/final/twin_media_controller.js');
@@ -44,6 +56,7 @@ export function applicationCsp() {
 }
 
 export default defineConfig({
+  define: { __DV_APPLICATION_BUILD__: JSON.stringify(applicationBuildIdentity()) },
   plugins: [vue(), captureWorkletAsset(), applicationCsp()],
   base: '/',
   // The offline entry has a virtual bundle supplied only by its packager.

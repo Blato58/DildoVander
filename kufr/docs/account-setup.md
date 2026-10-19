@@ -263,3 +263,9 @@ neprokazuje hardware ani úplný streaming; jeho vlastnictví médií má vlastn
 testy. Izolovaná browser fixture `--identity-fixture` po sestavení UI obsluhuje
 skutečný `dist/`, vytváří nové soukromé testovací databáze a nečte zděděnou
 provider konfiguraci. Privátní bootstrapový soubor se nesmí tisknout do logu.
+
+V Nastavení je verze právě běžící aplikace: zdrojový Git commit a výslovné
+označení místních změn nebo neznámého původu. API, ModelBundle a firmware mají
+samostatnou verzi. Připojení ukazuje poslední potvrzený místní kontakt s kufrem
+podle hodin telefonu, jen v této relaci aplikace; tento čas nepotvrzuje, že je
+kufr právě online. Samotné párování ani pokus o připojení jej nevytvářejí.

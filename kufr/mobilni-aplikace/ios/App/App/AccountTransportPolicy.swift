@@ -475,3 +475,25 @@ struct AccountPrioritySessionSnapshot {
         error as? Failure == .cancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 }
+
+// Antiforgery is issued to anonymous clients too: it authorizes the bootstrap
+// POST, not an account. A priority cookie snapshot additionally needs identity.
+struct AccountSessionResponse {
+    let csrfToken: String
+    let hasAccount: Bool
+    var canPublishPriority: Bool { hasAccount && !csrfToken.isEmpty }
+
+    init(_ object: [String: Any]) {
+        if let token = object["csrfToken"] as? String, !token.isEmpty, token.utf8.count <= 4096,
+           token.utf8.allSatisfy({ $0 >= 33 && $0 <= 126 }) {
+            csrfToken = token
+        } else { csrfToken = "" }
+        hasAccount = object["account"] as? [String: Any] != nil
+    }
+
+    static func authorizeMutation(_ original: URLRequest, csrfToken: String) -> URLRequest {
+        var request = original
+        if request.httpMethod != "GET" { request.setValue(csrfToken, forHTTPHeaderField: "X-DV-CSRF") }
+        return request
+    }
+}

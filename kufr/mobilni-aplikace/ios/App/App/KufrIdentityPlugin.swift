@@ -210,7 +210,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 try requestScheduler.requireCurrent(lease)
                 if commit { try await requestScheduler.beginCredentialCommit(lease) }
                 restoreCookies(origin: origin)
-                if method != "GET" { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
+                request = AccountSessionResponse.authorizeMutation(request, csrfToken: csrf)
                 try Task.checkCancellation()
                 result = try await session.data(for: request)
                 try Task.checkCancellation()
@@ -244,13 +244,14 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @MainActor private func publishSessionResponse(_ object: [String: Any], origin: URL) throws {
-        guard object["account"] as? [String: Any] != nil, let token = object["csrfToken"] as? String, !token.isEmpty else {
-            csrf = ""; publishedPrioritySession = nil; return
-        }
-        csrf = token
+        let response = AccountSessionResponse(object)
+        // Anonymous /session has a valid CSRF token for signin/enrollment. It
+        // must never create or retain an authenticated priority cookie snapshot.
+        csrf = response.csrfToken
+        guard response.canPublishPriority else { publishedPrioritySession = nil; return }
         let binding = try accountDeviceBinding()
         let cookies = session.configuration.httpCookieStorage?.cookies(for: origin) ?? []
-        publishedPrioritySession = AccountPrioritySessionSnapshot(binding: binding, csrf: token,
+        publishedPrioritySession = AccountPrioritySessionSnapshot(binding: binding, csrf: response.csrfToken,
             cookieHeaders: HTTPCookie.requestHeaderFields(with: cookies))
     }
 
@@ -562,7 +563,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
-        if method != "GET" { request.setValue(csrf, forHTTPHeaderField: "X-DV-CSRF") }
+        request = AccountSessionResponse.authorizeMutation(request, csrfToken: csrf)
         if confirmed { request.setValue("yes", forHTTPHeaderField: "X-DV-Confirm") }
         if let body = body {
             guard body.utf8.count <= 65536 else { throw AccountError.invalidResponse }

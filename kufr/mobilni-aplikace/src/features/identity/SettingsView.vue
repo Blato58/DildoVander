@@ -5,6 +5,7 @@ import EveningPanel from './EveningPanel.vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { usePreferences } from '../../application/preferences';
+import { applicationBuild } from '../../application/buildIdentity';
 import { account, accountRequest, refreshIdentity, authenticatePasskey, signOut, hasRole, type AccountDetails, type AccountSession } from './session';
 const preferences = usePreferences();
 const details = ref<AccountDetails | null>(null);
@@ -36,6 +37,14 @@ function trust(session: AccountSession) {
 <template>
   <section class="page-stack" aria-labelledby="settings-title">
     <header><p class="eyebrow">Váš prostor</p><h1 id="settings-title">Nastavení</h1><p>Vzhled aplikace a přístup k vašemu účtu.</p></header>
+    <section class="aw-card" aria-labelledby="application-version-heading">
+      <h2 id="application-version-heading">Verze aplikace</h2>
+      <p>Tato verze běží přímo v prohlížeči nebo v nainstalované aplikaci.</p>
+      <p>Zdroj sestavení: <code class="application-revision">{{ applicationBuild.revision || 'Nezjištěn' }}</code></p>
+      <p v-if="applicationBuild.dirty === true">Sestavení obsahuje místní změny; neodpovídá čistému commitu.</p>
+      <p v-else-if="applicationBuild.dirty === null">Čistotu zdrojů sestavení nelze ověřit.</p>
+      <p>HTTP API v1 · ModelBundle 1. Model a firmware mají samostatnou verzi ve své funkci.</p>
+    </section>
     <AwNotice v-if="error" tone="danger" role="alert">{{ error }}</AwNotice><AwNotice v-if="message" tone="success" role="status">{{ message }}</AwNotice>
     <section class="aw-card"><h2>Vzhled</h2><label for="account-theme">Barevné téma</label><select id="account-theme" v-model="preferences.theme" class="aw-select"><option value="dark">Tmavé</option><option value="light">Světlé</option><option value="system">Podle zařízení</option></select></section>
     <section v-if="!account" class="aw-card"><h2>Přihlášení</h2><p>Přihlaste se pro soukromý archiv, přidělené prostředky a správu přístupů.</p><RouterLink to="/signin" class="aw-button aw-button--primary">Přihlásit se</RouterLink></section>
@@ -76,5 +85,6 @@ function trust(session: AccountSession) {
   </section>
 </template>
 <style scoped>
+.application-revision { overflow-wrap: anywhere; }
 .identity-list { list-style: none; padding: 0; }.identity-list li { padding-block: 1rem; border-top: 1px solid var(--aw-border-subtle); }.button-row { display: flex; flex-wrap: wrap; gap: .75rem; }.key-name-form { display: grid; gap: .5rem; margin-block: 1rem; }.key-name-form button { justify-self: start; }select { display: block; margin-top: .5rem; max-width: 100%; }
 </style>

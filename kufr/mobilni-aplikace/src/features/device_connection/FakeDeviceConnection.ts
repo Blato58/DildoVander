@@ -18,6 +18,8 @@ export interface DeviceSnapshot {
   voice?: LocalVoiceState;
   dance?: LocalDanceState;
   diagnostics?: {
+    deviceId?: string;
+    lastObservedAtMs?: number;
     bootId: string;
     devicePhase: string;
     eventSequence: number;

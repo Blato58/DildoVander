@@ -128,7 +128,7 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() { Task { @MainActor in Self.received[self.request.url!.path] = self } }
     override func stopLoading() {}
-    @MainActor func complete(cookie: String? = nil, status: Int = 200, cookieStorage: HTTPCookieStorage? = nil) {
+    @MainActor func complete(cookie: String? = nil, status: Int = 200, cookieStorage: HTTPCookieStorage? = nil, body: Data? = nil) {
         var headers = ["Content-Type": "application/json"]
         if let cookie = cookie { headers["Set-Cookie"] = cookie }
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!
@@ -142,7 +142,7 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
             storage.setCookies(parsed, for: request.url!, mainDocumentURL: request.url!)
         }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        if status != 204 { client?.urlProtocol(self, didLoad: Data("{}".utf8)) }
+        if status != 204 { client?.urlProtocol(self, didLoad: body ?? Data("{}".utf8)) }
         client?.urlProtocolDidFinishLoading(self)
     }
 }
@@ -154,6 +154,55 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
         try? await Task.sleep(nanoseconds: 1_000_000)
     }
     fatalError("Native account delayed request did not reach its expected state")
+}
+
+@MainActor private func anonymousAccountBootstrapTests() async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.httpCookieAcceptPolicy = .always; config.httpShouldSetCookies = true
+    config.protocolClasses = [DelayedIdentityProtocol.self]
+    let client = URLSession(configuration: config)
+    defer { client.invalidateAndCancel() }
+    let origin = URL(string: "https://native-account.invalid")!
+    require(client.configuration.httpCookieStorage?.cookies(for: origin)?.contains(where: { $0.name == "__Host-dv-account" }) != true,
+        "anonymous bootstrap fixture unexpectedly has an account cookie")
+    let anonymousToken = "anonymous-csrf-token_123"
+    let read = Task { @MainActor in try await client.data(from: URL(string: "/app/v1/session", relativeTo: origin)!.absoluteURL) }
+    await eventually { DelayedIdentityProtocol.received["/app/v1/session"] != nil }
+    let anonymousObject: [String: Any] = ["enabled": true, "account": NSNull(), "csrfToken": anonymousToken]
+    let sessionBody = try JSONSerialization.data(withJSONObject: anonymousObject)
+    DelayedIdentityProtocol.received["/app/v1/session"]!.complete(cookie: "__Host-dv-csrf=anonymous-cookie; Path=/; Secure",
+        cookieStorage: client.configuration.httpCookieStorage, body: sessionBody)
+    let (bytes, _) = try await read.value
+    let session = AccountSessionResponse(try JSONSerialization.jsonObject(with: bytes) as! [String: Any])
+    require(session.csrfToken == anonymousToken && !session.hasAccount && !session.canPublishPriority,
+        "anonymous CSRF was discarded or elevated into priority account authority")
+    for path in ["/app/v1/passkeys/request-options", "/app/v1/enrollment/options"] {
+        var request = URLRequest(url: URL(string: path, relativeTo: origin)!.absoluteURL)
+        request.httpMethod = "POST"
+        request = AccountSessionResponse.authorizeMutation(request, csrfToken: session.csrfToken)
+        let options = Task { @MainActor in try await client.data(for: request) }
+        await eventually { DelayedIdentityProtocol.received[path] != nil }
+        let received = DelayedIdentityProtocol.received[path]!
+        require(received.request.value(forHTTPHeaderField: "X-DV-CSRF") == anonymousToken,
+            "cold native signin/enrollment options omitted anonymous CSRF")
+        require(received.request.value(forHTTPHeaderField: "Cookie")?.contains("__Host-dv-account=") != true,
+            "anonymous options borrowed an authenticated account cookie")
+        received.complete(status: received.request.value(forHTTPHeaderField: "X-DV-CSRF") == anonymousToken ? 200 : 400)
+        let (_, response) = try await options.value
+        require((response as? HTTPURLResponse)?.statusCode == 200, "anonymous options did not pass the fixture CSRF contract")
+    }
+    let authenticated = AccountSessionResponse(["account": ["id": "fixture-account"], "csrfToken": "authenticated-token"])
+    require(authenticated.canPublishPriority, "authenticated session no longer permits a cookie-backed priority snapshot")
+    let signedOut = AccountSessionResponse(["account": NSNull(), "csrfToken": "new-anonymous-token"])
+    require(signedOut.csrfToken == "new-anonymous-token" && !signedOut.canPublishPriority,
+        "authenticated-to-anonymous transition discarded CSRF or retained priority authority")
+    let invalidTokens: [Any] = [NSNull(), "", "line\r\nbreak", String(repeating: "a", count: 4097), 42]
+    for invalid in invalidTokens {
+        let state = AccountSessionResponse(["account": ["id": "fixture-account"], "csrfToken": invalid])
+        require(state.csrfToken.isEmpty && !state.canPublishPriority, "invalid/missing CSRF retained account priority authority")
+    }
+    require(AccountSessionResponse(["account": NSNull()]).csrfToken.isEmpty, "missing CSRF did not fail closed")
+    print("PASS native anonymous session/signin/enrollment CSRF transport, no-account priority denial, authenticated/signed-out separation and invalid-token rejection")
 }
 
 @MainActor private func nativeAccountSchedulingTests() async throws {
@@ -512,7 +561,7 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
 
 DispatchQueue.global().asyncAfter(deadline: .now() + 20) { fatalError("Native account scheduling regression timed out") }
 Task { @MainActor in
-    do { try await nativeAccountSchedulingTests(); exit(0) }
+    do { try await anonymousAccountBootstrapTests(); try await nativeAccountSchedulingTests(); exit(0) }
     catch { fatalError("Native account scheduling regression failed: \(error)") }
 }
 dispatchMain()

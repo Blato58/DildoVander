@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AwButton from '../../components/AwButton.vue';
-import { onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue';
 import { deviceSession as device } from './deviceSession';
 import DeviceAssociationPanel from './DeviceAssociationPanel.vue';
 const address = ref('');
@@ -9,6 +9,9 @@ const pin = ref('');
 const profile = ref<'hotspot' | 'fallback'>('hotspot');
 const destructive = ref<'delete-network' | 'forget-device' | 'install' | null>(null);
 const saved = device.savedDevice;
+const lastObserved = device.lastObservedAt;
+const observedDate = computed(() => lastObserved.value === null ? null : new Date(lastObserved.value));
+const observedText = computed(() => observedDate.value?.toLocaleString('cs-CZ', { dateStyle: 'medium', timeStyle: 'medium' }));
 const ble = device.bleStatus;
 watch(saved, value => { address.value = value.host ?? ''; destructive.value = null; });
 function show(): void { device.showConnections(true); }
@@ -34,7 +37,7 @@ async function confirm(): Promise<void> {
     <DeviceAssociationPanel />
     <template v-if="device.native">
       <section class="aw-card" aria-labelledby="saved-heading"><h2 id="saved-heading">{{ saved.paired ? 'Uložený kufr' : 'První připojení' }}</h2>
-        <template v-if="saved.paired"><p><strong>{{ saved.deviceId }}</strong> · {{ saved.host }}</p><p>Párování je v Keychain. Připojení používá uložený token a ověřený otisk certifikátu; nezačne přebírat řízení.</p><div class="connection-actions"><AwButton variant="primary" :disabled="device.pending.value" @click="device.connectSaved">Připojit uložený kufr</AwButton><AwButton :disabled="device.pending.value || !device.connected.value" @click="device.disconnect">Odpojit telefon</AwButton></div><RouterLink v-if="device.connected.value" to="/suitcase" class="aw-button aw-button--primary">Otevřít ovládání kufru</RouterLink></template>
+        <template v-if="saved.paired"><p><strong>{{ saved.deviceId }}</strong> · {{ saved.host }}</p><p>Párování je v Keychain. Připojení používá uložený token a ověřený otisk certifikátu; nezačne přebírat řízení.</p><dl class="connection-metrics"><div><dt>Naposledy pozorován místním ovládáním</dt><dd><time v-if="observedDate" :datetime="observedDate.toISOString()">{{ observedText }}</time><span v-else>Dosud nepozorován v této relaci aplikace.</span></dd></div></dl><p>Potvrzený stav nebo odpověď přes místní ovládací spojení. Čas podle hodin tohoto telefonu, od otevření aplikace.</p><div class="connection-actions"><AwButton variant="primary" :disabled="device.pending.value" @click="device.connectSaved">Připojit uložený kufr</AwButton><AwButton :disabled="device.pending.value || !device.connected.value" @click="device.disconnect">Odpojit telefon</AwButton></div><RouterLink v-if="device.connected.value" to="/suitcase" class="aw-button aw-button--primary">Otevřít ovládání kufru</RouterLink></template>
         <p v-else>Zapněte kufr. Připravte PoP z vnitřního servisního štítku. Ověření a heslo Wi-Fi zadáte v nativním dialogu; přihlášení k účtu párování nenahrazuje.</p>
       </section>
       <section class="aw-card" aria-labelledby="ble-heading"><h2 id="ble-heading">1. Najít a ověřit přes Bluetooth</h2><p>BLE funguje v servisním nebo obnovovacím okně kufru. Vyberte svůj kufr a ověřte PoP.</p>

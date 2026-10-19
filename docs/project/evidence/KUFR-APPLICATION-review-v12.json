@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "KUFR-APPLICATION-review-v12",
+  "observedAtUtc": "2026-10-19T07:26:25.159889+00:00",
+  "kind": "source_review",
+  "result": "pass",
+  "claims": [
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "APPLICATION",
+      "criterionRevision": 7,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "IDENTITY",
+      "criterionRevision": 7,
+      "result": "pass"
+    },
+    {
+      "workItemId": "KUFR-APPLICATION",
+      "criterionId": "RELEASES",
+      "criterionRevision": 7,
+      "result": "pass"
+    }
+  ],
+  "subject": {
+    "applicationArtifactDigest": "6e9eee9d79e7bff7d3a575fc90ba46674fb11e24cb8f78d49e77ae37d726e049",
+    "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea",
+    "releaseArtifactDigest": "a137e66ad59d349f933180220829c3a51c2a75e62f618b4490a1b6e28ec6124a",
+    "iosArtifactDigest": "c8b7da0d0cfd5695d4e8dd7013b26e57c2f1677ea20e6d409e4b4db3b25341f6"
+  },
+  "method": "Independent Sol6.1/high read-only combined review of anonymous-CSRF separation/header helper and URLSession regressions; embedded build provenance (including nonignored untracked inputs); local-contact timestamp correlation, per-device epochs, demo/account switching/forget boundaries. Parent combined diff inspection. Reviewer ran no builds/tests/index.",
+  "environment": "Windows11; Node24.21.0, Chrome Playwright, .NET10; isolated real HTTPS account fixture, synthetic API/native browser fixtures. No local Swift compiler.",
+  "limitations": [
+    "No production deployment, paid provider call, credential rotation, signing, flashing or physical actuator execution.",
+    "Virtual WebAuthn and browser/native bridge fixtures are synthetic. Portable C++ checks prove software integration, not signed iPhone, BLE possession, acoustic output or assembly.",
+    "Current Foundation/native queue harness has source review and portable wiring checks only on Windows. Its real Swift compilation, delayed URLSession execution and unsigned Simulator build require fresh macOS CI.",
+    "Source-v12 normalizes UTF-8 text to LF and retains binary bytes/Git modes; runtime-v10 records the fresh compiled browser bytes. Backend/release components are exactly unchanged from source-v11; earlier execution retains its original scope."
+  ],
+  "observation": "No actionable finding established. Current cold-signin finding4311209986 corrected in source; actual macOS execution remains pending. Source-v12 retains valid anonymous CSRF for sign-in/enrollment while anonymous state cannot publish authenticated priority credentials. Native production helper and actual URLSession fixture test cold anonymous options POSTs/no account cookie, authenticated-to-anonymous separation and invalid-token rejection. Source-v11 macOS software checks passed in native-v4; changed native source requires fresh macOS execution. Settings embeds the running asset Git revision with dirty/unknown states, no mutable release pointer. Connections stamps only accepted snapshot/correlated heartbeat per device/current app session, never pairing/demo/connect attempts; disconnected time is cached observation, not current connectivity.",
+  "artifactRefs": [
+    "docs/project/artifacts/KUFR-APPLICATION-source-v12.json",
+    "docs/project/artifacts/KUFR-APPLICATION-runtime-v10.json",
+    "docs/project/evidence/KUFR-APPLICATION-native-v4.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v11.json",
+    "docs/project/artifacts/KUFR-APPLICATION-source-v8.json",
+    "kufr/docs/application-verification.md"
+  ],
+  "supersedes": [
+    "KUFR-APPLICATION-review-v11"
+  ],
+  "supersedesReason": "Fresh329-test/build, six browser checks and independent combined review for anonymous-CSRF correction and mandatory app-version/local-last-contact displays. Backend/release source unchanged; earlier execution scope transfers explicitly. Fresh macOS software gate remains pending."
+}

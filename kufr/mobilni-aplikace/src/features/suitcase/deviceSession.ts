@@ -16,6 +16,11 @@ const pending = ref(false);
 const stopPending = ref(false);
 const message = ref('Vyberte a připojte kufr. Web může výslovně otevřít označenou simulaci.');
 const savedDevice = shallowRef<SavedNativeDevice>({ paired: false });
+// Hardware contact history is scoped to this app session and device identity.
+// It grants no account or local control authority.
+const observedDevices = shallowRef(new Map<string, number>());
+const lastObservedAt = computed(() => savedDevice.value.deviceId
+  ? observedDevices.value.get(savedDevice.value.deviceId) ?? null : null);
 const discovered = shallowRef<Array<{ deviceId: string; host: string; capabilities: string[] }>>([]);
 const bleDevices = shallowRef<ProvisioningDevice[]>([]);
 const bleStatus = shallowRef<ProvisioningStatus | null>(null);
@@ -41,6 +46,12 @@ function observe(value: DeviceSnapshot): void {
     stopPending.value = false; message.value = value.status;
   }
   snapshot.value = value;
+  const evidence = value.diagnostics;
+  if (value.source === 'native-device' && value.phase !== 'disconnected' && evidence?.deviceId
+    && Number.isSafeInteger(evidence.lastObservedAtMs) && evidence.lastObservedAtMs! > 0
+    && observedDevices.value.get(evidence.deviceId) !== evidence.lastObservedAtMs) {
+    observedDevices.value = new Map(observedDevices.value).set(evidence.deviceId, evidence.lastObservedAtMs!);
+  }
   journal.observe(value);
   journalEntries.value = journal.read();
 }
@@ -149,7 +160,11 @@ async function pairManual(deviceId: string, host: string, spkiSha256: string): P
 
 async function forgetDevice(): Promise<void> {
   if (!native) return;
-  await perform(async () => { disconnect(); await nativeBridge.forget(); ++connectionEpoch; connection = null; snapshot.value = null;
+  await perform(async () => { disconnect(); await nativeBridge.forget();
+    if (savedDevice.value.deviceId) {
+      const next = new Map(observedDevices.value); next.delete(savedDevice.value.deviceId); observedDevices.value = next;
+    }
+    ++connectionEpoch; connection = null; snapshot.value = null;
     target.value = 'unavailable'; connectedDeviceId = undefined; discovered.value = []; await refreshSaved(); });
 }
 
@@ -191,7 +206,7 @@ function protocol(): SimulatorDeviceConnection | NativeDeviceConnection | null {
 }
 
 export const deviceSession = {
-  snapshot, target, pending, stopPending, message, native, savedDevice, discovered, bleDevices, bleStatus, bleMessage, blePending, journalEntries,
+  snapshot, target, pending, stopPending, message, native, savedDevice, lastObservedAt, discovered, bleDevices, bleStatus, bleMessage, blePending, journalEntries,
   connected: computed(() => snapshot.value !== null && snapshot.value.phase !== 'disconnected'),
   refreshSaved: () => perform(refreshSaved), connectSaved, discoverLocal, setAddress, pairManual, forgetDevice, useDemo, useSimulator, disconnect, stop,
   requestOffline: async (kind: OfflineCommandKind, compartment?: number, commandId?: string, options?: OfflineCommandOptions) => {

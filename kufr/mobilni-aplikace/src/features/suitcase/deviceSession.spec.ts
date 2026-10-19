@@ -121,4 +121,31 @@ describe('explicit device connection boundary', () => {
     expect(adapter.requestOffline).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps last observed hardware contact separate from pairing, demo state and current connectivity', async () => {
+    await session.refreshSaved();
+    expect(session.lastObservedAt.value).toBeNull();
+    await session.connectSaved(); const previous = harness.adapters[0];
+    expect(session.lastObservedAt.value).toBeNull();
+    const evidence: DeviceSnapshot = { source: 'native-device', phase: 'ready', controlMode: 'observer', readyMask: 63,
+      activeCompartment: null, busy: false, status: 'confirmed native fixture', diagnostics: {
+        deviceId: 'kufr-1', bootId: 'boot-fixture', eventSequence: 1, devicePhase: 'ready', deviceUptimeMs: 10,
+        receivedAtMs: 1, roundTripMs: null, faultCount: 0, lastObservedAtMs: 1_700_000_000_000,
+      } };
+    previous.publish(evidence);
+    expect(session.lastObservedAt.value).toBe(1_700_000_000_000);
+    session.disconnect();
+    expect(session.connected.value).toBe(false); expect(session.lastObservedAt.value).toBe(1_700_000_000_000);
+    harness.saved.mockResolvedValue({ paired: true, deviceId: 'kufr-2', host: 'new-host' });
+    await session.connectSaved(); const current = harness.adapters[1];
+    expect(session.lastObservedAt.value).toBeNull();
+    previous.publish({ ...evidence, diagnostics: { ...evidence.diagnostics!, deviceId: 'kufr-2' } });
+    expect(session.lastObservedAt.value).toBeNull(); // retired connection cannot populate another device's contact
+    current.publish({ ...evidence, source: 'e2-simulator', diagnostics: { ...evidence.diagnostics!, deviceId: 'kufr-2' } });
+    expect(session.lastObservedAt.value).toBeNull();
+    current.publish({ ...evidence, diagnostics: { ...evidence.diagnostics!, deviceId: 'kufr-2' } });
+    expect(session.lastObservedAt.value).toBe(1_700_000_000_000);
+    await session.clearUserGrants();
+    expect(session.lastObservedAt.value).toBe(1_700_000_000_000); // hardware metadata grants no user authority
+  });
+
 });

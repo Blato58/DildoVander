@@ -20,7 +20,7 @@
   "acceptance": [
     {
       "id": "APPLICATION",
-      "revision": 6,
+      "revision": 7,
       "expected": "One shared Vue shell and real feature components preserve suitcase, archive, administration and deep-link journeys across web and Capacitor; telemetry preserves focus and stale physical intent is invalidated.",
       "requiredEvidenceKinds": [
         "unit",
@@ -29,17 +29,17 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "d3be30b605e7c4160bbc416e0e4552d45c9645430de1933acb3c64f043be7014"
+        "applicationArtifactDigest": "6e9eee9d79e7bff7d3a575fc90ba46674fb11e24cb8f78d49e77ae37d726e049"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-unit-v9",
-        "KUFR-APPLICATION-browser-v11",
-        "KUFR-APPLICATION-review-v11"
+        "KUFR-APPLICATION-unit-v10",
+        "KUFR-APPLICATION-browser-v12",
+        "KUFR-APPLICATION-review-v12"
       ]
     },
     {
       "id": "IDENTITY",
-      "revision": 6,
+      "revision": 7,
       "expected": "Persistent controlled owner enrollment, passkey sign-in, invitations, recovery, session revocation and resource grants are enforced server-side with CSRF and privilege separation; guest and device capabilities remain independent.",
       "requiredEvidenceKinds": [
         "integration",
@@ -47,18 +47,18 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "d3be30b605e7c4160bbc416e0e4552d45c9645430de1933acb3c64f043be7014",
+        "applicationArtifactDigest": "6e9eee9d79e7bff7d3a575fc90ba46674fb11e24cb8f78d49e77ae37d726e049",
         "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-identity-v10",
-        "KUFR-APPLICATION-browser-v11",
-        "KUFR-APPLICATION-review-v11"
+        "KUFR-APPLICATION-identity-v11",
+        "KUFR-APPLICATION-browser-v12",
+        "KUFR-APPLICATION-review-v12"
       ]
     },
     {
       "id": "RELEASES",
-      "revision": 6,
+      "revision": 7,
       "expected": "Application build and viewer tests require no CAD toolchain or manufacturing artifact; validated immutable ModelBundles and the same maintained offline viewer compose independently and work through file URLs without network.",
       "requiredEvidenceKinds": [
         "integration",
@@ -67,24 +67,24 @@
       ],
       "rule": "allOf",
       "appliesTo": {
-        "applicationArtifactDigest": "d3be30b605e7c4160bbc416e0e4552d45c9645430de1933acb3c64f043be7014",
+        "applicationArtifactDigest": "6e9eee9d79e7bff7d3a575fc90ba46674fb11e24cb8f78d49e77ae37d726e049",
         "releaseArtifactDigest": "a137e66ad59d349f933180220829c3a51c2a75e62f618b4490a1b6e28ec6124a"
       },
       "evidenceRefs": [
-        "KUFR-APPLICATION-releases-v10",
-        "KUFR-APPLICATION-browser-v11",
-        "KUFR-APPLICATION-review-v11"
+        "KUFR-APPLICATION-releases-v11",
+        "KUFR-APPLICATION-browser-v12",
+        "KUFR-APPLICATION-review-v12"
       ]
     },
     {
       "id": "NATIVE",
-      "revision": 6,
+      "revision": 7,
       "expected": "Supported native passkey authentication, Keychain session and existing physical BLE pairing survive app resume and user switching; actual associated-domain and signed-device requirements are verified separately from synthetic web evidence.",
       "requiredEvidenceKinds": [
         "native_ios"
       ],
       "appliesTo": {
-        "iosArtifactDigest": "82f3ad6e991a25755825cbecc0b177f520517fb81c13568752097e95126e6c6d"
+        "iosArtifactDigest": "c8b7da0d0cfd5695d4e8dd7013b26e57c2f1677ea20e6d409e4b4db3b25341f6"
       },
       "evidenceRefs": []
     }
@@ -92,7 +92,7 @@
   "blockers": [
     {
       "id": "SIGNED-NATIVE",
-      "problem": "Source-v11 has fresh 327-test/build and six browser software checks plus independent cancellation review. Fresh macOS harness/unsigned Simulator CI is pending after recorded native-v3 failure; signed iPhone/domain/Keychain/native media and physical BLE acceptance remain unaccepted.",
+      "problem": "Current source-v12 has fresh329-test/build and six browser software checks plus independent combined review. Prior source-v11 macOS scheduler/cancellation/Simulator checks passed (native-v4); fresh macOS execution is required for anonymous-CSRF fix/current source. Signed iPhone/domain/Keychain/native media and physical BLE acceptance remain unaccepted.",
       "severity": "high",
       "blocks": [
         "NATIVE"
@@ -101,11 +101,11 @@
     }
   ],
   "nextAction": "Complete current-head PR218 CI and reviews, then authorized merge. Record fresh macOS software evidence separately; signed iPhone/domain/Keychain/native-media/physical pairing acceptance and production activation remain separate.",
-  "currentNote": "Implementation2f11fe5 previously pushed/remoteverified;281commit scan0leaks. Source-v11 adds request-scoped native queued-command cancellation and corrects cookie fixture preconditions after immutable native-v3 failure. Fresh327app tests/build, six compiled browsers,55-file assembly/design/CSP pass; exact backend/release identities transfer prior checks. Current-head macOS/whole CI and Codex review remain merge gates. No production/provider/hardware action.",
+  "currentNote": "Implementation8f25b56 pushed/remoteverified;282commit history scan0leaks. Source-v12 corrects anonymous native CSRF and adds embedded app provenance/validated local last-contact display. Fresh329tests/build, six compiled browsers,55-file assembly/design/CSP pass. Exact backend/release identities transfer prior checks; source-v11 macOS passed but current-head whole CI/Codex review remain merge gates. No production/provider/hardware action.",
   "implementedSubject": {
-    "applicationArtifactDigest": "d3be30b605e7c4160bbc416e0e4552d45c9645430de1933acb3c64f043be7014",
+    "applicationArtifactDigest": "6e9eee9d79e7bff7d3a575fc90ba46674fb11e24cb8f78d49e77ae37d726e049",
     "backendArtifactDigest": "303435d6804c5fd493bd42cabbddc6915afa2701a289eb85cb93bfdf20ebe0ea",
     "releaseArtifactDigest": "a137e66ad59d349f933180220829c3a51c2a75e62f618b4490a1b6e28ec6124a",
-    "iosArtifactDigest": "82f3ad6e991a25755825cbecc0b177f520517fb81c13568752097e95126e6c6d"
+    "iosArtifactDigest": "c8b7da0d0cfd5695d4e8dd7013b26e57c2f1677ea20e6d409e4b4db3b25341f6"
   }
 }

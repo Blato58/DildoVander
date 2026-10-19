@@ -164,6 +164,7 @@ export class ProtocolDeviceConnection {
   private resultTimer: number | null = null;
   private staleTimer: number | null = null;
   private lastMessageAt = 0;
+  private lastObservedAtMs: number | undefined;
   private lastDeviceSampleAt = 0;
   private lastDeviceUptimeMs = 0;
   private roundTripMs = Number.POSITIVE_INFINITY;
@@ -561,6 +562,7 @@ export class ProtocolDeviceConnection {
           }
           return;
         }
+        this.lastObservedAtMs = Date.now();
         this.roundTripMs = performance.now() - pending.sentAt;
         this.lastDeviceSampleAt = performance.now();
         this.lastDeviceUptimeMs = message.deviceUptimeMs;
@@ -572,6 +574,7 @@ export class ProtocolDeviceConnection {
       if (sentAt !== undefined && message.bootId === this.device.bootId &&
           message.controlLeaseId === this.device.controlLeaseId &&
           typeof message.deviceUptimeMs === 'number') {
+        this.lastObservedAtMs = Date.now();
         this.roundTripMs = performance.now() - sentAt;
         this.lastDeviceSampleAt = performance.now();
         this.lastDeviceUptimeMs = message.deviceUptimeMs;
@@ -589,6 +592,9 @@ export class ProtocolDeviceConnection {
     if (this.device?.bootId === snapshot.bootId && snapshot.eventSequence < this.device.eventSequence) {
       return;
     }
+    // Wall-clock contact evidence changes only after a validated snapshot or a
+    // correlated heartbeat response, never after connect attempts/local actions.
+    this.lastObservedAtMs = Date.now();
     const previousMask = this.device?.readyMask ?? snapshot.readyMask;
     const previousLeaseId = this.device?.controlLeaseId;
     if (this.device && snapshot.bootId !== this.device.bootId) {
@@ -908,6 +914,8 @@ export class ProtocolDeviceConnection {
       busy: this.state.busy || dance.pending,
       phase: this.state.phase === 'ready' && danceActive(dance.phase) ? 'running' as const : this.state.phase,
       diagnostics: this.device === null ? undefined : {
+        deviceId: this.device.deviceId,
+        lastObservedAtMs: this.lastObservedAtMs,
         bootId: this.device.bootId,
         devicePhase: this.device.phase,
         eventSequence: this.device.eventSequence,

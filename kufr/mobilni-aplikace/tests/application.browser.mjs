@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFile, stat, mkdir } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +77,9 @@ try {
     await page.goto(origin + route); await page.getByRole('main').waitFor(); await fits();
     await page.reload(); await page.getByRole('main').waitFor();
   }
+  await page.goto(origin + '/settings'); await hasHeading('Verze aplikace');
+  const runningRevision = await page.locator('.application-revision').textContent();
+  assert.equal(runningRevision, execFileSync('git', ['rev-parse', 'HEAD'], { cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8', windowsHide: true }).trim(), 'display identifies the compiled application source');
   for (const [legacy, destination] of [['/companion/', '/suitcase'], ['/app/', '/suitcase'], ['/keepsake/evening/', '/archive'], ['/workshop/index.html', '/workshop'], ['/simulator/', '/workshop?mode=simulation']]) {
     await page.goto(origin + legacy); await page.waitForURL(origin + destination);
   }

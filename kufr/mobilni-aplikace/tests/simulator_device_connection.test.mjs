@@ -460,3 +460,36 @@ test('offline outbox acknowledgement is explicit and Stop invalidates pending re
   assert.equal(socket.sent.at(-1).type, 'safety.stop');
   connection.suspend();
 });
+
+test('last observed local time changes only on accepted snapshots or matched heartbeat replies', () => {
+  const dateNow = Date.now;
+  let wallClock = 1_700_000_000_000;
+  Date.now = () => wallClock;
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId, autoConnect: false, createSocket: () => socket,
+  });
+  try {
+    assert.equal(connection.snapshot().diagnostics, undefined);
+    connection.connect(); socket.open();
+    assert.equal(connection.snapshot().diagnostics, undefined);
+    const lease = randomUUID();
+    socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ controlMode: 'manual', controlLeaseId: lease }) });
+    assert.equal(connection.snapshot().diagnostics.deviceId, deviceId);
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, wallClock);
+    const observed = wallClock;
+    wallClock += 1_000;
+    connection.release(); // local intent is not evidence of a fresh device response
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, observed);
+    socket.message(snapshot({ eventSequence: 0, controlMode: 'manual', controlLeaseId: lease })); // delayed, superseded state
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, observed);
+    connection.heartbeat();
+    const heartbeat = socket.sent.at(-1);
+    const reply = { protocolVersion: 1, type: 'heartbeat.ack', requestMessageId: heartbeat.messageId,
+      bootId, controlLeaseId: lease, revision: 1, deviceUptimeMs: now };
+    socket.message({ ...reply, requestMessageId: randomUUID() });
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, observed);
+    socket.message(reply);
+    assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, wallClock);
+  } finally { connection.suspend(); Date.now = dateNow; }
+});

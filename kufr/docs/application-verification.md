@@ -16,7 +16,7 @@ publication are in the [release guide](../web/deploy/APPLICATION-RELEASES.md).
 
 | Area | Actual checks and boundary |
 | --- | --- |
-| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 122 Node regressions and 205 Vue tests across 29 files passed (327 total). The standalone build checked contracts, Vue types and shared lazy feature modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
+| Shared Vue application | `npm ci`, final `npm test`, `npm run build` on Node 24.21.0; final 123 Node regressions and 206 Vue tests across 29 files passed (329 total). The standalone build checked contracts, Vue types and shared lazy feature modules without CAD. Real components, retained protocol regressions, strict compiled CSP and lazy feature routes. |
 | Show Pack Vue | `node tests/director.browser.mjs` and `node scripts/archive-show.browser.mjs`: compiled Director two-operator conflict, scoped grants, urgent/lost Stop, route navigation, guest wizard identity/private prophecy, scoped duel moves, chronicle zero/tie/withdrawn and authorized event selection; actual partial PNG bytes, keyboard and 1440/390 px layouts. All APIs in these suites are synthetic. |
 | Rendered application | `npm run test:browser`: shared navigation, direct reload, legacy destinations, unknown routes, early private claim capture, explicit demo, focus across heartbeats, stale confirmation, Stop, theme, keyboard, 1440/390/320 px layouts and 200% text. The shell measures the bottom navigation so enlarged labels do not conceal the end of the page. |
 | Accounts | `npm run test:accounts:fixture`: actual HTTPS backend, controlled private owner delivery, Chrome virtual WebAuthn authenticator, real passkey verifier and naming, invitation/replay denial, Viewer authorization, logout and safe return. A held real logout response proves that a new sign-in waits for its cookie update. Fixture configuration excludes providers; its normal shutdown removes its private temporary database and keys. |
@@ -159,7 +159,18 @@ Request-scoped native cancellation now carries UUIDs from both account bridge
 methods into a bounded task registry. Abort removes ordinary/priority waiters
 before HTTP dispatch; admission/cancellation races have a final dispatch guard.
 Active HTTP cancellation is best effort and cannot undo a server mutation.
-Fresh 327 app tests, production build, six compiled browser journeys, 55-file
+Source-v11: 327 app tests, production build, six compiled browser journeys, 55-file
 site assembly, design integrity and compiled DV10/CSP checks pass. Native
 zero-HTTP cancellation/races/queue progress/bounds/401 harness cases have
 independent source review; fresh macOS execution remains required.
+
+Source-v12 retains valid anonymous CSRF independently of authenticated priority
+credentials. Cold native sign-in/enrollment options have a production-helper
+URLSession regression; real Swift execution remains a fresh macOS CI gate.
+Settings identifies the assets actually running with an embedded Git revision
+and explicit dirty/unknown provenance; it never fetches a mutable release pointer.
+Connections records only validated local snapshots/correlated heartbeats and
+labels the phone clock/current app session, never a pairing or connect attempt.
+Combined local tests pass 123 Node + 206 Vue (329 total); independent combined
+source review found no remaining actionable defect. Signed-device evidence is
+still separate from these software checks.
