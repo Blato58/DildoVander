@@ -53,3 +53,9 @@ Use `status ISSUE --session SESSION --status Blocked --body-file FILE` for a
 blocker; `--status "In Review"` records review readiness. Only the sole active
 claimant may change status. Keep the dedicated board free of foreign-repository
 Issues and duplicate titles; a missing/ambiguous title stops synchronization.
+
+When a PR or review is still pending, follow the repository's
+[asynchronous handoff](../../../docs/development-coordination.md#asynchronous-pr-follow-up):
+reuse a native heartbeat for this chat, preserve the private task/session in its
+prompt, and end the active turn. Resume on actionable failure or verified
+success; do not wait in a local watch loop or create a separate tracking task.

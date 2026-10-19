@@ -19,6 +19,7 @@
 
 ## Git předání po implementačním slice
 
+- Na dokončení CI nebo PR review nečekej v aktivním chatu ani v pollovací smyčce. V Codexu vytvoř nebo aktualizuj nativní heartbeat pro tento chat, běžně po pěti minutách, a předej mu pokračování při úspěchu, chybě nebo potřebě zásahu podle [koordinačního workflow](docs/development-coordination.md#asynchronous-pr-follow-up). Potom ukonči aktuální tah; neukončuj vzdálené CI. Pokud prostředí následné spuštění nepodporuje, uveď omezení a přesné předání místo slibu automatického probuzení.
 - Po ověření slice zkontroluj `git status`, commitni jen související změny a z kořene repozitáře spusť `./scripts/Push-CurrentBranch.ps1` v autorizovaném vývojovém prostředí. Otevři jeden veřejný implementační PR s technickým popisem a skutečnými výsledky testů. Privátní Issue neodkazuj z veřejného PR ani commitu; odkaz na PR, výsledný commit, CI a blokace zapiš do privátního Issue. Veřejné `Fixes #N` používej jen pro skutečný veřejný contributor Issue s dokončenou akceptací.
 - Cizí nebo nesouvisející úpravy nikdy automaticky nepřidávej. Neúspěšný build/test neopravuj commitem, který tvrdí dokončení; rozpracovaný stav zaznamenej a pokračuj podle konkrétní chyby.
 - Pokud chybí remote/upstream, přístup nebo jiný nezbytný údaj, dokonči bezpečný lokální commit a vyžádej jen chybějící údaj. Push neprohlašuj za hotový, dokud není ověřen.
