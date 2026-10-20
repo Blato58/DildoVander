@@ -1,5 +1,9 @@
 # PlatformIO
 **/.pio/
+/sdkconfig.production
+/sdkconfig.diag-*
+/sdkconfig.production.old
+/partitions_16mb.csv
 /firmware/sdkconfig.production
 /firmware/sdkconfig.diag-*
 /firmware/sdkconfig.production.old
