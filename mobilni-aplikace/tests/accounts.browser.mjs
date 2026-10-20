@@ -56,7 +56,12 @@ try {
   assert.equal((await (await viewer.context.request.get(origin.origin + '/app/v1/account')).json()).passkeys[0].name, 'Testovací Chrome');
   assert.equal((await viewer.context.request.get(origin.origin + '/app/v1/admin/users')).status(), 403);
   await viewer.page.goto(origin.origin + '/settings/admin');
-  await viewer.page.getByText('Tato stránka vyžaduje oprávnění správce.', { exact: false }).waitFor();
+  await viewer.page.waitForURL(url => url.pathname === '/' && url.searchParams.get('access') === 'administrator');
+  await viewer.page.getByText('K této části nemáte potřebnou roli.', { exact: false }).waitFor();
+  assert.equal(await viewer.page.getByLabel('Role nového účtu', { exact: true }).count(), 0, 'Viewer cannot mount admin controls');
+  await viewer.page.goto(origin.origin + '/suitcase');
+  await viewer.page.waitForURL(url => url.pathname === '/' && url.searchParams.get('access') === 'operator');
+  await viewer.page.getByText('K této části nemáte potřebnou roli.', { exact: false }).waitFor();
   await viewer.page.goto(origin.origin + '/settings');
   // Hold the actual expiry Set-Cookie response. A JS-only stale-response fence
   // cannot protect a new cookie if logout and a fresh login run concurrently.
