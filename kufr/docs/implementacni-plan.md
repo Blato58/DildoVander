@@ -303,7 +303,7 @@ Backend používá nativní Responses function calling: `continue_conversation`,
 
 Stav návrhu: **29. 9. 2026**. Dokument navrhuje budoucí implementaci; žádnou z ní neprohlašuje za hotovou. Pinová přidělení jsou **předběžná**, nikoli změřené zapojení konkrétní desky. Před zapojením a nahráním musí projít kontrolou revize podle kapitoly 10.
 
-Tento plán určuje cílovou architekturu a akceptační kritéria. Aktuální dokončení, rozpracovanost, ověření a další krok vede [privátní evidence](../../docs/development-coordination.md); postup další AI určuje [AGENTS.md](../../AGENTS.md). Plán nahrazuje dosavadní nezávazné softwarové představy, nikoli existující elektrická bezpečnostní omezení. Obludárium není součástí návrhu. Původní příprava plánu i navazující sjednocení dokumentace byly pouze dokumentační práce; nejsou dokončením implementačních etap.
+Tento plán určuje cílovou architekturu a akceptační kritéria. Aktuální dokončení, rozpracovanost, ověření a další krok vede [privátní evidence](../../docs/development-coordination.md); postup další AI určuje [AGENTS.md](../../AGENTS.md). Plán nahrazuje dosavadní nezávazné softwarové představy, nikoli existující elektrická bezpečnostní omezení. Původní příprava plánu i navazující sjednocení dokumentace byly pouze dokumentační práce; nejsou dokončením implementačních etap.
 
 ## 1. Výchozí stav a cílový zážitek
 

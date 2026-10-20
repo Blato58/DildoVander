@@ -11,7 +11,6 @@ ověření konkrétních sestav vede [stav implementace](../kufr/docs/stav-imple
 | TypeScript / Capacitor / Swift | iOS místní WSS ovladač se zabezpečeným BLE provisioningem; samostatná backendová diagnostika | [Mobil](../kufr/mobilni-aplikace/README.md) |
 | C++ / Node simulátor | Fake fyzické porty, místní WSS facade a pozorovací konzole | [Simulátor](../kufr/simulator/README.md) |
 | Python / CadQuery a web | Parametrická vložka F2, ověřované exporty a Workshop viewer | [Mechanika](../kufr/mechanika/README.md), [web](../kufr/web/README.md) |
-| Arduino Nano | Oddělený budoucí projekt animatronické knihy; zatím kostra | [Obludárium](../obludarium/README.md) |
 
 Telefon není cloudový prostředník ESP32. Backend přímo nespíná pohony: návrh
 obsahuje jen přihrádku 1–6 nebo žádnou a místní brána kontroluje aktuální
