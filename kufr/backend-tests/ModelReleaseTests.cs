@@ -35,6 +35,16 @@ internal static class ModelReleaseTests
             {
                 Check(previous.RootElement.GetProperty("bundleHash").GetString() == first, "duplicate selection retains compatible rollback");
             }
+            foreach (var routeId in new[] { "P12/+", "<P12+>", "P12+\\escape", "P12+\n" })
+            {
+                var invalidRoute = WriteBundle(root, "synthetic-invalid-route", routeId: routeId);
+                await FailsAsync(() => store.SelectAsync(new(invalidRoute, second, true), default), "model_release_invalid");
+            }
+            foreach (var sourcePath in new[] { "../MONT.md", "/MONT.md", "a//b.md", "a\\b.md", "MONT.md\n" })
+            {
+                var invalidEvidence = WriteBundle(root, "synthetic-invalid-evidence", sourceEvidencePath: sourcePath);
+                await FailsAsync(() => store.SelectAsync(new(invalidEvidence, second, true), default), "model_release_invalid");
+            }
             var unverified = WriteBundle(root, "synthetic-unverified", false);
             await FailsAsync(() => store.SelectAsync(new(unverified, second, true), default), "verified_model_required");
             var corrupt = WriteBundle(root, "synthetic-corrupt");
@@ -116,7 +126,7 @@ internal static class ModelReleaseTests
         Check((await client.PostAsJsonAsync("/app/v1/admin/model-releases/active", new SelectModelRelease(new string('a', 64), null, true))).StatusCode == HttpStatusCode.Forbidden, "non-admin selection denied");
     }
 
-    internal static string WriteBundle(string root, string source, bool verified = true)
+    internal static string WriteBundle(string root, string source, bool verified = true, string routeId = "P12+", string sourceEvidencePath = "MONT\u00c1\u017d.md")
     {
         // Deliberate synthetic verified-format metadata for isolated tests;
         // this never represents actual CAD or physical acceptance evidence.
@@ -128,12 +138,12 @@ internal static class ModelReleaseTests
                 vertices = new[] { 0, 0, 0, 1, 0, 0, 0, 1, 0 }, triangles = new[] { 0, 1, 2 } } },
             hinge = new[] { 0, 0, 0 }, mechanism = new { origin_y = 0, origin_z = 0, cam_y = 0, cam_z = 0, dwell_degrees = 0, travel_degrees = 180, lift = 1, count = 1 },
             assemblyGuide = new { steps = new[] { new { id = "step-a", title = "Synthetic assembly test", parts = new[] { "part-a" } } } },
-            routes = Array.Empty<object>(), sources = Array.Empty<object>(), connections = Array.Empty<object>(), bomReferences = Array.Empty<object>(),
+            routes = new[] { new { id = routeId, from = "power:out", to = "board:in", transport_points = (object?)null, disconnected_points = (object?)null, points = new[] { new[] { 0, 0, 0 }, new[] { 1, 1, 1 } } } }, sources = Array.Empty<object>(), connections = Array.Empty<object>(), bomReferences = Array.Empty<object>(),
             presentation = new { target = new[] { 0, 0, 0 } }, twinManifest = (object?)null
         };
-        return WriteBundleBytes(root, JsonSerializer.SerializeToUtf8Bytes(model), source, verified);
+        return WriteBundleBytes(root, JsonSerializer.SerializeToUtf8Bytes(model), source, verified, sourceEvidencePath);
     }
-    private static string WriteBundleBytes(string root, byte[] bytes, string source, bool verified)
+    private static string WriteBundleBytes(string root, byte[] bytes, string source, bool verified, string sourceEvidencePath = "MONT\u00c1\u017d.md")
     {
         using var modelDocument = JsonDocument.Parse(bytes);
         var modelId = modelDocument.RootElement.GetProperty("modelId").GetString();
@@ -143,7 +153,7 @@ internal static class ModelReleaseTests
         byte[]? verificationBytes = null;
         if (verified)
         {
-            var sourceHashes = new Dictionary<string, string> { ["synthetic-model-source.py"] = Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(source))) };
+            var sourceHashes = new Dictionary<string, string> { [sourceEvidencePath] = Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(source))) };
             verificationBytes = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 result = "PASS_CAD_NOT_PHYSICAL_ACCEPTANCE", physical_test_performed = false, sources = sourceHashes,

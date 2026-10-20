@@ -5,6 +5,8 @@ export const MAX_MODEL_BYTES = 96 * 1024 * 1024;
 export const VIEWER_VERSION = 1;
 const hashPattern = /^[a-f0-9]{64}$/;
 const idPattern = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,159}$/;
+// Circuit route names retain their electrical polarity (for example P12+).
+const routeIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9_.:+-]{0,159}$/;
 const fail = message => { throw new Error(`ModelBundle: ${message}`); };
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const vector = (value, length) => Array.isArray(value) && value.length === length && value.every(Number.isFinite);
@@ -97,9 +99,9 @@ export function validateModel(model, manifest) {
   const routeIds = new Set();
   const polyline = points => Array.isArray(points) && points.length >= 2 && points.length <= 10000 && points.every(p => vector(p, 3));
   for (const route of model.routes) {
-    if (!record(route) || !idPattern.test(route.id) || routeIds.has(route.id) || !polyline(route.points)) fail('invalid cable route');
+    if (!record(route) || typeof route.id !== 'string' || !routeIdPattern.test(route.id) || routeIds.has(route.id) || !polyline(route.points)) fail('invalid cable route');
     routeIds.add(route.id); text(route.from, 'route origin', 160); text(route.to, 'route destination', 160);
-    for (const key of ['transport_points', 'disconnected_points']) if (route[key] !== undefined && !polyline(route[key])) fail('invalid parked cable route');
+    for (const key of ['transport_points', 'disconnected_points']) if (route[key] != null && !polyline(route[key])) fail('invalid parked cable route');
     if (route.point_lift_weights !== undefined) {
       if (!record(route.point_lift_weights) || Object.entries(route.point_lift_weights).some(([slot, weights]) => !/^[1-6]$/.test(slot) || !Array.isArray(weights) || weights.length !== route.points.length || !weights.every(value => Number.isFinite(value) && value >= 0 && value <= 1))) fail('invalid flexible cable weights');
     }
@@ -184,7 +186,8 @@ export async function loadBundle(manifest, readAsset, options = {}) {
     const evidence = certificate?.modelEvidence, modelAsset = manifest.assets.find(asset => asset.kind === 'model-json');
     if (!record(certificate) || certificate.result !== 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE' || certificate.physical_test_performed !== false || !record(evidence) || evidence.schemaVersion !== 1 || evidence.modelId !== manifest.modelId || evidence.modelAssetSha256 !== modelAsset.sha256 || evidence.sourceRevision !== manifest.provenance.sourceRevision || !record(evidence.sourceHashes) || !Object.keys(evidence.sourceHashes).length || Object.keys(evidence.sourceHashes).length > 512 || !record(certificate.sources)) fail('invalid CAD verification certificate');
     for (const [source, hash] of Object.entries(evidence.sourceHashes)) {
-      safeAssetPath(source);
+      text(source, 'source evidence path', 240);
+      if (!/^[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*(?:\/[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*)*$/u.test(source)) fail('unsafe source evidence path');
       if (!hashPattern.test(hash) || certificate.sources[source] !== hash) fail('CAD report source evidence disagrees');
     }
   }
