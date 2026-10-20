@@ -7,7 +7,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const repository = resolve(appRoot, '../..');
+const repository = resolve(appRoot, '..');
 const assembly = process.env.KUFR_TESTS_DLL;
 assert(assembly, 'Set KUFR_TESTS_DLL to the previously built BackendTests.dll.');
 await access(resolve(repository, assembly));

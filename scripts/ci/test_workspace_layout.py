@@ -81,7 +81,9 @@ class WorkspaceLayoutTests(unittest.TestCase):
                 before = document.read_bytes()
                 result = subprocess.run([*command, "-RefreshManagedTasks"], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("name conflict", result.stdout + result.stderr)
+                output = result.stdout + result.stderr
+                self.assertIn("Firmware", output)
+                self.assertIn("conflict", output)
                 self.assertEqual(document.read_bytes(), before)
 
     def test_setup_resolves_root_firmware_and_preserves_local_configuration(self):
