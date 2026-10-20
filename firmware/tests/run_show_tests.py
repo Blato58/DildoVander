@@ -77,6 +77,7 @@ def main():
         ("espidf_realtime_transport_test", ["voice_turn/EspIdfRealtimeTransport", "voice_turn/RealtimeSessionEngine", "voice_turn/RealtimeEventCodec", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession", "lib/device_configuration/NetworkSettings"], ["tests/realtime_stubs", "lib/device_configuration/include"]),
         ("espidf_voice_audio_test", ["voice_turn/EspIdfVoiceAudio"], ["tests/audio_stubs"]),
         ("local_control_server_test", ["local_control/EspIdfLocalControlServer", "local_control/LocalControlCodec", "local_control/LocalControlInbox", "local_control/LocalSocketAdmission", "local_control/LocalBearerAuthenticator", "provisioning/LocalTlsIdentity", "provisioning/LocalPairingCredential", "conversation/ConversationSession", "conversation/ConversationStartCodec"], ["tests/server_stubs", "lib/device_configuration/include"]),
+        ("espidf_local_service_advertisement_test", ["local_control/EspIdfLocalServiceAdvertisement", "lib/device_configuration/NetworkSettings", "network_provisioning/NetworkProfiles"], ["tests/discovery_stubs", "tests/station_stubs", "lib/device_configuration/include"]),
         ("wand_presentation_test", CORE, []),
         ("local_control_owner_test", CORE + ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlSession", "local_control/LocalConversationGateway", "local_control/LocalControlInbox", "local_control/LocalControlOwner"], []),
         ("local_control_codec_test", ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlCodec"], []),
@@ -101,6 +102,10 @@ def main():
             files.append(str(ROOT / "tests" / (name + ".cpp")))
             if msvc:
                 flags = ["/nologo", "/std:c++14", "/utf-8", "/EHsc", "/W4", "/WX", "/wd4244", "/Fe:" + str(executable)]
+                if name == "espidf_local_service_advertisement_test":
+                    # NetworkProfiles bounds its copies before using standard
+                    # C functions; retain that portable code on the MSVC host.
+                    flags += ["/D_CRT_SECURE_NO_WARNINGS"]
                 flags += ["/I" + str(ROOT / include) for include in includes]
             else:
                 flags = ["-std=c++14", "-Wall", "-Wextra", "-Werror", "-pthread", "-o", str(executable)]
