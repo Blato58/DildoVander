@@ -23,6 +23,14 @@ internal static class PersonaLabTransportTests
         await RunCaseAsync("observed simulated Live tool failure", 15, LiveToolFailureAsync);
         await RunCaseAsync("shutdown and orphaned suites", 10, ShutdownAndOrphansAsync);
         await RunCaseAsync("voice interruption and reuse", 10, VoiceInterruptionAsync);
+        await RunCaseAsync("acknowledged completed cancellation", 10, () => AcknowledgedCancellationAsync(false));
+        await RunCaseAsync("acknowledged active cancellation", 10, () => AcknowledgedCancellationAsync(true));
+        await RunCaseAsync("acknowledged multipart cancellation", 10, () => AcknowledgedCancellationAsync(false, true));
+        await RunCaseAsync("acknowledged completion and next microphone", 10, AcknowledgedCompletionAsync);
+        await RunCaseAsync("acknowledged terminal notification failure", 10, AcknowledgedNotificationFailureAsync);
+        await RunCaseAsync("acknowledged drain shutdown", 15, AcknowledgedShutdownAsync);
+        await RunCaseAsync("acknowledged atomic dispositions", 10, AcknowledgedDispositionsAsync);
+        await RunCaseAsync("negotiated Live streaming mode", 10, NegotiatedLiveAsync);
         await RunCaseAsync("continuous voice input admission", 10, ContinuousVoiceInputAsync);
         await RunCaseAsync("continuous voice normal completion", 10, ContinuousVoiceCompletionAsync);
         await RunCaseAsync("voice protocol failure diagnostics", 10, VoiceProtocolDiagnosticsAsync);
@@ -30,7 +38,7 @@ internal static class PersonaLabTransportTests
         await RunCaseAsync("blocked voice input shutdown", 10, BlockedVoiceInputShutdownAsync);
         await RunCaseAsync("observed voice recovery", 10, VoiceRecoveryAsync);
         await RunCaseAsync("hardware admission leases", 10, HardwareAdmissionLeasesAsync);
-        Console.WriteLine("Persona Lab actual runtime: text history/privacy, provider faults, suite execution, Live final usage, and PCM interruption/reuse passed (fake providers only).");
+        Console.WriteLine("Persona Lab actual runtime: text history/privacy, provider faults, suites, Live final usage, PCM interruption/reuse and acknowledged playback barriers passed (fake providers only).");
     }
 
     private static async Task RunCaseAsync(string name, int timeoutSeconds, Func<Task> test)
@@ -687,6 +695,224 @@ internal static class PersonaLabTransportTests
             "ending a session cancels a blocked provider upload and releases its admission without semaphore disposal races");
     }
 
+    private static async Task NegotiatedLiveAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.VoiceNextLive = true;
+        var session = fixture.Session(engine: GptLiveProtocol.Model);
+        using var client = new ClientSocket();
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token,
+            acknowledgedPlayback: true);
+        var readyTask = client.JsonAsync("ready", fixture.Token);
+        if (await Task.WhenAny(readyTask, voice) == voice) { await voice; }
+        var ready = await readyTask;
+        Check(ready.GetProperty("playbackMode").GetString() == "stream", "negotiated Live retains stream ownership");
+        client.PushBinary(new byte[9600]);
+        await client.BinaryAsync(fixture.Token);
+        client.Push(new { type = "end" });
+        await voice.WaitAsync(fixture.Token);
+        Check(fixture.Runtime.ActiveCount == 0, "Live stream ends without a response playback barrier");
+    }
+
+    private static async Task AcknowledgedCancellationAsync(bool beforeProviderDone, bool multipleParts = false)
+    {
+        using var fixture = new Fixture();
+        fixture.VoiceNextRealtime = beforeProviderDone;
+        var session = fixture.Session(recordContent: true);
+        using var client = new ClientSocket();
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token,
+            acknowledgedPlayback: true);
+        var ready = await client.JsonAsync("ready", fixture.Token);
+        Check(ready.GetProperty("playbackMode").GetString() == "acknowledged", "Realtime negotiates drain acknowledgement");
+        await client.JsonAsync("listening", fixture.Token);
+        var provider = fixture.RealtimeSockets[0];
+        provider.AdditionalAudioPart = multipleParts;
+        client.PushBinary(new byte[4800]);
+        var started = await client.JsonAsync("playback_started", fixture.Token);
+        var playbackId = started.GetProperty("playbackId").GetString()!;
+        await client.BinaryAsync(fixture.Token);
+        if (!beforeProviderDone)
+        {
+            var end = await client.JsonAsync("playback_end", fixture.Token);
+            Check(end.GetProperty("totalSamples").GetInt32() == (multipleParts ? 4800 : 2400) && end.GetProperty("final").GetBoolean(),
+                "provider completion reports exact forwarded PCM without committing assistant history");
+        }
+        Check(fixture.Runtime.Detail("owner", session.Id).Turns.All(turn => turn.Role != "assistant"),
+            "queued but unheard assistant is absent from runtime and recorded history");
+        client.Push(new { type = "cancel", playbackId, playedAudioMs = multipleParts ? 30000 : 50 });
+        await client.JsonAsync("interrupted", fixture.Token);
+        Check(provider.CancelCommands == (beforeProviderDone ? 1 : 0) && provider.TruncatedAtMs == (multipleParts ? 100 : 50),
+            "partial playback truncates exact response; only an active provider receives response.cancel");
+        if (multipleParts)
+        {
+            var truncations = provider.Commands.Select(command => JsonDocument.Parse(command)).ToArray();
+            try
+            {
+                var parts = truncations.Where(command => command.RootElement.GetProperty("type").GetString() == "conversation.item.truncate")
+                    .Select(command => command.RootElement).ToArray();
+                Check(parts.Length == 2 && parts.All(part => part.GetProperty("audio_end_ms").GetInt32() == 100)
+                    && parts.Select(part => part.GetProperty("content_index").GetInt32()).SequenceEqual(new[] { 0, 1 }),
+                    "oversized client cutoff clamps to server-forwarded PCM and truncates each exact content part");
+            }
+            finally { foreach (var command in truncations) { command.Dispose(); } }
+        }
+        Check(provider.MaximumConcurrentReads == 1, "control cancellation never starts a second provider reader");
+        await client.JsonAsync("listening", fixture.Token);
+        Check(fixture.Runtime.Detail("owner", session.Id).Turns.All(turn => turn.Role != "assistant"),
+            "interrupted full transcript is never saved");
+        var events = fixture.Store.Session("owner", session.Id).Events;
+        Check(events.Count(entry => entry.Type == "provider_tokens") == 1 && events.Count(entry => entry.Type == "provider_cost") == 1,
+            "partial cancellation accounts observed tokens and cost once");
+        client.Push(new { type = "end" });
+        await voice.WaitAsync(fixture.Token);
+        await fixture.Runtime.TurnAsync("owner", session.Id, new("Continue without unheard speech."), fixture.Token);
+        Check(!fixture.RealtimeSockets[1].Commands.Any(command => command.Contains("TRANSPORT-ANSWER-1", StringComparison.Ordinal)),
+            "recorded session recovery cannot resurrect the interrupted assistant transcript");
+    }
+
+    private static async Task AcknowledgedCompletionAsync()
+    {
+        using var fixture = new Fixture();
+        var session = fixture.Session(recordContent: true);
+        using var client = new ClientSocket();
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token,
+            acknowledgedPlayback: true);
+        await client.JsonAsync("listening", fixture.Token);
+        var provider = fixture.RealtimeSockets[0];
+        client.PushBinary(new byte[4800]);
+        var end = await client.JsonAsync("playback_end", fixture.Token);
+        var firstId = end.GetProperty("playbackId").GetString()!;
+        Check(provider.Configurations.Reader.Count == 1 && provider.AudioUploads == 1,
+            "provider does not configure a new input before drain acknowledgement");
+        client.Push(new { type = "playback_done", playbackId = firstId, playedSamples = 2400 });
+        var firstNextPcm = Enumerable.Repeat((byte)7, 960).ToArray();
+        client.PushBinary(firstNextPcm);
+        var secondStart = await client.JsonAsync("playback_started", fixture.Token);
+        var secondId = secondStart.GetProperty("playbackId").GetString()!;
+        var secondEnd = await client.JsonAsync("playback_end", fixture.Token);
+        Check(firstId != secondId && provider.AudioUploads == 2 && provider.AudioPayloads[1] == Convert.ToBase64String(firstNextPcm),
+            "first microphone PCM immediately after final ACK survives next-turn clear/configure");
+        client.Push(new { type = "cancel", playbackId = firstId, playedAudioMs = 0 });
+        client.Push(new { type = "playback_done", playbackId = firstId, playedSamples = 2400 });
+        client.Push(new { type = "cancel", playbackId = firstId, playedAudioMs = "malformed-retired-cutoff" });
+        client.Push(new { type = "playback_done", playbackId = firstId, playedSamples = -1 });
+        client.Push(new { type = "playback_error", playbackId = firstId, code = "unknown-retired-code" });
+        client.Push(new { type = "cancel", playbackId = "unknown-response" });
+        client.Push(new { type = "playback_done", playbackId = "unknown-response" });
+        client.Push(new { type = "playback_error", playbackId = "unknown-response" });
+        client.Push(new { type = "playback_done", playbackId = secondId, playedSamples = secondEnd.GetProperty("totalSamples").GetInt32() });
+        await client.JsonAsync("turn", fixture.Token, root => root.GetProperty("turn").GetProperty("role").GetString() == "assistant");
+        await client.JsonAsync("listening", fixture.Token);
+        Check(provider.CancelCommands == 0 && provider.TruncatedAtMs is null
+            && fixture.Store.Session("owner", session.Id).Turns.Count(turn => turn.Role == "assistant") == 2,
+            "stale cancel/duplicate ACK cannot affect newer response, and full drains alone persist assistants");
+        client.Push(new { type = "end" });
+        await voice.WaitAsync(fixture.Token);
+    }
+
+    private static async Task AcknowledgedNotificationFailureAsync()
+    {
+        using var fixture = new Fixture();
+        var session = fixture.Session(recordContent: true);
+        using var client = new ClientSocket { FailAssistantTurn = true };
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token,
+            acknowledgedPlayback: true);
+        await client.JsonAsync("listening", fixture.Token);
+        client.PushBinary(new byte[4800]);
+        var end = await client.JsonAsync("playback_end", fixture.Token);
+        client.Push(new { type = "playback_done", playbackId = end.GetProperty("playbackId").GetString(), playedSamples = 2400 });
+        try { await voice; throw new Exception("Terminal notification unexpectedly succeeded."); }
+        catch (LabException error) when (error.Code == "lab_provider_error") { }
+        var saved = fixture.Store.Session("owner", session.Id);
+        Check(saved.Turns.Count(turn => turn.Role == "assistant") == 1
+            && saved.Events.Count(entry => entry.Type == "provider_cost") == 1
+            && saved.Events.Count(entry => entry.Type == "provider_tokens") == 1,
+            "failure notifying an already drained turn preserves its heard assistant and once-only provider observations");
+    }
+
+    private static async Task AcknowledgedShutdownAsync()
+    {
+        foreach (var reason in new[] { "end", "disconnect", "revoked", "deadline", "playback_error" })
+        {
+            using var fixture = new Fixture(reason == "deadline" ? new PersonaLabOptions { MaxSessionSeconds = 1 } : null);
+            var session = fixture.Session(recordContent: true);
+            using var client = new ClientSocket();
+            var authorized = true;
+            var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(Volatile.Read(ref authorized)), fixture.Token,
+                acknowledgedPlayback: true);
+            await client.JsonAsync("listening", fixture.Token);
+            client.PushBinary(new byte[4800]);
+            var end = await client.JsonAsync("playback_end", fixture.Token);
+            switch (reason)
+            {
+                case "end": client.Push(new { type = "end" }); break;
+                case "disconnect": client.CloseInput(); break;
+                case "revoked": Volatile.Write(ref authorized, false); break;
+                case "playback_error": client.Push(new { type = "playback_error", playbackId = end.GetProperty("playbackId").GetString(), code = "audio_stalled" }); break;
+            }
+            try { await voice.WaitAsync(fixture.Token); }
+            catch (LabException error) when (reason is "revoked" or "deadline" or "playback_error")
+            {
+                Check(reason != "playback_error" || error.Code == "lab_audio_stalled", "client playback error has a fixed diagnostic");
+            }
+            var saved = fixture.Store.Session("owner", session.Id);
+            Check(fixture.Runtime.ActiveCount == 0 && saved.Turns.All(turn => turn.Role != "assistant")
+                && saved.Events.Count(entry => entry.Type == "provider_cost") == 1
+                && saved.Events.Count(entry => entry.Type == "provider_tokens") == 1,
+                reason + " releases drain waiter and keeps observed provider usage without unheard assistant history");
+        }
+    }
+
+    private static async Task AcknowledgedDispositionsAsync()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var token = deadline.Token;
+        for (var index = 0; index < 32; index++)
+        {
+            var cancellations = 0;
+            var prepared = 0;
+            var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var gate = new PersonaLabPlayback((value, _) =>
+            {
+                using var doc = JsonDocument.Parse(JsonSerializer.Serialize(value));
+                if (doc.RootElement.GetProperty("type").GetString() == "playback_end") { ended.TrySetResult(); }
+                return Task.CompletedTask;
+            }, (_, _, _) => { Interlocked.Increment(ref cancellations); return Task.FromResult(true); },
+                () => Interlocked.Increment(ref prepared), _ => { });
+            await gate.StartedAsync("same-response", token);
+            var drain = gate.CompletedAsync("same-response", 2400, true, token);
+            await ended.Task.WaitAsync(token);
+            var full = Task.Run(() => gate.Acknowledge("same-response", 2400), token);
+            var cancel = Task.Run(() => gate.CancelAsync("same-response", 50, token), token);
+            await Task.WhenAll(full, cancel);
+            await drain;
+            Check(full.Result != cancel.Result && cancellations + prepared == 1,
+                "concurrent full ACK/cancel has exactly one winning disposition and one side effect");
+            await gate.StartedAsync("new-response", token);
+            Check(!gate.Acknowledge("same-response", 2400) && !await gate.CancelAsync("same-response", 0, token),
+                "retired response controls cannot mutate new response");
+        }
+        var failed = new PersonaLabPlayback((_, _) => Task.CompletedTask, (_, _, _) => Task.FromResult(false), () => { }, _ => { });
+        await failed.StartedAsync("failed", token);
+        var blocked = failed.CompletedAsync("failed", 2400, true, token);
+        try { await failed.CancelAsync("failed", 20, token); throw new Exception("Failed cancel attachment was accepted."); }
+        catch (LabException error) when (error.Code == "lab_playback_cancel_failed") { }
+        Check(!failed.Acknowledge("failed", 2400) && !blocked.IsCompleted, "failed cancellation stays closed to full ACK and persistence");
+        deadline.Cancel();
+        try { await blocked; } catch (OperationCanceledException) { }
+
+        using var malformedDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var strict = new PersonaLabPlayback((_, _) => Task.CompletedTask, (_, _, _) => Task.FromResult(true), () => { }, _ => { });
+        await strict.StartedAsync("strict", malformedDeadline.Token);
+        try { strict.Acknowledge("strict", 0); throw new Exception("Premature playback ACK accepted."); }
+        catch (LabException error) when (error.Code == "invalid_lab_playback") { }
+        var strictDrain = strict.CompletedAsync("strict", 2400, true, malformedDeadline.Token);
+        try { strict.Acknowledge("strict", 2399); throw new Exception("Partial playback ACK accepted as full."); }
+        catch (LabException error) when (error.Code == "invalid_lab_playback") { }
+        Check(!strictDrain.IsCompleted && strict.Acknowledge("strict", 2400), "only exact completed server PCM count releases full playback");
+        await strictDrain;
+    }
+
     private static async Task VoiceInterruptionAsync()
     {
         using var fixture = new Fixture();
@@ -805,6 +1031,7 @@ internal static class PersonaLabTransportTests
         internal Channel<bool> LiveConnected { get; } = Channel.CreateUnbounded<bool>();
         internal bool FailNextRealtime { get; set; }
         internal bool VoiceNextRealtime { get; set; }
+        internal bool VoiceNextLive { get; set; }
         internal bool HoldNextLiveClose { get; set; }
         internal bool InvalidNextLiveUsage { get; set; }
         internal string? NextLiveError { get; set; }
@@ -825,7 +1052,8 @@ internal static class PersonaLabTransportTests
                 { ["OPENAI_API_KEY"] = liveAvailable ? "fixture-key-not-a-credential" : null }).Build();
             live = new(configuration, _ =>
             {
-                var socket = new LiveSocket("LIVE-ANSWER-" + (LiveSockets.Count + 1), HoldNextLiveClose, InvalidNextLiveUsage, NextLiveError);
+                var socket = new LiveSocket("LIVE-ANSWER-" + (LiveSockets.Count + 1), HoldNextLiveClose, InvalidNextLiveUsage, NextLiveError, VoiceNextLive);
+                VoiceNextLive = false;
                 HoldNextLiveClose = false; InvalidNextLiveUsage = false;
                 NextLiveError = null;
                 LiveSockets.Add(socket); LiveConnected.Writer.TryWrite(true);
@@ -834,8 +1062,8 @@ internal static class PersonaLabTransportTests
             Runtime = new(Store, live, realtime, images, options);
         }
 
-        internal LabSession Session(string fixture = "empty", string engine = RealtimeProtocol.Model, string scenario = "first-visit") =>
-            Store.CreateSession("owner", new(Revision, engine, scenario, fixture, "transport fixture"));
+        internal LabSession Session(string fixture = "empty", string engine = RealtimeProtocol.Model, string scenario = "first-visit", bool recordContent = false) =>
+            Store.CreateSession("owner", new(Revision, engine, scenario, fixture, "transport fixture", RecordContent: recordContent));
         public void Dispose()
         {
             lifetime.Cancel();
@@ -853,9 +1081,12 @@ internal static class PersonaLabTransportTests
         private readonly CancellationTokenSource aborted = new();
         private (byte[] Data, WebSocketMessageType Type)? fragment;
         private int offset;
+        private int concurrentReads;
+        internal int MaximumConcurrentReads { get; private set; }
         internal List<string> Commands { get; } = [];
         internal void Push(object value) => incoming.Writer.TryWrite((JsonSerializer.SerializeToUtf8Bytes(value), WebSocketMessageType.Text));
         internal void PushBinary(byte[] pcm) => incoming.Writer.TryWrite((pcm, WebSocketMessageType.Binary));
+        internal void CloseInput() => incoming.Writer.TryWrite(([], WebSocketMessageType.Close));
         public override WebSocketCloseStatus? CloseStatus => null;
         public override string? CloseStatusDescription => null;
         public override WebSocketState State => aborted.IsCancellationRequested ? WebSocketState.Aborted : WebSocketState.Open;
@@ -866,15 +1097,22 @@ internal static class PersonaLabTransportTests
         public override Task CloseOutputAsync(WebSocketCloseStatus status, string? description, CancellationToken token) => Task.CompletedTask;
         public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken token)
         {
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, aborted.Token);
-            fragment ??= await incoming.Reader.ReadAsync(linked.Token);
-            var value = fragment.Value;
-            var count = Math.Min(buffer.Count, value.Data.Length - offset);
-            value.Data.AsSpan(offset, count).CopyTo(buffer.AsSpan());
-            offset += count;
-            var complete = offset == value.Data.Length;
-            if (complete) { fragment = null; offset = 0; }
-            return new(count, value.Type, complete);
+            var readers = Interlocked.Increment(ref concurrentReads);
+            MaximumConcurrentReads = Math.Max(MaximumConcurrentReads, readers);
+            try
+            {
+                Check(readers == 1, "fake provider/socket detects competing readers");
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, aborted.Token);
+                fragment ??= await incoming.Reader.ReadAsync(linked.Token);
+                var value = fragment.Value;
+                var count = Math.Min(buffer.Count, value.Data.Length - offset);
+                value.Data.AsSpan(offset, count).CopyTo(buffer.AsSpan());
+                offset += count;
+                var complete = offset == value.Data.Length;
+                if (complete) { fragment = null; offset = 0; }
+                return new(count, value.Type, complete);
+            }
+            finally { Interlocked.Decrement(ref concurrentReads); }
         }
     }
 
@@ -887,6 +1125,7 @@ internal static class PersonaLabTransportTests
         internal int? TruncatedAtMs { get; private set; }
         internal bool HoldCancellation { get; set; }
         internal bool BlockAudio { get; set; }
+        internal bool AdditionalAudioPart { get; set; }
         internal List<string> AudioPayloads { get; } = [];
         internal TaskCompletionSource CancellationRequested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource AudioBlocked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -935,6 +1174,11 @@ internal static class PersonaLabTransportTests
                     Push(new { type = "response.created", response = new { id = "response-" + Responses } });
                     Push(new { type = "response.output_audio.delta", response_id = "response-" + Responses, item_id = "assistant-" + Responses,
                         content_index = 0, delta = Convert.ToBase64String(new byte[4800]) });
+                    if (AdditionalAudioPart)
+                    {
+                        Push(new { type = "response.output_audio.delta", response_id = "response-" + Responses, item_id = "assistant-" + Responses,
+                            content_index = 1, delta = Convert.ToBase64String(new byte[4800]) });
+                    }
                     await Task.Delay(20, token);
                     if (!voice || Responses > 1) { Done("completed"); }
                     break;
@@ -970,7 +1214,7 @@ internal static class PersonaLabTransportTests
         }
     }
 
-    private sealed class LiveSocket(string reply, bool holdClose, bool invalidUsage, string? errorStage = null) : QueuedSocket
+    private sealed class LiveSocket(string reply, bool holdClose, bool invalidUsage, string? errorStage = null, bool voice = false) : QueuedSocket
     {
         internal TaskCompletionSource CloseRequested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private string? closeId;
@@ -995,7 +1239,7 @@ internal static class PersonaLabTransportTests
             {
                 case "session.start":
                     var input = root.GetProperty("session").GetProperty("input").EnumerateArray().ToArray();
-                    Check(input.Any(item => item.GetProperty("role").GetString() == "developer"
+                    Check(voice || input.Any(item => item.GetProperty("role").GetString() == "developer"
                         && item.GetProperty("content")[0].GetProperty("text").GetString()!.Contains("Begin immediately", StringComparison.Ordinal)),
                         "text reply trigger is available in the startup developer context");
                     foreach (var item in input)
@@ -1059,6 +1303,7 @@ internal static class PersonaLabTransportTests
 
     private sealed class ClientSocket : QueuedSocket
     {
+        internal bool FailAssistantTurn { get; init; }
         private readonly Channel<int> receiving = Channel.CreateUnbounded<int>();
         private int receiveCount;
         private readonly Channel<(byte[] Data, WebSocketMessageType Type)> output = Channel.CreateUnbounded<(byte[], WebSocketMessageType)>();
@@ -1073,6 +1318,15 @@ internal static class PersonaLabTransportTests
         }
         public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType type, bool complete, CancellationToken token)
         {
+            if (FailAssistantTurn && type == WebSocketMessageType.Text)
+            {
+                using var message = JsonDocument.Parse(buffer);
+                var root = message.RootElement;
+                if (root.GetProperty("type").GetString() == "turn" && root.GetProperty("turn").GetProperty("role").GetString() == "assistant")
+                {
+                    throw new WebSocketException();
+                }
+            }
             output.Writer.TryWrite((buffer.ToArray(), type));
             return Task.CompletedTask;
         }

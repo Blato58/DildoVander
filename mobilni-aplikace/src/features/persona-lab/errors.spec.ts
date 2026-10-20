@@ -38,4 +38,12 @@ describe('closed Persona Lab failure categories', () => {
     expect(unknown.message).toContain('není'); expect(unknown.message).not.toContain('síť');
     expect(classifyLabFailure('connection_failed')).toMatchObject({ category: 'Unknown', recoverable: false });
   });
+  it('distinguishes a full audio queue from a stalled playback clock', () => {
+    const full = classifyLabFailure('audio_backpressure');
+    expect(full).toMatchObject({ category: 'AudioVideo', recoverable: true });
+    expect(full.message).toContain('kapacitu');
+    const stalled = classifyLabFailure('audio_stalled');
+    expect(stalled).toMatchObject({ category: 'AudioVideo', recoverable: false, manualRestart: true });
+    expect(stalled.message).toContain('zastavilo');
+  });
 });

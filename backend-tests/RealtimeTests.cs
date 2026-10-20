@@ -2,9 +2,11 @@ using System.Buffers.Binary;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using System.ClientModel.Primitives;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Realtime;
+using Kufr.Backend.Features.PersonaLab;
 using Kufr.Backend.Features.VoiceTurns;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
@@ -23,6 +25,9 @@ internal static class RealtimeTests
         await VerifyPersistentVoiceAsync();
         await AutonomousLiveTests.VerifyRealtimeMemoryBoundaryAsync();
         await VerifyToolValidationAsync();
+        await VerifyAcknowledgedToolsAsync(true);
+        await VerifyAcknowledgedToolsAsync(false);
+        await VerifyAcknowledgedToolsAsync(true, false);
         VerifyAdmissionAndMemory();
         VerifyHandsFreeBudgetAndStop();
         Console.WriteLine("Realtime stream, selection, resampling and journal tests passed.");
@@ -294,6 +299,64 @@ internal static class RealtimeTests
         Require(socket.Sent.Any(value => value.Contains("\\\"accepted\\\":true", StringComparison.Ordinal))
             && socket.Sent.Any(value => value.Contains("\"tool_choice\":\"none\"", StringComparison.Ordinal)),
             "model gets validated result and cannot recursively call tools");
+    }
+
+    private static async Task VerifyAcknowledgedToolsAsync(bool intermediateAudio, bool finalAudio = true)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var token = deadline.Token;
+        var tool = new
+        {
+            type = "function_call", name = "propose_wand", call_id = "ack-tool",
+            arguments = "{\"compartment\":2,\"reason\":\"Overena volba\"}"
+        };
+        var script = new List<string> { Created(), Updated(), ResponseCreated() };
+        if (intermediateAudio) { script.Add(Audio(new byte[4800])); }
+        script.AddRange([Done("", tool), ResponseCreated("response-2")]);
+        if (finalAudio) { script.Add(Audio(new byte[4800], "response-2")); }
+        script.Add(Done("Potvrzena dvojka.", id: "response-2"));
+        using var socket = new ScriptSocket(script.ToArray());
+        await using var connection = new OpenAiRealtimeConnection(socket, token);
+        var ends = Channel.CreateUnbounded<JsonElement>();
+        var starts = new List<string>();
+        var prepareCount = 0;
+        var playback = new PersonaLabPlayback((value, _) =>
+        {
+            using var message = JsonDocument.Parse(JsonSerializer.Serialize(value));
+            var root = message.RootElement;
+            if (root.GetProperty("type").GetString() == "playback_end") { ends.Writer.TryWrite(root.Clone()); }
+            else { starts.Add(root.GetProperty("playbackId").GetString()!); }
+            return Task.CompletedTask;
+        }, connection.InterruptResponseAsync, () => prepareCount++, _ => { });
+        var turn = connection.GenerateTurnAsync(new(Request() with { Opening = false, Text = "Vyber.", ReadyMask = 2 }, false, "", []),
+            null, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, token, playback: playback);
+        if (intermediateAudio)
+        {
+            var intermediate = await ends.Reader.ReadAsync(token);
+            Require(!intermediate.GetProperty("final").GetBoolean() && starts.Count == 1
+                && socket.Sent.Count(command => command.Contains("\"type\":\"response.create\"", StringComparison.Ordinal)) == 1,
+                "audio-bearing tool response blocks follow-up provider response until its own playback drains");
+            playback.Acknowledge(intermediate.GetProperty("playbackId").GetString()!, 2400);
+            Require(prepareCount == 0, "intermediate playback ACK does not rearm microphone admission");
+        }
+        if (!finalAudio)
+        {
+            await ExpectFailureAsync(() => turn);
+            Require(prepareCount == 0 && starts.Count == 1,
+                "heard intermediate tool audio cannot authorize saving an unheard final assistant transcript");
+            return;
+        }
+        var final = await ends.Reader.ReadAsync(token);
+        Require(final.GetProperty("final").GetBoolean() && !turn.IsCompleted && starts.Count == (intermediateAudio ? 2 : 1),
+            "only audio-bearing responses receive unique playback lifetimes and final response still waits");
+        Require(starts.Distinct().Count() == starts.Count, "per-response playback identifiers are unique");
+        playback.Acknowledge(final.GetProperty("playbackId").GetString()!, 2400);
+        var result = await turn;
+        Require(result.Compartment == 2 && result.Reply == "Potvrzena dvojka." && prepareCount == 1,
+            "final full acknowledgement alone releases the completed turn and prepares next microphone input");
+        Require(connection.LastInputTokens == 246 && connection.LastOutputTokens == 400
+            && connection.LastCostMicroUsd == result.CostMicroUsd,
+            "two response segments account tokens and cost once each across playback waits");
     }
 
     private static void VerifyAdmissionAndMemory()

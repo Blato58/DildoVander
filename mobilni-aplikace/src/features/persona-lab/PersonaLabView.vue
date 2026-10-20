@@ -50,7 +50,7 @@ function measured(value: number | null | undefined, unit = ''): string { return 
 const fixture = computed(() => lab.catalog?.memoryFixtures.find(item => item.id === lab.fixtureId));
 const scenario = computed(() => lab.catalog?.scenarios.find(item => item.id === lab.scenarioId));
 const selectedScenario = computed(() => lab.selected?.scenarioSnapshot ?? lab.catalog?.scenarios.find(item => item.id === lab.selected?.scenarioId));
-const phaseLabels = { idle: 'Připraveno', connecting: 'Připojuji hlas…', listening: 'Mikrofon aktivní · naslouchám', speaking: 'DildoVander mluví', ended: 'Hlas ukončen', error: 'Hlas přerušen' };
+const phaseLabels = { idle: 'Připraveno', connecting: 'Připojuji hlas…', waiting: 'Čekám na připravenost modelu', listening: 'Mikrofon aktivní · naslouchám', speaking: 'DildoVander mluví', ended: 'Hlas ukončen', error: 'Hlas přerušen' };
 const diff = computed(() => {
   const base = lab.configRevision;
   if (!base) return [];
@@ -208,6 +208,7 @@ function chooseImage(event: Event): void {
               <p v-if="lab.voiceActive" role="status">
                 {{ phaseLabels[lab.voicePhase] }}.
                 <template v-if="lab.voicePhase === 'connecting'">Připravuji zvuk a spojení. Připojení k modelu zatím není potvrzené.</template>
+                <template v-else-if="lab.voicePhase === 'waiting'">Mikrofon {{ lab.muted ? 'je ztlumený' : 'je zapnutý' }}. Připravenost modelu k dalšímu vstupu zatím není potvrzená.</template>
                 <template v-else>Mikrofon {{ lab.muted ? 'je ztlumený' : 'je zapnutý' }}.</template>
               </p>
               <form class="lab-composer" @submit.prevent="lab.send">

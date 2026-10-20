@@ -50,7 +50,9 @@ export function classifyLabFailure(code: string, status = 0): LabFailure {
   if (code === 'audio_setup_failed') return failure('AudioVideo', 'Zahájení zvukového vstupu se nepodařilo; přesná příčina není známá.',
     'Zkontrolujte podporu zvuku, oprávnění a technickou diagnostiku. Textové testování zůstává dostupné.');
   if (code === 'image_prepare_failed') return failure('AudioVideo', 'Fotografii se nepodařilo připravit.', 'Zkontrolujte podporovaný formát a velikost snímku.');
-  if (code === 'audio_backpressure') return failure('AudioVideo', 'Přehrávání se příliš opozdilo a bylo vypnuté.',
+  if (code === 'audio_stalled') return failure('AudioVideo', 'Přehrávání zvuku se zastavilo. Mikrofon i přehrávání byly vypnuté.',
+    'Ověřte zvukový výstup a hlas znovu spusťte ručně v novém modelovém kontextu.', false, true);
+  if (code === 'audio_backpressure') return failure('AudioVideo', 'Fronta zvuku překročila technickou kapacitu a přehrávání bylo vypnuté.',
     'Ověřte zvukový výstup. Nové spojení spusťte výslovně po krátké prodlevě.', true);
   if (['lab_image_consent_or_format', 'lab_image_format', 'lab_image_requires_realtime'].includes(code))
     return failure('AudioVideo', 'Obrazový vstup nesplňuje podmínky testu.', 'Zkontrolujte souhlas, formát snímku a výběr Realtime 2.1.');
