@@ -81,6 +81,7 @@ internal static class PersonaLabEndpoints
         group.MapGet("/suites/{id}", (HttpContext http, string id, PersonaLabStore store) => Results.Json(store.Suite(Owner(http), id)));
         group.MapPost("/suites", async (HttpContext http, LabSuiteRequest request, PersonaLabSuites suites) =>
         {
+            LabContract.ExecutionPlatform(request.ExecutionPlatform);
             var admission = await AdmissionAsync(http, "suite", http.Request.Headers.Origin.ToString());
             return Results.Json(suites.Start(admission.Owner, request,
                 token => AuthorizedAsync(app.Services, admission, token)));
@@ -99,7 +100,7 @@ internal static class PersonaLabEndpoints
             return Results.NoContent();
         });
         group.MapPost("/sessions/{id}/turns", async (HttpContext http, string id, LabTurnRequest request, PersonaLabRuntime runtime) =>
-            Results.Json(await runtime.TurnAsync(Owner(http), id, request.Text, http.RequestAborted)));
+            Results.Json(await runtime.TurnAsync(Owner(http), id, request.Text, http.RequestAborted, platform: request.Platform)));
         group.MapPost("/sessions/{id}/end", (HttpContext http, string id, PersonaLabRuntime runtime) => Results.Json(runtime.End(Owner(http), id)));
         group.MapPut("/sessions/{id}/evaluation", (HttpContext http, string id, LabEvaluation request, PersonaLabStore store) =>
             Results.Json(store.Evaluate(Owner(http), id, request)));
@@ -111,6 +112,7 @@ internal static class PersonaLabEndpoints
                 : ApiProblem.Create(http, 403, "administrator_required"));
         group.MapPost("/sessions/{id}/socket-ticket", async (HttpContext http, string id, LabTicketRequest request, PersonaLabStore store, LabTicketRegistry registry) =>
         {
+            LabContract.ExecutionPlatform(request.Platform);
             var owner = Owner(http);
             var session = store.Session(owner, id);
             if (session.Status != "open") { throw new LabException(409, "lab_session_closed"); }
@@ -121,7 +123,7 @@ internal static class PersonaLabEndpoints
             var socketOrigin = request.SocketOrigin ?? origin;
             if (socketOrigin != "capacitor://localhost" && !configuration.AllowedOrigins.Contains(socketOrigin, StringComparer.Ordinal))
             { throw new LabException(403, "lab_socket_origin_required"); }
-            var admission = await AdmissionAsync(http, id, socketOrigin, request.Recovery);
+            var admission = await AdmissionAsync(http, id, socketOrigin, request.Recovery, request.Platform);
             var ticket = registry.Mint(admission);
             var path = "/app/v1/persona-lab/sessions/" + id + "/live?ticket=" + ticket.Token;
             // A configured allowed origin, rather than Host/forwarded Host, owns the credential destination.
@@ -150,14 +152,15 @@ internal static class PersonaLabEndpoints
         return session is not null && session.UserId == admission.Owner && session.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             && user is not null && !user.Disabled && user.SecurityStamp == admission.SecurityStamp;
     }
-    private static async Task<LabAdmission> AdmissionAsync(HttpContext http, string sessionId, string origin, bool recovery = false)
+    private static async Task<LabAdmission> AdmissionAsync(HttpContext http, string sessionId, string origin,
+        bool recovery = false, string? platform = null)
     {
         var owner = Owner(http);
         var sid = http.User.FindFirstValue(AccountIdentity.SessionClaim) ?? "";
         var users = http.RequestServices.GetRequiredService<UserManager<AccountUser>>();
         var user = await users.FindByIdAsync(owner);
         if (user is null || user.Disabled || sid.Length == 0) { throw new LabException(401, "account_required"); }
-        var admission = new LabAdmission(owner, sessionId, sid, user.SecurityStamp ?? "", origin, DateTimeOffset.UtcNow, recovery);
+        var admission = new LabAdmission(owner, sessionId, sid, user.SecurityStamp ?? "", origin, DateTimeOffset.UtcNow, recovery, platform);
         if (!await AuthorizedAsync(http.RequestServices, admission, http.RequestAborted)) { throw new LabException(401, "account_required"); }
         return admission;
     }
@@ -180,7 +183,7 @@ internal static class PersonaLabEndpoints
             {
                 await runtime.VoiceAsync(admission.Owner, id, socket,
                     token => AuthorizedAsync(http.RequestServices, admission, token), http.RequestAborted, admission.Recovery,
-                    acknowledgedPlayback: http.Request.Query["playback"] == "1");
+                    acknowledgedPlayback: http.Request.Query["playback"] == "1", platform: admission.Platform);
                 await sender.JsonAsync(new { type = "session", session = runtime.Detail(admission.Owner, id) }, http.RequestAborted);
                 await sender.JsonAsync(new { type = "ended" }, http.RequestAborted);
             }

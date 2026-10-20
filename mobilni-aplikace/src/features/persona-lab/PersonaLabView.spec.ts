@@ -3,10 +3,11 @@ import { flushPromises, mount } from '@vue/test-utils';
 import PersonaLabView from './PersonaLabView.vue';
 import { account } from '../identity/session';
 import { metricLabels, type LabSession } from './contracts';
+import type { VoiceObserver } from './voice';
 import { directorStop } from '../director/directorStop';
 
-const api = vi.hoisted(() => ({ transport: vi.fn(), voiceConnect: vi.fn(), voiceDispose: vi.fn(), prepareImage: vi.fn(),
-  voiceObserver: null as null | { phase: (phase: string) => void; error: (code: string, recoverable: boolean) => void } }));
+const api = vi.hoisted(() => ({ transport: vi.fn(), voiceConnect: vi.fn(), voiceDispose: vi.fn(), voiceEnd: vi.fn(), prepareImage: vi.fn(),
+  voiceObserver: null as VoiceObserver | null }));
 vi.mock('../identity/session', async () => {
   const { ref } = await import('vue'); const account = ref({ id: 'tester', displayName: 'Tester', roles: ['Tester'] });
   return { account, accountOrigin: ref('https://lab.example'), accountTransport: api.transport,
@@ -14,7 +15,7 @@ vi.mock('../identity/session', async () => {
 });
 vi.mock('./voice', () => ({ LabVoice: class {
   constructor(observer: NonNullable<typeof api.voiceObserver>) { api.voiceObserver = observer; }
-  connect = api.voiceConnect; dispose = api.voiceDispose; end = vi.fn(); setMuted = vi.fn(); interrupt = vi.fn();
+  connect = api.voiceConnect; dispose = api.voiceDispose; end = api.voiceEnd; setMuted = vi.fn(); interrupt = vi.fn();
 } }));
 vi.mock('./image', () => ({ prepareLabImage: api.prepareImage }));
 vi.mock('../suitcase/deviceSession', async () => {
@@ -29,10 +30,10 @@ const scenario = { id: 'intro', name: 'První setkání', description: 'Syntetic
 let session: LabSession;
 const wrappers: ReturnType<typeof mount>[] = [];
 beforeEach(() => {
-  api.transport.mockReset(); api.voiceConnect.mockReset(); api.voiceDispose.mockReset(); api.prepareImage.mockReset();
+  api.transport.mockReset(); api.voiceConnect.mockReset(); api.voiceDispose.mockReset(); api.voiceEnd.mockReset(); api.prepareImage.mockReset();
   account.value = { id: 'tester', displayName: 'Tester', roles: ['Tester'] };
   session = { id: 'session', label: 'Můj syntetický test', ownerId: 'tester', createdAt: '2026-10-20T10:00:00Z', endedAt: null, status: 'open',
-    engine: 'gpt-live-1', scenarioId: 'intro', fixtureId: 'empty', platform: 'web', recordContent: false, config: revision,
+    engine: 'gpt-live-1', scenarioId: 'intro', fixtureId: 'empty', platform: 'web', executionPlatforms: ['web'], recordContent: false, config: revision,
     turns: [{ id: 'turn-1', role: 'user', text: 'Syntetický vstup', createdAt: '2026-10-20T10:00:00Z' },
       { id: 'turn-2', role: 'assistant', text: 'Syntetická odpověď', createdAt: '2026-10-20T10:00:01Z', latencyMs: 123 }], events: [] } as LabSession;
   api.transport.mockImplementation(async (path: string, init: RequestInit) => {
@@ -53,6 +54,27 @@ afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); vi.u
 async function render() {
   const wrapper = mount(PersonaLabView, { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
   wrappers.push(wrapper); await flushPromises(); return wrapper;
+}
+function button(wrapper: ReturnType<typeof mount>, label: string) {
+  return wrapper.findAll('button').find(item => item.text() === label)!;
+}
+function enableImages(): void {
+  const baseline = api.transport.getMockImplementation()!;
+  api.transport.mockImplementation(async (path: string, init: RequestInit) => {
+    const response = await baseline(path, init);
+    if (!path.endsWith('/catalog')) return response;
+    const data = await response.json(); data.capabilities.realtime = true; data.capabilities.imageRealtime = true;
+    return new Response(JSON.stringify(data));
+  });
+}
+async function choosePhoto(wrapper: ReturnType<typeof mount>, selector: string): Promise<void> {
+  const input = wrapper.get(selector);
+  Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['synthetic'], 'test.jpg', { type: 'image/jpeg' })] });
+  await input.trigger('change'); await flushPromises();
+}
+async function startSpokenVoice(wrapper: ReturnType<typeof mount>): Promise<void> {
+  api.voiceConnect.mockImplementation(async () => { api.voiceObserver!.phase('listening'); });
+  await button(wrapper, 'Spustit hlas').trigger('click'); await flushPromises();
 }
 describe('Persona Lab user journeys', () => {
   it('participates in the application Stop and releases that participant on navigation', async () => {
@@ -90,7 +112,7 @@ describe('Persona Lab user journeys', () => {
     await wrapper.get('#lab-message').setValue('Jak se jmenuješ?');
     expect(api.transport.mock.calls.some(([path]) => path.endsWith('/turns'))).toBe(false);
     await wrapper.get('.lab-composer').trigger('submit'); await flushPromises();
-    expect(api.transport).toHaveBeenCalledWith('/app/v1/persona-lab/sessions/session/turns', expect.objectContaining({ method: 'POST', body: '{"text":"Jak se jmenuješ?"}' }));
+    expect(api.transport).toHaveBeenCalledWith('/app/v1/persona-lab/sessions/session/turns', expect.objectContaining({ method: 'POST', body: '{"text":"Jak se jmenuješ?","platform":"web"}' }));
     expect(wrapper.text()).toContain('Syntetická odpověď');
   });
   it('keeps admin configuration out of tester UI and clears private state on logout', async () => {
@@ -164,6 +186,161 @@ describe('Persona Lab user journeys', () => {
     await wrapper.get('.lab-image input[type="checkbox"]').setValue(true); await attach.trigger('click'); await flushPromises();
     const request = api.transport.mock.calls.find(([path]) => path.endsWith('/image'));
     expect(JSON.parse(request![1].body)).toEqual({ mimeType: 'image/jpeg', dataBase64: 'AA==', consent: true });
+  });
+  it('separates explicit camera and library inputs and discards a local preview without a server request', async () => {
+    session.engine = 'gpt-realtime-2.1';
+    enableImages();
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    api.prepareImage.mockResolvedValue({ previewUrl: 'blob:local-only', dataBase64: 'AA==', width: 10, height: 10, bytes: 100 });
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    expect(wrapper.get('#lab-image-input').attributes('capture')).toBeUndefined();
+    expect(wrapper.get('#lab-camera-input').attributes('capture')).toBe('user');
+    await choosePhoto(wrapper, '#lab-image-input');
+    await button(wrapper, 'Odstranit místní náhled').trigger('click'); await flushPromises();
+    expect(wrapper.find('.lab-image img').exists()).toBe(false);
+    expect(revoke).toHaveBeenCalledWith('blob:local-only');
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/image'))).toBe(false);
+  });
+  it('cancels pending local preparation when the preview is discarded', async () => {
+    session.engine = 'gpt-realtime-2.1'; enableImages();
+    let finish!: (value: unknown) => void;
+    api.prepareImage.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    await choosePhoto(wrapper, '#lab-camera-input');
+    const signal = api.prepareImage.mock.calls[0][1] as AbortSignal;
+    await button(wrapper, 'Odstranit místní náhled').trigger('click');
+    expect(signal.aborted).toBe(true);
+    finish({ previewUrl: 'blob:late-preview', dataBase64: 'AA==', width: 10, height: 10, bytes: 100 }); await flushPromises();
+    expect(wrapper.find('.lab-image img').exists()).toBe(false);
+    expect(revoke).toHaveBeenCalledWith('blob:late-preview');
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/image'))).toBe(false);
+  });
+  it('stops voice and clears the local preview while retaining server attachment evidence on failed revocation', async () => {
+    session.engine = 'gpt-realtime-2.1'; session.hasImage = true; enableImages();
+    api.prepareImage.mockResolvedValue({ previewUrl: 'blob:attached', dataBase64: 'AA==', width: 10, height: 10, bytes: 100 });
+    const baseline = api.transport.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    api.transport.mockImplementation((path: string, init: RequestInit) => path.endsWith('/image') && init.method === 'DELETE'
+      ? new Promise(resolve => { finish = resolve; }) : baseline(path, init));
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    await choosePhoto(wrapper, '#lab-image-input');
+    api.voiceObserver!.phase('listening');
+    await button(wrapper, 'Odebrat fotografii z testu').trigger('click');
+    expect(api.voiceDispose).toHaveBeenCalled();
+    expect(wrapper.find('.lab-image img').exists()).toBe(false);
+    finish(new Response(JSON.stringify({ code: 'server_unavailable' }), { status: 503 })); await flushPromises();
+    expect(wrapper.text()).toContain('Server potvrdil dočasné připojení fotografie');
+    expect(wrapper.text()).not.toContain('Server potvrdil odebrání fotografie');
+    expect(button(wrapper, 'Odebrat fotografii z testu').exists()).toBe(true);
+  });
+  it('withdraws an attached image during a pending text response and fences the obsolete response', async () => {
+    session.engine = 'gpt-realtime-2.1'; session.hasImage = true; enableImages();
+    const baseline = api.transport.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    let requestSignal: AbortSignal | null = null;
+    api.transport.mockImplementation((path: string, init: RequestInit) => {
+      if (path.endsWith('/turns')) { requestSignal = init.signal ?? null; return new Promise(resolve => { finish = resolve; }); }
+      if (path.endsWith('/image') && init.method === 'DELETE') return Promise.resolve(new Response(JSON.stringify({ ...session, hasImage: false })));
+      return baseline(path, init);
+    });
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    await wrapper.get('#lab-message').setValue('Syntetický vstup s fotografií');
+    await wrapper.get('.lab-composer').trigger('submit'); await flushPromises();
+    await button(wrapper, 'Odebrat fotografii z testu').trigger('click'); await flushPromises();
+    expect((requestSignal as unknown as AbortSignal).aborted).toBe(true);
+    expect(api.transport.mock.calls.filter(([path, init]) => path.endsWith('/image') && init.method === 'DELETE')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Server potvrdil odebrání fotografie');
+    finish(new Response(JSON.stringify({ ...session, hasImage: true, label: 'Obsolete photo response' }))); await flushPromises();
+    expect(wrapper.text()).not.toContain('Obsolete photo response');
+    expect(wrapper.text()).not.toContain('Server potvrdil dočasné připojení fotografie');
+    expect(wrapper.findAll('button').some(item => item.text() === 'Odebrat fotografii z testu')).toBe(false);
+  });
+  it('prepares an explicit new Realtime visual session while preserving the selected Live test', async () => {
+    enableImages(); session.recordContent = true;
+    const baseline = api.transport.getMockImplementation()!;
+    api.transport.mockImplementation(async (path: string, init: RequestInit) => path.endsWith('/sessions') && init.method === 'POST'
+      ? new Response(JSON.stringify({ ...session, ...JSON.parse(init.body as string), id: 'visual-session', turns: [] })) : baseline(path, init));
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    await button(wrapper, 'Připravit nový vizuální test · Realtime 2.1').trigger('click'); await flushPromises();
+    const request = api.transport.mock.calls.find(([path, init]) => path.endsWith('/sessions') && init.method === 'POST')!;
+    expect(JSON.parse(request[1].body)).toMatchObject({ revisionId: 'revision', engine: 'gpt-realtime-2.1', scenarioId: 'intro', fixtureId: 'empty', recordContent: true, label: session.label });
+    expect(wrapper.get('#lab-existing').element).toHaveProperty('value', 'visual-session');
+    expect(wrapper.find('#lab-existing option[value="session"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('gpt-realtime-2.1');
+    expect(api.voiceConnect).not.toHaveBeenCalled();
+    expect(api.transport.mock.calls.some(([path]) => /\/(?:turns|ticket|image)$/.test(path))).toBe(false);
+  });
+  it('ends only the active owned session for a split Live user command without double-counting its first chunk', async () => {
+    vi.useFakeTimers();
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    await startSpokenVoice(wrapper);
+    const observer = api.voiceObserver!;
+    observer.turn({ id: 'spoken', role: 'user', text: 'ukon', createdAt: '' });
+    observer.transcript('user', 'ukon'); observer.transcript('user', 'či test');
+    await vi.advanceTimersByTimeAsync(500); await flushPromises();
+    expect(api.voiceEnd).toHaveBeenCalledTimes(1);
+    expect(api.transport.mock.calls.filter(([path]) => path.endsWith('/end')).map(([path]) => path)).toEqual(['/app/v1/persona-lab/sessions/session/end']);
+    observer.phase('listening'); observer.transcript('user', 'stop');
+    await vi.advanceTimersByTimeAsync(500); await flushPromises();
+    expect(api.voiceEnd).toHaveBeenCalledTimes(1);
+  });
+  it('ignores assistant text, inactive callbacks, negated user text and old voice contexts', async () => {
+    vi.useFakeTimers();
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    api.voiceObserver!.transcript('user', 'stop');
+    await startSpokenVoice(wrapper);
+    const obsolete = api.voiceObserver!;
+    obsolete.transcript('assistant', 'ukonči test');
+    obsolete.turn({ id: 'negative', role: 'user', text: '', createdAt: '' });
+    obsolete.transcript('user', 'neukončuj test');
+    await vi.advanceTimersByTimeAsync(500);
+    await button(wrapper, 'Vypnout hlas').trigger('click'); await flushPromises();
+    await startSpokenVoice(wrapper);
+    obsolete.phase('listening'); obsolete.turn({ id: 'old', role: 'assistant', text: 'stop', decision: 'no_selection', createdAt: '' });
+    obsolete.transcript('user', 'stop');
+    api.voiceObserver!.turn({ id: 'new', role: 'user', text: '', createdAt: '' });
+    api.voiceObserver!.transcript('user', 'ukonči');
+    api.voiceObserver!.turn({ id: 'next', role: 'user', text: '', createdAt: '' });
+    api.voiceObserver!.transcript('user', ' test');
+    await vi.advanceTimersByTimeAsync(500); await flushPromises();
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/end'))).toBe(false);
+  });
+  it('keeps spoken commands out of hardware-bound contexts and ignores nonterminal assistant decisions', async () => {
+    vi.useFakeTimers();
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session'); await startSpokenVoice(wrapper);
+    const observer = api.voiceObserver!;
+    observer.turn({ id: 'ask', role: 'assistant', text: 'ukonči test', decision: 'ask', createdAt: '' });
+    observer.turn({ id: 'propose', role: 'assistant', text: 'stop', decision: 'propose', compartment: 1, createdAt: '' });
+    observer.session({ ...session, hardware: { deviceId: 'case', bootId: 'boot', expectedRevision: 1, conversationId: null, status: 'prepared', expiresAt: '' } });
+    observer.turn({ id: 'hardware-user', role: 'user', text: '', createdAt: '' }); observer.transcript('user', 'stop');
+    await vi.advanceTimersByTimeAsync(500); await flushPromises();
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/end'))).toBe(false);
+    expect(api.voiceEnd).not.toHaveBeenCalled();
+  });
+  it('releases local voice even when socket End fails and still submits the authenticated session End', async () => {
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session'); await startSpokenVoice(wrapper);
+    api.voiceEnd.mockImplementationOnce(() => { throw new Error('Socket closed'); });
+    api.voiceObserver!.turn({ id: 'terminal', role: 'assistant', text: 'Hotovo.', decision: 'no_selection', createdAt: '' }); await flushPromises();
+    expect(api.voiceDispose).toHaveBeenCalled();
+    expect(api.transport.mock.calls.filter(([path]) => path.endsWith('/end'))).toHaveLength(1);
+    expect(wrapper.text()).toContain('Sezení ukončené');
+  });
+  it.each(['user', 'assistant'] as const)('honors a finalized Realtime %s terminal input and deduplicates End while the request is pending', async role => {
+    session.engine = 'gpt-realtime-2.1'; enableImages();
+    const baseline = api.transport.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    api.transport.mockImplementation((path: string, init: RequestInit) => path.endsWith('/end')
+      ? new Promise(resolve => { finish = resolve; }) : baseline(path, init));
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session'); await startSpokenVoice(wrapper);
+    const observer = api.voiceObserver!;
+    observer.turn({ id: 'final', role, text: role === 'user' ? 'please end this test' : 'Hotovo.', decision: role === 'assistant' ? 'no_selection' : undefined, createdAt: '' });
+    observer.turn({ id: 'duplicate', role: 'assistant', text: 'Hotovo.', decision: 'no_selection', createdAt: '' });
+    await button(wrapper, 'Ukončit test').trigger('click'); await flushPromises();
+    expect(api.voiceEnd).toHaveBeenCalledTimes(1);
+    expect(api.transport.mock.calls.filter(([path]) => path.endsWith('/end'))).toHaveLength(1);
+    finish(new Response(JSON.stringify({ ...session, status: 'ended' }))); await flushPromises();
+    expect(wrapper.text()).toContain('Sezení ukončené');
   });
   it('does not claim model audio delivery while browser permission or connection is pending', async () => {
     const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
@@ -244,12 +421,14 @@ describe('Persona Lab user journeys', () => {
     api.voiceObserver!.error('lab_decision_provider_auth', false); await flushPromises();
     expect(reauthLinks()).toHaveLength(0);
   });
-  it('filters recorded platform observations and displays known zero separately from unavailable tokens', async () => {
+  it('filters by client-reported execution platform, not preparation platform, and keeps token gaps distinct', async () => {
     session.events = [{ id: 'web-tokens', type: 'provider_tokens', code: 'observed', createdAt: session.createdAt, inputTokens: 0, outputTokens: null }];
     const baseline = api.transport.getMockImplementation()!;
-    const ios = { ...session, id: 'ios-test', platform: 'ios', events: [{ ...session.events[0], id: 'ios-tokens', inputTokens: 7, outputTokens: 2 }] };
+    const ios = { ...session, id: 'ios-test', platform: 'web', executionPlatforms: ['ios'], events: [{ ...session.events[0], id: 'ios-tokens', inputTokens: 7, outputTokens: 2 }] };
+    const mixed = { ...session, id: 'mixed-test', executionPlatforms: ['web', 'ios'] };
+    const legacy = { ...session, id: 'legacy-test', platform: 'ios', executionPlatforms: undefined };
     api.transport.mockImplementation((path: string, init: RequestInit) => path.endsWith('/sessions') && init.method === 'GET'
-      ? Promise.resolve(new Response(JSON.stringify([session, ios]))) : baseline(path, init));
+      ? Promise.resolve(new Response(JSON.stringify([session, ios, mixed, legacy]))) : baseline(path, init));
     const wrapper = await render();
     await wrapper.get('#lab-filter-platform').setValue('web');
     const panel = wrapper.get('[aria-labelledby="lab-token-title"]');
@@ -258,8 +437,14 @@ describe('Persona Lab user journeys', () => {
     await wrapper.get('#lab-filter-platform').setValue('ios');
     expect(panel.findAll('dd')[0].text()).toContain('7 · 1 pozorování z 1 / 1 sezení');
     expect(panel.findAll('dd')[1].text()).toContain('2 · 1 pozorování z 1 / 1 sezení');
+    await wrapper.get('#lab-filter-platform').setValue('mixed');
+    expect(panel.findAll('dd')[0].text()).toContain('0 · 1 pozorování z 1 / 1 sezení');
     await wrapper.get('#lab-filter-platform').setValue('unknown');
-    expect(panel.findAll('dd')[0].text()).toContain('Neuvedeno');
+    expect(panel.findAll('dd')[0].text()).toContain('0 · 1 pozorování z 1 / 1 sezení');
+    await wrapper.get('#lab-existing').setValue('legacy-test'); await flushPromises();
+    expect(wrapper.text()).toContain('Příprava sezení');
+    expect(wrapper.text()).toContain('Provedení testu');
+    expect(wrapper.text()).toContain('Neuvedeno · hlášení klienta');
   });
   it('keeps a hardware-bound session out of ordinary browser text, voice and image input', async () => {
     session.hardware = { deviceId: 'old-case', bootId: 'old-boot', expectedRevision: 1, conversationId: null,

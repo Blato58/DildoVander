@@ -13,7 +13,7 @@ internal sealed record LabPublishRequest(string ExpectedActiveRevisionId);
 internal sealed record LabRollbackRequest(string RevisionId, string ExpectedActiveRevisionId);
 internal sealed record LabSessionRequest(string RevisionId, string Engine, string ScenarioId, string FixtureId,
     string Label, string? ComparisonId = null, bool RecordContent = false, string Platform = "web");
-internal sealed record LabTurnRequest(string Text);
+internal sealed record LabTurnRequest(string Text, string? Platform = null);
 internal sealed record LabTurn(string Id, string Role, string Text, DateTimeOffset CreatedAt,
     long? LatencyMs = null, int? AudioBytes = null, string? Decision = null, int? Compartment = null);
 internal sealed record LabEvent(string Id, string Type, DateTimeOffset CreatedAt, string? Code = null,
@@ -26,6 +26,12 @@ internal sealed record LabSession(string Id, string OwnerId, string Label, strin
     LabRevision Config, LabTurn[] Turns, LabEvent[] Events, LabEvaluation? Evaluation, int Revision, bool RecordContent,
     LabFixture? MemorySnapshot = null, LabScenario? ScenarioSnapshot = null, string Platform = "unknown")
 {
+    private string[] executionPlatforms = [];
+    public string[] ExecutionPlatforms
+    {
+        get => executionPlatforms;
+        init => executionPlatforms = LabContract.NormalizeExecutionPlatforms(value);
+    }
     public bool HasImage { get; init; }
     public LabHardwareMetadata? Hardware { get; init; }
 }
@@ -52,10 +58,10 @@ internal sealed record LabSuite(string Id, string OwnerId, string Status, DateTi
     public string? FailureCode { get; init; }
 }
 internal sealed record LabSuiteRequest(string RevisionId, string Engine, string FixtureId, string[] ScenarioIds,
-    string Label, bool RecordContent = false, string Platform = "web");
+    string Label, bool RecordContent = false, string Platform = "web", string? ExecutionPlatform = null);
 internal sealed record LabFixture(string Id, string Name, string Description, string Current, string Evening, string Returning);
 internal sealed record LabTicket(string Url, string Path, DateTimeOffset ExpiresAt);
-internal sealed record LabTicketRequest(string? SocketOrigin = null, bool Recovery = false);
+internal sealed record LabTicketRequest(string? SocketOrigin = null, bool Recovery = false, string? Platform = null);
 internal sealed class LabException(int status, string code) : Exception(code)
 {
     internal int Status { get; } = status;
@@ -110,6 +116,14 @@ internal static class LabContract
     internal static bool Engine(string? engine) => engine is GptLiveProtocol.Model or RealtimeProtocol.Model;
     internal static bool Voice(string? voice) => voice is "cedar" or "marin" or "coral";
     internal static bool Platform(string? platform) => platform is "web" or "ios";
+    internal static string ExecutionPlatform(string? platform)
+    {
+        if (platform is not null && !Platform(platform)) { throw new LabException(400, "lab_platform_invalid"); }
+        return platform ?? "unknown";
+    }
+    internal static string[] NormalizeExecutionPlatforms(string[]? platforms) =>
+        (platforms ?? []).Select(platform => platform is "web" or "ios" ? platform : "unknown")
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
     private static LabScenario CreateScript(LabScenario scenario)
     {
         LabScriptTurn[] turns = scenario.Id switch

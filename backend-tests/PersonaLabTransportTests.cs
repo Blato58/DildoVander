@@ -13,6 +13,9 @@ internal static class PersonaLabTransportTests
 {
     internal static async Task RunAsync()
     {
+        await RunCaseAsync("image revocation at completed reply write fence", 25, ImageRevocationWriteFenceAsync);
+        await RunCaseAsync("originating Live transcript cancellation fence", 20, LiveTranscriptRevocationFenceAsync);
+        await RunCaseAsync("admitted execution platforms", 15, ExecutionPlatformsAsync);
         await RunCaseAsync("text history and privacy", 10, TextHistoryAndPrivacyAsync);
         await RunCaseAsync("eight-turn dialogue recall", 10, DialogueRecallExecutionAsync);
         await RunCaseAsync("provider failure and recovery", 10, ProviderFailureAndRecoveryAsync);
@@ -45,6 +48,187 @@ internal static class PersonaLabTransportTests
     {
         try { await Task.Run(test).WaitAsync(TimeSpan.FromSeconds(timeoutSeconds)); }
         catch (TimeoutException error) { throw new TimeoutException("Persona Lab transport test timed out: " + name, error); }
+    }
+
+    private static async Task ImageRevocationWriteFenceAsync()
+    {
+        foreach (var recordContent in new[] { false, true })
+        {
+            foreach (var voice in new[] { false, true })
+            {
+                using var fixture = new Fixture();
+                var session = fixture.Session(recordContent: recordContent);
+                fixture.PutImage(session);
+                fixture.HoldNextRealtimeReply = true;
+                using var socket = new ClientSocket();
+                var work = voice
+                    ? fixture.Runtime.VoiceAsync("owner", session.Id, socket, _ => Task.FromResult(true), fixture.Token)
+                    : fixture.Runtime.TurnAsync("owner", session.Id, "Inspect the synthetic image.", fixture.Token);
+                await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+                if (voice)
+                {
+                    await socket.JsonAsync("ready", fixture.Token);
+                    socket.PushBinary(new byte[4800]);
+                }
+                var provider = fixture.RealtimeSockets.Single();
+                await provider.ReplyPaused.Task.WaitAsync(fixture.Token);
+                // Hold the actual write fence while the completed provider reply is
+                // processed and its cost is observed. This does not rely on a fake
+                // honoring cancellation before it can return the old image reply.
+                lock (fixture.AdmissionGate)
+                {
+                    provider.ReleaseReply.TrySetResult();
+                    Check(SpinWait.SpinUntil(() => fixture.Store.Session("owner", session.Id).Events
+                        .Any(entry => entry.Type == "provider_cost"), TimeSpan.FromSeconds(5)),
+                        "completed fake-provider reply reaches the content write fence before revocation");
+                    var revoked = fixture.RevokeImage(session);
+                    Check(revoked.Status == "open" && !revoked.HasImage,
+                        "explicit image revocation removes input while leaving the ordinary session open");
+                }
+                try { await work; Check(voice, "revoked text execution must reject late content"); }
+                catch (LabException error) { Check(!voice && error.Code == "lab_input_revoked", "revoked text input has a fixed honest reason"); }
+                var detail = fixture.Runtime.Detail("owner", session.Id);
+                var reopened = new PersonaLabStore(fixture.Database, Fixture.Baseline()).Session("owner", session.Id);
+                Check(detail.Turns.All(turn => turn.Role != "assistant") && reopened.Turns.All(turn => turn.Role != "assistant"),
+                    "late image-derived assistant replies never enter persisted or RAM transcript history");
+                Check(detail.Events.Count(entry => entry.Type == "provider_cost") == 1
+                    && detail.Events.Count(entry => entry.Type == "provider_tokens") == 1
+                    && !detail.Events.Any(entry => entry.Type == "provider_turn" && entry.Code == "completed"),
+                    "revocation retains observed usage once without fabricating completed provider content");
+                Check(!detail.Events.Any(entry => entry.Type == "provider_failure")
+                    && detail.Events.Count(entry => entry.Type == "image_context" && entry.Code == "revoked") == 1,
+                    "deliberate photo withdrawal records revocation without counting a provider failure");
+                await fixture.Runtime.TurnAsync("owner", session.Id, "Continue without the removed image.", fixture.Token);
+                var nextWire = string.Join('\n', fixture.RealtimeSockets[1].Commands);
+                Check(!nextWire.Contains("TRANSPORT-ANSWER-1", StringComparison.Ordinal)
+                    && !nextWire.Contains("input_image", StringComparison.Ordinal),
+                    "reconstructed context on a new connection cannot reuse the late old-image reply or removed image");
+            }
+        }
+    }
+
+    private static async Task LiveTranscriptRevocationFenceAsync()
+    {
+        // Live does not accept image input. Exercise its private shared transcript
+        // collector directly with a real canceled execution token, including a
+        // subsequent execution on the still-open session, rather than inventing
+        // a Live image-upload route.
+        foreach (var recordContent in new[] { false, true })
+        {
+            using var fixture = new Fixture();
+            var session = fixture.Session(recordContent: recordContent);
+            fixture.PutImage(session);
+            fixture.HoldNextRealtimeReply = true;
+            var oldWork = fixture.Runtime.TurnAsync("owner", session.Id, "Old execution", fixture.Token);
+            await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+            await fixture.RealtimeSockets[0].ReplyPaused.Task.WaitAsync(fixture.Token);
+            var oldToken = fixture.ExecutionToken(session.Id);
+            using var socket = new ClientSocket();
+            var collectorType = typeof(PersonaLabRuntime).GetNestedType("LiveTranscriptCollector", System.Reflection.BindingFlags.NonPublic)!;
+            var collector = Activator.CreateInstance(collectorType,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
+                null, [fixture.Runtime, session, new LabSocketSender(socket), oldToken], null)!;
+            var append = collectorType.GetMethod("AppendAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            Task AppendAsync(string role, string text) => (Task)append.Invoke(collector, [role, text, CancellationToken.None])!;
+            await AppendAsync("assistant", "Previously admitted generic text.");
+            fixture.RevokeImage(session);
+            try { await oldWork; throw new Exception("Revoked execution completed."); }
+            catch (LabException error) { Check(error.Code == "lab_input_revoked", "old execution is canceled by image revocation"); }
+
+            fixture.HoldNextRealtimeReply = true;
+            var nextWork = fixture.Runtime.TurnAsync("owner", session.Id, "New execution", fixture.Token);
+            await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+            var provider = fixture.RealtimeSockets[1];
+            await provider.ReplyPaused.Task.WaitAsync(fixture.Token);
+            Check(oldToken.IsCancellationRequested && !fixture.ExecutionToken(session.Id).IsCancellationRequested,
+                "new active execution cannot authorize callbacks bearing the canceled originating token");
+            foreach (var role in new[] { "assistant", "user" })
+            {
+                try { await AppendAsync(role, "LATE-REVOKED-CONTENT"); throw new Exception("Canceled transcript callback was admitted."); }
+                catch (OperationCanceledException) { }
+            }
+            var after = fixture.Runtime.Detail("owner", session.Id);
+            Check(after.Turns.Single().Text == "Previously admitted generic text."
+                && !JsonSerializer.Serialize(new PersonaLabStore(fixture.Database, Fixture.Baseline()).Session("owner", session.Id))
+                    .Contains("LATE-REVOKED-CONTENT", StringComparison.Ordinal),
+                "both incremental and new-role Live callbacks reject stale content in RAM and persisted history");
+            provider.ReleaseReply.TrySetResult();
+            await nextWork;
+            Check(!string.Join('\n', provider.Commands).Contains("LATE-REVOKED-CONTENT", StringComparison.Ordinal),
+                "reconstructed provider context excludes rejected incremental transcript content");
+        }
+    }
+
+    private static async Task ExecutionPlatformsAsync()
+    {
+        using var fixture = new Fixture();
+        var session = fixture.Session();
+        var registry = new LabTicketRegistry();
+        var ticket = registry.Mint(new("owner", session.Id, "account", "stamp", "capacitor://localhost",
+            DateTimeOffset.UtcNow, Platform: "ios"));
+        Check(session.Platform == "web" && fixture.Store.Session("owner", session.Id).ExecutionPlatforms.Length == 0,
+            "Web preparation and an unused iOS ticket do not claim execution");
+        var admission = registry.Take(ticket.Token, session.Id, "capacitor://localhost");
+        fixture.VoiceNextRealtime = true;
+        using (var socket = new ClientSocket())
+        {
+            var work = fixture.Runtime.VoiceAsync("owner", session.Id, socket, _ => Task.FromResult(true),
+                fixture.Token, platform: admission.Platform);
+            await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+            Check(fixture.Store.Session("owner", session.Id).ExecutionPlatforms.SequenceEqual(["ios"]),
+                "redeemed iOS admission attributes actual voice execution independently of Web preparation");
+            await RejectedAsync(() => fixture.Runtime.TurnAsync("owner", session.Id, "Blocked", fixture.Token, platform: "web"),
+                409, "lab_session_busy");
+            Check(fixture.Store.Session("owner", session.Id).ExecutionPlatforms.SequenceEqual(["ios"]),
+                "busy admission cannot add a platform");
+            socket.CloseInput();
+            await work;
+        }
+        await fixture.Runtime.TurnAsync("owner", session.Id, "Legacy client", fixture.Token);
+        var mixed = await fixture.Runtime.TurnAsync("owner", session.Id, "Web client", fixture.Token, platform: "web");
+        Check(mixed.Platform == "web" && mixed.ExecutionPlatforms.SequenceEqual(["ios", "unknown", "web"]),
+            "explicit and legacy admitted executions form a sorted bounded mixed history without rewriting preparation");
+        fixture.Store.Change("owner", session.Id, value => value with { Events = [] });
+        var reopened = new PersonaLabStore(fixture.Database, Fixture.Baseline()).Session("owner", session.Id);
+        Check(reopened.ExecutionPlatforms.SequenceEqual(["ios", "unknown", "web"]),
+            "execution attribution persists after event removal and store reopening");
+
+        var blocked = fixture.Session();
+        var before = fixture.RealtimeSockets.Count;
+        foreach (var invalid in new[] { "", "android", "IOS", "unknown" })
+        {
+            await RejectedAsync(() => fixture.Runtime.TurnAsync("owner", blocked.Id, "Invalid", fixture.Token, platform: invalid),
+                400, "lab_platform_invalid");
+            using var socket = new ClientSocket();
+            await RejectedAsync(() => fixture.Runtime.VoiceAsync("owner", blocked.Id, socket,
+                _ => Task.FromResult(true), fixture.Token, platform: invalid), 400, "lab_platform_invalid");
+        }
+        using (var socket = new ClientSocket())
+        {
+            await RejectedAsync(() => fixture.Runtime.VoiceAsync("owner", blocked.Id, socket,
+                _ => Task.FromResult(false), fixture.Token, platform: "ios"), 401, "account_session_revoked");
+        }
+        fixture.Runtime.End("owner", blocked.Id);
+        await RejectedAsync(() => fixture.Runtime.TurnAsync("owner", blocked.Id, "Ended", fixture.Token, platform: "ios"),
+            409, "lab_session_closed");
+        Check(fixture.Store.Session("owner", blocked.Id).ExecutionPlatforms.Length == 0 && fixture.RealtimeSockets.Count == before,
+            "invalid, revoked and ended attempts cannot persist attribution or contact the provider");
+
+        using var host = new TestHostLifetime();
+        using var suites = new PersonaLabSuites(fixture.Store, fixture.Runtime, host);
+        var suite = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty", ["first-visit"],
+            "Separate execution metadata", Platform: "web", ExecutionPlatform: "ios"), _ => Task.FromResult(true));
+        var completed = await WaitSuiteAsync(fixture, suite.Id);
+        var child = fixture.Store.Session("owner", completed.Results.Single().SessionId);
+        Check(completed.Status == "completed" && child.Platform == "web" && child.ExecutionPlatforms.SequenceEqual(["ios"]),
+            "every admitted suite turn uses execution metadata separately from preparation metadata");
+        await suites.StopAsync(fixture.Token);
+
+        static async Task RejectedAsync(Func<Task> action, int status, string code)
+        {
+            try { await action(); throw new Exception("Admission unexpectedly succeeded."); }
+            catch (LabException error) { Check(error.Status == status && error.Code == code, "controlled platform admission rejection: " + code); }
+        }
     }
 
     private static async Task TextHistoryAndPrivacyAsync()
@@ -135,6 +319,8 @@ internal static class PersonaLabTransportTests
             "multi-turn suite records actual per-turn transport observations and metadata");
         Check(saved.Status == "ended" && saved.Platform == "ios" && saved.Turns.Length == 6 && saved.Turns.All(turn => turn.Text == ""),
             "multi-turn suite preserves platform, releases session and does not retain transcript without consent");
+        Check(saved.ExecutionPlatforms.SequenceEqual(["unknown"]),
+            "legacy suite preparation on iOS never substitutes for missing execution metadata");
         Check(observed.ScenarioSha256 == saved.ScenarioSnapshot.ScriptSha256
             && fixture.RealtimeSockets.Take(3).Select(socket => CurrentInput(socket.Commands)).SequenceEqual(script.Select(turn => turn.Input))
             && string.Join('\n', fixture.RealtimeSockets[2].Commands).Contains("TRANSPORT-ANSWER-1", StringComparison.Ordinal),
@@ -1030,6 +1216,7 @@ internal static class PersonaLabTransportTests
         internal Channel<bool> RealtimeConnected { get; } = Channel.CreateUnbounded<bool>();
         internal Channel<bool> LiveConnected { get; } = Channel.CreateUnbounded<bool>();
         internal bool FailNextRealtime { get; set; }
+        internal bool HoldNextRealtimeReply { get; set; }
         internal bool VoiceNextRealtime { get; set; }
         internal bool VoiceNextLive { get; set; }
         internal bool HoldNextLiveClose { get; set; }
@@ -1043,7 +1230,9 @@ internal static class PersonaLabTransportTests
             Revision = Store.CreateRevision(new(Store.ActiveRevisionId, "Transport fixture", "Exact transport persona instructions.", RealtimeProtocol.Model, "marin")).Id;
             realtime = new(_ =>
             {
-                var socket = new RealtimeSocket("TRANSPORT-ANSWER-" + (RealtimeSockets.Count + 1), FailNextRealtime, VoiceNextRealtime);
+                var socket = new RealtimeSocket("TRANSPORT-ANSWER-" + (RealtimeSockets.Count + 1), FailNextRealtime, VoiceNextRealtime)
+                { HoldReply = HoldNextRealtimeReply };
+                HoldNextRealtimeReply = false;
                 FailNextRealtime = false; VoiceNextRealtime = false;
                 RealtimeSockets.Add(socket); RealtimeConnected.Writer.TryWrite(true);
                 return Task.FromResult<WebSocket>(socket);
@@ -1064,6 +1253,21 @@ internal static class PersonaLabTransportTests
 
         internal LabSession Session(string fixture = "empty", string engine = RealtimeProtocol.Model, string scenario = "first-visit", bool recordContent = false) =>
             Store.CreateSession("owner", new(Revision, engine, scenario, fixture, "transport fixture", RecordContent: recordContent));
+        internal Lock AdmissionGate => (Lock)typeof(PersonaLabRuntime)
+            .GetField("admissionGate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(Runtime)!;
+        internal CancellationToken ExecutionToken(string id) =>
+            ((System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource>)typeof(PersonaLabRuntime)
+                .GetField("active", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(Runtime)!)[id].Token;
+        internal void PutImage(LabSession session)
+        {
+            using var bitmap = new SkiaSharp.SKBitmap(8, 8);
+            bitmap.Erase(SkiaSharp.SKColors.Gray);
+            using var encoded = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 75);
+            Runtime.ChangeImage("owner", session.Id, _ => images.Put("owner", session.Id,
+                new("image/jpeg", Convert.ToBase64String(encoded.ToArray()), true)));
+        }
+        internal LabSession RevokeImage(LabSession session) =>
+            Runtime.ChangeImage("owner", session.Id, _ => images.Clear("owner", session.Id), revoke: true);
         public void Dispose()
         {
             lifetime.Cancel();
@@ -1118,6 +1322,9 @@ internal static class PersonaLabTransportTests
 
     private sealed class RealtimeSocket(string reply, bool fail, bool voice) : QueuedSocket
     {
+        internal bool HoldReply { get; init; }
+        internal TaskCompletionSource ReplyPaused { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource ReleaseReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal Channel<bool> Configurations { get; } = Channel.CreateUnbounded<bool>();
         internal int Responses { get; private set; }
         internal int AudioUploads { get; private set; }
@@ -1180,6 +1387,11 @@ internal static class PersonaLabTransportTests
                             content_index = 1, delta = Convert.ToBase64String(new byte[4800]) });
                     }
                     await Task.Delay(20, token);
+                    if (HoldReply)
+                    {
+                        ReplyPaused.TrySetResult();
+                        await ReleaseReply.Task.WaitAsync(token);
+                    }
                     if (!voice || Responses > 1) { Done("completed"); }
                     break;
                 case "response.cancel":

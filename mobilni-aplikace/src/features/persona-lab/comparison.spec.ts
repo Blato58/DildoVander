@@ -17,7 +17,7 @@ vi.mock('./voice', () => ({ LabVoice: class { dispose() {} } }));
 function sample(id: string, overall = 4): LabSession {
   return {
     id, ownerId: 'owner', label: id, createdAt: '2026-10-20T10:00:00Z', endedAt: '2026-10-20T10:00:10Z', status: 'ended',
-    engine: 'gpt-live-1', platform: 'web', scenarioId: 'intro', fixtureId: 'empty', recordContent: false,
+    engine: 'gpt-live-1', platform: 'web', executionPlatforms: ['web'], scenarioId: 'intro', fixtureId: 'empty', recordContent: false,
     config: { id: 'revision', parentId: null, name: 'Test', instructions: 'Synthetic', engine: 'gpt-live-1', voice: 'cedar', status: 'baseline', createdAt: '', publishedAt: null, revision: 1 },
     memorySnapshot: { id: 'empty', name: 'Empty', description: '', current: '', evening: '', returning: '' },
     scenarioSnapshot: { id: 'intro', name: 'Intro', description: '', openingText: 'Synthetic input', scriptSha256: 'a'.repeat(64), script: [{ index: 1, input: 'Synthetic input', checks: [] }] },
@@ -38,7 +38,7 @@ describe('descriptive A/B evidence', () => {
   });
   it('refuses a recommendation for changed script/memory/mode/platform or missing human evidence', () => {
     const a = sample('a'); const b = sample('b');
-    b.scenarioSnapshot!.scriptSha256 = 'b'.repeat(64); b.memorySnapshot!.evening = 'Different'; b.platform = 'ios';
+    b.scenarioSnapshot!.scriptSha256 = 'b'.repeat(64); b.memorySnapshot!.evening = 'Different'; b.platform = 'ios'; b.executionPlatforms = ['ios'];
     b.hardware = { deviceId: 'case', bootId: 'boot', expectedRevision: 1, conversationId: null, status: 'ended', expiresAt: '' }; b.evaluation = null;
     const result = compareSessions(a, b, new Set(['a', 'b']));
     expect(result.reasons).toHaveLength(5); expect(result.recommendation).toContain('Nedostatek');
@@ -47,6 +47,22 @@ describe('descriptive A/B evidence', () => {
   it('does not treat partial script completion or a failed session as comparable', () => {
     const b = sample('b'); b.turns = []; b.status = 'failed';
     expect(compareSessions(sample('a'), b, new Set(['a', 'b'])).reasons).toHaveLength(2);
+  });
+  it('requires one matching known reported execution platform regardless of preparation platform', () => {
+    const left = sample('left'); const right = sample('right');
+    left.platform = 'web'; right.platform = 'web';
+    right.executionPlatforms = ['ios'];
+    expect(compareSessions(left, right, new Set(['left', 'right'])).reasons).toContain('Shodná platforma skutečného běhu není potvrzená.');
+    right.platform = 'ios'; right.executionPlatforms = undefined;
+    expect(compareSessions(left, right, new Set(['left', 'right'])).reasons).toContain('Shodná platforma skutečného běhu není potvrzená.');
+    right.executionPlatforms = ['web', 'ios'];
+    expect(compareSessions(left, right, new Set(['left', 'right'])).reasons).toContain('Shodná platforma skutečného běhu není potvrzená.');
+    right.executionPlatforms = ['web', 'unexpected'];
+    expect(compareSessions(left, right, new Set(['left', 'right'])).reasons).toContain('Shodná platforma skutečného běhu není potvrzená.');
+    right.executionPlatforms = [...Array(32).fill('web'), 'ios'];
+    expect(compareSessions(left, right, new Set(['left', 'right'])).reasons).toContain('Shodná platforma skutečného běhu není potvrzená.');
+    right.executionPlatforms = ['web'];
+    expect(compareSessions(left, right, new Set(['left', 'right'])).reasons).not.toContain('Shodná platforma skutečného běhu není potvrzená.');
   });
   it('keeps zero, unknown token counts and observed failures distinct', () => {
     const a = sample('a'); a.events = [
