@@ -21,7 +21,7 @@
     "backup_restore_verified": "Isolated synthetic SQLite/archive/key evidence verifier passed; real encrypted off-VPS backup and restore not performed.",
     "native_ci_verified": "Native Swift tests and unsigned Simulator build PASS in CI38748013953; real iPhone guest remains unverified.",
     "full_site_ci_verified": "Canonical site/manufacturing build PASS in CI38748013953 on clean main9850715;308 files deployed and HTTPS hashes verified by site deploy38755728034.",
-    "public_deployment_verified": "https://2.28.202.220/keepsake/evening/ returns200; actual visible in-app browser navigation/refresh shows correct empty evening. Public gallery no-store/no-cookie; private/admin routes remain protected.",
+    "public_deployment_verified": "https://dildovander.de/keepsake/evening/ returns200; actual visible in-app browser navigation/refresh shows correct empty evening. Public gallery no-store/no-cookie; private/admin routes remain protected.",
     "generation_enabled": "Enabled/GenerationEnabled/PortraitEnabled true, openai, gpt-6.1-sol and gpt-image-2; existing key unchanged, model catalog access verified without inference."
   },
   "supported_portrait_variant": "portrait_only",

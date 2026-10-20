@@ -38,19 +38,19 @@ class PublishIosInstallTests(unittest.TestCase):
             self.ipa,
             self.checksum,
             self.site,
-            "2.28.202.220",
+            "dildovander.de",
             "123-1",
             "app.turquoise6409.green2444",
         )
 
     def test_publishes_manifest_page_and_unchanged_ipa(self):
-        self.assertEqual("https://2.28.202.220/ios/", self.publish())
+        self.assertEqual("https://dildovander.de/ios/", self.publish())
         release = self.site / "releases" / "123-1"
         self.assertEqual(self.ipa.read_bytes(), (release / "kufr.ipa").read_bytes())
         manifest = plistlib.loads((release / "manifest.plist").read_bytes())
         item = manifest["items"][0]
         self.assertEqual(
-            "https://2.28.202.220/ios/releases/123-1/kufr.ipa",
+            "https://dildovander.de/ios/releases/123-1/kufr.ipa",
             item["assets"][0]["url"],
         )
         self.assertEqual("app.turquoise6409.green2444",
@@ -58,8 +58,14 @@ class PublishIosInstallTests(unittest.TestCase):
         self.assertEqual("42", item["metadata"]["bundle-version"])
         page = (self.site / "index.html").read_text(encoding="utf-8")
         self.assertIn("itms-services://?action=download-manifest", page)
-        self.assertIn("https%3A%2F%2F2.28.202.220%2Fios%2Freleases%2F123-1%2Fmanifest.plist", page)
+        self.assertIn("https%3A%2F%2Fdildovander.de%2Fios%2Freleases%2F123-1%2Fmanifest.plist", page)
         self.assertIn("Verze 1.0.0 · sestavení 42", page)
+
+    def test_rejects_url_injection_and_private_addresses(self):
+        for host in ("https://dildovander.de", "dildovander.de/path", "dildovander.de@evil.test", "127.0.0.1", "bad host"):
+            with self.subTest(host=host), self.assertRaises(ValueError):
+                MODULE.publish(self.ipa, self.checksum, self.site, host, "124-1", "app.turquoise6409.green2444")
+        self.assertFalse((self.site / "releases").exists())
 
     def test_rejects_bad_checksum_before_publishing(self):
         self.checksum.write_text("0" * 64 + "  App.ipa\n", encoding="ascii")
