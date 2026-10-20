@@ -20,6 +20,21 @@ kontrolou obsluhy. Nepřítomnost hotspotu, IP nebo poskytovatele toto potvrzen�
 neblokuje. Skutečná místní chyba je nepotvrdí; původní dvouminutový rollback
 deadline zůstává. Selhání zápisu potvrzení neoznačí obraz za platný.
 
+Potvrzení, rollback a restart vykonává OTA worker; řídicí Tick pouze předá
+požadavek. Worker vzniká také pro pending boot bez síťové OTA konfigurace.
+Pomalý či neúspěšný zápis neobnovuje původní absolutní deadline. Ztráta pasivního
+zdraví před závěrečnou autorizací zneplatní potvrzení a ponechá rezervaci pro rollback.
+Selhání vytvoření workeru ani nedostupný rollback nepředstírají platný obraz.
+
+Před SDK zápisem VALID worker uloží 48bytovou CRC pojistku svázanou s aktuálním
+slotem a ELF digestem. Přerušené potvrzení proto drží rezervaci také po restartu,
+i když rollback SDK selhal. Čerstvé úspěšné potvrzení jednou autorizuje odstranění
+pojistky ještě před tímto I/O; pozdější změna času či zdraví tuto autorizaci
+neobnovuje ani zpětně neruší. Selhání odstranění drží aktuální boot. Při restartu
+je rozhodující skutečně chybějící pojistka po autorizovaném odstranění, nikoli
+ztracený ACK. Nečitelná, nesouhlasící nebo poškozená pojistka vyžaduje servis;
+nepovoluje automatické potvrzení ani odstranění.
+
 Vyhledání a stažení aktualizace dál vyžaduje síť a bezpečný idle. Podepsaný
 manifest, ověření přesného artefaktu a instalace do neaktivního slotu se nemění.
 Otevřený journal po přerušení se samotným potvrzením obrazu neuzavře. Po bootu

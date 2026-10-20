@@ -136,6 +136,34 @@ struct BleStatusBridge {
   MaintenanceGate& maintenance;
   LocalSocketAdmission& admission;
   LocalControlInbox& inbox;
+  std::atomic<bool> policyCall{false};
+  int pendingAutomaticInstall = -1;
+
+  bool RequestAutomaticInstall(bool enabled) {
+    bool expected = false;
+    if (!policyCall.compare_exchange_strong(expected, true)) return false;
+    bool accepted = false;
+    if (pendingAutomaticInstall < 0 || pendingAutomaticInstall == static_cast<int>(enabled)) {
+      const bool committed = ota.SetAutomaticInstall(enabled);
+      const bool pending = ota.LastOperationIsPending();
+      pendingAutomaticInstall = pending ? static_cast<int>(enabled) : -1;
+      // BLE command acceptance, like ota-check/install, acknowledges the queue.
+      // The status policy remains the actual committed value until its ACK.
+      accepted = committed || pending;
+    }
+    policyCall.store(false);
+    return accepted;
+  }
+
+  void PollAutomaticInstall() {
+    bool expected = false;
+    if (!policyCall.compare_exchange_strong(expected, true)) return;
+    if (pendingAutomaticInstall >= 0) {
+      ota.SetAutomaticInstall(pendingAutomaticInstall != 0);
+      if (!ota.LastOperationIsPending()) pendingAutomaticInstall = -1;
+    }
+    policyCall.store(false);
+  }
 
   const char* PairingPrerequisites(bool recovering) {
     if (!identity.IsHealthy() || !identity.IsProvisioned() ||
@@ -237,6 +265,7 @@ struct BleStatusBridge {
   }
   static void Status(cJSON* response, void* context) {
     auto& bridge = *static_cast<BleStatusBridge*>(context);
+    bridge.PollAutomaticInstall();
     cJSON_AddBoolToObject(response, "b", bridge.backend.IsOnline());
     const auto status = bridge.ota.Status();
     cJSON* update = cJSON_AddObjectToObject(response, "o");
@@ -250,7 +279,7 @@ struct BleStatusBridge {
     auto& bridge = *static_cast<BleStatusBridge*>(context);
     if (std::string(name) == "ota-check") return bridge.ota.RequestCheck();
     if (std::string(name) == "ota-install") return bridge.ota.RequestInstall();
-    if (std::string(name) == "ota-policy") return bridge.ota.SetAutomaticInstall(automaticInstall);
+    if (std::string(name) == "ota-policy") return bridge.RequestAutomaticInstall(automaticInstall);
     return false;
   }
 };

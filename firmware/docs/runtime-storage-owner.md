@@ -304,6 +304,29 @@ owner defers credential-dependent server startup while maintenance owns admissio
 Concurrent host checks stall a real credential write while querying these gates,
 exercise normal-authentication-first races, and race maintenance acquisition with
 control-pass admission. These establish ownership and progress at the tested
-boundaries. OTA metadata confirmation still needs its worker migration; this
-change alone does not establish the complete Stop latency target or eliminate
-every control-path flash operation.
+boundaries. OTA boot metadata, rollback/reboot and settings commits also run on
+their existing OTA worker, with its mutex released during I/O. Control queues boot
+decisions and keeps the original absolute rollback deadline while awaiting the
+ACK. Before SDK confirmation, a canonical 48-byte CRC guard binds the exact
+running slot and ELF digest. Loss of passive health, a failed ACK or an expired
+confirmation before final authorization retains that guard and requests rollback;
+none starts a new health interval. A returning rollback cannot lose the hold on
+reboot merely because the SDK had already persisted VALID. An unknown/corrupt
+guard on a previously valid image requires service and cannot itself authorize
+rollback of that image.
+
+After a fresh successful SDK ACK, final authorization linearizes once under the
+short RAM lock before the worker erases the guard. Later health/deadline changes
+cannot revoke that already authorized erase or promise rollback from RAM alone.
+The separate runtime safety gates still apply. A failed/uncertain clear holds the
+current boot; restart accepts only authoritative Missing from an authorized clear.
+An existing or unreadable guard never automatically clears, confirms or establishes
+another identity. Failed worker/mutex allocation also retains admission refusal.
+
+OTA settings retain one immutable intent/result. An identical API retry observes
+its durable ACK; a conflicting request cannot replace it. BLE acknowledges queue
+acceptance and polls that original intent through status, whose policy value stays
+at the last committed value until the ACK. A failed write publishes an error.
+Actual adapter host tests stall metadata, settings, rollback and restart calls
+while control queries continue. They do not establish the complete hardware Stop
+latency target or physical flash/cache behavior.
