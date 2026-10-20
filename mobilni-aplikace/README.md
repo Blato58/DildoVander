@@ -103,7 +103,7 @@ native Debug backend a secured BLE whitelist), Xcode archive a Ad Hoc export.
 Podepsaná IPA má ověřené Bundle ID `app.turquoise6409.green2444` a verzi
 **1.0 / build 1000.0.23**.
 [Safari publikace 37947083377](https://github.com/Blato58/DildoVander/actions/runs/37947083377)
-prošla všemi joby. Veřejná [instalační stránka](https://2.28.202.220/ios/)
+prošla všemi joby. Veřejná [instalační stránka](https://dildovander.de/ios/)
 a manifest potvrzují **1000.0.23**; veřejná IPA a checksum odpovídají podepsanému artefaktu.
 Application-only zápis **0.1.168** na COM7 do `0x10000` prošel hash kontrolou;
 NVS, otadata a partition table zůstaly zachované. Normální RTS boot potvrdil
@@ -185,7 +185,7 @@ Development OTA **0.1.160** s opravou přijetí WebSocket extension offers je
 [Podpis 37929159117](https://github.com/Blato58/DildoVander/actions/runs/37929159117)
 prošel native pinned/debug/BLE harnessy i archive/export pro **1.0 / build 1000.0.21**.
 [Safari publikace 37929535139](https://github.com/Blato58/DildoVander/actions/runs/37929535139)
-prošla; [instalační stránka](https://2.28.202.220/ios/) nabízí tento build.
+prošla; [instalační stránka](https://dildovander.de/ios/) nabízí tento build.
 Veřejný manifest, IPA 1870043 B a checksum byly ověřené; SHA-256 IPA je
 `8dc624add9451524953476e54889b6d87886ee7078c32a9cf0d1e651aaba4a7d`.
 Nativní Apple WSS test potvrdil čtyři nabídky extensions; server je nemusí vybrat.
@@ -571,7 +571,7 @@ podepsaný device cíl v environmentu `ios-signing`. Používá výhradně Ad Ho
 distribuční profil pro nasazení; podepsaný artefakt má retenci tři dny. Samostatné
 **Deploy Kufr IPA** (`kufr-ios-deploy.yml`) dostane
 ID úspěšného podepsaného buildu a publikuje instalační stránku na
-`https://2.28.202.220/ios/` bez dalšího buildu. Oba kroky ověřují shodu zdrojového
+`https://dildovander.de/ios/` bez dalšího buildu. Oba kroky ověřují shodu zdrojového
 stromu s aktuálním `main`; [CI/CD návod](../docs/ci-cd.md) popisuje obnovovací build.
 Do environmentu patří secrets `IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_DISTRIBUTION_PROFILE_BASE64`, `IOS_P12_PASSWORD` a `IOS_KEYCHAIN_PASSWORD`. Vývojový certifikát a profil tento workflow nepoužívá. Heslo se neukládá do artefaktu. Certifikáty a profily jsou Base64 celého souboru; žádný ze souborů ani hesel nepatří do repozitáře. Environment může mít vlastní schvalovací pravidla.
 
@@ -608,7 +608,7 @@ latenci a poslech ověřuje samostatná zkouška na iPhonu. [Inventář zdrojů]
 
 ## D146: historický doklad publikace
 
-Dne 6. 10. 2026 byla na [instalační stránce](https://2.28.202.220/ios/)
+Dne 6. 10. 2026 byla na [instalační stránce](https://dildovander.de/ios/)
 publikována Ad Hoc **1.0 / build 1000.0.16** pro dosavadní registrovaný iPhone.
 Tento oddíl zachycuje tehdejší verzi a serverovou konfiguraci D146;
 historické předání D162 je **1.0 / build 1000.0.20**; aktuální D166 vede přehled nahoře.

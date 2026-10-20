@@ -12,7 +12,7 @@ hostovaný web i Capacitor používají stejné Vue SFC. Relativní `/guest/v1` 
 SQLite autorita a bounded worker žijí v existujícím .NET backendu. Web i API
 běží na stejném HTTPS originu stávajícího VPS. Majitel 15. 10. 2026 autorizoval
 nasazení a zapnutí placeného generování se stávajícím backendovým klíčem;
-[veřejný přehled](https://2.28.202.220/keepsake/evening/) je nasazený a ověřený.
+[veřejný přehled](https://dildovander.de/keepsake/evening/) je nasazený a ověřený.
 Příběhy používají `gpt-6.1-sol`, obrazy `gpt-image-2`. Přesné releasy, konfiguraci
 a kontroly uvádí [privátní evidence](../development-coordination.md)
 a [VPS handoff](VPS_HANDOFF.md). [Specifikace 2.2](SPEC.md) nadále odděluje

@@ -109,7 +109,7 @@ Nesmí se shodovat s admin/device credentialem. Po změně je nutné nové nasaz
 Reader token nemůže spravovat režimy, získat device token ani spustit AI.
 Na serveru lze bez GitHub použít `Backend__Logs__CredentialSha256`.
 
-Do prostředí procesu Codex nastavte `KUFR_BACKEND_URL=https://2.28.202.220/`
+Do prostředí procesu Codex nastavte `KUFR_BACKEND_URL=https://dildovander.de/`
 a `KUFR_LOG_TOKEN` z vlastního secret manageru. Tajemství nepište do chatu,
 command line, repozitáře nebo `.codex/config.toml`. Potom z kořene repozitáře:
 

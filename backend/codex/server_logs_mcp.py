@@ -29,7 +29,7 @@ class DiagnosticError(Exception):
 
 class Backend:
     def __init__(self):
-        address = os.environ.get('KUFR_BACKEND_URL', 'https://2.28.202.220/')
+        address = os.environ.get('KUFR_BACKEND_URL', 'https://dildovander.de/')
         try:
             url = urllib.parse.urlsplit(address)
             valid = (url.scheme == 'https' and url.hostname and not url.username and not url.password

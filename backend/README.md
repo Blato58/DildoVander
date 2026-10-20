@@ -1,3 +1,15 @@
+## Public production origin
+
+The canonical public entry is `https://dildovander.de`; HTTP and `www` redirect
+there. APIs and WebSockets share that origin. Loopback listeners and development
+LAN hosts remain internal. The historical IP bootstrap commands below are retired
+and must not be run against the domain deployment. Account identity uses RP
+`dildovander.de` and exact allowed origin `https://dildovander.de`; keepsake links
+use `Keepsake__Origin=https://dildovander.de`. Configure any separate web operator
+with its exact `Show:AllowedOrigins` entry rather than a wildcard. Native signing
+uses `KUFR_PASSKEY_RP_DOMAIN=dildovander.de`. The standalone log reader defaults
+to the canonical URL and retains its `KUFR_BACKEND_URL` override.
+
 # Backend kufru
 
 ## Show Pack

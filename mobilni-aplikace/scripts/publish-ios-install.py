@@ -113,9 +113,13 @@ def publish(
     release_id: str,
     bundle_id: str,
 ) -> str:
-    address = ipaddress.IPv4Address(public_ip)
-    if not address.is_global or not RELEASE_ID_PATTERN.fullmatch(release_id):
-        raise ValueError("A public IPv4 and numeric release ID are required")
+    address = public_ip
+    try:
+        valid_host = ipaddress.IPv4Address(address).is_global
+    except ipaddress.AddressValueError:
+        valid_host = bool(re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", address))
+    if not valid_host or not RELEASE_ID_PATTERN.fullmatch(release_id):
+        raise ValueError("A public DNS hostname or IPv4 and numeric release ID are required")
     if site_dir.is_symlink() or not site_dir.is_dir():
         raise ValueError("The iOS site must be installed before publishing")
 
@@ -180,7 +184,7 @@ def main() -> None:
     parser.add_argument("--ipa", type=Path, required=True)
     parser.add_argument("--checksum", type=Path, required=True)
     parser.add_argument("--site-dir", type=Path, required=True)
-    parser.add_argument("--public-ip", required=True)
+    parser.add_argument("--public-host", "--public-ip", dest="public_ip", default="dildovander.de")
     parser.add_argument("--release-id", required=True)
     parser.add_argument("--bundle-id", required=True)
     args = parser.parse_args()

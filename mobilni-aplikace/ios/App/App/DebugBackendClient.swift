@@ -107,7 +107,7 @@ final class DebugBackendKeychain {
 }
 
 enum DebugProfileDraft {
-    static let defaultAddress = "https://2.28.202.220/"
+    static let defaultAddress = "https://dildovander.de/"
     static let defaultDeviceId = "debug-server-admin"
 
     static func resolve(address: String, deviceId: String, credential: String,

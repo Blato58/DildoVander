@@ -3,7 +3,7 @@
 ## Production observation — 2026-10-15
 
 The owner authorized production deployment and paid generation. Public pickup is
-live at **https://2.28.202.220/keepsake/evening/** with one static QR and no token.
+live at **https://dildovander.de/keepsake/evening/** with one static QR and no token.
 The active backend and full canonical site use clean main
 `985071520f4c64c7ff98eaff5f92ab10bbbabd98`, built by
 [CI 38748013953](https://github.com/Blato58/DildoVander/actions/runs/38748013953).
