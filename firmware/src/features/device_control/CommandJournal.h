@@ -8,7 +8,16 @@
 class CommandJournal {
  public:
   enum class Lookup { Missing, Same, Conflict, StaleEpoch, Unavailable };
+  enum class StorageState { Rejected, Pending, Committed, Unknown, Superseded };
   virtual ~CommandJournal() {}
+  // Synchronous ports retain Rejected as their false-return interpretation.
+  // Async ports distinguish queued work from an actual storage failure.
+  virtual StorageState LastStorageState() const { return StorageState::Rejected; }
+  virtual bool HasPendingStorage() const { return false; }
+  virtual void PollStorage() {}
+  virtual void CancelStorageAdmissions() { CancelPresentationReservation(); }
+  virtual void BeginStorageRecovery() {}
+  virtual bool ResumeStorageAfterRecovery() { return true; }
 
   virtual bool HasPending() const = 0;
   virtual bool CanBeginOperation() const { return !HasPending(); }

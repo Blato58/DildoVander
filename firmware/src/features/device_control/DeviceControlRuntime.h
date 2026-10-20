@@ -53,6 +53,7 @@ class DeviceControlRuntime final {
 
   bool PublishCurrent();
   void SetExternalActivity(bool active);
+  bool HasStorageWork() const { return control_.HasStorageWork(); }
   uint64_t Generation() const;
   uint64_t CurrentRevision() const { return control_.Revision(); }
   bool NeedsRecovery() const { return control_.NeedsRecovery(); }

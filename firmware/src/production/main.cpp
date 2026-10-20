@@ -480,7 +480,7 @@ extern "C" void app_main() {
     std::unique_lock<std::mutex> maintenanceLock(maintenance.mutex);
     const uint64_t nowMs = clock.NowMs();
     TurnProposal pendingProposal;
-    maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
+    maintenance.safeIdle = !deviceControl.HasManualControl() && !deviceControl.HasStorageWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
@@ -654,7 +654,7 @@ extern "C" void app_main() {
       twinMailbox.Publish(twinSnapshot);
     }
     // Publish idle only after all admissions in this iteration have completed.
-    maintenance.safeIdle = !deviceControl.HasManualControl() && !selectionSequence.IsBusy() &&
+    maintenance.safeIdle = !deviceControl.HasManualControl() && !deviceControl.HasStorageWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());

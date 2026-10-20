@@ -11,6 +11,21 @@
 
 namespace {
 
+bool SameManualEnvelope(const LocalControlMessage& left,
+                        const LocalControlMessage& right) {
+  // messageId is transport correlation; retries still complete the original ACK.
+  return left.kind == right.kind && left.commandId == right.commandId &&
+         left.hasOperationEpoch == right.hasOperationEpoch &&
+         left.operationEpoch == right.operationEpoch &&
+         left.deviceId == right.deviceId && left.bootId == right.bootId &&
+         left.controlLeaseId == right.controlLeaseId &&
+         left.sequence == right.sequence &&
+         left.expectedRevision == right.expectedRevision &&
+         left.issuedAtDeviceMs == right.issuedAtDeviceMs &&
+         left.maxAgeMs == right.maxAgeMs &&
+         left.compartment == right.compartment && left.source == right.source;
+}
+
 void WipeText(std::string& text) {
   volatile char* bytes = text.empty() ? nullptr : &text[0];
   for (size_t index = 0; index < text.size(); ++index) {
@@ -50,6 +65,7 @@ void LocalControlOwner::Poll() {
     } else if (SameHandle(event.handle)) {
       switch (event.kind) {
         case LocalControlEventKind::Stop: {
+          ClearPendingManual();
           SelectionStep step;
           if (dance_) dance_->StopDance();
           if (voice_) voice_->StopVoice();
@@ -99,6 +115,26 @@ void LocalControlOwner::Poll() {
 
 void LocalControlOwner::Tick() {
   Poll();
+  CommandReceipt receipt;
+  LocalControlMessage completed;
+  bool manualCompleted = false;
+  inbox_.RunIfNoUrgent([&]() {
+    if (!manualPending_) return;
+    if (!session_ || pendingManualSession_ != session_.get() ||
+        !SameHandle(pendingManualHandle_)) {
+      ClearPendingManual();
+      return;
+    }
+    receipt = AcceptManualCommand(pendingManual_);
+    if (!receipt.deferred) {
+      completed = pendingManual_;
+      ClearPendingManual();
+      manualCompleted = true;
+    }
+  });
+  if (manualCompleted) {
+    FinishManualCommand(completed, receipt, clock_.NowMs());
+  }
   bool produced = false;
   inbox_.RunIfNoUrgent([this, &produced]() {
     SelectionStep step;
@@ -129,6 +165,7 @@ void LocalControlOwner::Connected(const LocalControlEvent& event) {
 }
 
 void LocalControlOwner::Disconnect() {
+  ClearPendingManual();
   if (session_) {
     SelectionStep step;
     session_->Disconnect(step);
@@ -201,6 +238,18 @@ void LocalControlOwner::Handle(
   if (message.kind == LocalControlMessageKind::Reset &&
       !session_->OwnsLiveLease(bootId_, message.controlLeaseId, nowMs)) {
     Close();
+    return;
+  }
+  if (manualPending_ &&
+      (message.kind == LocalControlMessageKind::Selection ||
+       message.kind == LocalControlMessageKind::Reload)) {
+    if (SameManualEnvelope(message, pendingManual_)) return;
+    const CommandError error = message.commandId == pendingManual_.commandId
+        ? CommandError::IdConflict : CommandError::Busy;
+    if (!output_.CommandAck(handle_, message,
+                            {error, CommandOutcome::Rejected, false})) {
+      Close();
+    }
     return;
   }
   bool accepted = true;
@@ -429,6 +478,69 @@ bool LocalControlOwner::RefuseBusy(const LocalControlMessage& message) {
 
 void LocalControlOwner::Selection(
     const LocalControlMessage& message, uint64_t nowMs) {
+  ManualCommand(message, nowMs);
+}
+
+void LocalControlOwner::Reload(
+    const LocalControlMessage& message, uint64_t nowMs) {
+  ManualCommand(message, nowMs);
+}
+
+void LocalControlOwner::ClearPendingManual() {
+  WipeText(pendingManual_.text);
+  pendingManual_ = {};
+  pendingManualHandle_ = {};
+  pendingManualSession_ = nullptr;
+  manualPending_ = false;
+}
+
+void LocalControlOwner::ManualCommand(
+    const LocalControlMessage& message, uint64_t nowMs) {
+  CommandReceipt receipt;
+  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
+    receipt = AcceptManualCommand(message);
+    if (receipt.deferred) {
+      pendingManual_ = message;
+      pendingManualHandle_ = handle_;
+      pendingManualSession_ = session_.get();
+      manualPending_ = true;
+    }
+  });
+  if (!current || receipt.deferred) return;
+  FinishManualCommand(message, receipt, nowMs);
+}
+
+CommandReceipt LocalControlOwner::AcceptManualCommand(
+    const LocalControlMessage& message) {
+  // Called only under the inbox guard. Recheck time/lease on every storage retry.
+  const uint64_t acceptedAtMs = clock_.NowMs();
+  const bool ownsLease = session_->OwnsLiveLease(
+      bootId_, message.controlLeaseId, acceptedAtMs);
+  if (maintenance_ || (dance_ && kufr::dance::IsDanceActive(dance_->DanceState()))) {
+    if (manualPending_) {
+      // A trusted maintenance transition must invalidate the runtime intent as
+      // well as its transport retry, even if storage has already committed it.
+      SelectionStep stopped;
+      runtime_.Stop(stopped);
+      steps_.OnStep(stopped);
+    }
+    return {CommandError::Busy, CommandOutcome::Rejected, false};
+  }
+  if (message.kind == LocalControlMessageKind::Reload) {
+    InventoryReloadCommand command;
+    command.operationEpoch = message.operationEpoch;
+    command.commandId = message.commandId;
+    command.deviceId = message.deviceId;
+    command.bootId = message.bootId;
+    command.controlLeaseId = message.controlLeaseId;
+    command.sequence = message.sequence;
+    command.expectedRevision = message.expectedRevision;
+    command.issuedAtDeviceMs = message.issuedAtDeviceMs;
+    command.maxAgeMs = message.maxAgeMs;
+    command.compartment = message.compartment;
+    command.inspectionConfirmed = true;
+    return runtime_.ConfirmReload(command, ownsLease, acceptedAtMs);
+  }
   SelectionCommand command;
   command.operationEpoch = message.operationEpoch;
   command.commandId = message.commandId;
@@ -441,22 +553,19 @@ void LocalControlOwner::Selection(
   command.maxAgeMs = message.maxAgeMs;
   command.compartment = message.compartment;
   command.source = message.source;
-  CommandReceipt receipt;
-  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
-    const uint64_t acceptedAtMs = clock_.NowMs();
-    receipt = runtime_.AcceptSelection(
-        command,
-        session_->OwnsLiveLease(bootId_, message.controlLeaseId, acceptedAtMs),
-        acceptedAtMs);
-  });
-  if (!current) {
-    return;
-  }
+  return runtime_.AcceptSelection(command, ownsLease, acceptedAtMs);
+}
+
+void LocalControlOwner::FinishManualCommand(
+    const LocalControlMessage& message, const CommandReceipt& receipt,
+    uint64_t nowMs) {
+  // Transport stays outside the guard, and motion still requires its final ACK.
   if (!output_.CommandAck(handle_, message, receipt)) {
     Close();
     return;
   }
-  if (receipt.error == CommandError::None && !receipt.duplicate) {
+  if (message.kind == LocalControlMessageKind::Selection &&
+      receipt.error == CommandError::None && !receipt.duplicate) {
     inbox_.RunIfCurrent(handle_, [&]() {
       SelectionStep step;
       const bool began = runtime_.BeginAcceptedSelection(clock_.NowMs(), step);
@@ -464,39 +573,6 @@ void LocalControlOwner::Selection(
         steps_.OnStep(step);
       }
     });
-  }
-  gateway_->OnControlTransition();
-  Snapshot(nowMs);
-}
-
-void LocalControlOwner::Reload(
-    const LocalControlMessage& message, uint64_t nowMs) {
-  InventoryReloadCommand command;
-  command.operationEpoch = message.operationEpoch;
-  command.commandId = message.commandId;
-  command.deviceId = message.deviceId;
-  command.bootId = message.bootId;
-  command.controlLeaseId = message.controlLeaseId;
-  command.sequence = message.sequence;
-  command.expectedRevision = message.expectedRevision;
-  command.issuedAtDeviceMs = message.issuedAtDeviceMs;
-  command.maxAgeMs = message.maxAgeMs;
-  command.compartment = message.compartment;
-  command.inspectionConfirmed = true;
-  CommandReceipt receipt;
-  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
-    const uint64_t acceptedAtMs = clock_.NowMs();
-    receipt = runtime_.ConfirmReload(
-        command,
-        session_->OwnsLiveLease(bootId_, message.controlLeaseId, acceptedAtMs),
-        acceptedAtMs);
-  });
-  if (!current) {
-    return;
-  }
-  if (!output_.CommandAck(handle_, message, receipt)) {
-    Close();
-    return;
   }
   gateway_->OnControlTransition();
   Snapshot(nowMs);

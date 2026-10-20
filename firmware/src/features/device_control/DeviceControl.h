@@ -82,12 +82,13 @@ struct InventoryReloadCommand {
 struct CommandReceipt {
   CommandReceipt(CommandError error = CommandError::None,
                  CommandOutcome outcome = CommandOutcome::Rejected,
-                 bool duplicate = false)
-      : error(error), outcome(outcome), duplicate(duplicate) {}
+                 bool duplicate = false, bool deferred = false)
+      : error(error), outcome(outcome), duplicate(duplicate), deferred(deferred) {}
 
   CommandError error;
   CommandOutcome outcome;
   bool duplicate;
+  bool deferred;
 };
 
 struct LastSelectionResult {
@@ -143,11 +144,12 @@ class DeviceControl {
   uint8_t ReadyMask() const;
   bool NeedsRecovery() const;
   bool HasPendingSelection() const;
+  bool HasStorageWork() const;
   bool HasManualControl() const;
   bool OwnsManualLease(const std::string& leaseId) const;
   bool OwnsLiveManualLease(const std::string& leaseId, uint64_t nowMs) const;
   bool HasAutonomousPresentation() const;
-  bool CanRecordOperation() const { return journal_.CanBeginOperation(); }
+  bool CanRecordOperation() const { return !HasStorageWork() && journal_.CanBeginOperation(); }
   bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
     return journal_.WasTimedPresentationCompleted(id, slot);
   }
@@ -179,6 +181,19 @@ class DeviceControl {
   CachedResult* FindCached(uint64_t operationEpoch, const std::string& commandId);
   CommandOutcome FinishCurrent(CommandOutcome outcome);
   bool LoseManualControl(SelectionStep& step);
+  void PollStorage();
+  void CancelDeferredCommand();
+  CommandReceipt RejectDeferred(CommandError error);
+
+  enum class DeferredKind : uint8_t { None, Selection, Reload };
+  DeferredKind deferredKind_ = DeferredKind::None;
+  SelectionCommand deferredSelection_;
+  InventoryReloadCommand deferredReload_;
+  uint8_t deferredReadyMask_ = 0;
+  bool closingSelection_ = false;
+  bool recoveryInProgress_ = false;
+  bool recoveryResolvePending_ = false;
+  uint8_t recoveryReadyMask_ = 0;
 
   std::string deviceId_;
   std::string bootId_;
@@ -195,6 +210,8 @@ class DeviceControl {
   std::string pendingCommandId_;
   uint8_t pendingCompartment_ = 0;
   uint64_t pendingOperationEpoch_ = 0;
+  uint64_t pendingIssuedAtMs_ = 0;
+  uint32_t pendingMaxAgeMs_ = 0;
   bool executionStarted_ = false;
   uint8_t autonomousCompartment_ = 0;
   std::string autonomousOperationId_;

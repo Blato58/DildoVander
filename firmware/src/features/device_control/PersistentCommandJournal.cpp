@@ -30,6 +30,16 @@ bool SameUuid(const std::string& left, const std::string& right) {
   return true;
 }
 
+// Snapshot identifiers have fixed bounds; never construct an allocating string
+// or scan beyond the publication buffer when querying a copied observation.
+bool SameUuid(const char (&left)[JournalSnapshot::CommandIdCapacity], const std::string& right) {
+  if (right.size() != JournalSnapshot::CommandIdCapacity - 1 || left[36] != 0) return false;
+  for (size_t index = 0; index < right.size(); ++index) {
+    if (JournalIdentityLower(left[index]) != JournalIdentityLower(right[index])) return false;
+  }
+  return true;
+}
+
 uint64_t Read64(const uint8_t* data) {
   uint64_t value = 0;
   for (unsigned byte = 0; byte < 8; ++byte) value |= static_cast<uint64_t>(data[byte]) << (8 * byte);
@@ -97,6 +107,48 @@ bool PersistentCommandJournal::ExportRecord(std::array<uint8_t, RecordSize>& rec
   record.fill(0);
   if (!healthy_) return false;
   Encode(state_, record);
+  return true;
+}
+
+bool PersistentCommandJournal::ExportSnapshot(JournalSnapshot& snapshot) const {
+  snapshot = {};
+  if (!healthy_ || state_.historyCount > JournalSnapshot::HistoryCapacity ||
+      state_.commandId.size() >= JournalSnapshot::CommandIdCapacity ||
+      state_.deviceId.size() >= JournalSnapshot::DeviceIdCapacity ||
+      presentationReservation_.operationId.size() >= JournalSnapshot::CommandIdCapacity) {
+    return false;
+  }
+
+  snapshot.healthy = true;
+  snapshot.storageMissing = storageMissing_;
+  snapshot.origin = static_cast<JournalSnapshot::Origin>(state_.origin);
+  snapshot.currentEpoch = state_.currentEpoch;
+  snapshot.readyMask = state_.readyMask;
+  snapshot.pendingSlot = state_.pendingCompartment;
+  std::copy(state_.commandId.begin(), state_.commandId.end(), snapshot.pendingId);
+  std::copy(state_.deviceId.begin(), state_.deviceId.end(), snapshot.deviceId);
+  snapshot.historyCount = state_.historyCount;
+  for (size_t index = 0; index < state_.historyCount; ++index) {
+    const Entry& source = state_.history[index];
+    if (source.id.size() >= JournalSnapshot::CommandIdCapacity) {
+      snapshot = {};
+      return false;
+    }
+    auto& destination = snapshot.history[index];
+    destination.epoch = source.epoch;
+    std::copy(source.id.begin(), source.id.end(), destination.id);
+    destination.slot = source.compartment;
+    destination.fingerprint = source.fingerprint;
+    destination.timedCompleted = source.timedCompleted;
+    destination.evidencePinned = source.evidencePinned;
+  }
+  snapshot.reservation.epoch = presentationReservation_.epoch;
+  if (presentationReservation_.epoch != 0) {
+    std::copy(presentationReservation_.operationId.begin(),
+              presentationReservation_.operationId.end(), snapshot.reservation.id);
+    snapshot.reservation.slot = presentationReservation_.compartment;
+    snapshot.reservation.fingerprint = presentationReservation_.fingerprint;
+  }
   return true;
 }
 
@@ -606,4 +658,75 @@ bool PersistentCommandJournal::IsValidDeviceId(const std::string& value) {
           (character >= '0' && character <= '9') || character == '-' || character == '_')) return false;
   }
   return true;
+}
+
+bool JournalSnapshot::HasPresentationReservation(uint64_t epoch, const std::string& id,
+                                                uint8_t slot, uint64_t fingerprint) const {
+  return HasPresentationReservation() && reservation.epoch == epoch &&
+         reservation.slot == slot && reservation.fingerprint == fingerprint &&
+         SameUuid(reservation.id, id);
+}
+
+bool JournalSnapshot::CanBeginOperation() const {
+  return healthy && pendingSlot == 0 && !HasPresentationReservation() &&
+         historyCount < HistoryCapacity;
+}
+
+CommandJournal::Lookup JournalSnapshot::Find(const std::string& id, uint8_t slot,
+                                             uint64_t fingerprint) const {
+  if (!healthy) return Lookup::Unavailable;
+  if (currentEpoch != 0) return Lookup::StaleEpoch;
+  return FindHistorical(0, id, slot, fingerprint);
+}
+
+CommandJournal::Lookup JournalSnapshot::FindScoped(uint64_t epoch, const std::string& id,
+                                                   uint8_t slot, uint64_t fingerprint) const {
+  if (!healthy) return Lookup::Unavailable;
+  if (epoch == 0 || epoch != currentEpoch) return Lookup::StaleEpoch;
+  return FindHistorical(epoch, id, slot, fingerprint);
+}
+
+CommandJournal::Lookup JournalSnapshot::FindHistorical(uint64_t epoch, const std::string& id,
+                                                       uint8_t slot, uint64_t fingerprint) const {
+  if (!healthy || historyCount > HistoryCapacity) return Lookup::Unavailable;
+  const size_t boundedCount = historyCount < HistoryCapacity ? historyCount : HistoryCapacity;
+  for (size_t index = 0; index < boundedCount; ++index) {
+    const auto& entry = history[index];
+    if (entry.epoch == epoch && SameUuid(entry.id, id)) {
+      return entry.slot == slot && entry.fingerprint == fingerprint ? Lookup::Same : Lookup::Conflict;
+    }
+  }
+  return Lookup::Missing;
+}
+
+bool JournalSnapshot::WasTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
+  return healthy && currentEpoch == 0 && WasLegacyTimedPresentationCompleted(id, slot);
+}
+
+bool JournalSnapshot::WasLegacyTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
+  if (!healthy || historyCount > HistoryCapacity) return false;
+  const size_t boundedCount = historyCount < HistoryCapacity ? historyCount : HistoryCapacity;
+  for (size_t index = 0; index < boundedCount; ++index) {
+    const auto& entry = history[index];
+    if (entry.epoch == 0 && SameUuid(entry.id, id) && entry.slot == slot &&
+        entry.fingerprint != 0 && entry.timedCompleted) return true;
+  }
+  return false;
+}
+
+bool JournalSnapshot::WasTimedPresentationCompletedScoped(uint64_t epoch, const std::string& id,
+                                                          uint8_t slot, uint64_t fingerprint) const {
+  return epoch != 0 && WasTimedPresentationCompletedHistorical(epoch, id, slot, fingerprint);
+}
+
+bool JournalSnapshot::WasTimedPresentationCompletedHistorical(uint64_t epoch, const std::string& id,
+                                                              uint8_t slot, uint64_t fingerprint) const {
+  if (!healthy || historyCount > HistoryCapacity || fingerprint == 0) return false;
+  const size_t boundedCount = historyCount < HistoryCapacity ? historyCount : HistoryCapacity;
+  for (size_t index = 0; index < boundedCount; ++index) {
+    const auto& entry = history[index];
+    if (entry.epoch == epoch && SameUuid(entry.id, id) && entry.slot == slot &&
+        entry.fingerprint == fingerprint) return entry.timedCompleted;
+  }
+  return false;
 }

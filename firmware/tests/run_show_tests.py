@@ -66,9 +66,14 @@ def main():
         ("device_show_cues_test", CORE + ["show_cues/DeviceShowCue", "show_cues/DeviceShowAudio", "show_cues/DeviceShowRuntime", "conversation/ConversationSession", "conversation/ConversationStartCodec"], []),
         ("autonomous_presentation_lifecycle_test", CORE, []),
         ("device_control_runtime_test", CORE, []),
+        ("device_control_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl"], []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
         ("keepsake_durability_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/DeviceControlRuntime", "device_control/PersistentCommandJournal", "conversation/ConversationRuntimeState", "conversation/PendingProposal", "wand_presentation/WandPresentation"], []),
         ("journal_epoch_test", ["device_control/PersistentCommandJournal"], []),
+        ("journal_snapshot_test", ["device_control/PersistentCommandJournal"], []),
+        ("journal_transaction_arbiter_test", [], []),
+        ("journal_storage_owner_test", ["device_control/PersistentCommandJournal", "device_control/JournalStorageOwner"], []),
+        ("async_command_journal_test", ["device_control/PersistentCommandJournal", "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal"], []),
         ("presentation_reservation_test", ["device_control/PersistentCommandJournal"], []),
         ("journal_identity_owner_test", ["device_control/PersistentCommandJournal", "device_control/JournalIdentityOwner"], []),
         ("journal_reconciliation_test", ["device_control/PersistentCommandJournal", "device_control/JournalIdentityOwner", "device_control/JournalReconciliation"], []),
@@ -86,11 +91,14 @@ def main():
         ("local_control_server_test", ["local_control/EspIdfLocalControlServer", "local_control/LocalControlCodec", "local_control/LocalControlInbox", "local_control/LocalSocketAdmission", "local_control/LocalBearerAuthenticator", "provisioning/LocalTlsIdentity", "provisioning/LocalPairingCredential", "conversation/ConversationSession", "conversation/ConversationStartCodec"], ["tests/server_stubs", "lib/device_configuration/include"]),
         ("espidf_local_service_advertisement_test", ["local_control/EspIdfLocalServiceAdvertisement", "lib/device_configuration/NetworkSettings", "network_provisioning/NetworkProfiles"], ["tests/discovery_stubs", "tests/station_stubs", "lib/device_configuration/include"]),
         ("wand_presentation_test", CORE, []),
-        ("local_control_owner_test", CORE + ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlSession", "local_control/LocalConversationGateway", "local_control/LocalControlInbox", "local_control/LocalControlOwner"], []),
+        ("local_control_owner_test", CORE + ["device_control/PersistentCommandJournal", "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal", "conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlSession", "local_control/LocalConversationGateway", "local_control/LocalControlInbox", "local_control/LocalControlOwner"], []),
         ("local_control_codec_test", ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlCodec"], []),
         ("local_control_output_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal", "conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlOutput"], []),
         ("show_trace_replay", CORE, []),
     ]
+    unknown_checks = set(args.only or ()) - {name for name, _, _ in checks}
+    if unknown_checks:
+        parser.error("unknown host checks: " + ", ".join(sorted(unknown_checks)))
     # Windows indexing can briefly retain a finished executable. Leaving its
     # bounded OS-temp directory must not turn passing assertions into failure.
     with tempfile.TemporaryDirectory(prefix="dv02-host-", ignore_cleanup_errors=True) as temp:

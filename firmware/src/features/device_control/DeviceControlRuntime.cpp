@@ -213,15 +213,13 @@ bool DeviceControlRuntime::Stop(SelectionStep& step) {
     presentation_->Stop();
   }
   const bool stopped = control_.Stop(step);
-  if (stopped || hadActivePresentation) {
-    ++generation_;
-  }
+  ++generation_;
   PublishCurrent();
   return stopped || hadActivePresentation;
 }
 
 bool DeviceControlRuntime::PublishCurrent() {
-  if (externalActivity_ || (decorationActive_ && !decorationPreservesSnapshot_) || control_.NeedsRecovery() || control_.HasPendingSelection() ||
+  if (externalActivity_ || (decorationActive_ && !decorationPreservesSnapshot_) || control_.NeedsRecovery() || control_.HasStorageWork() || control_.HasPendingSelection() ||
       control_.HasAutonomousPresentation() || selection_.IsBusy() ||
       (presentation_ != nullptr &&
        presentation_->State() != WandPresentationState::Idle)) {
@@ -272,14 +270,14 @@ bool DeviceControlRuntime::CanCapturePresentationFingerprint() const {
   return !externalActivity_ && !decorationActive_ && !offlineAuthority_ &&
       !control_.HasAutonomousReservation() &&
       !control_.NeedsRecovery() && !control_.HasManualControl() &&
-      !control_.HasPendingSelection() && !control_.HasAutonomousPresentation() &&
+      !control_.HasStorageWork() && !control_.HasPendingSelection() && !control_.HasAutonomousPresentation() &&
       !selection_.IsBusy() && presentation_ != nullptr &&
       presentation_->State() == WandPresentationState::Idle;
 }
 
 bool DeviceControlRuntime::SetOfflineAuthority(bool active) {
   if (control_.NeedsRecovery() || externalActivity_ || decorationActive_ ||
-      control_.HasManualControl() || control_.HasPendingSelection() ||
+      control_.HasManualControl() || control_.HasStorageWork() || control_.HasPendingSelection() ||
       control_.HasAutonomousPresentation() || selection_.IsBusy() ||
       !presentation_ || presentation_->State() != WandPresentationState::Idle) return false;
   if (offlineAuthority_ != active) {
@@ -316,7 +314,7 @@ void DeviceControlRuntime::RecordLeaseLoss(bool hadManualControl) {
 bool DeviceControlRuntime::ReserveDecoration(uint64_t generation, bool preserveConversationSnapshot) {
   if (generation != generation_ || externalActivity_ || decorationActive_ ||
       control_.NeedsRecovery() || control_.HasManualControl() ||
-      control_.HasPendingSelection() || control_.HasAutonomousPresentation() ||
+      control_.HasStorageWork() || control_.HasPendingSelection() || control_.HasAutonomousPresentation() ||
       selection_.IsBusy() || (presentation_ && presentation_->State() != WandPresentationState::Idle)) return false;
   decorationGeneration_ = generation;
   decorationActive_ = true;

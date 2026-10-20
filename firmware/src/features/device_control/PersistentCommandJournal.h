@@ -8,6 +8,7 @@
 #include "CommandJournal.h"
 #include "JournalStorage.h"
 #include "JournalEvidence.h"
+#include "JournalSnapshot.h"
 
 class PersistentCommandJournal final : public CommandJournal {
  public:
@@ -41,6 +42,7 @@ class PersistentCommandJournal final : public CommandJournal {
   size_t HistoryCount() const { return state_.historyCount; }
   bool ReadHistoryEntry(size_t index, JournalHistoryEntry& entry) const;
   bool ExportRecord(std::array<uint8_t, RecordSize>& record) const;
+  bool ExportSnapshot(JournalSnapshot& snapshot) const;
   bool PreviewScopedIdentity(const std::string& deviceId, bool factoryProvisioning,
                             std::array<uint8_t, RecordSize>& record) const;
   bool CanBeginOperation() const override;

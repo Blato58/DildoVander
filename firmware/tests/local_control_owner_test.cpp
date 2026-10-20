@@ -1,9 +1,15 @@
 #include <cassert>
 #include <algorithm>
 #include <vector>
+#include <condition_variable>
+#include <future>
+#include <thread>
+#include <chrono>
 #include "../src/features/voice_turn/LocalVoicePort.h"
 
 #include "../src/features/device_control/DeviceControlRuntime.h"
+#include "../src/features/device_control/AsyncCommandJournal.h"
+#include "../src/features/device_control/PersistentCommandJournal.h"
 #include "../src/features/local_control/LocalControlOwner.h"
 #include "../src/features/local_control/LocalControlTransport.h"
 #include "../src/features/local_control/LocalConversationNetworkPort.h"
@@ -132,9 +138,10 @@ class Output final : public LocalControlOutputPort {
   }
   bool CommandAck(const LocalSocketAdmission::Handle& handle,
                    const LocalControlMessage&, const CommandReceipt& receipt) override {
+    ++commandAcks;
     lastCommand = receipt;
     if (delayAck) {
-      clock.now = 7000;
+      clock.now = delayedAckAt;
     }
     if (injectStop) {
       LocalControlMessage stop;
@@ -168,12 +175,14 @@ class Output final : public LocalControlOutputPort {
   bool accept = true;
   bool injectStop = false;
   bool delayAck = false;
+  uint64_t delayedAckAt = 7000;
   Clock& clock;
   int welcomes = 0;
   int snapshots = 0;
   int heartbeats = 0;
   int results = 0;
   int controlAcks = 0;
+  int commandAcks = 0;
   LocalControlError lastControlError = LocalControlError::None;
   LocalControlMessageKind lastControlKind = LocalControlMessageKind::Hello;
   std::string lastLease;
@@ -257,10 +266,62 @@ class Dance final : public kufr::dance::LocalDancePort {
   int starts = 0, stops = 0;
 };
 
-struct Fixture {
-  explicit Fixture(bool voiceAvailable = true, bool danceAvailable = true)
+struct SyncJournalContext { Journal journal; };
+class AsyncStorage final : public JournalStorage {
+ public:
+  JournalReadResult Read(uint8_t* output, size_t capacity, size_t& length) override {
+    length = bytes.size();
+    if (bytes.empty()) return JournalReadResult::Missing;
+    if (length > capacity) return JournalReadResult::Failed;
+    std::copy(bytes.begin(), bytes.end(), output);
+    return JournalReadResult::Found;
+  }
+  bool Write(const uint8_t* input, size_t length) override {
+    if (block) {
+      std::unique_lock<std::mutex> lock(mutex);
+      entered = true;
+      changed.notify_all();
+      changed.wait(lock, [&]() { return released; });
+    }
+    if (cutBefore) return false;
+    bytes.assign(input, input + length);
+    return !cutAfter;
+  }
+  void AwaitWrite() {
+    std::unique_lock<std::mutex> lock(mutex);
+    assert(changed.wait_for(lock, std::chrono::seconds(3), [&]() { return entered; }));
+  }
+  void ReleaseWrite() {
+    std::lock_guard<std::mutex> lock(mutex);
+    released = true;
+    changed.notify_all();
+  }
+  std::vector<uint8_t> bytes;
+  bool block = false, cutBefore = false, cutAfter = false;
+ private:
+  std::mutex mutex;
+  std::condition_variable changed;
+  bool entered = false, released = false;
+};
+template <uint8_t InitialReadyMask>
+struct AsyncJournalContextT {
+  static PersistentCommandJournal& Initialize(PersistentCommandJournal& core) {
+    assert(core.EstablishScopedIdentity("kufr-001", true));
+    assert(core.PersistReadyMask(InitialReadyMask));
+    return core;
+  }
+  AsyncJournalContextT() : core(storage), storageOwner(Initialize(core), arbiter), journal(storageOwner, arbiter) {}
+  AsyncStorage storage;
+  PersistentCommandJournal core;
+  JournalTransactionArbiter arbiter;
+  JournalStorageOwner storageOwner;
+  AsyncCommandJournal journal;
+};
+template <class JournalContext>
+struct BasicFixture : JournalContext {
+  explicit BasicFixture(bool voiceAvailable = true, bool danceAvailable = true)
       : safety(port), sequence(safety),
-        control("kufr-001", Boot, sequence, journal, 1), state(false, 0, ""),
+        control("kufr-001", Boot, sequence, this->journal, 1), state(false, 0, ""),
         runtime(control, sequence, state, "neutral-1"),
         conversation(Boot, Conversation), inbox("kufr-001", Boot),
         transport(inbox), output(inbox, clock),
@@ -307,7 +368,6 @@ struct Fixture {
   Safety port;
   SafetyController safety;
   SelectionSequence sequence;
-  Journal journal;
   DeviceControl control;
   ConversationRuntimeState state;
   DeviceControlRuntime runtime;
@@ -325,6 +385,181 @@ struct Fixture {
   LocalControlOwner owner;
   LocalSocketAdmission::Handle handle{7, 1};
 };
+using Fixture = BasicFixture<SyncJournalContext>;
+using AsyncFixture = BasicFixture<AsyncJournalContextT<63>>;
+using AsyncReloadFixture = BasicFixture<AsyncJournalContextT<62>>;
+
+template <class FixtureType>
+LocalControlMessage ScopedManual(FixtureType& fixture, LocalControlMessageKind kind) {
+  auto command = fixture.Message(kind);
+  command.hasOperationEpoch = true;
+  command.operationEpoch = 1;
+  return command;
+}
+void QueueAsyncSelection(AsyncFixture& fixture) {
+  fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::Acquire);
+  assert(fixture.inbox.Submit(fixture.handle, ScopedManual(fixture, LocalControlMessageKind::Selection)));
+  fixture.Poll(100);
+  assert(fixture.output.commandAcks == 0 && !fixture.sequence.IsBusy());
+  assert(fixture.control.HasStorageWork() && fixture.storageOwner.Busy());
+}
+void TestDeferredManualAckAndCoalescing() {
+  AsyncFixture fixture;
+  QueueAsyncSelection(fixture);
+  auto command = ScopedManual(fixture, LocalControlMessageKind::Selection);
+  assert(fixture.inbox.Submit(fixture.handle, command));
+  fixture.Poll(100);
+  assert(fixture.output.commandAcks == 0);
+  ++command.compartment;
+  assert(fixture.inbox.Submit(fixture.handle, command));
+  fixture.Poll(100);
+  assert(fixture.output.commandAcks == 1 && fixture.output.lastCommand.error == CommandError::IdConflict);
+  fixture.Submit(LocalControlMessageKind::Cancel); // invalid conversation cancel cannot erase manual retry
+  assert(fixture.storageOwner.RunOne());
+  assert(!fixture.sequence.IsBusy()); // durable commit alone never starts motion
+  fixture.owner.Tick();
+  assert(fixture.output.commandAcks == 2 && fixture.output.lastCommand.error == CommandError::None);
+  assert(fixture.output.lastCommand.outcome == CommandOutcome::Accepted);
+  assert(fixture.sequence.IsBusy() && fixture.control.HasPendingSelection());
+  assert(!fixture.journal.HasPendingStorage());
+}
+void TestDeferredManualAckFailureAndUrgentStop() {
+  for (int refusal = 0; refusal < 4; ++refusal) {
+    AsyncFixture fixture;
+    QueueAsyncSelection(fixture);
+    assert(fixture.storageOwner.RunOne());
+    fixture.output.accept = refusal != 0;
+    fixture.output.injectStop = refusal == 1;
+    fixture.output.delayAck = refusal >= 2;
+    if (refusal == 3) fixture.output.delayedAckAt = 1200; // TTL expired, original lease still live
+    fixture.owner.Tick();
+    assert(!fixture.sequence.IsBusy() && fixture.control.NeedsRecovery());
+    assert(fixture.core.HasPending());
+    assert(!fixture.core.WasTimedPresentationCompletedScoped(1, Command, 1, 0));
+    assert(std::find(fixture.steps.effects.begin(), fixture.steps.effects.end(),
+                     SelectionEffect::SearchStep) == fixture.steps.effects.end());
+    fixture.owner.Tick();
+    assert(!fixture.control.HasStorageWork());
+  }
+}
+void TestStopWhileActualJournalWriteIsStalled() {
+  AsyncFixture fixture;
+  QueueAsyncSelection(fixture);
+  fixture.storage.block = true;
+  std::thread worker([&]() { assert(fixture.storageOwner.RunOne()); });
+  fixture.storage.AwaitWrite();
+  assert(fixture.inbox.Submit(fixture.handle, fixture.Message(LocalControlMessageKind::Stop)));
+  auto stop = std::async(std::launch::async, [&]() { fixture.owner.Tick(); });
+  const bool immediate = stop.wait_for(std::chrono::seconds(1)) == std::future_status::ready;
+  fixture.storage.ReleaseWrite();
+  worker.join();
+  stop.get();
+  assert(immediate && fixture.output.commandAcks == 0 && !fixture.sequence.IsBusy());
+  fixture.owner.Tick();
+  assert(fixture.core.HasPending() && fixture.journal.HasPending());
+  assert(!fixture.control.HasStorageWork() && fixture.control.NeedsRecovery());
+  assert((fixture.control.ReadyMask() & 1) == 0);
+}
+void TestDeferredManualLifetimeAndOriginalEpoch() {
+  for (int reason = 0; reason < 4; ++reason) {
+    AsyncFixture fixture;
+    QueueAsyncSelection(fixture);
+    if (reason == 0) fixture.clock.now = 1200; // original TTL expires, lease remains live
+    if (reason == 1) fixture.clock.now = 6200; // original lease expires
+    if (reason == 2) fixture.inbox.Disconnect(fixture.handle);
+    if (reason == 3) fixture.owner.SetMaintenance(true);
+    fixture.owner.Tick();
+    assert(fixture.storageOwner.RunOne());
+    fixture.owner.Tick();
+    assert(!fixture.sequence.IsBusy() && fixture.control.NeedsRecovery());
+    assert(!fixture.core.HasPending() && !fixture.control.HasStorageWork());
+    assert(fixture.core.CurrentEpoch() == 1);
+  }
+}
+void TestDeferredReloadHasNoEarlyAcknowledgement() {
+  AsyncReloadFixture fixture;
+  fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::Acquire);
+  auto command = ScopedManual(fixture, LocalControlMessageKind::Reload);
+  const auto revision = fixture.control.Revision();
+  assert(fixture.inbox.Submit(fixture.handle, command));
+  fixture.Poll(100);
+  assert(fixture.output.commandAcks == 0 && fixture.control.Revision() == revision);
+  assert(fixture.storageOwner.RunOne());
+  fixture.owner.Tick();
+  assert(fixture.output.commandAcks == 1 && fixture.output.lastCommand.error == CommandError::None);
+  assert(fixture.control.Revision() > revision && !fixture.control.HasStorageWork());
+  assert(!fixture.sequence.IsBusy());
+}
+void ReachDeferredPhysicalClose(AsyncFixture& fixture) {
+  QueueAsyncSelection(fixture);
+  assert(fixture.storageOwner.RunOne());
+  fixture.owner.Tick();
+  assert(fixture.sequence.IsBusy());
+  for (uint64_t time = 150; time < 5000 && fixture.sequence.IsBusy(); time += 50) {
+    fixture.clock.now = time;
+    fixture.owner.Tick();
+  }
+  assert(!fixture.sequence.IsBusy() && fixture.control.HasPendingSelection());
+  assert(fixture.control.HasStorageWork() && fixture.journal.HasPendingStorage());
+  assert(fixture.control.LastResult().outcome != CommandOutcome::Completed);
+}
+void TestPhysicalCloseWaitsForDurableAck() {
+  AsyncFixture fixture;
+  ReachDeferredPhysicalClose(fixture);
+  assert(fixture.storageOwner.RunOne());
+  assert(fixture.control.LastResult().outcome != CommandOutcome::Completed);
+  fixture.owner.Tick();
+  assert(fixture.control.LastResult().outcome == CommandOutcome::Completed);
+  assert(!fixture.control.HasPendingSelection() && !fixture.control.HasStorageWork());
+  assert(!fixture.core.HasPending() && (fixture.control.ReadyMask() & 1) == 0);
+}
+void TestStopDuringPhysicalCloseAndInspectedRecovery() {
+  AsyncFixture fixture;
+  ReachDeferredPhysicalClose(fixture);
+  fixture.Submit(LocalControlMessageKind::Stop, fixture.clock.now);
+  assert(fixture.control.LastResult().outcome == CommandOutcome::OutcomeUnknown);
+  assert(fixture.storageOwner.RunOne()); // completion evidence still closes its durable obligation
+  fixture.owner.Tick();
+  assert(!fixture.core.HasPending() && fixture.control.NeedsRecovery());
+  assert(fixture.control.LastResult().outcome == CommandOutcome::OutcomeUnknown);
+  assert(fixture.runtime.RecoverAfterInspection());
+  assert(!fixture.control.NeedsRecovery() && !fixture.control.HasStorageWork());
+}
+void TestLateBeginRecoveryAndLaterStop() {
+  AsyncFixture fixture;
+  QueueAsyncSelection(fixture);
+  assert(fixture.storageOwner.RunOne());
+  fixture.Submit(LocalControlMessageKind::Stop);
+  fixture.owner.Tick();
+  assert(fixture.core.HasPending() && fixture.control.NeedsRecovery());
+  assert(!fixture.runtime.RecoverAfterInspection());
+  assert(fixture.journal.HasPendingStorage());
+  fixture.Submit(LocalControlMessageKind::Stop); // cancels this inspected attempt too
+  assert(fixture.storageOwner.RunOne());
+  fixture.owner.Tick();
+  assert(fixture.control.NeedsRecovery() && !fixture.control.HasStorageWork());
+  assert(!fixture.core.HasPending());
+  assert(fixture.runtime.RecoverAfterInspection()); // requires a fresh explicit inspection call
+  assert(!fixture.control.NeedsRecovery() && !fixture.sequence.IsBusy());
+}
+void TestManualLostCommitAckFailsClosed() {
+  for (bool afterWrite : {false, true}) {
+    AsyncFixture fixture;
+    QueueAsyncSelection(fixture);
+    fixture.storage.cutAfter = afterWrite;
+    fixture.storage.cutBefore = !afterWrite;
+    assert(fixture.storageOwner.RunOne());
+    fixture.owner.Tick();
+    assert(fixture.output.commandAcks == 1 && fixture.output.lastCommand.error != CommandError::None);
+    assert(!fixture.sequence.IsBusy() && fixture.control.NeedsRecovery());
+    assert(!fixture.runtime.RecoverAfterInspection());
+    assert(!fixture.core.IsHealthy());
+    PersistentCommandJournal reopened(fixture.storage);
+    assert(reopened.IsHealthy() && reopened.HasPending() == afterWrite);
+  }
+}
 
 void TestHelloAndObserver() {
   Fixture fixture;
@@ -703,6 +938,15 @@ void TestEpochNegotiationResetsWithConnection() {
 }
 
 int main() {
+  TestDeferredManualAckAndCoalescing();
+  TestDeferredManualAckFailureAndUrgentStop();
+  TestStopWhileActualJournalWriteIsStalled();
+  TestDeferredManualLifetimeAndOriginalEpoch();
+  TestDeferredReloadHasNoEarlyAcknowledgement();
+  TestPhysicalCloseWaitsForDurableAck();
+  TestStopDuringPhysicalCloseAndInspectedRecovery();
+  TestLateBeginRecoveryAndLaterStop();
+  TestManualLostCommitAckFailsClosed();
   TestStaleEpochRefusalLeavesStatusAndStopAvailable();
   TestEpochNegotiationResetsWithConnection();
   {

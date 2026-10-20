@@ -214,7 +214,9 @@ still prevent motion or inspection mutations during recovery. A ready identity w
 physical admission: successful committed-source reconciliation is also required.
 These are required before production activation.
 The synchronous core performs at most one journal write per attempt.
-Production storage scheduling and barrier ownership must still keep Stop responsive;
+The [asynchronous journal port](runtime-storage-owner.md) now provides bounded
+request/result ownership and manual deferred acknowledgement. Production still
+requires its worker task, all remaining producers and common barrier composition;
 these methods must not be dropped into the existing control loop as blocking
 work. The host tests do not establish an ESP latency or flash-wear bound.
 

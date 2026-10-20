@@ -49,6 +49,11 @@ class LocalControlOwner final {
   void Handle(const LocalControlMessage& message, uint64_t nowMs);
   void Selection(const LocalControlMessage& message, uint64_t nowMs);
   void Reload(const LocalControlMessage& message, uint64_t nowMs);
+  void ManualCommand(const LocalControlMessage& message, uint64_t nowMs);
+  CommandReceipt AcceptManualCommand(const LocalControlMessage& message);
+  void FinishManualCommand(const LocalControlMessage& message,
+                           const CommandReceipt& receipt, uint64_t nowMs);
+  void ClearPendingManual();
   bool ControlAck(const LocalControlMessage& message, LocalControlError error);
   bool RefuseBusy(const LocalControlMessage& message);
   void Snapshot(uint64_t nowMs);
@@ -74,6 +79,10 @@ class LocalControlOwner final {
   std::unique_ptr<LocalConversationGateway> gateway_;
   uint64_t connectedAtMs_ = 0;
   uint64_t lastSnapshotAtMs_ = 0;
+  LocalControlMessage pendingManual_;
+  LocalSocketAdmission::Handle pendingManualHandle_;
+  LocalControlSession* pendingManualSession_ = nullptr;
+  bool manualPending_ = false;
   bool hello_ = false;
   bool includeOperationEpoch_ = false;
   bool maintenance_ = false;

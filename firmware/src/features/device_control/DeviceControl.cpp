@@ -67,28 +67,71 @@ DeviceControl::DeviceControl(const std::string& deviceId,
       readyMask_(journal.ReadyMask()),
       calibrationRevision_(calibrationRevision) {}
 
-bool DeviceControl::RecoverAfterInspection() {
-  CancelAutonomousReservation();
-  if (selection_.IsBusy() || HasPendingSelection() ||
-      HasAutonomousPresentation()) {
-    return false;
-  }
-
-  if (journal_.HasPending()) {
+void DeviceControl::PollStorage() {
+  journal_.PollStorage();
+  uint8_t durableMask = journal_.ReadyMask();
+  if (journal_.HasPending() && !HasPendingSelection() && !HasAutonomousPresentation() &&
+      deferredKind_ != DeferredKind::Selection) {
     const uint8_t compartment = journal_.PendingCompartment();
-    if (compartment >= 1 && compartment <= SelectionSequence::CompartmentCount) {
-      readyMask_ &= static_cast<uint8_t>(~(1u << (compartment - 1)));
-    }
+    if (compartment >= 1 && compartment <= SelectionSequence::CompartmentCount)
+      durableMask &= static_cast<uint8_t>(~(1u << (compartment - 1)));
+  }
+  // Polling adopts late writes even when their actuation permission was cancelled.
+  // A current reload/close owns its revision change when it consumes the result.
+  if (readyMask_ != durableMask && deferredKind_ != DeferredKind::Reload &&
+      !closingSelection_ && !recoveryInProgress_) {
+    readyMask_ = durableMask;
+    ++revision_;
+  }
+}
 
-    if (!journal_.Resolve(readyMask_)) {
+void DeviceControl::CancelDeferredCommand() {
+  if (deferredKind_ == DeferredKind::None) return;
+  journal_.CancelStorageAdmissions();
+  SelectionStep step;
+  selection_.ReportFault(step);
+  ++revision_;
+  deferredKind_ = DeferredKind::None;
+  deferredSelection_ = SelectionCommand();
+  deferredReload_ = InventoryReloadCommand();
+  deferredReadyMask_ = 0;
+}
+
+CommandReceipt DeviceControl::RejectDeferred(CommandError error) {
+  const CommandReceipt rejected(error);
+  if (deferredKind_ == DeferredKind::Selection) Remember(deferredSelection_, rejected);
+  if (deferredKind_ == DeferredKind::Reload) Remember(deferredReload_, rejected);
+  CancelDeferredCommand();
+  return rejected;
+}
+
+bool DeviceControl::RecoverAfterInspection() {
+  if (selection_.IsBusy() || HasPendingSelection() || HasAutonomousPresentation()) return false;
+  if (!recoveryInProgress_) {
+    CancelDeferredCommand();
+    CancelAutonomousReservation();
+    journal_.BeginStorageRecovery();
+    recoveryInProgress_ = true;
+  }
+  PollStorage();
+  // Consume the exact recovery write even if polling already adopted its closed snapshot.
+  if (recoveryResolvePending_ || journal_.HasPending()) {
+    if (!recoveryResolvePending_) {
+      const uint8_t compartment = journal_.PendingCompartment();
+      recoveryReadyMask_ = compartment >= 1 && compartment <= SelectionSequence::CompartmentCount
+          ? static_cast<uint8_t>(journal_.ReadyMask() & ~(1u << (compartment - 1)))
+          : journal_.ReadyMask();
+    }
+    if (!journal_.Resolve(recoveryReadyMask_)) {
+      recoveryResolvePending_ = journal_.LastStorageState() == CommandJournal::StorageState::Pending;
       return false;
     }
+    recoveryResolvePending_ = false;
   }
-
-  if (!selection_.RecoverAfterInspection()) {
-    return false;
-  }
-
+  if (journal_.HasPendingStorage() || !journal_.ResumeStorageAfterRecovery()) return false;
+  if (!selection_.RecoverAfterInspection()) return false;
+  readyMask_ = journal_.ReadyMask();
+  recoveryInProgress_ = false;
   ++revision_;
   return true;
 }
@@ -97,7 +140,7 @@ bool DeviceControl::AcquireManualControl(const std::string& leaseId,
                                           uint64_t nowMs) {
   if (leaseId.empty() || !manualLeaseId_.empty() ||
       HasAutonomousPresentation() || selection_.IsBusy() ||
-      selection_.NeedsRecovery() || journal_.HasPending() || HasAutonomousReservation()) {
+      selection_.NeedsRecovery() || journal_.HasPending() || HasStorageWork() || HasAutonomousReservation()) {
     return false;
   }
 
@@ -129,7 +172,7 @@ bool DeviceControl::DisconnectManualControl(SelectionStep& step) {
 }
 
 bool DeviceControl::ReleaseIdleManualControl(const std::string& leaseId, uint64_t nowMs) {
-  if (!OwnsLiveManualLease(leaseId, nowMs) || NeedsRecovery() ||
+  if (!OwnsLiveManualLease(leaseId, nowMs) || NeedsRecovery() || HasStorageWork() ||
       HasPendingSelection() || HasAutonomousPresentation() || selection_.IsBusy()) return false;
   manualLeaseId_.clear();
   leaseExpiresAtMs_ = 0;
@@ -149,26 +192,36 @@ bool DeviceControl::OwnsLiveManualLease(const std::string& leaseId,
 CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
                                                bool authenticated,
                                                uint64_t nowMs) {
+  PollStorage();
+  const bool retry = deferredKind_ == DeferredKind::Selection && deferredSelection_.SameContentAs(command);
+  if (deferredKind_ != DeferredKind::None && !retry) {
+    const std::string& id = deferredKind_ == DeferredKind::Selection
+        ? deferredSelection_.commandId : deferredReload_.commandId;
+    return CommandReceipt(id == command.commandId ? CommandError::IdConflict : CommandError::Busy);
+  }
+  const auto reject = [&](CommandError error) {
+    return retry ? RejectDeferred(error) : CommandReceipt(error);
+  };
   if (!authenticated || command.deviceId != deviceId_) {
-    return {CommandError::Unauthorized, CommandOutcome::Rejected, false};
+    return reject(CommandError::Unauthorized);
   }
 
   if (command.bootId != bootId_) {
-    return {CommandError::WrongBoot, CommandOutcome::Rejected, false};
+    return reject(CommandError::WrongBoot);
   }
 
   if (command.operationEpoch != OperationEpoch()) {
-    return {CommandError::WrongOperationEpoch, CommandOutcome::Rejected, false};
+    return reject(CommandError::WrongOperationEpoch);
   }
 
   if (manualLeaseId_.empty() || command.controlLeaseId != manualLeaseId_) {
-    return {CommandError::LeaseExpired, CommandOutcome::Rejected, false};
+    return reject(CommandError::LeaseExpired);
   }
 
   if (nowMs >= leaseExpiresAtMs_) {
     SelectionStep step;
     LoseManualControl(step);
-    return {CommandError::LeaseExpired, CommandOutcome::Rejected, false};
+    return reject(CommandError::LeaseExpired);
   }
 
   CachedResult* cached = FindCached(command.operationEpoch, command.commandId);
@@ -196,16 +249,16 @@ CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
     return {CommandError::InvalidMessage, CommandOutcome::Rejected, false};
   }
 
-  if (command.sequence <= lastSequence_) {
+  if (!retry && command.sequence <= lastSequence_) {
     return {CommandError::AlreadySeenResultUnavailable,
             CommandOutcome::Rejected, false};
   }
 
-  if (command.sequence != lastSequence_ + 1) {
+  if (!retry && command.sequence != lastSequence_ + 1) {
     return {CommandError::SequenceGap, CommandOutcome::Rejected, false};
   }
 
-  lastSequence_ = command.sequence;
+  if (!retry) lastSequence_ = command.sequence;
 
   if (command.issuedAtDeviceMs > nowMs + 500 ||
       nowMs > command.issuedAtDeviceMs + command.maxAgeMs) {
@@ -233,8 +286,9 @@ CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
     return Reject(command, CommandError::CompartmentUnavailable, true);
   }
 
+  if (!retry && HasStorageWork()) return Reject(command, CommandError::Busy, true);
   const uint64_t fingerprint = command.operationEpoch == 0 ? 0 : SelectionFingerprint(command);
-  if (command.operationEpoch != 0) {
+  if (!retry && command.operationEpoch != 0) {
     const auto existing = FindOperation(command.commandId, command.compartment,
                                          fingerprint, command.operationEpoch);
     if (existing == CommandJournal::Lookup::Same)
@@ -249,12 +303,24 @@ CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
       : journal_.BeginScoped(command.operationEpoch, command.commandId,
                              command.compartment, fingerprint);
   if (!recorded) {
+    if (journal_.LastStorageState() == CommandJournal::StorageState::Pending) {
+      if (!retry) {
+        deferredKind_ = DeferredKind::Selection;
+        deferredSelection_ = command;
+      }
+      return {CommandError::None, CommandOutcome::Rejected, false, true};
+    }
+    if (retry) return RejectDeferred(CommandError::JournalFailed);
     return Reject(command, CommandError::JournalFailed, true);
   }
+  deferredKind_ = DeferredKind::None;
+  deferredSelection_ = SelectionCommand();
 
   pendingCommandId_ = command.commandId;
   pendingCompartment_ = command.compartment;
   pendingOperationEpoch_ = command.operationEpoch;
+  pendingIssuedAtMs_ = command.issuedAtDeviceMs;
+  pendingMaxAgeMs_ = command.maxAgeMs;
   executionStarted_ = false;
   ++revision_;
 
@@ -267,22 +333,32 @@ CommandReceipt DeviceControl::AcceptSelection(const SelectionCommand& command,
 CommandReceipt DeviceControl::ConfirmReload(
     const InventoryReloadCommand& command, bool authenticated,
     uint64_t nowMs) {
+  PollStorage();
+  const bool retry = deferredKind_ == DeferredKind::Reload && deferredReload_.SameContentAs(command);
+  if (deferredKind_ != DeferredKind::None && !retry) {
+    const std::string& id = deferredKind_ == DeferredKind::Selection
+        ? deferredSelection_.commandId : deferredReload_.commandId;
+    return CommandReceipt(id == command.commandId ? CommandError::IdConflict : CommandError::Busy);
+  }
+  const auto rejectEnvelope = [&](CommandError error) {
+    return retry ? RejectDeferred(error) : CommandReceipt(error);
+  };
   if (!authenticated || command.deviceId != deviceId_) {
-    return {CommandError::Unauthorized, CommandOutcome::Rejected, false};
+    return rejectEnvelope(CommandError::Unauthorized);
   }
   if (command.bootId != bootId_) {
-    return {CommandError::WrongBoot, CommandOutcome::Rejected, false};
+    return rejectEnvelope(CommandError::WrongBoot);
   }
   if (command.operationEpoch != OperationEpoch()) {
-    return {CommandError::WrongOperationEpoch, CommandOutcome::Rejected, false};
+    return rejectEnvelope(CommandError::WrongOperationEpoch);
   }
   if (manualLeaseId_.empty() || command.controlLeaseId != manualLeaseId_) {
-    return {CommandError::LeaseExpired, CommandOutcome::Rejected, false};
+    return rejectEnvelope(CommandError::LeaseExpired);
   }
   if (nowMs >= leaseExpiresAtMs_) {
     SelectionStep step;
     LoseManualControl(step);
-    return {CommandError::LeaseExpired, CommandOutcome::Rejected, false};
+    return rejectEnvelope(CommandError::LeaseExpired);
   }
 
   CachedResult* cached = FindCached(command.operationEpoch, command.commandId);
@@ -307,16 +383,17 @@ CommandReceipt DeviceControl::ConfirmReload(
       !command.inspectionConfirmed) {
     return {CommandError::InvalidMessage, CommandOutcome::Rejected, false};
   }
-  if (command.sequence <= lastSequence_) {
+  if (!retry && command.sequence <= lastSequence_) {
     return {CommandError::AlreadySeenResultUnavailable,
             CommandOutcome::Rejected, false};
   }
-  if (command.sequence != lastSequence_ + 1) {
+  if (!retry && command.sequence != lastSequence_ + 1) {
     return {CommandError::SequenceGap, CommandOutcome::Rejected, false};
   }
-  lastSequence_ = command.sequence;
+  if (!retry) lastSequence_ = command.sequence;
 
   const auto reject = [&](CommandError error) {
+    if (retry) return RejectDeferred(error);
     const CommandReceipt rejected = {error, CommandOutcome::Rejected, false};
     Remember(command, rejected);
     return rejected;
@@ -336,13 +413,26 @@ CommandReceipt DeviceControl::ConfirmReload(
     return reject(CommandError::SafetyLatched);
   }
 
+  if (!retry && HasStorageWork()) return reject(CommandError::Busy);
   const uint8_t nextMask = static_cast<uint8_t>(
       readyMask_ | (1u << (command.compartment - 1)));
-  if (nextMask != readyMask_) {
-    if (!journal_.PersistReadyMask(nextMask)) {
+  if (retry || nextMask != readyMask_) {
+    const uint8_t persistedMask = retry ? deferredReadyMask_ : nextMask;
+    if (!journal_.PersistReadyMask(persistedMask)) {
+      if (journal_.LastStorageState() == CommandJournal::StorageState::Pending) {
+        if (!retry) {
+          deferredKind_ = DeferredKind::Reload;
+          deferredReload_ = command;
+          deferredReadyMask_ = nextMask;
+        }
+        return {CommandError::None, CommandOutcome::Rejected, false, true};
+      }
       return reject(CommandError::JournalFailed);
     }
-    readyMask_ = nextMask;
+    readyMask_ = journal_.ReadyMask();
+    deferredKind_ = DeferredKind::None;
+    deferredReload_ = InventoryReloadCommand();
+    deferredReadyMask_ = 0;
     ++revision_;
   }
 
@@ -354,13 +444,23 @@ CommandReceipt DeviceControl::ConfirmReload(
 
 bool DeviceControl::BeginAcceptedSelection(uint64_t nowMs,
                                             SelectionStep& step) {
-  if (!HasPendingSelection() || executionStarted_ ||
+  if (!HasPendingSelection() || executionStarted_ || closingSelection_ ||
       pendingOperationEpoch_ != OperationEpoch()) {
     return false;
   }
 
   if (manualLeaseId_.empty() || nowMs >= leaseExpiresAtMs_) {
     LoseManualControl(step);
+    return false;
+  }
+
+  // Sending the final ACK may itself take time. Its success cannot extend the
+  // original envelope's motion admission window, even while the lease is live.
+  if (pendingIssuedAtMs_ > nowMs + 500 ||
+      (nowMs >= pendingIssuedAtMs_ && nowMs - pendingIssuedAtMs_ > pendingMaxAgeMs_)) {
+    journal_.CancelStorageAdmissions();
+    selection_.ReportFault(step);
+    FinishCurrent(CommandOutcome::OutcomeUnknown);
     return false;
   }
 
@@ -382,7 +482,7 @@ bool DeviceControl::CanAdmitAutonomousPresentation(
       !proposalId.empty() && compartment >= 1 && compartment <= SelectionSequence::CompartmentCount &&
       expectedRevision == revision_ && calibrationRevision_ != 0 &&
       !HasManualControl() && !HasPendingSelection() && !HasAutonomousPresentation() &&
-      !selection_.IsBusy() && !selection_.NeedsRecovery() && !journal_.HasPending() &&
+      !selection_.IsBusy() && !selection_.NeedsRecovery() && !journal_.HasPending() && !HasStorageWork() &&
       (readyMask_ & (1u << (compartment - 1))) != 0;
 }
 
@@ -407,6 +507,7 @@ bool DeviceControl::BeginAutonomousPresentation(
       ? journal_.BeginWithIdentity(proposalId, compartment, fingerprint)
       : journal_.BeginReservedPresentation(operationEpoch, proposalId, compartment, fingerprint);
   if (!recorded) {
+    journal_.CancelStorageAdmissions();
     SelectionStep step;
     selection_.ReportFault(step);
     return false;
@@ -458,6 +559,7 @@ void DeviceControl::FaultAutonomousPresentation() {
   if (autonomousCompartment_ == 0) {
     return;
   }
+  journal_.CancelStorageAdmissions();
   SelectionStep step;
   selection_.ReportFault(step);
   autonomousCompartment_ = 0;
@@ -466,42 +568,64 @@ void DeviceControl::FaultAutonomousPresentation() {
 }
 
 bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
+  PollStorage();
+  if (deferredKind_ != DeferredKind::None) {
+    const uint64_t issuedAt = deferredKind_ == DeferredKind::Selection
+        ? deferredSelection_.issuedAtDeviceMs : deferredReload_.issuedAtDeviceMs;
+    const uint32_t maxAge = deferredKind_ == DeferredKind::Selection
+        ? deferredSelection_.maxAgeMs : deferredReload_.maxAgeMs;
+    if (issuedAt > nowMs + 500 || nowMs > issuedAt + maxAge)
+      RejectDeferred(CommandError::Expired);
+    else if (selection_.NeedsRecovery())
+      RejectDeferred(CommandError::SafetyLatched);
+  }
   if (!manualLeaseId_.empty() && nowMs >= leaseExpiresAtMs_) {
     return LoseManualControl(step);
   }
 
-  if (!executionStarted_) {
-    if (selection_.ObserveControlLoopPass(static_cast<uint32_t>(nowMs),
-                                          step)) {
-      FinishCurrent(CommandOutcome::OutcomeUnknown);
-      return true;
-    }
-    return false;
-  }
-
   const uint32_t sequenceTimeMs = static_cast<uint32_t>(nowMs);
   if (selection_.ObserveControlLoopPass(sequenceTimeMs, step)) {
+    journal_.CancelStorageAdmissions();
+    CancelDeferredCommand();
+    recoveryInProgress_ = false;
+    recoveryResolvePending_ = false;
     FinishCurrent(CommandOutcome::OutcomeUnknown);
     return true;
   }
-
-  if (!selection_.Update(sequenceTimeMs, step)) {
-    return false;
+  if (closingSelection_) {
+    const uint8_t compartment = pendingCompartment_;
+    if (selection_.NeedsRecovery()) {
+      journal_.CancelStorageAdmissions();
+      FinishCurrent(CommandOutcome::OutcomeUnknown);
+      step = {SelectionEffect::Stopped, compartment};
+      return true;
+    }
+    const CommandOutcome outcome = FinishCurrent(CommandOutcome::Completed);
+    if (outcome == CommandOutcome::Accepted) return false;
+    step = {outcome == CommandOutcome::Completed ? SelectionEffect::Idle : SelectionEffect::Stopped,
+            compartment};
+    return true;
   }
+  if (!executionStarted_ || !selection_.Update(sequenceTimeMs, step)) return false;
 
   if (step.effect == SelectionEffect::Idle) {
     const uint8_t compartment = pendingCompartment_;
-    if (FinishCurrent(CommandOutcome::Completed) != CommandOutcome::Completed) {
+    if (FinishCurrent(CommandOutcome::Completed) == CommandOutcome::OutcomeUnknown)
       step = {SelectionEffect::Stopped, compartment};
-    }
   } else if (step.effect == SelectionEffect::Stopped) {
+    journal_.CancelStorageAdmissions();
     FinishCurrent(CommandOutcome::OutcomeUnknown);
   }
-
   return true;
 }
 
 bool DeviceControl::Stop(SelectionStep& step) {
+  // Stop invalidates even idle or storage-only admissions without waiting for NVS.
+  journal_.CancelStorageAdmissions();
+  CancelDeferredCommand();
+  recoveryInProgress_ = false;
+  recoveryResolvePending_ = false;
+  lastCompletedAutonomousCompartment_ = 0;
   CancelAutonomousReservation();
   const uint64_t previousRevision = revision_;
   const bool newlyStopped = selection_.Stop(step);
@@ -547,7 +671,12 @@ const LastSelectionResult& DeviceControl::LastResult() const { return lastResult
 uint8_t DeviceControl::ReadyMask() const { return readyMask_; }
 
 bool DeviceControl::NeedsRecovery() const {
-  return selection_.NeedsRecovery() || journal_.HasPending();
+  return selection_.NeedsRecovery() || journal_.HasPending() || recoveryInProgress_;
+}
+
+bool DeviceControl::HasStorageWork() const {
+  return deferredKind_ != DeferredKind::None || closingSelection_ ||
+      recoveryInProgress_ || journal_.HasPendingStorage();
 }
 
 bool DeviceControl::HasPendingSelection() const {
@@ -568,6 +697,8 @@ CommandReceipt DeviceControl::Reject(const SelectionCommand& command,
   if (consumeSequence) {
     lastSequence_ = command.sequence;
   }
+  if (deferredKind_ == DeferredKind::Selection && deferredSelection_.SameContentAs(command))
+    CancelDeferredCommand();
 
   const CommandReceipt rejected = {error, CommandOutcome::Rejected, false};
   Remember(command, rejected);
@@ -614,35 +745,44 @@ DeviceControl::CachedResult* DeviceControl::FindCached(
 }
 
 CommandOutcome DeviceControl::FinishCurrent(CommandOutcome outcome) {
-  if (!HasPendingSelection()) {
-    return outcome;
-  }
+  if (!HasPendingSelection()) return outcome;
 
-  if (outcome != CommandOutcome::Completed || !selection_.ReturnsProp())
-    readyMask_ &= static_cast<uint8_t>(~(1u << (pendingCompartment_ - 1)));
-  // An interrupted release has an unknown physical result. Keep its durable
-  // record until an operator inspects the compartment after Stop or reboot.
-  if (outcome == CommandOutcome::Completed &&
-      !(selection_.ReturnsProp() ? journal_.ResolveRestored(pendingCompartment_) : journal_.Resolve(readyMask_))) {
-    SelectionStep step;
-    selection_.ReportFault(step);
-    outcome = CommandOutcome::OutcomeUnknown;
+  if (outcome == CommandOutcome::Completed) {
+    const uint8_t completedMask = selection_.ReturnsProp() ? readyMask_
+        : static_cast<uint8_t>(readyMask_ & ~(1u << (pendingCompartment_ - 1)));
+    const bool recorded = selection_.ReturnsProp()
+        ? journal_.ResolveRestored(pendingCompartment_) : journal_.Resolve(completedMask);
+    if (!recorded && journal_.LastStorageState() == CommandJournal::StorageState::Pending) {
+      closingSelection_ = true;
+      executionStarted_ = false;
+      // Physical rest is immediate; reporting completion waits for durable acknowledgement.
+      return CommandOutcome::Accepted;
+    }
+    if (!recorded) {
+      SelectionStep step;
+      selection_.ReportFault(step);
+      outcome = CommandOutcome::OutcomeUnknown;
+    } else {
+      readyMask_ = journal_.ReadyMask();
+    }
   }
+  if (outcome != CommandOutcome::Completed)
+    readyMask_ &= static_cast<uint8_t>(~(1u << (pendingCompartment_ - 1)));
 
   CachedResult* result = FindCached(pendingOperationEpoch_, pendingCommandId_);
-  if (result != nullptr) {
-    result->receipt.outcome = outcome;
-  }
+  if (result != nullptr) result->receipt.outcome = outcome;
 
   lastResult_.commandId = pendingCommandId_;
   lastResult_.compartment = pendingCompartment_;
   lastResult_.outcome = outcome;
   lastResult_.revision = revision_ + 1;
-
   pendingCommandId_.clear();
   pendingCompartment_ = 0;
   pendingOperationEpoch_ = 0;
+  pendingIssuedAtMs_ = 0;
+  pendingMaxAgeMs_ = 0;
   executionStarted_ = false;
+  closingSelection_ = false;
   ++revision_;
   return outcome;
 }
@@ -652,6 +792,10 @@ bool DeviceControl::LoseManualControl(SelectionStep& step) {
     return false;
   }
 
+  journal_.CancelStorageAdmissions();
+  CancelDeferredCommand();
+  recoveryInProgress_ = false;
+  recoveryResolvePending_ = false;
   const bool newlyStopped = selection_.Stop(step);
   if (HasPendingSelection()) {
     FinishCurrent(CommandOutcome::OutcomeUnknown);
