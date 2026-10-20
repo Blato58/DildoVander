@@ -34,6 +34,7 @@ internal static class PersonaLabTests
         try
         {
             PersistenceAndOwnership(root);
+            DialogueRecallScenario();
             DiagnosticsPrivacyAndBounds(root);
             DeletedSuiteResultsStayDeleted(root);
             TicketBoundaries();
@@ -44,6 +45,37 @@ internal static class PersonaLabTests
             Console.WriteLine($"Persona Lab: {checks} deterministic checks passed; no provider calls.");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, recursive: true); }
+    }
+    private static void DialogueRecallScenario()
+    {
+        var script = LabContract.Scenarios.Single(scenario => scenario.Id == "dialogue-recall").Script;
+        Check(script.Length == 8, "recall case reaches the bounded eight-turn conversation length");
+        var comparison = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
+        const System.Globalization.CompareOptions options = System.Globalization.CompareOptions.IgnoreCase
+            | System.Globalization.CompareOptions.IgnoreNonSpace;
+        foreach (var step in script)
+        {
+            foreach (var anchor in step.Checks.Where(check => check.StartsWith("anchor:", StringComparison.Ordinal)))
+            {
+                var expected = anchor[7..];
+                Check(comparison.IndexOf(step.Input, expected, options) < 0,
+                    "recall retrieval question does not supply its expected lexical answer");
+                Check(script.Take(step.Index - 1).Any(previous => comparison.IndexOf(previous.Input, expected, options) >= 0),
+                    "recall anchor was introduced by an earlier visitor turn");
+            }
+        }
+        var answer = new LabTurn("recall", "assistant", "Matěji.", DateTimeOffset.UtcNow);
+        Check(LabRubric.InspectTurn(script[1], answer).Single(check => check.Name == "anchor:matej").Passed,
+            "Czech inflection and diacritics supply limited name-recall evidence");
+        Check(!LabRubric.InspectTurn(script[1], answer with { Text = "Jméno neznám." })
+            .Single(check => check.Name == "anchor:matej").Passed,
+            "a name refusal fails the observed current-dialogue recall check");
+        Check(LabRubric.InspectTurn(script[6], answer with { Text = "Radim." })
+            .Single(check => check.Name == "anchor:radim").Passed
+            && !LabRubric.InspectTurn(script[6], answer).Single(check => check.Name == "anchor:radim").Passed,
+            "later recall expects the corrected alias rather than the initial name");
+        Check(LabRubric.InspectTurn(script[7], answer).Any(check => check.Name == "memory-provenance-not-exercised"
+            && check.Status == "not_exercised"), "lexical recall never claims verified identity or memory provenance");
     }
     private static LivePromptSnapshot Baseline() => LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, new GptLiveOptions());
     private static void PersistenceAndOwnership(string root)
@@ -84,7 +116,7 @@ internal static class PersonaLabTests
         Reject(() => reopened.Evaluate("alice", first.Id, Evaluation() with { Scores = new() { ["overall"] = 7 } }), 400, "invalid rubric scores rejected");
         Reject(() => reopened.Evaluate("alice", first.Id, Evaluation() with { TurnComments = [new("foreign-turn", "x")] }), 400,
             "turn comment cannot target another conversation");
-        Check(LabContract.Scenarios.Length == 20 && LabContract.Fixtures.Length == 3, "twenty runnable cases and isolated memory fixtures available");
+        Check(LabContract.Scenarios.Length == 21 && LabContract.Fixtures.Length == 3, "twenty-one runnable cases and isolated memory fixtures available");
         Check(LabContract.Scenarios.All(scenario => scenario.Script.Length is >= 2 and <= 8
             && scenario.Script.Select(turn => turn.Index).SequenceEqual(Enumerable.Range(1, scenario.Script.Length))
             && scenario.ScriptSha256 == LabContract.Hash(JsonSerializer.Serialize(scenario.Script)))
