@@ -14,6 +14,7 @@ class CommandJournal {
   // Async ports distinguish queued work from an actual storage failure.
   virtual StorageState LastStorageState() const { return StorageState::Rejected; }
   virtual bool HasPendingStorage() const { return false; }
+  virtual bool HasStorageFault() const { return false; }
   virtual void PollStorage() {}
   virtual void CancelStorageAdmissions() { CancelPresentationReservation(); }
   virtual void BeginStorageRecovery() {}

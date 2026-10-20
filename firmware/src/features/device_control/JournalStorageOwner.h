@@ -5,6 +5,7 @@
 #include <mutex>
 
 #include "JournalSnapshot.h"
+#include "JournalAdmissionGate.h"
 #include "JournalTransactionArbiter.h"
 
 class PersistentCommandJournal;
@@ -35,7 +36,8 @@ class JournalStorageOwner final {
     bool current = false;
   };
 
-  JournalStorageOwner(PersistentCommandJournal& journal, JournalTransactionArbiter& arbiter);
+  JournalStorageOwner(PersistentCommandJournal& journal, JournalTransactionArbiter& arbiter,
+                      JournalAdmissionGate* admission = nullptr);
   JournalStorageOwner(const JournalStorageOwner&) = delete;
   JournalStorageOwner& operator=(const JournalStorageOwner&) = delete;
   bool TrySubmit(const Request& request, Purpose purpose, Token& token);
@@ -48,6 +50,12 @@ class JournalStorageOwner final {
   bool TryReadPublished(JournalSnapshot& snapshot, uint32_t* cancellation = nullptr) const;
   void CancelAdmissions() { arbiter_.CancelAdmissions(); }
   bool Busy() const;
+  bool HasStorageFault() const { return admission_ && !admission_->AllowsRecovery(); }
+  // Single worker only, after its quiescent reconciliation changed the core.
+  bool RefreshPublication();
+  bool ReconcileBeforeResume(uint32_t cancellation) {
+    return !admission_ || admission_->ReconcileBeforeResume(cancellation);
+  }
 
  private:
   enum class Phase : uint8_t { Idle, Queued, Running, Completed };
@@ -58,6 +66,7 @@ class JournalStorageOwner final {
 
   PersistentCommandJournal& journal_;
   JournalTransactionArbiter& arbiter_;
+  JournalAdmissionGate* admission_;
   mutable std::mutex mutex_;
   Phase phase_ = Phase::Idle;
   Request request_;

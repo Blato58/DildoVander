@@ -100,6 +100,7 @@ void AsyncCommandJournal::CancelStorageAdmissions() {
 bool AsyncCommandJournal::ResumeStorageAfterRecovery() {
   PollStorage();
   if (token_.id) return false;
+  if (!owner_.ReconcileBeforeResume(recoveryCancellation_)) return false;
   return arbiter_.ResumeAfterRecovery(recoveryCancellation_);
 }
 void AsyncCommandJournal::BeginStorageRecovery() {

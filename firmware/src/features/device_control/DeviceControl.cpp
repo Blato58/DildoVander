@@ -569,6 +569,7 @@ void DeviceControl::FaultAutonomousPresentation() {
 
 bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
   PollStorage();
+  if (journal_.HasStorageFault() && !selection_.NeedsRecovery()) return Stop(step);
   if (deferredKind_ != DeferredKind::None) {
     const uint64_t issuedAt = deferredKind_ == DeferredKind::Selection
         ? deferredSelection_.issuedAtDeviceMs : deferredReload_.issuedAtDeviceMs;

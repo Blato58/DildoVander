@@ -34,6 +34,9 @@ class JournalIdentityOwner final {
   Phase CurrentPhase() const { return state_.phase; }
   const std::string& TargetDeviceId() const { return state_.deviceId; }
   Validation Validate(const JournalIdentityView& identity) const;
+  // Binding-only check for explicit recovery of an existing pending record.
+  // It does not turn inspection or unreconciled sources into motion authority.
+  bool HasEstablishedBinding(const JournalIdentityView& identity) const;
   bool BeginFactory(const std::string& target, const JournalIdentityView& identity, bool serviceAuthorized);
   bool BeginLegacy(const JournalIdentityView& identity, bool serviceAuthorized);
   bool ResumePreparation(const JournalIdentityView& identity, bool serviceAuthorized);

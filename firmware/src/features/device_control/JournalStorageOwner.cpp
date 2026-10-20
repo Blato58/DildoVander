@@ -3,8 +3,8 @@
 #include "PersistentCommandJournal.h"
 
 JournalStorageOwner::JournalStorageOwner(
-    PersistentCommandJournal& journal, JournalTransactionArbiter& arbiter)
-    : journal_(journal), arbiter_(arbiter) {
+    PersistentCommandJournal& journal, JournalTransactionArbiter& arbiter, JournalAdmissionGate* admission)
+    : journal_(journal), arbiter_(arbiter), admission_(admission) {
   journal_.ExportSnapshot(published_); // Before either owner task starts.
   observedCancellation_ = arbiter_.Cancellation();
   publishedCancellation_ = observedCancellation_;
@@ -46,6 +46,8 @@ bool JournalStorageOwner::ValidRequest(const Request& request, Purpose purpose) 
 bool JournalStorageOwner::TrySubmit(const Request& request, Purpose purpose, Token& token) {
   token = {};
   if (!ValidRequest(request, purpose)) return false;
+  if (admission_ && !(purpose == Purpose::Admission
+      ? admission_->AllowsAdmission() : admission_->AllowsRecovery())) return false;
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
   if (!lock || phase_ != Phase::Idle || !published_.healthy) return false;
   Token accepted;
@@ -94,7 +96,9 @@ bool JournalStorageOwner::RunOne() {
   // There is no arbiter or mailbox mutex held across this potentially slow I/O.
   // Evidence/recovery jobs retain their original durable obligations after Stop.
   Status status = Status::CancelledBeforeWrite;
-  if (token.purpose != Purpose::Admission || arbiter_.IsCurrent(token)) {
+  const bool authority = !admission_ || (token.purpose == Purpose::Admission
+      ? admission_->AllowsAdmission() : admission_->AllowsRecovery());
+  if (authority && (token.purpose != Purpose::Admission || arbiter_.IsCurrent(token))) {
     const bool success = Execute(request);
     status = success ? Status::Succeeded : journal_.IsHealthy() ? Status::Refused : Status::Unknown;
   }
@@ -158,4 +162,15 @@ bool JournalStorageOwner::TryReadPublished(JournalSnapshot& snapshot, uint32_t* 
 bool JournalStorageOwner::Busy() const {
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
   return !lock || phase_ != Phase::Idle;
+}
+
+bool JournalStorageOwner::RefreshPublication() {
+  ObserveCancellation();
+  JournalSnapshot snapshot;
+  journal_.ExportSnapshot(snapshot);
+  std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+  if (!lock || phase_ == Phase::Running || phase_ == Phase::Completed) return false;
+  published_ = snapshot;
+  publishedCancellation_ = observedCancellation_;
+  return true;
 }

@@ -9,6 +9,7 @@ class AsyncCommandJournal final : public CommandJournal {
   AsyncCommandJournal(JournalStorageOwner& owner, JournalTransactionArbiter& arbiter);
   StorageState LastStorageState() const override { return lastState_; }
   bool HasPendingStorage() const override { return token_.id != 0; }
+  bool HasStorageFault() const override { return owner_.HasStorageFault(); }
   void PollStorage() override;
   void CancelStorageAdmissions() override;
   void BeginStorageRecovery() override;

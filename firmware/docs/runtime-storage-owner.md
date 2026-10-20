@@ -57,3 +57,50 @@ and `local_control_owner_test`, selected with repeatable `--only NAME` arguments
 The standalone autonomous and offline paths still use their synchronous ports;
 their asynchronous state machines, worker task/stack composition and complete
 boot reconciliation gate must be integrated before production activation.
+
+## Committed evidence and startup authority
+
+`EvidenceStorageOwner` adds one bounded typed request/result channel for the
+actual committed online/offline sources. It merges prepare, completion, delivery
+acknowledgement, retirement and settings intents against the latest committed
+state. Producers cannot submit arbitrary stale whole-store replacements. New
+references require the original current epoch, exact existing journal pin and
+live reservation or pending operation before a source commit. A job retains its
+arbiter lease until its result is consumed. All result slots remain drainable
+after a source fails; draining cannot start more I/O under failed authority.
+
+Online publications allocate their bounded immutable snapshot before the source
+write and swap it after acknowledgement. Readers copy outside the mailbox lock.
+Offline publications are fixed-size. Terminal idempotent acknowledgements prove
+only the complete persisted disposition tuple, not boot/proposal metadata absent
+from that ledger, and never create another write or a new physical proof.
+
+`DeviceStorageRuntime` concretely constructs the journal, identity witness, both
+committed sources, both job channels, asynchronous control facade and one shared
+arbiter. `Boot` and `RunOne` belong to a single storage worker. No construction or
+boot call establishes identity or creates a missing established store. Established
+binding, complete committed source inventories and successful reconciliation are
+separate admission requirements. A pending record can permit inspected recovery
+only after its established binding and source authority are checked. Its closing
+ACK still requires complete-source reconciliation at the same cancellation fence
+before recovery can resume admissions.
+
+Startup promotes a prepared online outcome only when its exact original
+historical timing proof exists. Uncertain prepared outcomes remain referenced,
+pinned and undelivered. They supply no authority to resume motion. Compaction
+uses the existing single journal replacement; typed retirement pruning follows
+under the same barrier and reloads the evidence publication. Restart retries
+pruning even when the new journal epoch was committed before a source ACK was
+lost. A failed source or journal ACK requires a fresh authoritative runtime;
+ordinary control polls never reopen it as healthy.
+
+The `BoundedCompaction` policy is exercised by host integration fixtures. The
+production entry point has not selected this runtime, and its scoped activation
+and maintenance hold remain unchanged. The fixture runs 1,152 actual manual
+producer/control/selection/storage cycles through 37 compactions and restarts,
+retaining an untimed prepared reference and rejecting old boot/epoch replays.
+The actuator port is a timed simulation. The 8,190,720 ms of simulated workload
+is not the required four-hour media/session soak or hardware evidence. Separate
+fixtures cover source/close ACK loss, missing stores, source-fault Stop and
+reserved result draining. Autonomous/offline producer migration, the actual
+worker task, stack/latency measurements and production orchestration remain open.

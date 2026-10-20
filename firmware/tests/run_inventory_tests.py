@@ -14,6 +14,16 @@ CJSON_HASHES = {
     "cJSON.h": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee",
 }
 CHECKS = {
+    "evidence_storage_owner_test": ["device_control/PersistentCommandJournal",
+        "device_control/JournalStorageOwner", "device_control/EvidenceStorageOwner",
+        "conversation/ConversationStartCodec", "keepsake/KeepsakeCommittedInventory",
+        "offline_show/OfflineCommittedInventory", "offline_show/OfflineOutboxCodec"],
+    "device_storage_runtime_test": CORE + ["device_control/PersistentCommandJournal",
+        "device_control/JournalIdentityOwner", "device_control/JournalReconciliation",
+        "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal",
+        "device_control/EvidenceStorageOwner", "device_control/DeviceStorageRuntime",
+        "conversation/ConversationStartCodec", "keepsake/KeepsakeCommittedInventory",
+        "offline_show/OfflineCommittedInventory"],
     "keepsake_persistence_codec_test": ["conversation/ConversationStartCodec"],
     "epoch_evidence_test": ["device_control/PersistentCommandJournal", "conversation/ConversationStartCodec"],
     "keepsake_inventory_test": ["device_control/PersistentCommandJournal",

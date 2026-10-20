@@ -60,6 +60,13 @@ JournalIdentityOwner::JournalIdentityOwner(JournalStorage& markerStorage, Persis
 
 bool JournalIdentityOwner::IsHealthy() const { return healthy_ && journal_.IsHealthy(); }
 
+bool JournalIdentityOwner::HasEstablishedBinding(const JournalIdentityView& identity) const {
+  return IsHealthy() && identity.healthy && identity.provisioned && ValidDeviceId(identity.deviceId) &&
+      state_.phase == Phase::Established && state_.deviceId == identity.deviceId &&
+      !journal_.IsStorageMissing() && journal_.Origin() == PersistentCommandJournal::StateOrigin::Scoped &&
+      journal_.ScopedDeviceId() == state_.deviceId && journal_.CurrentEpoch() >= state_.initialEpoch;
+}
+
 JournalIdentityOwner::Validation JournalIdentityOwner::Validate(const JournalIdentityView& identity) const {
   if (!healthy_) return Validation::MarkerUnavailable;
   if (!identity.healthy) return Validation::IdentityUnavailable;
