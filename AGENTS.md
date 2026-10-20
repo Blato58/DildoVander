@@ -1,5 +1,16 @@
 # Pokyny pro tento repozitář
 
+## Repository boundary
+
+- This is the application/source repository `Blato58/DildoVander`. The local
+  workspace groups it as `DildoVander-app/` beside private `DildoVander-deploy/`.
+  Run commands from this Git root, not the parent workspace directory.
+- Production dispatch workflows and independently maintained operational helpers
+  belong to `Blato58/DildoVander-deploy`; read that checkout's `AGENTS.md` and
+  `README.md` before changing them. A sibling checkout may be absent in worktrees
+  or Cloud. Do not recreate its operational authority here or bulk-sync copies.
+- Keep private deployment and coordination details out of public source/PRs.
+
 ## Projekty a zdroje pravdy
 
 - `kufr/` je současná priorita: firmware ESP32-S3 v `kufr/firmware/` a samostatný mobilní ovladač ve `kufr/mobilni-aplikace/`.
