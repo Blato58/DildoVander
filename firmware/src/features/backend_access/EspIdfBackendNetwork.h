@@ -34,6 +34,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                        const std::string& bootId,
                        EspIdfStationNetwork& station,
                        const CommandJournal& ownerJournal, JournalStorage& journalStorage);
+  EspIdfBackendNetwork(DeviceIdentity& identity, ConversationRuntimeState& runtimeState,
+                       const std::string& bootId, EspIdfStationNetwork& station,
+                       DeviceStorageRuntime& storage);
   bool InitializeVoice(bool nvsInitialized, AudioBoardPort* board = nullptr);
   PresentationAudioPort& PresentationAudio() { return voiceAudio_; }
   VoiceAudioPort& DanceAudio() { return voiceAudio_; }
@@ -83,6 +86,7 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
 
  private:
   void RetireCandidateLocked(const char* reason);
+  void ClearCandidateLocked();
   void QueueCancelLocked();
   void StopVoiceOutput();
   static void TaskEntry(void* argument);
@@ -152,6 +156,8 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   EspIdfKeepsakeNotifier keepsake_;
   KeepsakeOutcome keepsakeCandidate_;
   bool keepsakeCandidatePrepared_ = false;
+  EspIdfKeepsakeNotifier::Handle keepsakeHandle_;
+  std::array<char, 65> keepsakeRetirementReason_{};
   std::atomic<bool> cancelRequested_{false};
   std::string bootId_;
   // Only the network task mutates this binding. Local and backend IDs differ.

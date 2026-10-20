@@ -291,19 +291,28 @@ bool EvidenceStorageOwner::ExecuteOnline(const Request& request, const Token& to
       // An unassociated legacy row cannot acquire a terminal physical tuple
       // from delivery metadata. Keep it intact for explicit reconciliation.
       if (!outcome.physicalFingerprint) return false;
+      for (const auto& disposition : state.quarantined) {
+        if (!ExactKeepsakeDisposition(disposition, outcome)) continue;
+        if (disposition.reason != "outcome_delivered") return false;
+        // A cut after the receipt write can leave its live row on flash.
+        // Restore has already removed that row from the normalized draft;
+        // commit the removal rather than asking the draft to ACK it again.
+        return (!pending && !prepared) || CommitOnline(outbox.State());
+      }
       if (!pending) {
-        for (const auto& disposition : state.quarantined)
-          if (disposition.reason == "outcome_delivered" && ExactKeepsakeDisposition(disposition, outcome)) return true;
         return false;
       }
       return outbox.RequestDeliveryAcknowledgement(outcome) && outbox.ProcessDeliveryAcknowledgements(persist);
     case Operation::OnlineRetire:
       if (!outcome.physicalFingerprint) return false;
+      for (const auto& disposition : state.quarantined) {
+        if (!ExactKeepsakeDisposition(disposition, outcome)) continue;
+        if (disposition.reason != request.reason.data()) return false;
+        return (!pending && !prepared) || CommitOnline(outbox.State());
+      }
       if (!pending) {
         if (prepared) return outbox.RequestRetirement(outcome, request.reason.data())
             && outbox.ProcessRetirements(journal_, persist);
-        for (const auto& disposition : state.quarantined)
-          if (disposition.reason == request.reason.data() && ExactKeepsakeDisposition(disposition, outcome)) return true;
         return false;
       }
       // A permanent delivery failure retires an existing completed obligation.

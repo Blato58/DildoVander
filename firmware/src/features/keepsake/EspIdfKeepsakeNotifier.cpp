@@ -15,6 +15,7 @@
 #include "../conversation/ConversationStartCodec.h"
 #include "../conversation/TurnPollGuard.h"
 #include "../device_control/PersistentCommandJournal.h"
+#include "../device_control/DeviceStorageRuntime.h"
 
 namespace {
 uint64_t NowMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }
@@ -93,12 +94,26 @@ EspIdfKeepsakeNotifier::EspIdfKeepsakeNotifier(DeviceIdentity& identity, EspIdfS
                                            const std::atomic<bool>& backendOnline,
                                            const CommandJournal& ownerJournal, JournalStorage& storage)
     : identity_(identity), station_(station), backendOnline_(backendOnline),
-      ownerJournal_(ownerJournal), journalStorage_(storage) {}
+      ownerJournal_(ownerJournal), journalStorage_(&storage) {}
+
+EspIdfKeepsakeNotifier::EspIdfKeepsakeNotifier(DeviceIdentity& identity,
+    EspIdfStationNetwork& station, const std::atomic<bool>& backendOnline, DeviceStorageRuntime& storage)
+    : identity_(identity), station_(station), backendOnline_(backendOnline),
+      ownerJournal_(storage.ControlJournal()), journalStorage_(nullptr),
+      bridge_(std::make_unique<KeepsakeEvidenceBridge>(storage.EvidenceRequests(), storage)), sharedStorage_(&storage) {}
 
 bool EspIdfKeepsakeNotifier::Start(bool initialized) {
-  if (task_ || !initialized || !Load()) return false;
+  if (task_ || !initialized) return false;
+  if (bridge_) {
+    if (!bridge_->Bootstrap()) return false;
+    healthy_.store(true);
+    if (xTaskCreate(TaskEntry, "keepsake_outbox", 8192, this, 2, &task_) == pdPASS) return true;
+    healthy_.store(false); task_ = nullptr;
+    return false;
+  }
+  if (!Load()) return false;
   // Boot-only persisted snapshot, before the physical control owner runs.
-  PersistentCommandJournal savedJournal(journalStorage_);
+  PersistentCommandJournal savedJournal(*journalStorage_);
   if (!outbox_.RecoverPrepared(savedJournal) || !PersistCurrent()) return false;
   outbox_.CompactPreparationDispositions();
   if (!PersistCurrent()) return false;
@@ -112,6 +127,7 @@ bool EspIdfKeepsakeNotifier::Start(bool initialized) {
 }
 
 bool EspIdfKeepsakeNotifier::Prepare(const KeepsakeOutcome& outcome) {
+  if (bridge_) return false; // Shared callers must retain a generation-tagged handle.
   if (!healthy_.load() || !Valid(outcome) || outcome.compartment < 1 || outcome.compartment > 6) return false;
   std::lock_guard<std::mutex> lock(persistenceMutex_);
   if (!outbox_.Prepare(outcome)) return false;
@@ -121,7 +137,48 @@ bool EspIdfKeepsakeNotifier::Prepare(const KeepsakeOutcome& outcome) {
   return false;
 }
 
+EspIdfKeepsakeNotifier::Preparation EspIdfKeepsakeNotifier::PrepareOwned(
+    const KeepsakeOutcome& outcome, Handle& handle) {
+  if (!bridge_ || !healthy_.load()) return Preparation::Rejected;
+  EvidenceStorageOwner::Request request;
+  if (!EvidenceStorageOwner::MakeOnlineRequest(EvidenceStorageOwner::Operation::OnlinePrepare, outcome, request))
+    return Preparation::Rejected;
+  const auto queued = bridge_->TryPrepare(request.online, handle);
+  if (queued == KeepsakeEvidenceBridge::PrepareResult::Busy) return Preparation::Pending;
+  if (queued == KeepsakeEvidenceBridge::PrepareResult::Refused) return Preparation::Rejected;
+  if (task_) xTaskNotifyGive(task_);
+  const auto result = bridge_->PollPrepare(handle);
+  if (result == KeepsakeEvidenceBridge::PrepareStatus::Pending) return Preparation::Pending;
+  return result == KeepsakeEvidenceBridge::PrepareStatus::DurablePrepared
+      ? Preparation::Ready : Preparation::Rejected;
+}
+
+bool EspIdfKeepsakeNotifier::CompleteOwned(Handle handle) {
+  if (!bridge_ || sharedStorage_->HasPendingJournalWork()) return false;
+  const auto queued = bridge_->QueueComplete(handle);
+  if (queued != KeepsakeEvidenceBridge::Transfer::RetainedVolatile
+      && queued != KeepsakeEvidenceBridge::Transfer::AlreadyRetained) return false;
+  if (!bridge_->TransferToNetwork(handle)) return false;
+  if (task_) xTaskNotifyGive(task_);
+  return true;
+}
+
+bool EspIdfKeepsakeNotifier::RetireOwned(Handle handle, const char* reason) {
+  // A started late timing-proof write must be adopted before retirement checks
+  // the physical history. Observe the shared mailbox, never the control-owned
+  // facade whose local envelope is mutated only by the control task.
+  if (!bridge_ || sharedStorage_->HasPendingJournalWork()) return false;
+  const auto queued = bridge_->QueueRetire(handle, reason);
+  if (queued == KeepsakeEvidenceBridge::Transfer::Busy) return false;
+  // A cancelled prepare may already own its immutable cancellation reason.
+  // Transfer that retained obligation without replacing it with this reason.
+  if (!bridge_->TransferToNetwork(handle)) return false;
+  if (task_) xTaskNotifyGive(task_);
+  return true;
+}
+
 KeepsakeQueueResult EspIdfKeepsakeNotifier::Queue(const KeepsakeOutcome& outcome) {
+  if (bridge_) return KeepsakeQueueResult::Rejected;
   if (!healthy_.load() || !Valid(outcome)
       || !HasKeepsakePhysicalEvidence(ownerJournal_, outcome))
     return KeepsakeQueueResult::Rejected;
@@ -131,6 +188,7 @@ KeepsakeQueueResult EspIdfKeepsakeNotifier::Queue(const KeepsakeOutcome& outcome
 }
 
 void EspIdfKeepsakeNotifier::Retire(const KeepsakeOutcome& outcome, const char* reason) {
+  if (bridge_) return;
   if (outbox_.RequestRetirement(outcome, reason) && task_) xTaskNotifyGive(task_);
 }
 
@@ -139,7 +197,7 @@ bool EspIdfKeepsakeNotifier::ProcessRetirements() {
   std::lock_guard<std::mutex> lock(persistenceMutex_);
   // Read committed bytes: a failed marker ACK does not prove that its validated
   // completion bytes were absent. No physical journal writes occur here.
-  PersistentCommandJournal savedJournal(journalStorage_);
+  PersistentCommandJournal savedJournal(*journalStorage_);
   return savedJournal.IsHealthy() && outbox_.ProcessRetirements(savedJournal,
       [this](const KeepsakeOutboxState& state) { return Persist(state); });
 }
@@ -160,6 +218,7 @@ bool EspIdfKeepsakeNotifier::Load() {
 }
 
 bool EspIdfKeepsakeNotifier::ReadCommitted(JournalEvidenceInventory& inventory) const {
+  if (bridge_) { inventory = {}; return false; } // The runtime alone owns source reads.
   std::lock_guard<std::mutex> lock(persistenceMutex_);
   inventory = {};
   if (committed_ && committed_->ReadCommitted(inventory)) return true;
@@ -168,6 +227,7 @@ bool EspIdfKeepsakeNotifier::ReadCommitted(JournalEvidenceInventory& inventory) 
 }
 
 bool EspIdfKeepsakeNotifier::EstablishInventory(const std::string& deviceId, bool serviceAuthorized) {
+  if (bridge_) return false;
   std::lock_guard<std::mutex> lock(persistenceMutex_);
   KeepsakeOutboxState saved;
   if (!serviceAuthorized || !committed_ || !committed_->ReadState(saved)
@@ -202,6 +262,7 @@ void EspIdfKeepsakeNotifier::TaskEntry(void* context) {
 }
 
 void EspIdfKeepsakeNotifier::Run() {
+  if (bridge_) { RunShared(); return; }
   EspIdfTokenExchangeTransport transport(station_.Settings().BackendHost());
   DeviceTokenSession tokens(identity_, transport);
   uint64_t disabledUntilMs = 0;
@@ -245,5 +306,53 @@ void EspIdfKeepsakeNotifier::Run() {
       }
     }
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+  }
+}
+
+void EspIdfKeepsakeNotifier::RunShared() {
+  EspIdfTokenExchangeTransport transport(station_.Settings().BackendHost());
+  DeviceTokenSession tokens(identity_, transport);
+  enum class Action : uint8_t { None, Ack, Retire, Defer };
+  Action action = Action::None;
+  KeepsakeEvidenceBridge::Pending selected;
+  std::string retirementReason;
+  uint64_t disabledUntilMs = 0, failedAtMs = 0;
+  while (true) {
+    bridge_->Pump();
+    if (bridge_->IsPoisoned()) healthy_.store(false);
+    if (action != Action::None) {
+      // Keep a validated response until the fixed mailbox accepts it. A busy
+      // metadata lock never turns a real HTTP ACK into another send.
+      const auto result = action == Action::Ack ? bridge_->QueueValidatedAck(selected)
+          : action == Action::Retire ? bridge_->QueueRetire(selected.handle, retirementReason.c_str())
+          : bridge_->QueueDeferred(selected, failedAtMs);
+      if (result != KeepsakeEvidenceBridge::Transfer::Busy) action = Action::None;
+    }
+    const auto nowMs = NowMs();
+    if (action == Action::None && healthy_.load() && nowMs >= disabledUntilMs
+        && backendOnline_.load() && station_.HasIp() && tokens.EnsureToken(nowMs)
+        && bridge_->LookupPending(nowMs, selected)) {
+      // Dynamic encoding belongs to the network task, never the control owner.
+      const auto& fixed = selected.outcome;
+      KeepsakeOutcome outcome;
+      outcome.operationId = fixed.operationId.data(); outcome.outcomeId = fixed.outcomeId.data();
+      outcome.proposalId = fixed.proposalId.data(); outcome.physicalOperationId = fixed.physicalOperationId.data();
+      outcome.bootId = fixed.bootId.data(); outcome.generation = fixed.generation;
+      outcome.deviceRevision = fixed.deviceRevision; outcome.compartment = fixed.compartment;
+      outcome.operationEpoch = fixed.operationEpoch; outcome.physicalFingerprint = fixed.physicalFingerprint;
+      int status = 0;
+      std::string errorCode;
+      bool completed = Deliver(outcome, tokens.AccessToken(NowMs()), status, errorCode);
+      if (!completed && status == 401 && tokens.HandleUnauthorized(NowMs()))
+        completed = Deliver(outcome, tokens.AccessToken(NowMs()), status, errorCode);
+      if (completed) action = Action::Ack;
+      else if (PermanentKeepsakeFailure(status, errorCode)) {
+        retirementReason = errorCode; action = Action::Retire;
+      } else {
+        failedAtMs = NowMs(); action = Action::Defer;
+        if (status == 404 && errorCode.empty()) disabledUntilMs = failedAtMs + 30000;
+      }
+    }
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));
   }
 }

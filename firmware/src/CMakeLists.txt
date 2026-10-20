@@ -44,6 +44,7 @@ idf_component_register(
         "features/backend_access/EspIdfBackendNetwork.cpp"
         "features/keepsake/EspIdfKeepsakeNotifier.cpp"
         "features/keepsake/KeepsakeCommittedInventory.cpp"
+        "features/keepsake/KeepsakeEvidenceBridge.cpp"
         "features/keepsake/EspIdfKeepsakeInventoryStorage.cpp"
         "features/backend_access/EspIdfNetworkSettings.cpp"
         "features/backend_access/EspIdfTokenExchangeTransport.cpp"

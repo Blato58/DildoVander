@@ -14,6 +14,11 @@ CJSON_HASHES = {
     "cJSON.h": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee",
 }
 CHECKS = {
+    "keepsake_evidence_bridge_test": ["device_control/PersistentCommandJournal",
+        "device_control/JournalStorageOwner", "device_control/EvidenceStorageOwner",
+        "conversation/ConversationStartCodec", "keepsake/KeepsakeCommittedInventory",
+        "keepsake/KeepsakeEvidenceBridge", "offline_show/OfflineCommittedInventory",
+        "offline_show/OfflineOutboxCodec"],
     "evidence_storage_owner_test": ["device_control/PersistentCommandJournal",
         "device_control/JournalStorageOwner", "device_control/EvidenceStorageOwner",
         "conversation/ConversationStartCodec", "keepsake/KeepsakeCommittedInventory",

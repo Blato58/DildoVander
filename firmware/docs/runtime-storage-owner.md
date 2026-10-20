@@ -160,8 +160,8 @@ The backend producer uses `StartPolled`: Tick cannot consume Begin before that
 producer rechecks its cancellation and preparation gates. Its held claim also
 prevents the network expiry task from treating the consumed proposal mailbox as
 expired. Preparation is tracked once for the exact retained candidate. This does
-not yet migrate notifier persistence onto the shared evidence channel: its legacy
-preparation path and offline outbox/settings writes remain synchronous.
+not activate the shared runtime in production. The legacy notifier path and
+offline outbox/settings writes remain synchronous in that composition.
 
 The no-bridge `autonomous_claimed_storage_test` exercises actual shared storage,
 Wand, control and physical score owners with simulated I/O: 1,152 completed
@@ -172,3 +172,47 @@ elapsed travel and direct test producer are not backend/offline end-to-end,
 physical position feedback or the required four-hour media/session soak.
 Production worker/task activation, all producer migrations and measured runtime
 acceptance still remain open; scoped activation and compaction remain disabled.
+
+## Shared online evidence producer
+
+The explicit shared-storage backend/notifier constructors use
+`KeepsakeEvidenceBridge`, not a second journal or inventory reader. Its eight
+fixed generation-tagged slots reserve space before preparing a candidate and
+retain its later completion, retirement or validated delivery acknowledgement.
+Control calls only try-lock and copy fixed data. The network task submits typed
+jobs; the storage worker alone reads and commits the source. Preparation remains
+Pending until the original result and immutable publication are adopted.
+
+The backend keeps its original candidate and handle through preparation waits.
+Busy completion/retirement transfer retains caller ownership and prevents a new
+proposal from replacing it. A once-only successful handoff lets the network
+owner keep that obligation through delivery and exact terminal publication.
+Retirement waits for the thread-safe journal mailbox to drain, including its
+result lease; network code never reads the control facade's mutable envelope.
+Late proof bookkeeping can therefore win over cancellation before retirement
+examines historical physical facts. This cannot restore live action authority.
+
+The bridge adopts the source publication before releasing its result lease,
+preventing quiescent pruning from erasing the evidence used to prove handoff.
+Unknown results poison the bridge and retain capacity until authoritative boot
+recovery constructs a new instance. Missing stores never bootstrap as empty.
+If a preparation cancellation loses to an actual timed completion, its transient
+reason does not become a terminal delivery reason. A later exact permanent HTTP
+failure can still be committed; an existing durable terminal reason is immutable.
+
+HTTP sends use only published pending outcomes and the existing exact ACK parser.
+Response handoff retries Busy without resending the already acknowledged HTTP
+request. Token refresh, permanent refusals and blank-404 cooldown remain distinct.
+Transient exponential retry scheduling stays in bounded network RAM, as in the
+legacy sender. It uses the exact attempt tuple, saturates at 30 seconds and resets
+on reboot. Monotonic timestamps are not persisted, and a failed send cannot write
+a stale whole-source draft or add an NVS retry write.
+
+The bridge suite uses the actual committed inventory owner and simulated storage
+cuts, including a receipt committed before live-row removal. Typed ACK/retirement
+retries normalize that exact source without changing its terminal reason. Tests
+also check eight-slot backpressure, stale handle rejection, zero allocations and
+no storage calls on measured control paths, Stop/write races and proof-winning
+retirement. They do not execute the ESP HTTP task or establish end-to-end
+backend/offline/hardware acceptance. Shared constructors are available, but the
+production composition still selects the legacy path pending offline migration.

@@ -31,6 +31,9 @@ class DeviceStorageRuntime final : public JournalAdmissionGate {
   EvidenceStorageOwner& EvidenceRequests() { return evidenceJobs_; }
   State CurrentState() const { return state_.load(); }
   uint64_t Compactions() const { return compactions_.load(); }
+  // Thread-safe RAM mailbox observation; never inspect the control-owned facade
+  // from a producer/network thread. The result lease remains busy until adopted.
+  bool HasPendingJournalWork() const { return journalJobs_.Busy(); }
   bool ReadJournalSnapshot(JournalSnapshot& snapshot) const {
     return journalJobs_.TryReadPublished(snapshot);
   }

@@ -95,6 +95,11 @@ EspIdfBackendNetwork::EspIdfBackendNetwork(
     : identity_(identity), runtimeState_(runtimeState), station_(station),
       settings_(station.Settings()), keepsake_(identity, station, online_, ownerJournal, journalStorage), bootId_(bootId) {}
 
+EspIdfBackendNetwork::EspIdfBackendNetwork(DeviceIdentity& identity, ConversationRuntimeState& runtimeState,
+    const std::string& bootId, EspIdfStationNetwork& station, DeviceStorageRuntime& storage)
+    : identity_(identity), runtimeState_(runtimeState), station_(station), settings_(station.Settings()),
+      keepsake_(identity, station, online_, storage), bootId_(bootId) {}
+
 bool EspIdfBackendNetwork::QueueTextTurn(
     const std::string& text, const std::string& conversationId,
     const std::string& clientTurnId,
@@ -106,7 +111,7 @@ bool EspIdfBackendNetwork::QueueTextTurn(
     return false;
   }
   std::lock_guard<std::mutex> presentationLock(presentationMutex_);
-  if (terminalProposalOutstanding_ || presentationActive_) {
+  if (terminalProposalOutstanding_ || presentationActive_ || keepsakeRetirementReason_.front()) {
     return false;
   }
   std::lock_guard<std::mutex> lock(openingMutex_);
@@ -141,7 +146,7 @@ bool EspIdfBackendNetwork::QueueOpening(
     return false;
   }
   std::lock_guard<std::mutex> presentationLock(presentationMutex_);
-  if (terminalProposalOutstanding_ || presentationActive_) {
+  if (terminalProposalOutstanding_ || presentationActive_ || keepsakeRetirementReason_.front()) {
     return false;
   }
   std::lock_guard<std::mutex> lock(openingMutex_);
@@ -167,9 +172,23 @@ void EspIdfBackendNetwork::QueueCancel() {
 void EspIdfBackendNetwork::RetireCandidateLocked(const char* reason) {
   presentationClaimed_ = false;
   if (keepsakeCandidate_.outcomeId.empty()) return;
-  keepsake_.Retire(keepsakeCandidate_, reason);
+  if (keepsake_.UsesSharedStorage() && keepsakeHandle_.generation) {
+    if (!keepsakeRetirementReason_.front()) {
+      size_t length = 0;
+      while (length < keepsakeRetirementReason_.size() && reason[length]) ++length;
+      if (length == keepsakeRetirementReason_.size()) return;
+      std::copy(reason, reason + length, keepsakeRetirementReason_.begin());
+    }
+    if (!keepsake_.RetireOwned(keepsakeHandle_, keepsakeRetirementReason_.data())) return;
+  } else if (!keepsake_.UsesSharedStorage()) keepsake_.Retire(keepsakeCandidate_, reason);
+  ClearCandidateLocked();
+}
+
+void EspIdfBackendNetwork::ClearCandidateLocked() {
   keepsakeCandidate_ = {};
   keepsakeCandidatePrepared_ = false;
+  keepsakeHandle_ = {};
+  keepsakeRetirementReason_ = {};
 }
 
 void EspIdfBackendNetwork::QueueCancelLocked() {
@@ -254,6 +273,11 @@ bool EspIdfBackendNetwork::ReadPendingProposal(
 bool EspIdfBackendNetwork::BeginPendingPresentation(
     WandPresentation& presentation, uint64_t nowMs) {
   std::lock_guard<std::mutex> lock(presentationMutex_);
+  if (keepsakeRetirementReason_.front()) {
+    presentation.CancelPendingReservation();
+    RetireCandidateLocked(keepsakeRetirementReason_.data());
+    return false;
+  }
   if ((!terminalProposalOutstanding_ || cancelRequested_.load()) &&
       presentation.State() == WandPresentationState::AwaitingAdmission) {
     presentation.CancelPendingReservation();
@@ -284,7 +308,15 @@ bool EspIdfBackendNetwork::BeginPendingPresentation(
         presentation.ReservePendingOperation(pendingProposal_, runtimeState_, nowMs);
     presentationClaimed_ = presentation.State() == WandPresentationState::AwaitingAdmission;
     if (!reserved && presentation.AdmissionIsPending()) return false;
-    if (!reserved || (!keepsakeCandidatePrepared_ && !keepsake_.Prepare(keepsakeCandidate_))) {
+    bool prepared = keepsakeCandidatePrepared_;
+    if (reserved && !prepared) {
+      if (keepsake_.UsesSharedStorage()) {
+        const auto result = keepsake_.PrepareOwned(keepsakeCandidate_, keepsakeHandle_);
+        if (result == EspIdfKeepsakeNotifier::Preparation::Pending) return false;
+        prepared = result == EspIdfKeepsakeNotifier::Preparation::Ready;
+      } else prepared = keepsake_.Prepare(keepsakeCandidate_);
+    }
+    if (!reserved || !prepared) {
       presentation.CancelPendingReservation();
       RetireCandidateLocked("proposal_start_rejected");
       pendingProposal_.Clear();
@@ -319,11 +351,19 @@ bool EspIdfBackendNetwork::FinishPresentation(
        presentation.State() != WandPresentationState::Fault)) {
     return false;
   }
+  if (keepsake_.UsesSharedStorage() && !keepsakeCandidate_.outcomeId.empty()) {
+    if (presentation.State() == WandPresentationState::Idle) {
+      if (!keepsake_.CompleteOwned(keepsakeHandle_)) return false;
+      ClearCandidateLocked();
+    } else {
+      RetireCandidateLocked("presentation_fault");
+      if (!keepsakeCandidate_.outcomeId.empty()) return false;
+    }
+  }
   presentationActive_ = false;
   terminalProposalOutstanding_ = false;
   const auto completedOutcome = keepsakeCandidate_;
-  keepsakeCandidate_ = {};
-  keepsakeCandidatePrepared_ = false;
+  ClearCandidateLocked();
   // Admission also takes presentationMutex_ first. Keep it closed until
   // cancellation is queued, so a new text turn cannot be cleared here.
   QueueCancelLocked();
@@ -412,6 +452,7 @@ void EspIdfBackendNetwork::Run() {
     bool proposalExpired = false;
     {
       std::lock_guard<std::mutex> lock(presentationMutex_);
+      if (keepsakeRetirementReason_.front()) RetireCandidateLocked(keepsakeRetirementReason_.data());
       TurnProposal candidate;
       proposalExpired = terminalProposalOutstanding_ && !presentationActive_ && !presentationClaimed_
           && !pendingProposal_.Read(candidate, runtimeState_, MonotonicMs());
@@ -806,7 +847,8 @@ void EspIdfBackendNetwork::RunTurn(
         bool stored = false;
         {
           std::lock_guard<std::mutex> lock(presentationMutex_);
-          stored = !cancelRequested_.load() && pendingProposal_.Store(
+          stored = !cancelRequested_.load() && !keepsakeRetirementReason_.front()
+              && (!keepsake_.UsesSharedStorage() || scopedCandidate) && pendingProposal_.Store(
               result.proposal, snapshot, runtimeState_, completedAtMs,
               ProposalRemainingMs(
                   result.proposal,
@@ -1000,7 +1042,8 @@ bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& request
   std::lock_guard<std::mutex> presentationLock(presentationMutex_);
   std::lock_guard<std::mutex> openingLock(openingMutex_);
   std::lock_guard<std::mutex> voiceLock(voiceMutex_);
-  if (terminalProposalOutstanding_ || presentationActive_ || openingPending_ || voiceBusy_.load() || showCues_.IsActive() ||
+  if (terminalProposalOutstanding_ || presentationActive_ || keepsakeRetirementReason_.front()
+      || openingPending_ || voiceBusy_.load() || showCues_.IsActive() ||
       requestId == lastVoiceRequestId_ || voiceStatus_.mode == "off" || !voiceStatus_.available) return false;
   voiceSnapshot_ = snapshot;
   voiceRequestId_ = lastVoiceRequestId_ = requestId;
@@ -1123,7 +1166,8 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
       ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
     {
       std::lock_guard<std::mutex> lock(presentationMutex_);
-      proposalStored = remaining && current()
+      proposalStored = remaining && current() && !keepsakeRetirementReason_.front()
+          && (!keepsake_.UsesSharedStorage() || scopedCandidate)
           && pendingProposal_.Store(final.proposal, snapshot, runtimeState_, MonotonicMs(), remaining);
       if (proposalStored) {
         terminalProposalOutstanding_ = true;
