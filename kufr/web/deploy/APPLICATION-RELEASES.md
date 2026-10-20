@@ -82,7 +82,8 @@ The private pipeline was inspected read-only at commit
 `614f55e66ed64f945cd0cab35e44f4a811efdff6`. Its artifact/provenance gates remain
 compatible, but its schema-1 publisher and IPv4 readback must change. The exact
 [replacement workflow and readback helper](private-pipeline/README.md) are
-prepared locally; no private repository or production configuration was changed.
+provided as migration candidates. Production activation is separate from preparing
+the private helper/workflow changes; the template executes reviewed private helpers.
 
 The retained `publish-site.py` and `verify-site.py` implement schema-1 recovery;
 their regression tests remain in `test_legacy_site.py`. They are not the

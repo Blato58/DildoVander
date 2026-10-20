@@ -92,6 +92,7 @@ jobs:
         env:
           IOS_BUNDLE_ID: app.turquoise6409.green2444
           IOS_TEAM_ID: 3QRXV8G5Y3
+          KUFR_PASSKEY_RP_DOMAIN: ${{ vars.KUFR_PASSKEY_RP_DOMAIN }}
           IOS_SIGNING_KIND: ad_hoc
           IOS_BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
           IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_DISTRIBUTION_PROFILE_BASE64 }}

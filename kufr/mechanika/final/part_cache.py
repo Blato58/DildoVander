@@ -100,6 +100,20 @@ def group_identity(root, module, runtime):
     return {"schema": 1, "owner": module, "sources": sources, "runtime": runtime}
 
 
+def shape_digest(shape):
+    """Fingerprint geometry without mutable tessellation and OCC check flags."""
+    stream = BytesIO()
+    clean = shape.copy(mesh=False)
+    pending = [clean]
+    while pending:
+        component = pending.pop()
+        component.wrapped.Checked(False)
+        pending.extend(component)
+    if not clean.exportBrep(stream) or not stream.getbuffer().nbytes:
+        raise ValueError("Cannot fingerprint CAD geometry")
+    return hashlib.sha256(stream.getbuffer()).hexdigest()
+
+
 class PartExportCache:
     """Stage verified export copies, then publish receipts after a successful build.
 
@@ -124,21 +138,10 @@ class PartExportCache:
         # Bind the actual live geometry as well as its source recipe. This
         # catches dynamic imports, mutable globals and code loaded just before
         # an on-disk source edit. BREP serialization does not tessellate a shape.
-        stream = BytesIO()
         shape = part.shape if printed is None else printed
         # CAD exporters attach tessellation to native shared shapes. Exclude
         # that mutable mesh state, or a previous cache miss changes later keys.
-        clean = shape.copy(mesh=False)
-        pending = [clean]
-        while pending:
-            component = pending.pop()
-            # OCC also changes its memoized Checked flag during meshing. It is
-            # not geometry; normalize only the independent copy's check state.
-            component.wrapped.Checked(False)
-            pending.extend(component)
-        if not clean.exportBrep(stream) or not stream.getbuffer().nbytes:
-            raise ValueError("Cannot fingerprint printable CAD geometry")
-        shape_sha256 = hashlib.sha256(stream.getbuffer()).hexdigest()
+        shape_sha256 = shape_digest(shape)
         recipe = {"group": self.groups[owner], "part": part.name,
                   "rotation": part.rotation, "quantity": part.quantity, "reason": part.reason,
                   "shape_sha256": shape_sha256}

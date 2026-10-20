@@ -7,9 +7,9 @@
 > Rozměry kufru a součástek doplněné majitelem, stav doručení svorek
 > a snadno vyjímatelná powerbanka jsou v [aktuálním přehledu](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
 
-Stav návrhu k 28. 9. 2026. Ceny jsou orientační z průzkumu a mohou se změnit; před platbou zkontrolovat variantu, sklad a cenu a odečíst již pořízené díly. Prioritu v rozpočtu 10 000 Kč má **AI kufr**. Powerbanku si majitel pořídí samostatně, proto není v nákupních součtech. Součet není cena celého kostýmu a nezahrnuje dopravu, kufry, knihu, hůlky ani mechanické díly. Překročení celkového rozpočtu vyžaduje schválení majitele.
+Stav návrhu k 28. 9. 2026. Ceny jsou orientační z průzkumu a mohou se změnit; před platbou zkontrolovat variantu, sklad a cenu a odečíst již pořízené díly. Prioritu v rozpočtu 10 000 Kč má **AI kufr**. Powerbanku si majitel pořídí samostatně, proto není v nákupních součtech. Součet není cena celého kostýmu a nezahrnuje dopravu, kufr, hůlky ani mechanické díly. Překročení celkového rozpočtu vyžaduje schválení majitele.
 
-## 1. AI kufr — koupit jako první
+## AI kufr
 
 **Současný stav:** tabulky níže jsou historický nákupní podklad. Potvrzené nákupy vede [aktuální objednávka](objednavka-doplneni-kufru-2026-10-06.md), montáž a ovládání [aktuální zapojení](../kufr/docs/zapojeni-potvrzeneho-hardwaru.md).
 
@@ -37,35 +37,11 @@ Počítáme se šesti hůlkami, každou s krátkým adresovatelným RGB páskem,
 | Vratná pojistka 5 A | 1 | 18 Kč | [Drátek](https://dratek.cz/arduino-platforma/232509-nadproudovy-tepelny-jistic-vratna-pojistka-5a.html) |
 | Elektrolytický kondenzátor 470 µF / 50 V | 4 | 8 Kč | [Drátek](https://dratek.cz/arduino-platforma/7826-kondenzator-470uf-50v.html); vždy dva paralelně k 5V větvi RGB a pohonů |
 
-**Orientační součet kufru k objednání: cca 2 997 Kč včetně šesti vibračních modulů a obou kabelů, bez samostatně kupované powerbanky, společného materiálu a dopravy.** Se společným materiálem 326 Kč činí košíky dvou obchodů přibližně **3 323 Kč**. Pokud jsou vhodné kabely už doma, odečíst 72 Kč a 185 Kč. První prototyp může použít jeden vibrační modul; zbývajících pět představuje dalších 410 Kč, ale i další zásilku. Serva a RGB napájet mimo 5V pin řídicí desky, omezit jas a spouštět pohony postupně. [Pinová mapa desky](../kufr/docs/pin-mapa-esp32-s3.md) je dodaná, ale zapojení externích prvků zatím není schválené.
+**Orientační součet kufru k objednání: cca 2 997 Kč včetně šesti vibračních modulů a obou kabelů, bez samostatně kupované powerbanky, montážního materiálu a dopravy.** S montážním materiálem 326 Kč činí košíky dvou obchodů přibližně **3 323 Kč**. Pokud jsou vhodné kabely už doma, odečíst 72 Kč a 185 Kč. První prototyp může použít jeden vibrační modul; zbývajících pět představuje dalších 410 Kč, ale i další zásilku. Serva a RGB napájet mimo 5V pin řídicí desky, omezit jas a spouštět pohony postupně. [Pinová mapa desky](../kufr/docs/pin-mapa-esp32-s3.md) je dodaná, ale zapojení externích prvků zatím není schválené.
 
 **Volitelné budoucí rozšíření:** kamera pro rozpoznání kostýmů/postav. Zvolená deska už má konektor OV5640, ale kamera není v ceně 287 Kč. Alternativně lze místo ní koupit [sadu desky s kamerou OV5640 za cca 479 Kč](https://dratek.cz/arduino-platforma/232702-vyvojova-deska-esp32-s3-s-kameru-ov5640-wifi-bluetooth-nespajeny-s-pinovou-listou-v-baleni.html), tedy asi o 192 Kč více. První pokus může využít kameru telefonu. [Návrh rozšíření](../kufr/docs/kamera.md).
 
-## 2. Obludné obludárium — připraveno pro pozdější nákup
-
-Tuto část zatím neobjednávat na úkor rozpočtu kufru. Kniha bude mít vlastní napájení a program, bez AI a bez mobilní aplikace.
-
-| Součástka | Počet | Orientačně | Odkaz / poznámka |
-| --- | ---: | ---: | --- |
-| Arduino Nano, USB-C, CH340 | 1 | 136 Kč | [Drátek](https://dratek.cz/arduino-platforma/121745-usb-c-klon-arduino-nano-ch340.html) |
-| ToF senzor VL53L0X | 1 | 88 Kč | [LaskaKit](https://www.laskakit.cz/laserovy-senzor-vzdalenosti-gy-vl53l0x-i2c/) |
-| Servo MG996R s kovovými převody | 1 | 137 Kč | [Drátek](https://dratek.cz/arduino-platforma/1694-servo-motor-s-kovovymi-prevody-mg996r-pro-rc-modely.html); sílu a rozměry potvrdit po otevření plyšové knihy |
-| Vibrační jednotka M5Stack U059 | 1 | 82 Kč | [Botland](https://botland.cz/moduly-jednotek-rozsirujici-moduly/17999-vibracni-motor-n20-rozsirujici-modul-unit-pro-vyvojove-moduly-m5stack-6972934170972.html); jemné třesení |
-| Převodový motor GA12-N20, 6 V | 1 | od 104 Kč | [LaskaKit](https://www.laskakit.cz/ga12-n20-6v-motor-s-prevodovkou/); **konkrétní otáčky vybrat až podle mechanismu** |
-| Motorový driver TB6612FNG | 1 | 94 Kč | [LaskaKit](https://www.laskakit.cz/dvoumotorovy-radic-tb6612fng/) |
-| DFPlayer Mini | 1 | 57 Kč | [Drátek](https://dratek.cz/arduino-platforma/4857-hlasovy-modul-s-integrovanym-mp3-prehravacem-dfplayer.html) |
-| Reproduktor 3 W / 4 Ω | 1 | cca 119 Kč | [TME](https://www.tme.eu/cz/details/ld-sp-msi40/reproduktory/loudity/) |
-| microSDHC 16 GB | 1 | 299 Kč | [DATART](https://www.datart.cz/pametova-karta-verbatim-premium-micro-sdhc-16gb-class-10-80r-10w-adapter-44082.html); pro DFPlayer naformátovat FAT32 |
-| Powerbanka | 1 | mimo košík | Majitel ji koupí samostatně; pro zde navržené napájení zkontrolovat USB-C PD profil 20 V |
-| USB-C PD trigger, nastavitelný | 1 | 32 Kč | [Drátek](https://dratek.cz/arduino-platforma/232511-power-modul-usb-c-pd-s-nastavitelnym-napetim-a-prepinacem.html); nastavit na 20 V pouze pro vstup měniče |
-| DC/DC měnič 9–35 V → 5 V / 5 A | 1 | 87 Kč | [Drátek](https://dratek.cz/arduino-platforma/1740-step-down-synchronni-napajeci-zdroj-dc-dc-buck-9-35v-na-5v-5a.html) |
-| Kolébkový vypínač | 1 | 18 Kč | [Drátek](https://dratek.cz/arduino-platforma/1242-prepinac-kolebkovy-led-dioda-cervena.html) |
-| Vratná pojistka 5 A | 1 | 18 Kč | [Drátek](https://dratek.cz/arduino-platforma/232509-nadproudovy-tepelny-jistic-vratna-pojistka-5a.html) |
-| Elektrolytický kondenzátor 1000 µF, alespoň 10 V | 1 | cca 26 Kč | [TME](https://www.tme.eu/cz/details/mal213664102e3/elektrolyticke-kondenzatory-tht/vishay/) |
-
-**Orientační součet Obludária: cca 1 300 Kč bez samostatně pořizované powerbanky, plus podíl na společném materiálu a doprava.** Volba převodového motoru, serva a skutečný odběr závisí na mechanice knihy. Před napájením elektroniky změřit výstup měniče na 5 V; 20 V z PD modulu se nesmí připojit přímo na součástky.
-
-## Společný montážní materiál
+## Montážní materiál pro kufr
 
 | Součástka | Počet | Odkaz |
 | --- | ---: | --- |
@@ -75,6 +51,6 @@ Tuto část zatím neobjednávat na úkor rozpočtu kufru. Kniha bude mít vlast
 | Univerzální deska 50 × 70 mm | 2 | [Drátek](https://dratek.cz/arduino-platforma/843-univerzalni-plosny-spoj-50mm-x-70mm.html) |
 | Páčková rychlosvorka Degson 5pin | 8 | [Drátek](https://dratek.cz/arduino-platforma/177181-rychlosvorka-bezsroubova-degson-5pin.html) |
 
-**Orientačně cca 326 Kč při nákupu všech uvedených množství.** Při první objednávce lze vzít společný materiál pro kufr; materiál Obludária může počkat.
+**Orientačně cca 326 Kč při nákupu všech uvedených množství.**
 
-Nyní má nákupní prioritu pouze kufr. Rozpočet Obludária je starší orientační návrh a jeho položky zatím neobjednávat. Pro kufr budou navíc potřeba mechanické díly západek a výplň; přesné konektory a upevnění doplníme až po změření skutečných rekvizit.
+Pro kufr budou navíc potřeba mechanické díly západek a výplň; přesné konektory a upevnění doplníme až po změření skutečného kufru.

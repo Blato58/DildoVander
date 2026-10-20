@@ -1,15 +1,8 @@
 # DildoVander
 
-Jeden repozitář pro dvě samostatné elektronické rekvizity.
+Repozitář pro [AI kufr](kufr/README.md): výběr ze šesti hůlek, hlas, světla, mechanické uvolnění a mobilní ovládání.
 
-| Projekt | Obsah | Priorita |
-| --- | --- | --- |
-| [AI kufr](kufr/README.md) | Výběr ze šesti hůlek, hlas, světla, mechanické uvolnění a mobilní ovládání | **Pracujeme nyní** |
-| [Obludné obludárium](obludarium/README.md) | Samostatná animatronická kniha bez AI | Až po dokončení kufru |
-
-[Seznam elektroniky a odkazy k nákupu](docs/elektronika.md) jsou rozdělené podle priorit. Komediální kufr Dildovander nepotřebuje elektroniku, proto pro něj nyní nevzniká softwarový projekt.
-
-Firmware obou rekvizit jsou oddělené projekty PlatformIO. Mobilní ovládání patří pouze ke kufru. Každá rekvizita má vlastní napájení; společné jsou jen typy montážního materiálu.
+[Seznam elektroniky a odkazy k nákupu](docs/elektronika.md) obsahuje podklady pro kufr a jeho montážní materiál.
 
 ## Vývoj AI kufru
 

@@ -147,10 +147,11 @@ Pro vynucení všech testů a generování použít `-Force` (přímo v Pythonu
 
 ## Inkrementální CAD a CI
 
-CAD je od rozhodnutí majitele 20. 10. 2026 z CI/CD odstraněn. Automatické
-ani ručně spouštěné GitHub workflow negeneruje geometrii, rendery nebo tiskové
-výstupy, neprovádí výrobní ověření a nepublikuje CAD cache. Softwarové CI
-ponechává cílené viewer testy; jeho úspěch není mechanická akceptace.
+CAD je oddělen od automatického a povinného CI/CD. Lokální rychlý postup
+`scripts/cad.ps1 build` / `publish` a ruční generation-only fallback popisuje
+[CAD workflow](CAD-WORKFLOW.md). Běžné softwarové CI ponechává cílené viewer
+testy; jeho úspěch není mechanická akceptace. Výrobní kontroly zůstávají
+výslovnou volbou `scripts/cad.ps1 verify --manufacturing`.
 Lokální inkrementální regenerace a bezpečnostní i provenienční kontroly
 zůstávají povinné při mechanických změnách. Politiku vstupů nadále sdílí
 `source_inputs.py` a `scripts/ci/cad_impact.py`.

@@ -27,10 +27,9 @@ EXTERNAL_CAD_INPUTS = frozenset({
     "kufr/mechanika/rozmery-doruceneho-kufru.md",
     "kufr/mechanika/rozmery-hulek.md",
     "scripts/ci/install-cad-slicer.sh",
-    "scripts/ci/cad_cache.py", "scripts/ci/test_cad_cache.py",
-    "scripts/ci/cad_result.py", "scripts/ci/cad-result.cjs",
+    "scripts/cad.py", "scripts/cad.ps1",
     "scripts/ci/cad_impact.py", "scripts/ci/test_cad_impact.py",
-    ".github/workflows/kufr-cad.yml",
+    ".github/workflows/kufr-cad-generate.yml",
 })
 
 
