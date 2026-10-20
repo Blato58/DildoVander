@@ -16,4 +16,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate synthetic corpus and fail-closed parser
-        run: python3 -m unittest discover -s kufr/ai-eval -p 'test_*.py'
+        run: python3 -m unittest discover -s ai-eval -p 'test_*.py'

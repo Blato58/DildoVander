@@ -1,5 +1,10 @@
 # Local task guidance in worktrees
 
+After a source-layout migration, an ignored personal note may describe an older
+branch. Resolve component paths from the current tracked `README.md` and
+`AGENTS.md`; do not recreate the former `kufr/` container from a stale note.
+Refreshing another checkout's local setup is a separate operation.
+
 Tracked `AGENTS.md` and `.agents/skills/dildovander-ui/` belong to this repository.
 Their updates reach another checkout through normal authorized Git delivery.
 Uncommitted edits in an owning checkout are not automatically in a new worktree.
@@ -75,7 +80,7 @@ synchronize, commit, push or merge maintenance changes. Preserve intended ignore
 guidance outside a disposable worktree before any authorized cleanup.
 
 Design integrity belongs to the existing weekly check, not a separate schedule.
-Read [Vapour Chrome](../../kufr/design-system/README.md) and the tracked
+Read [Vapour Chrome](../../design-system/README.md) and the tracked
 [UI skill](../../.agents/skills/dildovander-ui/SKILL.md). Run the read-only
 `python scripts/check_design_system.py` in the verified worktree. Investigate
 obsolete active theme guidance, undefined token references, independent UI palettes,

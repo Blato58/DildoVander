@@ -37,30 +37,39 @@ def select_projects(paths):
         if path in {"scripts/ci/package.py", "scripts/ci/test_package.py"}:
             for name in ("backend", "firmware", "web", "site"):
                 selected[name] = True
-        if path.startswith(("kufr/backend/", "kufr/backend-tests/")) or path in {
-            "kufr/global.json", "kufr/Directory.Build.props", "NuGet.Config"
+        if path.startswith(("backend/", "backend-tests/")) or path in {
+            "global.json", "Directory.Build.props", "NuGet.Config"
         }:
             selected["backend"] = True
-        if path.startswith("kufr/firmware/diagnostics/servo-bench/web/") or path == "kufr/firmware/diagnostics/servo-bench/tools/serve_panel.py":
+        if path.startswith("firmware/simulator/"):
+            if PurePosixPath(path).name in {
+                "dashboard.html", "dashboard.js", "dashboard-ui.js", "verify-dashboard.mjs",
+            }:
+                selected["site"] = True
+            else:
+                selected["firmware"] = selected["web"] = selected["ios"] = True
+                if PurePosixPath(path).name.startswith("dashboard"):
+                    selected["site"] = True
+        elif path.startswith("firmware/diagnostics/servo-bench/web/") or path == "firmware/diagnostics/servo-bench/tools/serve_panel.py":
             selected["site"] = True
             if PurePosixPath(path).name in {"controller.mjs", "serial.mjs", "profiles.mjs", "auto-calibration.mjs", "mcp.mjs"}:
                 selected["web"] = selected["ios"] = True
-        elif path.startswith("kufr/firmware/"):
+        elif path.startswith("firmware/"):
             selected["firmware"] = True
-        if path.startswith("kufr/mobilni-aplikace/"):
+        if path.startswith("mobilni-aplikace/"):
             selected["web"] = True
             selected["ios"] = True
             selected["site"] = True
-            if path.startswith("kufr/mobilni-aplikace/src/features/identity/") or PurePosixPath(path).name in {
+            if path.startswith("mobilni-aplikace/src/features/identity/") or PurePosixPath(path).name in {
                 "accounts.browser.mjs", "accounts.fixture.browser.mjs"
             }:
                 selected["backend"] = True
-        if path.startswith(("kufr/web/", "kufr/design-system/")):
+        if path.startswith(("web/", "design-system/")):
             selected["site"] = True
-        if path.startswith("kufr/mechanika/"):
+        if path.startswith("mechanika/"):
             # Geometry/model releases do not rebuild the shared application.
             selected["site" if cad_impact == "viewer" else "repository"] = True
-        if path.startswith("kufr/design-system/"):
+        if path.startswith("design-system/"):
             selected["repository"] = True
             selected["web"] = True
             selected["ios"] = True
@@ -70,19 +79,11 @@ def select_projects(paths):
         if path in {"scripts/generate_design_tokens.py", "scripts/check_design_system.py",
                     "scripts/test_design_system.py"}:
             selected["repository"] = True
-        if path.startswith("kufr/ai-eval/"):
+        if path.startswith("ai-eval/"):
             selected["ai-eval"] = True
-        if path.startswith("kufr/contracts/"):
+        if path.startswith("contracts/"):
             for name in ("backend", "firmware", "web", "ios", "site"):
                 selected[name] = True
-        if path.startswith("kufr/simulator/") and PurePosixPath(path).name in {
-            "dashboard.html", "dashboard.js", "dashboard-ui.js", "verify-dashboard.mjs",
-        }:
-            selected["site"] = True
-        elif path.startswith("kufr/simulator/"):
-            selected["firmware"] = selected["web"] = selected["ios"] = True
-            if PurePosixPath(path).name.startswith("dashboard"):
-                selected["site"] = True
     return selected
 
 

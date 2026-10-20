@@ -5,14 +5,14 @@ description: Prepare or validate DV10 VPS code delivery, private archive configu
 
 # DV10 VPS delivery and recovery
 
-For Show Pack read [the integrated runbook](../../../kufr/docs/show-pack.md).
+For Show Pack read [the integrated runbook](../../../docs/show-pack.md).
 Package all new assets via the existing keepsake-only build; regenerate exact
 proxy examples with keepsake_proxy.py. Preserve both existing SQLite files,
 tombstones, pending offline imports and ambiguous AI attempts during recovery.
 Public routes grant neither operator nor duel-side rights. Source changes do
 not authorize production flags, paid commentary/audio, release, signing or flash.
 
-Read [VPS_HANDOFF](../../../kufr/docs/dv10/VPS_HANDOFF.md), the applicable
+Read [VPS_HANDOFF](../../../docs/dv10/VPS_HANDOFF.md), the applicable
 AGENTS, and the DV10 work item. Work from the actual repository root. Use the
 existing .NET backend, same-origin guest web and private deploy orchestration;
 Sites, Node BFF and new public backend listeners are outside this workflow.
@@ -26,8 +26,8 @@ loopback versus public checks and unknown capabilities.
 For local nonpaid verification:
 
 ```text
-python -m unittest discover -s kufr/backend/deploy -p test_keepsake_delivery.py -v
-python -m unittest discover -s kufr/web/deploy -p test_keepsake_proxy.py -v
+python -m unittest discover -s backend/deploy -p test_keepsake_delivery.py -v
+python -m unittest discover -s web/deploy -p test_keepsake_proxy.py -v
 ```
 
 Build the canonical portal and backend through their existing workflows. Combine
@@ -65,4 +65,4 @@ public guest isolation, and retain a compatible rollback pair. Record exact
 commands/results and subject hashes with project tracking. Explicit production
 authorization is separate from artifact preparation and synthetic tests.
 
-The owner approved static pickup at `/keepsake/evening/`; read `kufr/docs/dv10/STATIC_EVENING.md` for precedence. Shared wands/stories are scoped to the configured device and captured active evening. Public browsing never grants owner/photo/admin rights. Preserve manual retention and read-only GET behavior.
+The owner approved static pickup at `/keepsake/evening/`; read `docs/dv10/STATIC_EVENING.md` for precedence. Shared wands/stories are scoped to the configured device and captured active evening. Public browsing never grants owner/photo/admin rights. Preserve manual retention and read-only GET behavior.

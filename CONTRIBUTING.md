@@ -1,7 +1,7 @@
 # Příspěvky do projektu
 
 Projekt je rozpracovaný prototyp. Architekturu určuje
-[implementační plán](kufr/docs/implementacni-plan.md), aktuální úkoly a blokace
+[implementační plán](docs/implementacni-plan.md), aktuální úkoly a blokace
 vede [privátní koordinace](docs/development-coordination.md). Veřejná Issues jsou pro veřejné příspěvky. Začni
 [návodem bez hardwaru](docs/public-development.md) a README dotčené komponenty.
 Vlastní zdrojový kód, dokumentace a CAD zdroje projektu používají
@@ -15,7 +15,7 @@ uveď původní licenci a zachovej jejich oznámení.
    Nezahrnuj nesouvisející úpravy ani generované lokální výstupy.
 3. Používej existující kontrakty a strukturu funkcí. Změnu kontraktu či
    architektury popiš s dopadem; neobnovuj Arduino profil pro kufr.
-   UI používá [Arcane Workshop](kufr/design-system/README.md).
+   UI používá [Arcane Workshop](design-system/README.md).
 4. Použij připnuté SDK, `npm ci` a platformě odpovídající NuGet restore.
    Ověř dotčený projekt podle jeho README. C# backendové testy jsou spustitelný
    harness přes `dotnet run`, nikoli projekt pro `dotnet test`.
@@ -24,7 +24,7 @@ uveď původní licenci a zachovej jejich oznámení.
    nebo Apple identita nebrání příspěvku do nezávislého softwaru.
 6. U dokumentace zkontroluj místní odkazy, správnost příkazů a
    `git diff --check`. Po změně generátoru CAD použij skutečný postup
-   [regenerace F2](kufr/mechanika/final/README.md), ne ruční úpravu exportů.
+   [regenerace F2](mechanika/final/README.md), ne ruční úpravu exportů.
 
 Nevkládej tokeny, PoP/párovací QR, klíče, certifikáty s privátním klíčem,
 databáze, osobní fotografie či skutečné přepisy hostů do issues, PR ani testů.

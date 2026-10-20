@@ -31,7 +31,7 @@ def validate_links(path):
 
 
 def main():
-    coverage = json.loads((ROOT / 'kufr/docs/dv02-coverage.json').read_text(encoding='utf-8'))
+    coverage = json.loads((ROOT / 'docs/dv02-coverage.json').read_text(encoding='utf-8'))
     specification = (ROOT / coverage['specification']).read_text(encoding='utf-8')
     for category, prefix, count in [('requirements', 'R', 48), ('tests', 'T', 80)]:
         expected = {f'DV02-{prefix}{index:02d}' for index in range(1, count + 1)}
@@ -67,7 +67,7 @@ def main():
         require('$' + name in (folder / 'agents/openai.yaml').read_text(encoding='utf-8'),
                 f'{name}: default prompt targets another skill')
         validate_links(skill)
-    validate_links(ROOT / 'kufr/docs/dv02.md')
+    validate_links(ROOT / 'docs/dv02.md')
     print('PASS DV02: 48 requirements, 80 scenario families, 2 skill metadata/link workflows')
     print('Coverage is an inventory; actual receipts identify executed checks. Physical G and live skill reload remain separate.')
 

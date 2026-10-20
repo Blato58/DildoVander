@@ -6,15 +6,15 @@ description: Design or change DildoVander DV01 persona, adult/chaos roast, drama
 # DildoVander character design
 
 For Show Pack repertoire, mood, procedural finale and anonymous callbacks, read
-[the integrated contract](../../../kufr/docs/show-pack.md). Extend ShowRepertoire,
+[the integrated contract](../../../docs/show-pack.md). Extend ShowRepertoire,
 ShowSceneLibrary and actual Live consumption while preserving the original
 catalog. ShowCoordinator persists direction; CharacterDirector remains pure.
 Personal anchors and anonymous EveningLore are separate scopes. A planned line
 is not documented speech: use the audio submission proxy without claiming exact
 words. Run backend `--show` and DV01 replay for changed behavior.
 
-Read [DV01 implementation and gates](../../../kufr/docs/dv01.md) and the relevant
-sections of the [character bible](../../../kufr/docs/dv01-specification.md).
+Read [DV01 implementation and gates](../../../docs/dv01.md) and the relevant
+sections of the [character bible](../../../docs/dv01-specification.md).
 Use the tracked project workflow for substantive changes. Preserve original
 persona hashes, voice, model configuration and catalog identities.
 
@@ -36,8 +36,8 @@ named is blocked until full controlled publication is actually supported.
 Run from the repository root:
 
 ```text
-python kufr/ai-eval/evaluate_party.py --dv01-replay --output kufr/ai-eval/results/dv01-offline.json
-python -m unittest discover -s kufr/ai-eval -p test_dv01.py
+python ai-eval/evaluate_party.py --dv01-replay --output ai-eval/results/dv01-offline.json
+python -m unittest discover -s ai-eval -p test_dv01.py
 ```
 
 Report changed behavior, source/hash identity, relevant R/T coverage, actual

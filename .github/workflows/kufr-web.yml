@@ -12,19 +12,19 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: kufr/mobilni-aplikace
+        working-directory: mobilni-aplikace
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: kufr/mobilni-aplikace/.nvmrc
+          node-version-file: mobilni-aplikace/.nvmrc
           cache: npm
           cache-dependency-path: |
-            kufr/mobilni-aplikace/package-lock.json
-            kufr/contracts/package-lock.json
-            kufr/simulator/package-lock.json
+            mobilni-aplikace/package-lock.json
+            contracts/package-lock.json
+            firmware/simulator/package-lock.json
       - run: npm ci
       - run: npm ci --prefix ../contracts
       - run: npm test --prefix ../contracts
@@ -36,7 +36,7 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_configure_ios_signing.py'
       - name: Package web build with provenance
         working-directory: .
-        run: python3 scripts/ci/package.py pack kufr/mobilni-aplikace/dist "$RUNNER_TEMP/web-package"
+        run: python3 scripts/ci/package.py pack mobilni-aplikace/dist "$RUNNER_TEMP/web-package"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # PR CI validates packages; explicit main builds retain deployable artifacts.
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !github.event.inputs.pr_number

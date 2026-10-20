@@ -5,15 +5,15 @@ import re
 ROOT = Path(__file__).resolve().parents[2]
 ENTRY_POINTS = (
     '.github/workflows/kufr-site.yml', '.github/workflows/kufr-web.yml',
-    '.github/workflows/kufr-ios.yml', 'kufr/web/build-site.py',
-    'kufr/mobilni-aplikace/package.json',
-    'kufr/mobilni-aplikace/vite.config.mjs',
-    'kufr/mobilni-aplikace/scripts/validate-model-bundle.mjs',
-    'kufr/mobilni-aplikace/scripts/package-offline-viewer.mjs',
-    'kufr/mechanika/final/export_model_bundle.py',
-    'kufr/mechanika/final/twin_core.js', 'kufr/mechanika/final/timeline_core.js',
-    'kufr/mechanika/final/twin_media_core.js', 'kufr/mechanika/final/twin_media_controller.js',
-    'kufr/mechanika/final/viewer_engine_core.js',
+    '.github/workflows/kufr-ios.yml', 'web/build-site.py',
+    'mobilni-aplikace/package.json',
+    'mobilni-aplikace/vite.config.mjs',
+    'mobilni-aplikace/scripts/validate-model-bundle.mjs',
+    'mobilni-aplikace/scripts/package-offline-viewer.mjs',
+    'mechanika/final/export_model_bundle.py',
+    'mechanika/final/twin_core.js', 'mechanika/final/timeline_core.js',
+    'mechanika/final/twin_media_core.js', 'mechanika/final/twin_media_controller.js',
+    'mechanika/final/viewer_engine_core.js',
 )
 # Deliberately inspect the whole reached file, including optional branches: a
 # future UI dispatch must not hide mechanical work behind a conditional step.

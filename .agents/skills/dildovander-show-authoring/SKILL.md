@@ -4,10 +4,10 @@ description: Author or validate DV02 effect scenes, Show Pack cue plans and offl
 ---
 
 Locate the repository with `git rev-parse --show-toplevel`. Read the
-[DV02 guide](../../../kufr/docs/dv02.md) and the relevant language/invariant
-sections of [the specification](../../../kufr/docs/dv02-spec.md).
+[DV02 guide](../../../docs/dv02.md) and the relevant language/invariant
+sections of [the specification](../../../docs/dv02-spec.md).
 
-For physical choreography edit the authored [effects.json](../../../kufr/mechanika/final/effects.json).
+For physical choreography edit the authored [effects.json](../../../mechanika/final/effects.json).
 The schema, compiler, generated header and observer plan are one source-bound
 bundle. Do not copy times or colors into skills, C++ or JavaScript. Legacy main
 and short are migration baselines; artistic changes require an explicit diff.
@@ -16,7 +16,7 @@ No scene grants motion authority or changes runtime calibration.
 
 Show Pack narrative cues use Features/Show/ShowSceneLibrary and its one Validate
 entry point; offline clips use firmware/offline-bank/manifest.json and
-prepare_offline_bank.py. Read [the contract](../../../kufr/docs/show-pack.md).
+prepare_offline_bank.py. Read [the contract](../../../docs/show-pack.md).
 Optional narrative cues never dispatch actuators. Offline presentation reuses
 the existing sequence/journal. Run backend `--show`, affected firmware host tests
 and the bank generator `--check`. Generate headers through the actual tool;
@@ -34,11 +34,11 @@ transport tests for changes to this adapter, plus actual bridge cancellation.
 From the repository root:
 
 ```text
-python kufr/mechanika/final/generate_effects.py
-python kufr/mechanika/final/generate_effects.py --check
-python kufr/mechanika/final/test_effects.py
-python kufr/firmware/tests/run_show_tests.py
-node --test kufr/mechanika/final/test_show_timeline.cjs
+python mechanika/final/generate_effects.py
+python mechanika/final/generate_effects.py --check
+python mechanika/final/test_effects.py
+python firmware/tests/run_show_tests.py
+node --test mechanika/final/test_show_timeline.cjs
 ```
 
 Inspect the source and generated plan diff, identities, optional audio policy,

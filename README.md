@@ -1,6 +1,6 @@
 # DildoVander
 
-Repozitář pro [AI kufr](kufr/README.md): výběr ze šesti hůlek, hlas, světla, mechanické uvolnění a mobilní ovládání.
+Repozitář pro AI kufr: výběr ze šesti hůlek, hlas, světla, mechanické uvolnění a mobilní ovládání.
 
 [Seznam elektroniky a odkazy k nákupu](docs/elektronika.md) obsahuje podklady pro kufr a jeho montážní materiál.
 
@@ -10,18 +10,36 @@ ESP32-S3 samo komunikuje přes HTTPS s backendem a vlastní rozhovor i fyzickou 
 
 Jde o rozpracovaný prototyp pro soukromou party 18+: persony obsahují dospělý humor. Softwarové testy, náhled CAD ani úspěšný build neprokazují bezpečnost a úplnou akceptaci skutečného kufru nebo iPhonu. Přesné dokončené části a otevřené fyzické kontroly vede stav implementace.
 
-- [Implementační plán](kufr/docs/implementacni-plan.md) určuje architekturu, kontrakty a akceptační kritéria etap E0–E13 včetně E3a.
+- [Implementační plán](docs/implementacni-plan.md) určuje architekturu, kontrakty a akceptační kritéria etap E0–E13 včetně E3a.
 - [Vývojová koordinace](docs/development-coordination.md) popisuje privátní úkoly a předání agentů. Veřejná Issues slouží veřejným příspěvkům; implementační PR obsahují technické změny a ověření.
-- [Show Pack](kufr/docs/show-pack.md) popisuje živou režii, identity a proroctví, kroniku, souboje, Director iOS/web a místní offline režim včetně připravenosti audio banky.
-- [AGENTS.md](AGENTS.md) určuje postup další AI; [README kufru](kufr/README.md) odkazuje na jednotlivé komponenty a technické podklady.
+- [Show Pack](docs/show-pack.md) popisuje živou režii, identity a proroctví, kroniku, souboje, Director iOS/web a místní offline režim včetně připravenosti audio banky.
+- [AGENTS.md](AGENTS.md) určuje postup další AI.
+
+## Struktura repozitáře
+
+Komponenty jsou přímo v kořeni; sdílené kontrakty a vzhled mají samostatné zdroje.
+
+| Složka | Obsah |
+| --- | --- |
+| [firmware/](firmware/README.md) | Jeden PlatformIO projekt ESP32-S3, produkce, diagnostika, hostitelské testy a servisní nástroje |
+| [firmware/simulator/](firmware/simulator/README.md) | Nativní digitální dvojče nad stejnými C++ funkcemi, fake adaptéry a lokální server |
+| [backend/](backend/README.md), [backend-tests/](backend-tests/BackendTests.csproj) | ASP.NET Core backend a jeho testovací program |
+| [mobilni-aplikace/](mobilni-aplikace/README.md) | Společná Vue aplikace pro web a Capacitor/iOS |
+| [contracts/](contracts/README.md) | Sdílená schémata a validátory protokolů |
+| [design-system/](design-system/README.md) | Vapour Chrome tokeny, komponenty a pravidla přístupnosti |
+| [mechanika/](mechanika/README.md) | Mechanické zdroje a modelový viewer |
+| [web/](web/README.md) | Balení a kontrola sestavené aplikace |
+| [ai-eval/](ai-eval/README.md) | Persony, katalog a hodnoticí nástroje |
+| [docs/](docs/implementacni-plan.md) | Architektura, hardware, provoz a vývojové návody |
+| [devtools/workspace/](docs/development-workspace.md), [scripts/](scripts/) | Vývojový workspace a společné kontroly repozitáře |
 
 Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle implementačního plánu.“** Pro navázání: **„Pokračuj v implementaci podle implementačního plánu.“** AI nejprve porovná stav s kódem, pokračuje v nejbližším malém kroku a zapíše ověření i předání. Rozsah lze omezit například na mobilní aplikaci; chybějící hardware neblokuje nezávislou simulaci. Aktuální stav se vede v GitHub Issues, ne v souborech repozitáře; jedna změna nepotřebuje dva PR.
 
 ## Vývojové nástroje
 
-- Firmware: PlatformIO Core CLI a jeho závislosti podle `kufr/firmware/platformio.ini`; samotný C++ hostitelský test vyžaduje C++ kompilátor. Instalace PlatformIO IDE ve VS Code je volitelná.
-- Mobil: Node.js ve verzi `kufr/mobilni-aplikace/.nvmrc`, `npm ci` a `npm run build`. Na Windows lze verzi vybrat pomocí nvm-windows.
-- Backend: .NET 10 SDK podle `kufr/global.json` a místní SQLite mimo repozitář. Výchozí fake režim nepotřebuje OpenAI klíč. Nativní iOS build/test potřebuje Xcode na macOS a pro distribuci vlastní Apple identitu.
+- Firmware: PlatformIO Core CLI a jeho závislosti podle `firmware/platformio.ini`; samotný C++ hostitelský test vyžaduje C++ kompilátor. Instalace PlatformIO IDE ve VS Code je volitelná.
+- Mobil: Node.js ve verzi `mobilni-aplikace/.nvmrc`, `npm ci` a `npm run build`. Na Windows lze verzi vybrat pomocí nvm-windows.
+- Backend: .NET 10 SDK podle `global.json` a místní SQLite mimo repozitář. Výchozí fake režim nepotřebuje OpenAI klíč. Nativní iOS build/test potřebuje Xcode na macOS a pro distribuci vlastní Apple identitu.
 - [Společný vývojový workspace](docs/development-workspace.md) popisuje setup obou samostatných checkoutů, `code .`, multi-root PlatformIO, firmware tasks a testy.
 - [Vývojové spuštění bez hardwaru](docs/public-development.md) uvádí minimální příkazy a potřebné nástroje; [architektura a hranice ověření](docs/public-architecture.md) propojují komponenty a kontrakty.
 

@@ -1,0 +1,3135 @@
+{
+  "schemaVersion": 1,
+  "initiative": "DV02",
+  "specification": "docs/dv02-spec.md",
+  "baselineCommit": "74f215fc371e19780a3521adf0f7b79dcdb068a5",
+  "evidenceBoundary": "Covered describes offline/source coverage, never physical acceptance or live DV01 wire integration. G remains blocked.",
+  "requirements": [
+    {
+      "id": "DV02-R01",
+      "level": "MUST",
+      "expected": "Jeden autoritativní zdroj choreografických časů/barvy",
+      "status": "covered",
+      "tests": [
+        "DV02-T01",
+        "DV02-T02",
+        "DV02-T67",
+        "DV02-T68"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R02",
+      "level": "MUST",
+      "expected": "Žádný druhý vlastník fyzického runtime",
+      "status": "covered",
+      "tests": [
+        "DV02-T25",
+        "DV02-T28",
+        "DV02-T29",
+        "DV02-T30",
+        "DV02-T33",
+        "DV02-T34"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R03",
+      "level": "MUST",
+      "expected": "Běžná i krátká legacy varianta zachovají observable semantics",
+      "status": "covered",
+      "tests": [
+        "DV02-T01",
+        "DV02-T02"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R04",
+      "level": "MUST",
+      "expected": "Schema má uzavřené varianty, správné typy a bounded parse",
+      "status": "covered",
+      "tests": [
+        "DV02-T04",
+        "DV02-T05",
+        "DV02-T06",
+        "DV02-T07",
+        "DV02-T08",
+        "DV02-T09",
+        "DV02-T10"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R05",
+      "level": "MUST",
+      "expected": "Fáze/cues mají jednoznačný začátek, konec a dependency význam",
+      "status": "covered",
+      "tests": [
+        "DV02-T04",
+        "DV02-T05",
+        "DV02-T06",
+        "DV02-T07",
+        "DV02-T08",
+        "DV02-T09",
+        "DV02-T10",
+        "DV02-T11",
+        "DV02-T12",
+        "DV02-T13",
+        "DV02-T14",
+        "DV02-T15",
+        "DV02-T16",
+        "DV02-T17"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R06",
+      "level": "MUST",
+      "expected": "Presentation lifecycle nelze rozložit na svévolné vnější raise/lower",
+      "status": "covered",
+      "tests": [
+        "DV02-T03",
+        "DV02-T11",
+        "DV02-T12",
+        "DV02-T13",
+        "DV02-T14",
+        "DV02-T15",
+        "DV02-T16",
+        "DV02-T17"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R07",
+      "level": "MUST",
+      "expected": "Servo/vibrace/LED/jas nepřekročí současné fyzické limity",
+      "status": "covered",
+      "tests": [
+        "DV02-T01",
+        "DV02-T02",
+        "DV02-T11",
+        "DV02-T12",
+        "DV02-T13",
+        "DV02-T14",
+        "DV02-T15",
+        "DV02-T16",
+        "DV02-T17",
+        "DV02-T18",
+        "DV02-T19"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R08",
+      "level": "MUST",
+      "expected": "Hard deadline zahrne přípravu i cleanup a nikdy se neobnovuje",
+      "status": "covered",
+      "tests": [
+        "DV02-T18",
+        "DV02-T19",
+        "DV02-T20",
+        "DV02-T21",
+        "DV02-T22",
+        "DV02-T23",
+        "DV02-T24",
+        "DV02-T66"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R09",
+      "level": "MUST",
+      "expected": "Zmeškané pulzy a pohyby se nedohánějí",
+      "status": "covered",
+      "tests": [
+        "DV02-T20",
+        "DV02-T21",
+        "DV02-T22",
+        "DV02-T23",
+        "DV02-T24"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R10",
+      "level": "MUST",
+      "expected": "Resource priority nekrade cizí vlastnictví",
+      "status": "covered",
+      "tests": [
+        "DV02-T03",
+        "DV02-T25",
+        "DV02-T28",
+        "DV02-T29",
+        "DV02-T30",
+        "DV02-T33",
+        "DV02-T34",
+        "DV02-T27"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R11",
+      "level": "MUST",
+      "expected": "Rezervace je all-or-nothing a nezůstává viset",
+      "status": "covered",
+      "tests": [
+        "DV02-T25",
+        "DV02-T28",
+        "DV02-T29",
+        "DV02-T30",
+        "DV02-T33",
+        "DV02-T34"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R12",
+      "level": "MUST",
+      "expected": "Starý owner nesmí uvolnit zdroj nového owneru",
+      "status": "covered",
+      "tests": [
+        "DV02-T26",
+        "DV02-T31",
+        "DV02-T32",
+        "DV02-T49",
+        "DV02-T60"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R13",
+      "level": "MUST",
+      "expected": "Optional audio nespouští cancel řeči/Dance",
+      "status": "covered",
+      "tests": [
+        "DV02-T26",
+        "DV02-T31",
+        "DV02-T32",
+        "DV02-T49",
+        "DV02-T60",
+        "DV02-T27",
+        "DV02-T61",
+        "DV02-T62"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R14",
+      "level": "MUST",
+      "expected": "Dance zachová lifecycle, Stop a disconnected chování",
+      "status": "covered",
+      "tests": [
+        "DV02-T63",
+        "DV02-T65",
+        "DV02-T64"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R15",
+      "level": "MUST",
+      "expected": "Audio časy nezaměňují generování/enqueue/DMA/zvuk",
+      "status": "covered",
+      "tests": [
+        "DV02-T26",
+        "DV02-T31",
+        "DV02-T32",
+        "DV02-T49",
+        "DV02-T60",
+        "DV02-T27",
+        "DV02-T61",
+        "DV02-T62",
+        "DV02-T63",
+        "DV02-T65"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R16",
+      "level": "MUST",
+      "expected": "Fyzická show nečeká se zdvihem na cloudový marker",
+      "status": "covered",
+      "tests": [
+        "DV02-T61",
+        "DV02-T62"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest.",
+      "checks": [
+        {
+          "path": "firmware/src/features/physical_effects/PhysicalPresentation.cpp",
+          "symbol": "Tick"
+        }
+      ]
+    },
+    {
+      "id": "DV02-R17",
+      "level": "MUST",
+      "expected": "SceneIntent neobsahuje libovolné výstupy nebo vykonatelný kód",
+      "status": "covered",
+      "tests": [
+        "DV02-T35",
+        "DV02-T36",
+        "DV02-T37",
+        "DV02-T38",
+        "DV02-T39",
+        "DV02-T40",
+        "DV02-T41",
+        "DV02-T42",
+        "DV02-T43",
+        "DV02-T44"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R18",
+      "level": "MUST",
+      "expected": "Choice accent nikdy nevyrobí druhý reveal",
+      "status": "covered",
+      "tests": [
+        "DV02-T35",
+        "DV02-T36",
+        "DV02-T37",
+        "DV02-T38",
+        "DV02-T39",
+        "DV02-T40",
+        "DV02-T41",
+        "DV02-T42",
+        "DV02-T43",
+        "DV02-T44"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R19",
+      "level": "MUST",
+      "expected": "Freshness a revize platí při admission i provedení",
+      "status": "covered",
+      "tests": [
+        "DV02-T03",
+        "DV02-T35",
+        "DV02-T36",
+        "DV02-T37",
+        "DV02-T38",
+        "DV02-T39",
+        "DV02-T40",
+        "DV02-T41",
+        "DV02-T42",
+        "DV02-T43",
+        "DV02-T44"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R20",
+      "level": "MUST",
+      "expected": "Cancellation má scope a nevrací zrušenou response do života",
+      "status": "covered",
+      "tests": [
+        "DV02-T26",
+        "DV02-T31",
+        "DV02-T32",
+        "DV02-T49",
+        "DV02-T60",
+        "DV02-T35",
+        "DV02-T36",
+        "DV02-T37",
+        "DV02-T38",
+        "DV02-T39",
+        "DV02-T40",
+        "DV02-T41",
+        "DV02-T42",
+        "DV02-T43",
+        "DV02-T44",
+        "DV02-T45",
+        "DV02-T46",
+        "DV02-T47",
+        "DV02-T48",
+        "DV02-T57",
+        "DV02-T61",
+        "DV02-T62",
+        "DV02-T64"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R21",
+      "level": "MUST",
+      "expected": "Safety Stop má přednost a žádný automatický návrat/outro",
+      "status": "covered",
+      "tests": [
+        "DV02-T20",
+        "DV02-T21",
+        "DV02-T22",
+        "DV02-T23",
+        "DV02-T24",
+        "DV02-T25",
+        "DV02-T28",
+        "DV02-T29",
+        "DV02-T30",
+        "DV02-T33",
+        "DV02-T34",
+        "DV02-T45",
+        "DV02-T46",
+        "DV02-T47",
+        "DV02-T48",
+        "DV02-T50",
+        "DV02-T64"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R22",
+      "level": "MUST",
+      "expected": "Pozdní callback po Stop nemá právo k výstupu",
+      "status": "covered",
+      "tests": [
+        "DV02-T26",
+        "DV02-T31",
+        "DV02-T32",
+        "DV02-T49",
+        "DV02-T60",
+        "DV02-T45",
+        "DV02-T46",
+        "DV02-T47",
+        "DV02-T48"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R23",
+      "level": "MUST",
+      "expected": "Dedupe odliší opakování od konfliktu obsahu",
+      "status": "covered",
+      "tests": [
+        "DV02-T51",
+        "DV02-T52",
+        "DV02-T53",
+        "DV02-T54",
+        "DV02-T55",
+        "DV02-T56"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R24",
+      "level": "MUST",
+      "expected": "Restart/unknown nikdy automaticky neopakuje fyzickou show",
+      "status": "covered",
+      "tests": [
+        "DV02-T50",
+        "DV02-T51",
+        "DV02-T52",
+        "DV02-T53",
+        "DV02-T54",
+        "DV02-T55",
+        "DV02-T56",
+        "DV02-T57",
+        "DV02-T76"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R25",
+      "level": "MUST",
+      "expected": "ACK, timed completion a měření nejsou totéž",
+      "status": "covered",
+      "tests": [
+        "DV02-T57",
+        "DV02-T58",
+        "DV02-T59",
+        "DV02-T71"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R26",
+      "level": "MUST",
+      "expected": "Cleanup je součást completion a nevynuluje inspection gate",
+      "status": "covered",
+      "tests": [
+        "DV02-T03",
+        "DV02-T45",
+        "DV02-T46",
+        "DV02-T47",
+        "DV02-T48",
+        "DV02-T50",
+        "DV02-T51",
+        "DV02-T52",
+        "DV02-T53",
+        "DV02-T54",
+        "DV02-T55",
+        "DV02-T56"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R27",
+      "level": "MUST",
+      "expected": "Compile a export jsou deterministické a zdrojově svázané",
+      "status": "covered",
+      "tests": [
+        "DV02-T67",
+        "DV02-T68"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R28",
+      "level": "MUST",
+      "expected": "Kalibrace/profil mají explicitní identitu a platnost",
+      "status": "covered",
+      "tests": [
+        "DV02-T18",
+        "DV02-T19",
+        "DV02-T69",
+        "DV02-T76"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R29",
+      "level": "MUST",
+      "expected": "Replay je read-only, ne cestou k hardware",
+      "status": "covered",
+      "tests": [
+        "DV02-T72",
+        "DV02-T73",
+        "DV02-T74"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R30",
+      "level": "MUST",
+      "expected": "Viewer neudržuje druhou autoritativní fyzickou sémantiku",
+      "status": "covered",
+      "tests": [
+        "DV02-T58",
+        "DV02-T59",
+        "DV02-T71",
+        "DV02-T72",
+        "DV02-T73",
+        "DV02-T74"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R31",
+      "level": "MUST",
+      "expected": "Chybějící telemetry neznačí úspěch a neblokuje tick",
+      "status": "covered",
+      "tests": [
+        "DV02-T58",
+        "DV02-T59",
+        "DV02-T71",
+        "DV02-T66",
+        "DV02-T70"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R32",
+      "level": "MUST",
+      "expected": "Časy nesměšují boots/domény a neničí se konverzí",
+      "status": "covered",
+      "tests": [
+        "DV02-T63",
+        "DV02-T65",
+        "DV02-T66"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R33",
+      "level": "MUST",
+      "expected": "Kritická cesta nemá nové neomezené alokace nebo I/O",
+      "status": "covered",
+      "tests": [
+        "DV02-T70"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R34",
+      "level": "MUST",
+      "expected": "Source/runtime/trace mají tvrdé velikostní limity",
+      "status": "covered",
+      "tests": [
+        "DV02-T04",
+        "DV02-T05",
+        "DV02-T06",
+        "DV02-T07",
+        "DV02-T08",
+        "DV02-T09",
+        "DV02-T10",
+        "DV02-T67",
+        "DV02-T68",
+        "DV02-T70",
+        "DV02-T72",
+        "DV02-T73",
+        "DV02-T74"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R35",
+      "level": "MUST",
+      "expected": "Starý i nový klient/firmware mají pravdivou kompatibilitu",
+      "status": "covered",
+      "tests": [
+        "DV02-T75"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R36",
+      "level": "MUST",
+      "expected": "Rollback nemění běžící show ani nesmaže nejistotu",
+      "status": "covered",
+      "tests": [
+        "DV02-T51",
+        "DV02-T52",
+        "DV02-T53",
+        "DV02-T54",
+        "DV02-T55",
+        "DV02-T56",
+        "DV02-T69",
+        "DV02-T76"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R37",
+      "level": "MUST",
+      "expected": "Nové scény jsou explicitní opt-in, nikoli automatické triggery",
+      "status": "covered",
+      "tests": [
+        "DV02-T35",
+        "DV02-T36",
+        "DV02-T37",
+        "DV02-T38",
+        "DV02-T39",
+        "DV02-T40",
+        "DV02-T41",
+        "DV02-T42",
+        "DV02-T43",
+        "DV02-T44",
+        "DV02-T77"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R38",
+      "level": "MUST",
+      "expected": "DV01/11/08 nepřítomnost nevede k falešnému úspěchu",
+      "status": "covered",
+      "tests": [
+        "DV02-T35",
+        "DV02-T36",
+        "DV02-T37",
+        "DV02-T38",
+        "DV02-T39",
+        "DV02-T40",
+        "DV02-T41",
+        "DV02-T42",
+        "DV02-T43",
+        "DV02-T44",
+        "DV02-T77"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R39",
+      "level": "MUST",
+      "expected": "Trace/logy neobsahují raw obsah hosta ani tajemství",
+      "status": "covered",
+      "tests": [
+        "DV02-T72",
+        "DV02-T73",
+        "DV02-T74",
+        "DV02-T75"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R40",
+      "level": "MUST",
+      "expected": "Skills jsou součást skutečné dodávky",
+      "status": "covered",
+      "tests": [
+        "DV02-T79"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R41",
+      "level": "MUST",
+      "expected": "Všechny relevantní scénáře mají mapu na test nebo gate",
+      "status": "covered",
+      "tests": [
+        "DV02-T79"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R42",
+      "level": "MUST",
+      "expected": "Model, hlas, hardware a ostatní iniciativy se nemění bokem",
+      "status": "covered",
+      "tests": [
+        "DV02-T77"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R43",
+      "level": "SHOULD",
+      "expected": "Přidání scény nevyžaduje kopírování timingů mezi komponentami",
+      "status": "covered",
+      "tests": [
+        "DV02-T79"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R44",
+      "level": "SHOULD",
+      "expected": "Timeline je čitelná na mobilu a bez canvas-only ovládání",
+      "status": "covered",
+      "tests": [
+        "DV02-T72",
+        "DV02-T73",
+        "DV02-T74"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest."
+    },
+    {
+      "id": "DV02-R45",
+      "level": "GATE",
+      "expected": "Režie ticku, heap a stack přijaty na skutečném ESP profilu",
+      "status": "blocked/not_run",
+      "tests": [
+        "DV02-T78",
+        "DV02-T80"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest.",
+      "gate": "G: reálná identifikovaná sestava a autorizované fyzické/nativní měření. Žádné OTA, signing ani paid AI v tomto běhu."
+    },
+    {
+      "id": "DV02-R46",
+      "level": "GATE",
+      "expected": "Audio/LED/pohyb a Stop ověřeny na identifikované sestavě",
+      "status": "blocked/not_run",
+      "tests": [
+        "DV02-T78",
+        "DV02-T80"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest.",
+      "gate": "G: reálná identifikovaná sestava a autorizované fyzické/nativní měření. Žádné OTA, signing ani paid AI v tomto běhu."
+    },
+    {
+      "id": "DV02-R47",
+      "level": "GATE",
+      "expected": "Event-ready je konkrétní přijatá kombinace konfigurace a verzí",
+      "status": "blocked/not_run",
+      "tests": [
+        "DV02-T78",
+        "DV02-T80"
+      ],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest.",
+      "gate": "G: reálná identifikovaná sestava a autorizované fyzické/nativní měření. Žádné OTA, signing ani paid AI v tomto běhu."
+    },
+    {
+      "id": "DV02-R48",
+      "level": "LATER",
+      "expected": "Runtime scene packy, autonomní ambient scheduler a pokročilý editor",
+      "status": "not_applicable",
+      "tests": [],
+      "sources": [
+        "docs/dv02.md"
+      ],
+      "evidence": "DV02 offline validation and source review; exact receipt records apply to tested source digest.",
+      "reason": "H je výslovně mimo zadání: runtime scene packy, autonomní scheduler a pokročilý editor se neimplementují."
+    }
+  ],
+  "tests": [
+    {
+      "id": "DV02-T01",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R01",
+        "DV02-R03",
+        "DV02-R07"
+      ],
+      "inputs": "Běžná legacy presentation pro všechny dostupné sloty",
+      "expected": "Parita významných výstupů a normálního návratu",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_frozen_legacy_tables_and_resolved_outputs_for_every_slot"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "EveryAuthoredPhaseAndRestCompletion"
+        },
+        {
+          "path": "firmware/tests/compare_legacy_show.py",
+          "symbol": "compare"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py; python firmware/tests/compare_legacy_show.py",
+      "scope": "Skutečné původní a současné C++ core, stejný fake port, 500ms kalibrace a 10ms tick; main/short × všech šest slotů: stejné I/O pořadí, payloady, časové značky, servo/vibrační intervaly a journal outcome. Bez fyzického měření."
+    },
+    {
+      "id": "DV02-T02",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R01",
+        "DV02-R03",
+        "DV02-R07"
+      ],
+      "inputs": "Krátká legacy presentation pro všechny sloty",
+      "expected": "Short zachová fyzické trvání a stejný lifecycle",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_frozen_legacy_tables_and_resolved_outputs_for_every_slot"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "EveryAuthoredPhaseAndRestCompletion"
+        },
+        {
+          "path": "firmware/tests/compare_legacy_show.py",
+          "symbol": "compare"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py; python firmware/tests/compare_legacy_show.py",
+      "scope": "Skutečné původní a současné C++ core, stejný fake port, 500ms kalibrace a 10ms tick; main/short × všech šest slotů: stejné I/O pořadí, payloady, časové značky, servo/vibrační intervaly a journal outcome. Bez fyzického měření."
+    },
+    {
+      "id": "DV02-T03",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R06",
+        "DV02-R10",
+        "DV02-R19",
+        "DV02-R26"
+      ],
+      "inputs": "Nová korektní accent scéna",
+      "expected": "Žádný pohyb; konečný cleanup všech vlastněných dekorací",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T04",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R04",
+        "DV02-R05",
+        "DV02-R34"
+      ],
+      "inputs": "Neznámá verze schématu nebo cue druh",
+      "expected": "Odmítnutí, nikoli tiché vynechání",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_parser_rejects_duplicates_utf8_depth_numbers_and_byte_overflow"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_every_object_is_closed_and_union_variants_are_exclusive"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_source_phase_cue_limits_and_deadline_are_bounded"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T05",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R04",
+        "DV02-R05",
+        "DV02-R34"
+      ],
+      "inputs": "Neznámé pole a chybné union varianty",
+      "expected": "Uzavřené schema i ve vnoření",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_parser_rejects_duplicates_utf8_depth_numbers_and_byte_overflow"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_every_object_is_closed_and_union_variants_are_exclusive"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_source_phase_cue_limits_and_deadline_are_bounded"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T06",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R04",
+        "DV02-R05",
+        "DV02-R34"
+      ],
+      "inputs": "Duplicitní JSON klíče, špatné UTF-8, příliš hluboký vstup",
+      "expected": "Bounded parse odmítne před runtime",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_parser_rejects_duplicates_utf8_depth_numbers_and_byte_overflow"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_every_object_is_closed_and_union_variants_are_exclusive"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_source_phase_cue_limits_and_deadline_are_bounded"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T07",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R04",
+        "DV02-R05",
+        "DV02-R34"
+      ],
+      "inputs": "Prázdné/duplicitní phase a cue ID",
+      "expected": "Odmítnutí nejednoznačnosti",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_parser_rejects_duplicates_utf8_depth_numbers_and_byte_overflow"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_every_object_is_closed_and_union_variants_are_exclusive"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_source_phase_cue_limits_and_deadline_are_bounded"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T08",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R04",
+        "DV02-R05",
+        "DV02-R34"
+      ],
+      "inputs": "Negativní/neceločíselný čas, string slot a overflow",
+      "expected": "Žádné tiché zaokrouhlení do platného příkazu",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_parser_rejects_duplicates_utf8_depth_numbers_and_byte_overflow"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_every_object_is_closed_and_union_variants_are_exclusive"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_source_phase_cue_limits_and_deadline_are_bounded"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T09",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R04",
+        "DV02-R05",
+        "DV02-R34"
+      ],
+      "inputs": "Zdroj, expanze nebo cue count na max a max+1",
+      "expected": "Limit funguje před neomezenou alokací",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_parser_rejects_duplicates_utf8_depth_numbers_and_byte_overflow"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_every_object_is_closed_and_union_variants_are_exclusive"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_source_phase_cue_limits_and_deadline_are_bounded"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T10",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R04",
+        "DV02-R05",
+        "DV02-R34"
+      ],
+      "inputs": "Legacy `after` nemá doložitelný význam",
+      "expected": "Migrátor chybu označí, význam nevymyslí",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_parser_rejects_duplicates_utf8_depth_numbers_and_byte_overflow"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_every_object_is_closed_and_union_variants_are_exclusive"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_source_phase_cue_limits_and_deadline_are_bounded"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T11",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R05",
+        "DV02-R06",
+        "DV02-R07"
+      ],
+      "inputs": "Accent obsahuje calibrated-move",
+      "expected": "Kompilace odmítnuta",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_presentation_lifecycle_and_motion_target_are_checked"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_half_open_led_intervals_and_tone_pulse_limits"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LimitsAndFaults"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T12",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R05",
+        "DV02-R06",
+        "DV02-R07"
+      ],
+      "inputs": "Lower před raise, dva raise, chybějící lower",
+      "expected": "Neplatný presentation lifecycle",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_presentation_lifecycle_and_motion_target_are_checked"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_half_open_led_intervals_and_tone_pulse_limits"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LimitsAndFaults"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T13",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R05",
+        "DV02-R06",
+        "DV02-R07"
+      ],
+      "inputs": "Raise/lower používají jiný target",
+      "expected": "Nelze změnit hůlku uprostřed show",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_presentation_lifecycle_and_motion_target_are_checked"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_half_open_led_intervals_and_tone_pulse_limits"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LimitsAndFaults"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T14",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R05",
+        "DV02-R06",
+        "DV02-R07"
+      ],
+      "inputs": "Vibrace zasahuje do servo fáze",
+      "expected": "Statické odmítnutí a runtime guard",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_presentation_lifecycle_and_motion_target_are_checked"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_half_open_led_intervals_and_tone_pulse_limits"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LimitsAndFaults"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T15",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R05",
+        "DV02-R06",
+        "DV02-R07"
+      ],
+      "inputs": "Dvě LED skupiny či výsledný jas nad povolením",
+      "expected": "Žádný souběh ani přetečení stropu",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_presentation_lifecycle_and_motion_target_are_checked"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_half_open_led_intervals_and_tone_pulse_limits"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LimitsAndFaults"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T16",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R05",
+        "DV02-R06",
+        "DV02-R07"
+      ],
+      "inputs": "Fade/level legacy normalizace",
+      "expected": "Bez dvojího scalingu a změny barev skryté migrací",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_presentation_lifecycle_and_motion_target_are_checked"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_half_open_led_intervals_and_tone_pulse_limits"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LimitsAndFaults"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T17",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R05",
+        "DV02-R06",
+        "DV02-R07"
+      ],
+      "inputs": "Pulse končí přesně na hranici fáze",
+      "expected": "Vypnutí před začátkem konfliktního výstupu",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_presentation_lifecycle_and_motion_target_are_checked"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_half_open_led_intervals_and_tone_pulse_limits"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LimitsAndFaults"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T18",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R07",
+        "DV02-R08",
+        "DV02-R28"
+      ],
+      "inputs": "Chybějící/neplatná/novější kalibrace",
+      "expected": "Reject či jasná blokace; žádná simulovaná fyzická hodnota",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_current_variants_fit_maximum_calibration_and_viewer_budgets"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "CalibrationAndIdleCapabilities"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LongerCalibratedTravel"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T19",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R07",
+        "DV02-R08",
+        "DV02-R28"
+      ],
+      "inputs": "Nejdelší kalibrace a phase přechody",
+      "expected": "Worst-case deadline zahrnuje skutečnou scheduler sémantiku",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_current_variants_fit_maximum_calibration_and_viewer_budgets"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "CalibrationAndIdleCapabilities"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "LongerCalibratedTravel"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T20",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R08",
+        "DV02-R09",
+        "DV02-R21"
+      ],
+      "inputs": "Teď je přesně deadline, před ním a za ním",
+      "expected": "Žádný nový výstup v okamžiku zákazu",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "LateMotionNeverStarts"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "AbsoluteClockAndNoBurst"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "MaximumTravelStillHonorsAbsoluteDeadline"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "JournalLatencyUsesActualOwnerClock"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T21",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R08",
+        "DV02-R09",
+        "DV02-R21"
+      ],
+      "inputs": "Dlouhá preparing fáze",
+      "expected": "Spotřebovává tentýž deadline; neobnoví jej start",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "LateMotionNeverStarts"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "AbsoluteClockAndNoBurst"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "MaximumTravelStillHonorsAbsoluteDeadline"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "JournalLatencyUsesActualOwnerClock"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T22",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R08",
+        "DV02-R09",
+        "DV02-R21"
+      ],
+      "inputs": "Tick vynechá jednu či několik dekorací",
+      "expected": "Sample/skip podle typu, žádná doháněcí fronta",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "LateMotionNeverStarts"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "AbsoluteClockAndNoBurst"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "MaximumTravelStillHonorsAbsoluteDeadline"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T23",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R08",
+        "DV02-R09",
+        "DV02-R21"
+      ],
+      "inputs": "Tick přeskočí plánovaný začátek pohybu",
+      "expected": "Ověřená current phase a tail budget, jinak stop/fault",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "LateMotionNeverStarts"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "AbsoluteClockAndNoBurst"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "MaximumTravelStillHonorsAbsoluteDeadline"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T24",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R08",
+        "DV02-R09",
+        "DV02-R21"
+      ],
+      "inputs": "Stall během aktivní vibrace/pohybu",
+      "expected": "Po návratu owner zpracuje limit; report přizná dobu bez vykonávání",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "LateMotionNeverStarts"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "AbsoluteClockAndNoBurst"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "MaximumTravelStillHonorsAbsoluteDeadline"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T25",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R02",
+        "DV02-R10",
+        "DV02-R11",
+        "DV02-R21"
+      ],
+      "inputs": "Nová scéna při aktivní presentation",
+      "expected": "Busy, žádné pozdější automatické přehrání",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestStopBetweenAckAndBegin"
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestMaintenanceReservation"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T26",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R12",
+        "DV02-R13",
+        "DV02-R15",
+        "DV02-R20",
+        "DV02-R22"
+      ],
+      "inputs": "Volitelné audio obsazené řečí",
+      "expected": "Tón skipped, hlas nezrušen",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/espidf_voice_audio_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T27",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R10",
+        "DV02-R13",
+        "DV02-R15"
+      ],
+      "inputs": "Povinné audio obsazené nebo nedostupné",
+      "expected": "Žádný falešný plnohodnotný úspěch",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_ids_and_capabilities_are_unique_and_envelopes_are_derived"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "LED-only accent port rejects any required capability outside LED (including audio); no shipped mandatory-audio scene."
+    },
+    {
+      "id": "DV02-T28",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R02",
+        "DV02-R10",
+        "DV02-R11",
+        "DV02-R21"
+      ],
+      "inputs": "Nová presentation během Dance",
+      "expected": "Žádné převzetí audio/SD/LED",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestStopBetweenAckAndBegin"
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestMaintenanceReservation"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T29",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R02",
+        "DV02-R10",
+        "DV02-R11",
+        "DV02-R21"
+      ],
+      "inputs": "Dance start během jiného owneru",
+      "expected": "Zachování současného refusal a UI",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestStopBetweenAckAndBegin"
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestMaintenanceReservation"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T30",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R02",
+        "DV02-R10",
+        "DV02-R11",
+        "DV02-R21"
+      ],
+      "inputs": "Partial resource acquisition selže",
+      "expected": "Rollback jen vlastních rezervací",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestStopBetweenAckAndBegin"
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestMaintenanceReservation"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T31",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R12",
+        "DV02-R13",
+        "DV02-R15",
+        "DV02-R20",
+        "DV02-R22"
+      ],
+      "inputs": "Stará release událost po předání zdroje novému owneru",
+      "expected": "Žádné vypnutí nové show ani ABA leak",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/espidf_voice_audio_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T32",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R12",
+        "DV02-R13",
+        "DV02-R15",
+        "DV02-R20",
+        "DV02-R22"
+      ],
+      "inputs": "Zpožděný audio worker vrátí chybu staré operace",
+      "expected": "Nezastaví nesouvisející aktuální audio",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/espidf_voice_audio_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T33",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R02",
+        "DV02-R10",
+        "DV02-R11",
+        "DV02-R21"
+      ],
+      "inputs": "OTA/servis při aktivní show",
+      "expected": "Zachována maintenance gate, žádné ukradení owneru",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestStopBetweenAckAndBegin"
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestMaintenanceReservation"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T34",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R02",
+        "DV02-R10",
+        "DV02-R11",
+        "DV02-R21"
+      ],
+      "inputs": "Dvojí současná žádost o start",
+      "expected": "Jediné atomické přijetí, druhá duplicate/busy podle identity",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestStopBetweenAckAndBegin"
+        },
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestMaintenanceReservation"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T35",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Platný DV01 wake/consider intent",
+      "expected": "Jen whitelistovaná dekorace aktuální session",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T36",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "DV01 choice_accent a běžná selection cesta současně",
+      "expected": "Přesně jeden oprávněný fyzický start, žádný druhý reveal",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T37",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Intent jiné session/response/boot/revize",
+      "expected": "Reject; pozdní událost nesmí oživit starý kontext",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T38",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Expirovaný intent a jeho retry",
+      "expected": "TTL se nedostane znovu na začátek",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T39",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Payload s GPIO, úhlem, arbitrary slot, výrazem či kódem",
+      "expected": "Odmítnutí, žádná eval/runtime interpretace",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T40",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Chybějící nebo nepodporované DV01/DV11",
+      "expected": "Pravdivé not-present; žádná skrytá implementace souseda",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T41",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Všechny dekorace byly vynechány",
+      "expected": "Výsledek neuvádí plně provedený akcent; quality none/reduced",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T42",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Barge-in na response-scoped cue",
+      "expected": "Zrušení pouze příslušné response; session/presentation nezanikají bokem",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T43",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Revokace evidence před fyzickým přijetím",
+      "expected": "Stará ready volba nemůže projít",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T44",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R17",
+        "DV02-R18",
+        "DV02-R19",
+        "DV02-R20",
+        "DV02-R37",
+        "DV02-R38"
+      ],
+      "inputs": "Revokace po možném odeslání fyzického příkazu",
+      "expected": "Žádný nový reveal, unknown se neztratí",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/src/features/scene_intent/SceneIntentBridge.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Syntetická lokální DV01 vazba; současný backend nemá živý SceneIntent device transport. Žádné modelové volání."
+    },
+    {
+      "id": "DV02-T45",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R20",
+        "DV02-R21",
+        "DV02-R22",
+        "DV02-R26"
+      ],
+      "inputs": "Zrušení session během existující presentation",
+      "expected": "Budoucí dekorace skončí, fyzický výsledek zůstane evidovaný",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "SnapshotStopAndRing"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "InterruptedReturn"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T46",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R20",
+        "DV02-R21",
+        "DV02-R22",
+        "DV02-R26"
+      ],
+      "inputs": "Explicitní show cancel v nehybné a pohybové fázi",
+      "expected": "Původní owner kontrakt, žádný automatický návrat",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "SnapshotStopAndRing"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "InterruptedReturn"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T47",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R20",
+        "DV02-R21",
+        "DV02-R22",
+        "DV02-R26"
+      ],
+      "inputs": "Stop v každé fázi a těsně před acceptance",
+      "expected": "Zákaz nových výstupů, žádné outro/error show",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "SnapshotStopAndRing"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "InterruptedReturn"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T48",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R20",
+        "DV02-R21",
+        "DV02-R22",
+        "DV02-R26"
+      ],
+      "inputs": "Stop versus start ve stejném ticku",
+      "expected": "Stop má deterministicky přednost",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "SnapshotStopAndRing"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "InterruptedReturn"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T49",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R12",
+        "DV02-R13",
+        "DV02-R15",
+        "DV02-R20",
+        "DV02-R22"
+      ],
+      "inputs": "Timer callback byl dispatchnut před Stop",
+      "expected": "Generace/vlastník znemožní nový zápis po revokaci",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/espidf_voice_audio_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T50",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R21",
+        "DV02-R24",
+        "DV02-R26"
+      ],
+      "inputs": "Cleanup selže nebo nedokončí audio worker",
+      "expected": "Žádné běžné completed ani uvolnění recovery brány",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "InterruptedReturn"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestUncertainCommitRemainsFailClosed"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "JournalLatencyUsesActualOwnerClock"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T51",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R23",
+        "DV02-R24",
+        "DV02-R26",
+        "DV02-R36"
+      ],
+      "inputs": "Stejné ID se stejným payloadem",
+      "expected": "Původní stav, žádné další efekty",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestDurableDedupeConflictCapacityAndLegacyMigration"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestPendingRestartAndAtomicResolve"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestFailedBeginNeverAllowsMotion"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestUncertainCommitRemainsFailClosed"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T52",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R23",
+        "DV02-R24",
+        "DV02-R26",
+        "DV02-R36"
+      ],
+      "inputs": "Stejné ID s jiným sceneHash/slotem/variantou",
+      "expected": "Conflict, nikoli editace běžící show",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestDurableDedupeConflictCapacityAndLegacyMigration"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestPendingRestartAndAtomicResolve"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestFailedBeginNeverAllowsMotion"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestUncertainCommitRemainsFailClosed"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T53",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R23",
+        "DV02-R24",
+        "DV02-R26",
+        "DV02-R36"
+      ],
+      "inputs": "Nové ID pro tutéž již použitou selection autoritu",
+      "expected": "Dedupe/session guard neobejit",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestDurableDedupeConflictCapacityAndLegacyMigration"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestPendingRestartAndAtomicResolve"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestFailedBeginNeverAllowsMotion"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestUncertainCommitRemainsFailClosed"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T54",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R23",
+        "DV02-R24",
+        "DV02-R26",
+        "DV02-R36"
+      ],
+      "inputs": "Send timeout a ztracené ACK",
+      "expected": "Unknown, bez slepého retry nebo nového ID",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestDurableDedupeConflictCapacityAndLegacyMigration"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestPendingRestartAndAtomicResolve"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestFailedBeginNeverAllowsMotion"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestUncertainCommitRemainsFailClosed"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T55",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R23",
+        "DV02-R24",
+        "DV02-R26",
+        "DV02-R36"
+      ],
+      "inputs": "Restart v každém definovaném crash okně",
+      "expected": "Žádné resume, lower nebo další reveal bez evidence",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestDurableDedupeConflictCapacityAndLegacyMigration"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestPendingRestartAndAtomicResolve"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestFailedBeginNeverAllowsMotion"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestUncertainCommitRemainsFailClosed"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T56",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R23",
+        "DV02-R24",
+        "DV02-R26",
+        "DV02-R36"
+      ],
+      "inputs": "Plný journal, prošlá trace a cleanup starých záznamů",
+      "expected": "Nezmizí ochrana před duplicitou fyzické operace",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestDurableDedupeConflictCapacityAndLegacyMigration"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestPendingRestartAndAtomicResolve"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestFailedBeginNeverAllowsMotion"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestUncertainCommitRemainsFailClosed"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T57",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R20",
+        "DV02-R24",
+        "DV02-R25"
+      ],
+      "inputs": "Pozdní skutečný výsledek po uzavření session",
+      "expected": "Upřesní operation journal, neoživí řeč ani cues",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "IntentScopesAndAdmission"
+        },
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": "TestRestoredPresentationKeepsAvailability"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Device core dokončí původní journal nezávisle na response; test ruší response během selection. Živý upstream callback není nově zaveden."
+    },
+    {
+      "id": "DV02-T58",
+      "status": "covered",
+      "layer": "L2",
+      "requirements": [
+        "DV02-R25",
+        "DV02-R30",
+        "DV02-R31"
+      ],
+      "inputs": "Device ACK bez completion",
+      "expected": "UI i navazující logika nezamění za hotový zdvih",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        }
+      ],
+      "command": "node --test mechanika/final/test_show_timeline.cjs",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T59",
+      "status": "covered",
+      "layer": "L2",
+      "requirements": [
+        "DV02-R25",
+        "DV02-R30",
+        "DV02-R31"
+      ],
+      "inputs": "Timed completion bez senzoru",
+      "expected": "Viditelná síla důkazu, žádná změřená poloha",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        }
+      ],
+      "command": "node --test mechanika/final/test_show_timeline.cjs",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T60",
+      "status": "not_applicable",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R12",
+        "DV02-R13",
+        "DV02-R15",
+        "DV02-R20",
+        "DV02-R22"
+      ],
+      "inputs": "Generování audia skončí před playbackem",
+      "expected": "Neodstartuje audio-dependent cue příliš brzy",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/espidf_voice_audio_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "StopEveryPhaseAndOldCleanup"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený.",
+      "reason": "V1 execution profile nemá playback-marker-scoped scenes ani audio-dependent scheduling. Používá pouze phase-only/queued PCM; syntetická marker API by byla falešná capability. Žádný fyzický test se tím nevyjímá z G."
+    },
+    {
+      "id": "DV02-T61",
+      "status": "not_applicable",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R13",
+        "DV02-R15",
+        "DV02-R16",
+        "DV02-R20"
+      ],
+      "inputs": "Marker jiné stream/response generace nebo po expiry",
+      "expected": "Ignorován a neprodlužuje čekání",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/espidf_voice_audio_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/dance_coordinator_test.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Marker-scoped scene scheduling není podporovaná capability. Používá se phase-only/queued PCM; stará data nezakládají další pohyb.",
+      "reason": "V1 execution profile nemá playback-marker-scoped scenes ani audio-dependent scheduling. Používá pouze phase-only/queued PCM; syntetická marker API by byla falešná capability. Žádný fyzický test se tím nevyjímá z G."
+    },
+    {
+      "id": "DV02-T62",
+      "status": "not_applicable",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R13",
+        "DV02-R15",
+        "DV02-R16",
+        "DV02-R20"
+      ],
+      "inputs": "Audio timeline stall/underflow/cancel",
+      "expected": "Žádné přehrání nahromaděných dekorací",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/espidf_voice_audio_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/dance_coordinator_test.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Marker-scoped scene scheduling není podporovaná capability. Používá se phase-only/queued PCM; stará data nezakládají další pohyb.",
+      "reason": "V1 execution profile nemá playback-marker-scoped scenes ani audio-dependent scheduling. Používá pouze phase-only/queued PCM; syntetická marker API by byla falešná capability. Žádný fyzický test se tím nevyjímá z G."
+    },
+    {
+      "id": "DV02-T63",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R14",
+        "DV02-R15",
+        "DV02-R32"
+      ],
+      "inputs": "Dlouhá Dance stopa s nepohodlným BPM",
+      "expected": "Bez kumulovaného rounding driftu a bez obří cue tabulky",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/dance_coordinator_test.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T64",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R14",
+        "DV02-R20",
+        "DV02-R21"
+      ],
+      "inputs": "Odpojení telefonu během autonomní show/Dance",
+      "expected": "Zachování přesné současné disconnect policy",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/local_control_owner_test.cpp",
+          "symbol": "TestHelloAndObserver"
+        },
+        {
+          "path": "firmware/tests/physical_effects_test.cpp",
+          "symbol": "InterruptedReturn"
+        },
+        {
+          "path": "firmware/tests/dance_coordinator_test.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T65",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R14",
+        "DV02-R15",
+        "DV02-R32"
+      ],
+      "inputs": "Restart audia změní sample counter",
+      "expected": "Nová generace, staré marker vazby neplatí",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/dance_coordinator_test.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T66",
+      "status": "covered",
+      "layer": "L0/L1/L2",
+      "requirements": [
+        "DV02-R08",
+        "DV02-R31",
+        "DV02-R32"
+      ],
+      "inputs": "Clock reset, wall-clock skok, jiné boot a velké číslo v JS",
+      "expected": "Žádné falešné časové korelace nebo overflow",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "AbsoluteClockAndNoBurst"
+        }
+      ],
+      "command": "node --test mechanika/final/test_show_timeline.cjs; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T67",
+      "status": "covered",
+      "layer": "L0/L2",
+      "requirements": [
+        "DV02-R01",
+        "DV02-R27",
+        "DV02-R34"
+      ],
+      "inputs": "Dvojí build v jiném adresáři/pořadí souborů",
+      "expected": "Stejný deterministic compiled payload",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_same_bytes_compile_identically_from_another_directory"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_manifest_hashes_determinism_and_source_format_metamorphism"
+        },
+        {
+          "path": "mechanika/final/test_viewer_document.py",
+          "symbol": "test_stale_plan_is_rejected_before_rendering"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python -m unittest discover -s mechanika/final -p test_viewer_document.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T68",
+      "status": "covered",
+      "layer": "L0/L2",
+      "requirements": [
+        "DV02-R01",
+        "DV02-R27",
+        "DV02-R34"
+      ],
+      "inputs": "Poškozený manifest/hash nebo odlišný bundle u vieweru",
+      "expected": "Odmítnutí či mismatch, ne falešná shoda",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_same_bytes_compile_identically_from_another_directory"
+        },
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_manifest_hashes_determinism_and_source_format_metamorphism"
+        },
+        {
+          "path": "mechanika/final/test_viewer_document.py",
+          "symbol": "test_stale_plan_is_rejected_before_rendering"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python -m unittest discover -s mechanika/final -p test_viewer_document.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T69",
+      "status": "covered",
+      "layer": "L1",
+      "requirements": [
+        "DV02-R28",
+        "DV02-R36"
+      ],
+      "inputs": "Změna jen kalibrace nebo profile revize",
+      "expected": "Evidence odliší nový execution kontext od starého měření",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "CalibrationAndIdleCapabilities"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T70",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R31",
+        "DV02-R33",
+        "DV02-R34"
+      ],
+      "inputs": "Pomalý subscriber a plný trace ring",
+      "expected": "Tick neblokuje; drop/gap viditelný",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/show_trace_mailbox_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py; node --test mechanika/final/test_show_timeline.cjs",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T71",
+      "status": "covered",
+      "layer": "L2",
+      "requirements": [
+        "DV02-R25",
+        "DV02-R30",
+        "DV02-R31"
+      ],
+      "inputs": "Chybí start/end event a terminal snapshot existuje",
+      "expected": "Pravdivá částečná rekonstrukce, žádné vymyšlené časy",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        }
+      ],
+      "command": "node --test mechanika/final/test_show_timeline.cjs",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T72",
+      "status": "covered",
+      "layer": "L2",
+      "requirements": [
+        "DV02-R29",
+        "DV02-R30",
+        "DV02-R34",
+        "DV02-R39",
+        "DV02-R44"
+      ],
+      "inputs": "Trace import obsahuje skript/HTML/akční pole nebo velký vstup",
+      "expected": "Bez vykonání a bounded import",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        }
+      ],
+      "command": "node --test mechanika/final/test_show_timeline.cjs",
+      "scope": "Viewer nemá hardware transport; testy zakazují fetch/WebSocket i během seek/play. Fyzický core je nezávislý na browseru."
+    },
+    {
+      "id": "DV02-T73",
+      "status": "covered",
+      "layer": "L2",
+      "requirements": [
+        "DV02-R29",
+        "DV02-R30",
+        "DV02-R34",
+        "DV02-R39",
+        "DV02-R44"
+      ],
+      "inputs": "Seek/replay/speed ve vieweru",
+      "expected": "Nikdy nevydá fyzický povel",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        }
+      ],
+      "command": "node --test mechanika/final/test_show_timeline.cjs",
+      "scope": "Viewer nemá hardware transport; testy zakazují fetch/WebSocket i během seek/play. Fyzický core je nezávislý na browseru."
+    },
+    {
+      "id": "DV02-T74",
+      "status": "covered",
+      "layer": "L2",
+      "requirements": [
+        "DV02-R29",
+        "DV02-R30",
+        "DV02-R34",
+        "DV02-R39",
+        "DV02-R44"
+      ],
+      "inputs": "Browser tab je pozastaven nebo klient offline",
+      "expected": "Jen vizualizace; fyzická show nezávisí na requestAnimationFrame",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_show_timeline.cjs",
+          "symbol": ""
+        }
+      ],
+      "command": "node --test mechanika/final/test_show_timeline.cjs",
+      "scope": "Viewer nemá hardware transport; testy zakazují fetch/WebSocket i během seek/play. Fyzický core je nezávislý na browseru."
+    },
+    {
+      "id": "DV02-T75",
+      "status": "covered",
+      "layer": "L2",
+      "requirements": [
+        "DV02-R35",
+        "DV02-R39"
+      ],
+      "inputs": "Starý/nový klient/firmware/protokol",
+      "expected": "Capability fallback a zachování přísných parserů",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/local_control_server_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_codec_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/local_control_output_test.cpp",
+          "symbol": ""
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "Původní přísný WSS v1 zůstává beze změny. Nové HTTP read-only diagnostics mají samostatnou autorizaci a limity."
+    },
+    {
+      "id": "DV02-T76",
+      "status": "covered",
+      "layer": "L1/L2",
+      "requirements": [
+        "DV02-R24",
+        "DV02-R28",
+        "DV02-R36"
+      ],
+      "inputs": "Konfigurační změna/rollback uprostřed show",
+      "expected": "Snapshot zůstane, Stop funguje, journal se neztratí",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "firmware/tests/persistent_command_journal_test.cpp",
+          "symbol": ""
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "CalibrationAndIdleCapabilities"
+        }
+      ],
+      "command": "python firmware/tests/run_show_tests.py",
+      "scope": "V1 read migration, v2 tombstones, immutable compiled execution. OTA rollback/flash samotný v tomto běhu neproveden."
+    },
+    {
+      "id": "DV02-T77",
+      "status": "covered",
+      "layer": "L0/L1",
+      "requirements": [
+        "DV02-R37",
+        "DV02-R38",
+        "DV02-R42"
+      ],
+      "inputs": "Startup/idle s novými scénami vypnutými",
+      "expected": "Žádný náhodný wake/ambient/referral trigger",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "mechanika/final/test_effects.py",
+          "symbol": "test_opt_in_catalog_and_referral_gate_cannot_claim_upstream_support"
+        },
+        {
+          "path": "firmware/tests/show_runtime_test.cpp",
+          "symbol": "CalibrationAndIdleCapabilities"
+        }
+      ],
+      "command": "python mechanika/final/test_effects.py; python firmware/tests/run_show_tests.py",
+      "scope": "Offline deterministic test; skutečný hardware zůstává oddělený."
+    },
+    {
+      "id": "DV02-T78",
+      "status": "blocked/not_run",
+      "layer": "L3",
+      "requirements": [
+        "DV02-R45",
+        "DV02-R46",
+        "DV02-R47"
+      ],
+      "inputs": "Maximalistická povolená scéna pod zátěží",
+      "expected": "Bounded práce, report RAM/stack/tick; reálný ESP samostatně",
+      "forbidden": "Falešný fyzický pass z host build/test výsledku.",
+      "checks": [],
+      "gate": "G: identifikovaná autorizovaná ESP/audio/iPhone sestava, platná kalibrace, měření heap/stack/tick a fyzického Stop.",
+      "scope": "Host maximální compiler/ring/thread corpus běží zvlášť; nenahrazuje ESP výkon ani skutečný zvuk."
+    },
+    {
+      "id": "DV02-T79",
+      "status": "covered",
+      "layer": "L0",
+      "requirements": [
+        "DV02-R40",
+        "DV02-R41",
+        "DV02-R43"
+      ],
+      "inputs": "Skills, dokumentační cesty a autorský workflow",
+      "expected": "Ověřené příkazy, správné triggery, žádná duplicita timingů",
+      "forbidden": "Porušení uvedeného invariantu nebo vydávání syntetického výsledku za fyzické měření.",
+      "checks": [
+        {
+          "path": "scripts/check_dv02.py",
+          "symbol": ""
+        }
+      ],
+      "command": "python scripts/check_dv02.py",
+      "scope": "Metadata a odkazy, pozitivní/negativní příklady a neplacené dry-run příkazy; discovery/reload v nové relaci not-run."
+    },
+    {
+      "id": "DV02-T80",
+      "status": "blocked/not_run",
+      "layer": "L3",
+      "requirements": [
+        "DV02-R45",
+        "DV02-R46",
+        "DV02-R47"
+      ],
+      "inputs": "Fyzická show, zvuk, Stop a mobil na skutečné sestavě",
+      "expected": "Oddělený autorizovaný acceptance report, ne fake physical pass",
+      "forbidden": "Falešný fyzický pass z host build/test výsledku.",
+      "checks": [],
+      "gate": "G: identifikovaná autorizovaná ESP/audio/iPhone sestava, platná kalibrace, měření heap/stack/tick a fyzického Stop.",
+      "scope": "Host maximální compiler/ring/thread corpus běží zvlášť; nenahrazuje ESP výkon ani skutečný zvuk."
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 * text=auto
-kufr/mechanika/final/effects.json text eol=lf
-kufr/mechanika/final/effects.schema.json text eol=lf
-kufr/mechanika/final/effects.plan.json text eol=lf
-kufr/mechanika/final/effects.manifest.json text eol=lf
-kufr/firmware/src/features/physical_effects/PresentationScore.h text eol=lf
+mechanika/final/effects.json text eol=lf
+mechanika/final/effects.schema.json text eol=lf
+mechanika/final/effects.plan.json text eol=lf
+mechanika/final/effects.manifest.json text eol=lf
+firmware/src/features/physical_effects/PresentationScore.h text eol=lf
 *.sh text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
@@ -12,7 +12,7 @@ kufr/firmware/src/features/physical_effects/PresentationScore.h text eol=lf
 *.mjs text eol=lf
 *.md text eol=lf
 # DV08 provenance archives must preserve original bytes on every platform.
-kufr/ai-eval/ollivander-trunk-persona.txt text eol=lf
+ai-eval/ollivander-trunk-persona.txt text eol=lf
 *.ps1 text eol=lf
 *.png binary
 *.jpg binary

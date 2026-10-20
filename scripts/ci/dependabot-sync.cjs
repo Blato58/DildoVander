@@ -3,13 +3,13 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
 
-const BACKEND = ['kufr/backend/packages.lock.json', 'kufr/backend-tests/packages.lock.json'];
-const PROJECTS = ['kufr/backend/backend.csproj', 'kufr/backend-tests/BackendTests.csproj'];
-const MOBILE = 'kufr/mobilni-aplikace';
+const BACKEND = ['backend/packages.lock.json', 'backend-tests/packages.lock.json'];
+const PROJECTS = ['backend/backend.csproj', 'backend-tests/BackendTests.csproj'];
+const MOBILE = 'mobilni-aplikace';
 const SWIFT = `${MOBILE}/ios/App/CapApp-SPM/Package.swift`;
 const RESOLVED = `${MOBILE}/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`;
 const NATIVE = [SWIFT, RESOLVED];
-const NPM_ROOTS = [MOBILE, 'kufr/contracts', 'kufr/simulator'];
+const NPM_ROOTS = [MOBILE, 'contracts', 'firmware/simulator'];
 const ALLOWED = new Set([...BACKEND, ...PROJECTS, ...NATIVE,
   ...NPM_ROOTS.flatMap(root => [`${root}/package.json`, `${root}/package-lock.json`])]);
 const SHA = /^[a-f0-9]{40}$/;

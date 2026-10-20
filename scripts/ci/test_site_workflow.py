@@ -96,7 +96,7 @@ class PublicWorkflowTests(unittest.TestCase):
     def test_compiled_diagnostics_package_is_separate_from_backend_runtime(self):
         source = (WORKFLOWS / 'kufr-backend.yml').read_text()
         self.assertIn('name: backend-diagnostics', source)
-        self.assertIn('pack kufr/backend-tests/bin/Release/net10.0/linux-x64', source)
+        self.assertIn('pack backend-tests/bin/Release/net10.0/linux-x64', source)
         self.assertNotIn('OPENAI_API_KEY', source)
         self.assertIn("!github.event.inputs.pr_number", source)
 

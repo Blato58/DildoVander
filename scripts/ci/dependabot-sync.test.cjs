@@ -7,10 +7,10 @@ const { createHash } = require('node:crypto');
 const { plan, publish, producerPlan } = require('./dependabot-sync.cjs');
 
 const sha = letter => letter.repeat(40);
-const BACKEND = 'kufr/backend/packages.lock.json';
-const TESTS = 'kufr/backend-tests/packages.lock.json';
-const PROJECT = 'kufr/backend/backend.csproj';
-const MOBILE = 'kufr/mobilni-aplikace';
+const BACKEND = 'backend/packages.lock.json';
+const TESTS = 'backend-tests/packages.lock.json';
+const PROJECT = 'backend/backend.csproj';
+const MOBILE = 'mobilni-aplikace';
 const SWIFT = `${MOBILE}/ios/App/CapApp-SPM/Package.swift`;
 const RESOLVED = `${MOBILE}/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`;
 const encode = value => `${JSON.stringify(value, null, 2)}\n`;

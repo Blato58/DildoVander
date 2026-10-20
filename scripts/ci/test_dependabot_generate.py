@@ -16,13 +16,29 @@ spec.loader.exec_module(generator)
 
 
 class DependencyGeneratorTests(unittest.TestCase):
+    def test_generator_commands_resolve_real_checkout_entry_points(self):
+        root = Path(__file__).resolve().parents[2]
+        for kind in generator.OUTPUTS:
+            with self.subTest(kind=kind), patch.object(generator, "command") as run:
+                generator.regenerate(root, kind)
+                for invocation in run.call_args_list:
+                    arguments, cwd = invocation.args
+                    self.assertTrue(cwd.is_dir(), cwd)
+                    if arguments[:2] == ["dotnet", "restore"]:
+                        self.assertTrue((cwd / arguments[2]).is_file())
+                    if arguments[:2] == ["npm", "ci"]:
+                        directory = cwd
+                        if "--prefix" in arguments:
+                            directory /= arguments[arguments.index("--prefix") + 1]
+                        self.assertTrue((directory / "package-lock.json").is_file(), directory)
+
     def test_backend_regenerates_and_checks_both_runtime_graphs(self):
         with patch.object(generator, "command") as run:
             generator.regenerate(Path("checkout"), "backend")
         self.assertEqual(run.call_count, 2)
         self.assertEqual(run.call_args_list[0].args, ([
             "dotnet", "restore", "backend-tests/BackendTests.csproj",
-            "-p:SelfContained=true", "--force-evaluate"], Path("checkout/kufr")))
+            "-p:SelfContained=true", "--force-evaluate"], Path("checkout")))
         self.assertEqual(run.call_args_list[1].args[0][-1], "--locked-mode")
 
     def test_native_builds_web_before_real_cli_and_xcode_resolution(self):
@@ -31,7 +47,7 @@ class DependencyGeneratorTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in run.call_args_list], [
             ["npm", "ci", "--ignore-scripts"],
             ["npm", "ci", "--ignore-scripts", "--prefix", "../contracts"],
-            ["npm", "ci", "--ignore-scripts", "--prefix", "../simulator"],
+            ["npm", "ci", "--ignore-scripts", "--prefix", "../firmware/simulator"],
             ["npm", "run", "build"],
             ["npx", "--no-install", "cap", "sync", "ios"],
             ["xcodebuild", "-resolvePackageDependencies", "-project",

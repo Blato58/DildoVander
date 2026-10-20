@@ -1,21 +1,21 @@
 # PlatformIO
 **/.pio/
-/kufr/firmware/sdkconfig.production
-/kufr/firmware/sdkconfig.diag-*
-/kufr/firmware/sdkconfig.production.old
-/kufr/firmware/managed_components/
+/firmware/sdkconfig.production
+/firmware/sdkconfig.diag-*
+/firmware/sdkconfig.production.old
+/firmware/managed_components/
 
 # Mobile app
 **/node_modules/
 **/dist/
-/kufr/mobilni-aplikace/public/third-party-notices/
-/kufr/mobilni-aplikace/ios/App/App/Assets.xcassets/AppIcon.appiconset/*.png
+/mobilni-aplikace/public/third-party-notices/
+/mobilni-aplikace/ios/App/App/Assets.xcassets/AppIcon.appiconset/*.png
 
 # .NET backend
-/kufr/backend/**/bin/
-/kufr/backend/**/obj/
-/kufr/backend-tests/**/bin/
-/kufr/backend-tests/**/obj/
+/backend/**/bin/
+/backend/**/obj/
+/backend-tests/**/bin/
+/backend-tests/**/obj/
 **/__pycache__/
 
 # Local runtime data; synthetic binary fixtures must be added deliberately.
@@ -32,7 +32,7 @@
 *.sqlite3-wal
 
 # Python environments and analysis caches
-/kufr/ai-eval/results/
+/ai-eval/results/
 .venv/
 venv/
 .pytest_cache/

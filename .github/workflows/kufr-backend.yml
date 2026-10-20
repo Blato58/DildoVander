@@ -19,58 +19,58 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: kufr/contracts/.nvmrc
+          node-version-file: contracts/.nvmrc
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         env:
           DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
-          global-json-file: kufr/global.json
+          global-json-file: global.json
           cache: true
           cache-dependency-path: |
-            kufr/backend/packages.lock.json
-            kufr/backend-tests/packages.lock.json
+            backend/packages.lock.json
+            backend-tests/packages.lock.json
       - name: Restore test and self-contained runtime dependencies
-        run: dotnet restore kufr/backend-tests/BackendTests.csproj -p:SelfContained=true --locked-mode
+        run: dotnet restore backend-tests/BackendTests.csproj -p:SelfContained=true --locked-mode
       - name: Build backend and tests once in Release
-        run: dotnet build kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 -p:SelfContained=true --no-restore
+        run: dotnet build backend-tests/BackendTests.csproj -c Release -r linux-x64 -p:SelfContained=true --no-restore
       - name: Backend tests
         env:
           KUFR_TWIN_TEST_NATIVE: ${{ runner.temp }}/native-twin
         run: |
-          python3 kufr/simulator/native/build_host.py --output "$KUFR_TWIN_TEST_NATIVE"
-          dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore
-          dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --twin
-          dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --twin-media
-          dotnet run --project kufr/backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --identity
+          python3 firmware/simulator/native/build_host.py --output "$KUFR_TWIN_TEST_NATIVE"
+          dotnet run --project backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore
+          dotnet run --project backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --twin
+          dotnet run --project backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --twin-media
+          dotnet run --project backend-tests/BackendTests.csproj -c Release -r linux-x64 --no-build --no-restore -- --identity
       - name: Build the shared application for real account journeys
         run: |
-          npm ci --prefix kufr/contracts
-          npm ci --prefix kufr/mobilni-aplikace
-          npm run build --prefix kufr/mobilni-aplikace
-          npx --prefix kufr/mobilni-aplikace playwright install --with-deps chromium
+          npm ci --prefix contracts
+          npm ci --prefix mobilni-aplikace
+          npm run build --prefix mobilni-aplikace
+          npx --prefix mobilni-aplikace playwright install --with-deps chromium
       - name: Real HTTPS passkey and invitation browser journeys
         env:
-          KUFR_TESTS_DLL: kufr/backend-tests/bin/Release/net10.0/linux-x64/BackendTests.dll
-        run: npm run test:accounts:fixture --prefix kufr/mobilni-aplikace
+          KUFR_TESTS_DLL: backend-tests/bin/Release/net10.0/linux-x64/BackendTests.dll
+        run: npm run test:accounts:fixture --prefix mobilni-aplikace
       - name: Publish self-contained Linux binary
-        run: dotnet publish kufr/backend/backend.csproj -c Release -r linux-x64 --self-contained true --no-build --no-restore -o "$RUNNER_TEMP/kufr-publish"
+        run: dotnet publish backend/backend.csproj -c Release -r linux-x64 --self-contained true --no-build --no-restore -o "$RUNNER_TEMP/kufr-publish"
       - name: Test offline server process cleanup
-        run: node --test kufr/backend/tests/child-process-lifecycle.test.mjs
+        run: node --test backend/tests/child-process-lifecycle.test.mjs
       - name: HTTP smoke tests
         env:
           KUFR_BACKEND_DLL: ${{ runner.temp }}/kufr-publish/backend.dll
-        run: node kufr/backend/tests/smoke.mjs
+        run: node backend/tests/smoke.mjs
       - name: DV10 isolated guest integration without provider credentials
         env:
           KUFR_BACKEND_DLL: ${{ runner.temp }}/kufr-publish/backend.dll
-          KUFR_TESTS_DLL: kufr/backend-tests/bin/Release/net10.0/linux-x64/BackendTests.dll
-        run: node kufr/backend/tests/keepsake-http.mjs
+          KUFR_TESTS_DLL: backend-tests/bin/Release/net10.0/linux-x64/BackendTests.dll
+        run: node backend/tests/keepsake-http.mjs
       - name: Interactive client offline tests
-        run: python3 -m unittest discover -s kufr/backend/tests -p 'test_*.py'
+        run: python3 -m unittest discover -s backend/tests -p 'test_*.py'
       - name: Deployment configuration tests
         run: |
-          python3 -m unittest discover -s kufr/backend/deploy -p 'test_*.py'
-          python3 -m unittest discover -s kufr/backend/deploy/twin -p 'test_twin_release.py'
+          python3 -m unittest discover -s backend/deploy -p 'test_*.py'
+          python3 -m unittest discover -s backend/deploy/twin -p 'test_twin_release.py'
       - name: Package backend with build provenance
         run: python3 scripts/ci/package.py pack "$RUNNER_TEMP/kufr-publish" "$RUNNER_TEMP/backend-package"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -83,7 +83,7 @@ jobs:
           retention-days: 1
           overwrite: true
       - name: Package compiled synthetic provider diagnostic
-        run: python3 scripts/ci/package.py pack kufr/backend-tests/bin/Release/net10.0/linux-x64 "$RUNNER_TEMP/diagnostics-package"
+        run: python3 scripts/ci/package.py pack backend-tests/bin/Release/net10.0/linux-x64 "$RUNNER_TEMP/diagnostics-package"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !github.event.inputs.pr_number
         with:

@@ -1,0 +1,1163 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Actual test references and explicit missing evidence. guard_covered is scope of a test, not a result or full-scenario/live pass. Actual execution lives in receipts/replay output.",
+  "requirements": {
+    "R01": {
+      "scenarios": [
+        "T45"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "ai-eval/test_dv01.py#test_complete_ids_actual_references_and_preserved_baseline",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ]
+    },
+    "R02": {
+      "scenarios": [
+        "T01",
+        "T02",
+        "T22",
+        "T23",
+        "T24",
+        "T50",
+        "T60"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R03": {
+      "scenarios": [
+        "T17",
+        "T18",
+        "T24",
+        "T26",
+        "T28",
+        "T30",
+        "T34",
+        "T36",
+        "T37",
+        "T44",
+        "T51",
+        "T52",
+        "T54"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R04": {
+      "scenarios": [
+        "T16",
+        "T17",
+        "T18",
+        "T19",
+        "T20",
+        "T53"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R05": {
+      "scenarios": [
+        "T11",
+        "T14",
+        "T15",
+        "T16",
+        "T41",
+        "T48",
+        "T53",
+        "T61",
+        "T65",
+        "T66",
+        "T69"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R06": {
+      "scenarios": [
+        "T33",
+        "T34",
+        "T35",
+        "T36",
+        "T37",
+        "T45",
+        "T73"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R07": {
+      "scenarios": [
+        "T05",
+        "T38",
+        "T39"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R08": {
+      "scenarios": [
+        "T12",
+        "T49",
+        "T71",
+        "T72"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync"
+      ]
+    },
+    "R09": {
+      "scenarios": [
+        "T21",
+        "T31",
+        "T35",
+        "T73"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R10": {
+      "scenarios": [
+        "T22",
+        "T56"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#MeasureOverhead"
+      ]
+    },
+    "R11": {
+      "scenarios": [
+        "T43",
+        "T44",
+        "T46",
+        "T54"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R12": {
+      "scenarios": [
+        "T04",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T62",
+        "T63",
+        "T70"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R13": {
+      "scenarios": [
+        "T24",
+        "T30",
+        "T45",
+        "T50",
+        "T68"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R14": {
+      "scenarios": [
+        "T01",
+        "T02",
+        "T25",
+        "T27",
+        "T28",
+        "T32",
+        "T39",
+        "T57"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R15": {
+      "scenarios": [
+        "T12",
+        "T23",
+        "T30",
+        "T50",
+        "T55"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R16": {
+      "scenarios": [
+        "T19",
+        "T29",
+        "T32",
+        "T57",
+        "T58",
+        "T59"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R17": {
+      "scenarios": [
+        "T02",
+        "T05",
+        "T09",
+        "T40"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyExpressWithoutEvidence",
+        "backend-tests/AutonomousLiveTests.cs#VerifyExpressAfterNeedsInformation"
+      ]
+    },
+    "R18": {
+      "scenarios": [
+        "T01",
+        "T27",
+        "T28",
+        "T29",
+        "T40",
+        "T43",
+        "T52",
+        "T54",
+        "T77"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R19": {
+      "scenarios": [
+        "T79"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "ai-eval/test_dv01.py#test_skill_metadata_and_references"
+      ]
+    },
+    "R20": {
+      "scenarios": [
+        "T13",
+        "T42",
+        "T47",
+        "T56",
+        "T74",
+        "T80"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "ai-eval/test_dv01.py#test_dry_run_never_spawns_provider_or_claims_behavior"
+      ]
+    },
+    "R21": {
+      "scenarios": [],
+      "status": "mapped_with_open_gates"
+    },
+    "R22": {
+      "scenarios": [],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#MeasureOverhead"
+      ]
+    },
+    "R23": {
+      "scenarios": [
+        "T47"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation"
+      ]
+    },
+    "R24": {
+      "scenarios": [
+        "T11",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T48",
+        "T53",
+        "T69",
+        "T70"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R25": {
+      "scenarios": [
+        "T08",
+        "T20",
+        "T33",
+        "T35",
+        "T36",
+        "T37",
+        "T41",
+        "T42",
+        "T44",
+        "T51",
+        "T61",
+        "T62",
+        "T78"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R26": {
+      "scenarios": [
+        "T18",
+        "T26",
+        "T31",
+        "T34",
+        "T60",
+        "T73"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R27": {
+      "scenarios": [
+        "T19",
+        "T32",
+        "T57",
+        "T58",
+        "T59",
+        "T76"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R28": {
+      "scenarios": [
+        "T72"
+      ],
+      "status": "mapped_with_open_gates",
+      "tests": [
+        "mobilni-aplikace/tests/debug_character_controls.test.mjs#DV01 actions enable after initial unknown server state and recover after a busy refresh"
+      ]
+    },
+    "R29": {
+      "scenarios": [
+        "T03",
+        "T11",
+        "T12",
+        "T20",
+        "T49",
+        "T71"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R30": {
+      "scenarios": [
+        "T03",
+        "T04",
+        "T06",
+        "T07",
+        "T09",
+        "T80"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R31": {
+      "scenarios": [
+        "T13",
+        "T46",
+        "T63",
+        "T64",
+        "T65",
+        "T66",
+        "T67",
+        "T69",
+        "T74",
+        "T78",
+        "T80"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R32": {
+      "scenarios": [
+        "T06",
+        "T13",
+        "T64",
+        "T67",
+        "T68",
+        "T80"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R33": {
+      "scenarios": [
+        "T75",
+        "T76",
+        "T77"
+      ],
+      "status": "mapped_with_open_gates"
+    },
+    "R34": {
+      "scenarios": [
+        "T08",
+        "T16",
+        "T33",
+        "T46",
+        "T62",
+        "T63",
+        "T65",
+        "T70",
+        "T78"
+      ],
+      "status": "mapped_with_open_gates"
+    }
+  },
+  "scenarios": {
+    "T01": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T02": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/AutonomousLiveTests.cs#VerifyExpressWithoutEvidence",
+        "backend-tests/AutonomousLiveTests.cs#VerifyExpressAfterNeedsInformation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T03": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T04": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T05": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyProjection",
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T06": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#CzechExamples",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T07": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#CzechExamples",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T08": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#CzechExamples",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T09": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/AutonomousLiveTests.cs#VerifyExpressWithoutEvidence",
+        "backend-tests/AutonomousLiveTests.cs#VerifyExpressAfterNeedsInformation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T10": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T11": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
+        "backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T12": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
+        "backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T13": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Runtime nemění structured slot; named nemá před-playback full-speech capability. Ostré modelové výroky vyžadují C eval."
+    },
+    "T14": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
+        "backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T15": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
+        "backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T16": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
+        "backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T17": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T18": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T19": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T20": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T21": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T22": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore",
+        "backend-tests/AutonomousLiveTests.cs#VerifySplitVoiceControl"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Runtime nemění structured slot; named nemá před-playback full-speech capability. Ostré modelové výroky vyžadují C eval."
+    },
+    "T23": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Runtime nemění structured slot; named nemá před-playback full-speech capability. Ostré modelové výroky vyžadují C eval."
+    },
+    "T24": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunAsync",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T25": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T26": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T27": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T28": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T29": {
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPlaybackRegistry"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T30": {
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPlaybackRegistry"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T31": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T32": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T33": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPcmCancellationFence"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T34": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T35": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T36": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPcmCancellationFence"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T37": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPcmCancellationFence"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T38": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T39": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T40": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T41": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPcmCancellationFence"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T42": {
+      "tests": [
+        "firmware/tests/espidf_voice_audio_test.cpp#CancelPlayback",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation"
+      ],
+      "layer": "B/C/D",
+      "status": "guard_covered",
+      "gate": "Port bez CancelPlayback selže zavřeně; podporovaný port i acoustic tail potřebují skutečný poslech. Není to úspěšný barge-in nepodporovaného portu."
+    },
+    "T43": {
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPlaybackRegistry"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T44": {
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPlaybackRegistry"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T45": {
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPlaybackRegistry"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T46": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#VisualRevocation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Syntetický permission/revision kontrakt. Produkční appearance purpose/observation/subjekt/revokace nejsou existujícím costume souhlasem pokryté: permission_pending."
+    },
+    "T47": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Ambient LATER je vypnutý, test ověřuje nulovou činnost; skutečný ambient není implementovaný."
+    },
+    "T48": {
+      "tests": [],
+      "layer": "C",
+      "status": "blocked",
+      "gate": "Chybí ověřená diarizace/mapping hlavního mluvčího; žádný osobní anchor z nejasné atribuce. Vyžaduje autorizovanou Live zkoušku, nikoli not_applicable."
+    },
+    "T49": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Runtime nemění structured slot; named nemá před-playback full-speech capability. Ostré modelové výroky vyžadují C eval."
+    },
+    "T50": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Runtime nemění structured slot; named nemá před-playback full-speech capability. Ostré modelové výroky vyžadují C eval."
+    },
+    "T51": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T52": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T53": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyConversation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/AutonomousLiveTests.cs#VerifySplitVoiceControl",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T54": {
+      "tests": [
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPlaybackRegistry"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T55": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T56": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#QuestionAndAudioBudgets",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T57": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T58": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T59": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T60": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T61": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPcmCancellationFence"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T62": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPcmCancellationFence"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T63": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#CzechExamples",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T64": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#VisualRevocation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Syntetický permission/revision kontrakt. Produkční appearance purpose/observation/subjekt/revokace nejsou existujícím costume souhlasem pokryté: permission_pending."
+    },
+    "T65": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#VisualRevocation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Syntetický permission/revision kontrakt. Produkční appearance purpose/observation/subjekt/revokace nejsou existujícím costume souhlasem pokryté: permission_pending."
+    },
+    "T66": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#VisualRevocation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Syntetický permission/revision kontrakt. Produkční appearance purpose/observation/subjekt/revokace nejsou existujícím costume souhlasem pokryté: permission_pending."
+    },
+    "T67": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#VisualRevocation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Syntetický permission/revision kontrakt. Produkční appearance purpose/observation/subjekt/revokace nejsou existujícím costume souhlasem pokryté: permission_pending."
+    },
+    "T68": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#CzechExamples",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T69": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#ProvenanceAndCorrections",
+        "backend-tests/CharacterDirectorTests.cs#SourceBoundsAndExplicitMotifs",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterControlEvidence",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterEvidenceWithdrawal"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T70": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#CzechExamples",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/AutonomousLiveTests.cs#VerifySplitVoiceControl"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T71": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Runtime nemění structured slot; named nemá před-playback full-speech capability. Ostré modelové výroky vyžadují C eval."
+    },
+    "T72": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#RunCharacterAsync",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls",
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Runtime nemění structured slot; named nemá před-playback full-speech capability. Ostré modelové výroky vyžadují C eval."
+    },
+    "T73": {
+      "tests": [
+        "firmware/tests/persistent_command_journal_test.cpp#TestPendingRestartAndAtomicResolve",
+        "firmware/tests/persistent_command_journal_test.cpp#TestUncertainCommitRemainsFailClosed",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B device guards",
+      "status": "guard_covered",
+      "gate": "NVS testy vyžadují host C++ kompilátor/CI; live/physical provoz a úplná korelace boot/evidence jsou samostatná brána."
+    },
+    "T74": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#VisualRevocation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Syntetický permission/revision kontrakt. Produkční appearance purpose/observation/subjekt/revokace nejsou existujícím costume souhlasem pokryté: permission_pending."
+    },
+    "T75": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T76": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#StyleHistoryAndLore",
+        "backend-tests/CharacterOperationTests.cs#VerifyPublicationAndSnapshot"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    },
+    "T77": {
+      "tests": [
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterCancellation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyCharacterFlow",
+        "backend-tests/CharacterDirectorTests.cs#DefaultsAndIsolation",
+        "backend-tests/AutonomousLiveTests.cs#VerifyPcmCancellationFence"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Lokální response/checkpoint guards jsou fake ověřitelné. Live bez audio response ID má heuristický fence; arbitrárně opožděné vzorky nemají tvrdý důkaz příslušnosti. iPhone/ESP poslech čeká."
+    },
+    "T78": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#VisualRevocation"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Syntetický permission/revision kontrakt. Produkční appearance purpose/observation/subjekt/revokace nejsou existujícím costume souhlasem pokryté: permission_pending."
+    },
+    "T79": {
+      "tests": [
+        "ai-eval/test_dv01.py#test_skill_metadata_and_references"
+      ],
+      "layer": "A/E",
+      "status": "guard_covered",
+      "gate": "Projektový discovery mechanismus existuje. Nové skill metadata/reference jsou dry-run; nový katalog potřebuje fresh session, skutečný model routing nebyl spuštěn."
+    },
+    "T80": {
+      "tests": [
+        "backend-tests/CharacterDirectorTests.cs#CzechExamples",
+        "backend-tests/CharacterDirectorTests.cs#ExplicitGuestControls"
+      ],
+      "layer": "A/B",
+      "status": "guard_covered",
+      "gate": "Skutečná sémantika/humor Live a případná akustická či fyzická část vyžadují vlastní C/D důkaz."
+    }
+  }
+}

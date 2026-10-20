@@ -1,7 +1,7 @@
 # Připravenost na akci a provozní checklist
 
 Aktuální gates a blokace: [STATUS](project/STATUS.md) a
-[work items](project/work-items/). Tento dokument zachovává provozní postup;
+[work items](project/work-items). Tento dokument zachovává provozní postup;
 aktuální výsledky se zapisují do JSON a receipts, nikoli do druhé matice.
 [Archiv D158–D166](project/archive/dv08/docs/event-readiness.md) uchovává
 všech 47 scénářů a historicky přijaté servisní výsledky.
@@ -16,7 +16,7 @@ Datovaná servisní přijetí D159 a aktuální neověřené části jsou v JSON
   a poslední přijatý USB recovery balíček podle [OTA návodu](firmware-ota.md).
 - Na této desce dokončit servisní identitu/backend host, PoP a veřejnou development OTA důvěru.
   Prázdná tovární NVS nemá sdílené výchozí heslo: první bezpečné zprovoznění
-  vyžaduje [USB servis](../kufr/firmware/diagnostics/network-service/README.md).
+  vyžaduje [USB servis](../firmware/diagnostics/network-service/README.md).
   Po servisním obrazu obnovit aplikaci bez smazání NVS.
 - Nainstalovat přijatou podepsanou iOS aplikaci a na konkrétním iPhonu
   ověřit BLE handshake, hotspot, jeho výpadek a návrat. Webový simulátor
@@ -71,7 +71,7 @@ Datovaná servisní přijetí D159 a aktuální neověřené části jsou v JSON
 | Kamera nebo SD nejsou dostupné | Použít základní hlas/řízení bez volitelné periferie. Nezapínat neověřený servisní flag. SD slouží omezeným lokálním assetům a fotografie se na ni neukládají; aplikace kartu neformátuje. |
 
 Serverové chyby dohledávat pomocí UUID z **Debug → Log serveru** podle
-[Codex diagnostiky](../kufr/backend/codex/README.md). Zapisovat čas UTC,
+[Codex diagnostiky](../backend/codex/README.md). Zapisovat čas UTC,
 verzi firmware/aplikace/backendu, profil, chybový kód a provedený krok.
 Do sdíleného záznamu nevkládat hesla, PoP, tokeny ani obsah paměti návštěvníků.
 

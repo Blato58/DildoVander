@@ -6,28 +6,28 @@ description: Implement DildoVander's shared Vue web/Capacitor application and in
 # DildoVander UI
 
 For Show Pack's existing Capacitor/web Director use
-[the operational contract](../../../kufr/docs/show-pack.md). Distinguish backend
+[the operational contract](../../../docs/show-pack.md). Distinguish backend
 direction, physical state and unknown/cached results. Operator unlock does not
 return another guest's revelation. Verify real API flows, two-operator conflicts,
 local short/quiet/ambient and delayed socket close. The mobile
 `scripts/check-director-browser.mjs` uses an isolated fake backend; verify the
 served checkout/port before accepting screenshots. Package identity, duel and
 chronicle Vue components through the compiled application consumed by
-`kufr/web/build-site.py --web-dist`. Keep legacy guest URLs as explicit routes,
+`web/build-site.py --web-dist`. Keep legacy guest URLs as explicit routes,
 without restoring separate HTML applications.
 
 Read the current `AGENTS.md`, applicable nested instructions and component
-README first. Then read `kufr/design-system/README.md` and the relevant
+README first. Then read `design-system/README.md` and the relevant
 `style-guide.md`, `components.md`, `accessibility.md`, `screens.md`. Paths are
 repository-relative; locate the repository from this tracked skill rather
 than assuming a checkout or runtime. Verify manifests, locks, routes, state
 owners, styling and scripts in this branch before choosing checks.
 For navigation, asynchronous work and recovery use the implemented journey
-contract in `kufr/design-system/journeys.md`; preserve its feature ownership
+contract in `design-system/journeys.md`; preserve its feature ownership
 and truth boundaries rather than creating a parallel workflow in each surface.
 
 Vapour Chrome is authoritative for new and modified UI. The existing filename
-`kufr/design-system/arcane-workshop.css` remains the shared entry point. Reuse
+`design-system/arcane-workshop.css` remains the shared entry point. Reuse
 canonical `--aw-*` tokens and `aw-*` components; add local layout styles only
 where the owning view needs them. Fonts are self-hosted with OFL licenses.
 Keep offline generated viewers self-contained using their real generation
@@ -35,8 +35,8 @@ path; never patch a generated viewer or ZIP as the only source change.
 
 ## Shared framework
 
-Before creating a component inspect `kufr/mobilni-aplikace/src/components/`,
-the owning feature and `kufr/docs/application-architecture.md`. Application
+Before creating a component inspect `mobilni-aplikace/src/components/`,
+the owning feature and `docs/application-architecture.md`. Application
 screens use Vue SFCs with Composition API and lazy Vue Router routes inside
 the shared shell. Use typed props, slots, events and composables. Keep local
 state local; Pinia is for shared application preferences/context, never a
@@ -61,7 +61,7 @@ application builds. Validate schema, paths, size, checksums and compatibility;
 model source/version and app source/version are independent.
 
 For model-only iteration use `scripts/cad.ps1 build` and `publish` (preview).
-See [CAD workflow](../../../kufr/mechanika/final/CAD-WORKFLOW.md). App/viewer
+See [CAD workflow](../../../mechanika/final/CAD-WORKFLOW.md). App/viewer
 checks never invoke this generator. Only the dedicated manual generation
 workflow may build CAD in Actions. `verify` checks bundle integrity/schema;
 `verify --manufacturing` explicitly requests the expensive existing pipeline.
@@ -71,7 +71,7 @@ Read `references/application.md` for feature ownership, identity/pairing,
 claim capture, viewer lifecycle and focused validation. Route guards are UX;
 server permission checks, native PoP/pinning and guest capabilities own access.
 
-After shared runtime changes run `npm test --prefix kufr/design-system`,
+After shared runtime changes run `npm test --prefix design-system`,
 the token drift check and affected consumer tests. Use `test:browser` for
 repeatable theme/layout/focus regression checks; its pinned browser dependency
 is development-only. Include relevant private/public synthetic flows for DV10.

@@ -5,6 +5,7 @@ useDefault = true
 
 # Keep every upstream detector. Only generic-api-key misreads these non-secrets.
 # AND binds each content exception to its intended file; no whole-file exclusions.
+# Source exceptions retain the former kufr/ prefix for full-history scanning.
 [[allowlists]]
 # Retired paths are retained only for the full-history scan, including commits
 # before the private migration. They do not refer to current tracking inputs.
@@ -22,7 +23,7 @@ regexes = ['''^\s*"[^"\r\n]+\.(py|cs|cpp|h|cjs|mjs|js|ts|mts|swift|json|md|dll|p
 description = "CAD component identifier, not an API credential"
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^kufr/mechanika/cad/scripts/generate\.py$''']
+paths = ['''^(kufr/)?mechanika/cad/scripts/generate\.py$''']
 regexTarget = "line"
 regexes = ['''^\s*key = "DFR0954_amplifier"\s*$''']
 
@@ -30,7 +31,7 @@ regexes = ['''^\s*key = "DFR0954_amplifier"\s*$''']
 description = "Smoke test passes a generated idempotency key by variable"
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^kufr/backend/tests/deployed_smoke\.py$''']
+paths = ['''^(kufr/)?backend/tests/deployed_smoke\.py$''']
 regexTarget = "line"
 regexes = ['''^\s*"POST", "/v1/conversations", bearer=token, key=create_key, body=conversation_body\s*$''']
 
@@ -38,7 +39,7 @@ regexes = ['''^\s*"POST", "/v1/conversations", bearer=token, key=create_key, bod
 description = "Reviewed synthetic firmware idempotency UUID"
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^kufr/firmware/tests/conversation_(text_codec|start_coordinator)_test\.cpp$''']
+paths = ['''^(kufr/)?firmware/tests/conversation_(text_codec|start_coordinator)_test\.cpp$''']
 regexTarget = "line"
 regexes = ['''^\s*request\.idempotencyKey = "7731ce10-a53c-4934-8909-06870fc86a12";\s*$''']
 
@@ -46,7 +47,7 @@ regexes = ['''^\s*request\.idempotencyKey = "7731ce10-a53c-4934-8909-06870fc86a1
 description = "RFC 6455 public example nonce in the synthetic WebSocket handshake"
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^kufr/mobilni-aplikace/tests/native_handsfree/socket_peer\.test\.mjs$''']
+paths = ['''^(kufr/)?mobilni-aplikace/tests/native_handsfree/socket_peer\.test\.mjs$''']
 regexTarget = "secret"
 regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''']
 
