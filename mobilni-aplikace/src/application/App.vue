@@ -28,6 +28,7 @@ const navigation = computed(() => [
   { to: '/suitcase', label: 'Kufr', symbol: '▣' },
   { to: '/workshop', label: 'Dílna', symbol: '◇' },
   { to: '/archive', label: 'Archiv', symbol: '▤' },
+  { to: '/persona-lab', label: 'Persona Lab', symbol: '◌' },
   { to: '/settings', label: 'Nastavení', symbol: '⚙' },
 ].filter(item => item.to !== '/suitcase' || canOperateSuitcase(account.value)));
 const identityKey = computed(() => account.value ? `${account.value.id}:${account.value.roles.join(',')}` : 'public');
@@ -96,7 +97,7 @@ onBeforeUnmount(() => {
 
 <template>
   <a class="skip-link" href="#main-content">Přejít na obsah</a>
-  <div class="application-shell" :style="{ '--application-navigation-height': navigationHeight }">
+  <div class="application-shell" :style="{ '--application-navigation-height': navigationHeight, '--application-navigation-count': navigation.length }">
     <aside class="application-sidebar" aria-label="Hlavní navigace">
       <RouterLink class="application-brand" to="/" aria-label="DildoVander, domov"><span class="brand-mark" aria-hidden="true">DV</span><span>DildoVander<small>Kufr. Dílna. Příběhy.</small></span></RouterLink>
       <nav ref="navigationElement" class="primary-navigation" aria-label="Sekce aplikace">

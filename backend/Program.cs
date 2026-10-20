@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using System.Threading.RateLimiting;
 using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Show;
+using Kufr.Backend.Features.PersonaLab;
 
 var provisioning = args.Contains("--memory-provision");
 var accountProvisioning = AccountProvisioning.IsCommand(args);
@@ -94,6 +95,7 @@ builder.Services.AddSingleton<OpenAiVectorMemoryProvider>();
 builder.Services.AddSingleton<HybridMemoryService>();
 builder.Services.AddHostedService<MemoryIndexWorker>();
 builder.Services.AddSingleton<ConversationStore>();
+builder.Services.AddPersonaLab();
 builder.Services.AddHostedService<RetentionWorker>();
 var keepsakesEnabled = builder.Configuration.GetValue<bool>("Keepsake:Enabled");
 var keepsakeDataRoot = builder.Configuration["Keepsake:DataRoot"];
@@ -163,6 +165,7 @@ app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSecond
 await app.InitializeAccountsAsync();
 app.UseAccountIdentity();
 app.MapAccountEndpoints();
+app.MapPersonaLab();
 app.MapModelReleases();
 
 app.Use(async (context, next) =>
@@ -192,6 +195,7 @@ app.MapServerModes();
 app.MapServerLogs();
 app.MapShowEndpoints();
 app.MapShowDeviceCues();
+app.MapKeepsakeOutcomes();
 if (keepsakesEnabled)
 {
     app.MapKeepsakes();

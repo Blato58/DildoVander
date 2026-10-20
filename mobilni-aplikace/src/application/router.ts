@@ -5,6 +5,7 @@ export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'home', component: () => import('./HomeView.vue'), meta: { title: 'Domov' } },
+    { path: '/persona-lab', name: 'persona-lab', component: () => import('../features/persona-lab/PersonaLabView.vue'), meta: { title: 'AI Persona Lab', private: true, requiresAccount: true } },
     { path: '/suitcase', name: 'suitcase', component: () => import('../features/suitcase/SuitcaseView.vue'), meta: { title: 'Kufr', keepAlive: true, requiresAccount: true, operation: true, offlineLocal: true, private: true } },
     { path: '/connections', name: 'connections', component: () => import('../features/suitcase/ConnectionsView.vue'), meta: { title: 'Připojení', keepAlive: true, requiresAccount: true, operation: true, offlineLocal: true, private: true } },
     { path: '/suitcase/diagnostics', name: 'diagnostics', component: () => import('../features/suitcase/DiagnosticsView.vue'), meta: { title: 'Diagnostika', keepAlive: true, requiresAccount: true, operation: true, offlineLocal: true, private: true } },

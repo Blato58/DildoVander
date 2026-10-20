@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.PersonaLab;
+using System.Security.Cryptography;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -61,10 +63,20 @@ internal static class ConversationEndpoints
         try
         {
             using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return ApiProblem.Create(context, 400, "invalid_request");
+            }
+            if (document.RootElement.TryGetProperty("testContext", out var testContext)
+                && (testContext.ValueKind != JsonValueKind.String || testContext.GetString() is not { Length: 43 } ticket
+                    || !ticket.All(value => char.IsAsciiLetterOrDigit(value) || value is '-' or '_')))
+            {
+                return ApiProblem.Create(context, 400, "invalid_lab_hardware_ticket");
+            }
             if (!HasRequiredAndOptionalProperties(
                     document.RootElement,
                     ["deviceId", "bootId", "generation", "catalogVersion", "locale", "consent"],
-                    ["operationEpoch"])
+                    ["testContext", "operationEpoch"])
                 || document.RootElement.TryGetProperty("operationEpoch", out var operationEpoch)
                     && (operationEpoch.ValueKind != JsonValueKind.String
                         || !OperationEpoch.IsValid(operationEpoch.GetString()))
@@ -106,7 +118,16 @@ internal static class ConversationEndpoints
             return ApiProblem.Create(context, 403, "device_scope_mismatch");
         }
 
-        var result = conversations.Create(deviceId, key, body, request);
+        CreateResult result;
+        try
+        {
+            var hardware = request.TestContext is null ? null : context.RequestServices.GetRequiredService<PersonaLabHardware>();
+            var binding = hardware is null ? null : await hardware.BindAsync(request.TestContext!, deviceId, key,
+                Convert.ToHexString(SHA256.HashData(body)), request, context.RequestAborted);
+            result = conversations.Create(deviceId, key, body, request, binding);
+            if (binding is not null && result.Response is { } created) { hardware!.Created(binding, created.ConversationId); }
+        }
+        catch (LabException error) { return ApiProblem.Create(context, error.Status, error.Code); }
         return result.Response is null
             ? ApiProblem.Create(context, result.Status, "conversation_conflict")
             : Results.Json(result.Response, statusCode: result.Status);

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Memory;
+using Kufr.Backend.Features.PersonaLab;
 
 namespace Kufr.Backend.Features.Keepsakes;
 
@@ -18,6 +19,13 @@ internal static partial class KeepsakeOutcomeEndpoints
         string? PhysicalFingerprint = null);
 
     internal sealed record OutcomeAcknowledgement(int SchemaVersion, string Locator, string OutcomeId,
+        int SessionEpoch, string PhysicalOperationId,
+        [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        string? OperationEpoch = null,
+        [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        string? PhysicalFingerprint = null);
+
+    internal sealed record LabOutcomeAcknowledgement(int SchemaVersion, string OutcomeId,
         int SessionEpoch, string PhysicalOperationId,
         [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         string? OperationEpoch = null,
@@ -44,11 +52,16 @@ internal static partial class KeepsakeOutcomeEndpoints
         return true;
     }
 
+    internal static IEndpointRouteBuilder MapKeepsakeOutcomes(this IEndpointRouteBuilder routes)
+    {
+        routes.MapPost("/v1/keepsakes/outcomes/{operationId:guid}", PublishAsync);
+        return routes;
+    }
+
     internal static async Task<IResult> PublishAsync(HttpContext c, string operationId,
-        DeviceAccessStore access, OperationJournal journal, KeepsakeStore store, IConfiguration config,
+        DeviceAccessStore access, OperationJournal journal, IConfiguration config,
         EveningMemoryStore memoryStore, HybridMemoryService memory)
     {
-        if (!config.GetValue<bool>("Keepsake:Enabled")) { return Results.NotFound(); }
         var device = DeviceAccessEndpoints.Authenticate(c, access);
         if (device is null) { return Results.Unauthorized(); }
         if (!Guid.TryParseExact(c.Request.Headers["Idempotency-Key"], "D", out _)) { return Results.BadRequest(); }
@@ -60,6 +73,32 @@ internal static partial class KeepsakeOutcomeEndpoints
             var body = await c.Request.ReadFromJsonAsync<System.Text.Json.JsonElement>(options, c.RequestAborted);
             if (!HasValidIdentityFields(body)) { return Results.BadRequest(); }
             var request = body.Deserialize<OutcomeRequest>(options);
+            var labSelection = journal.ReadLabSelection(device, operationId);
+            if (labSelection is { } lab)
+            {
+                var testProposal = lab.Proposal;
+                if (request is null || request.SchemaVersion != 1 || testProposal is null
+                    || !Guid.TryParseExact(request.OutcomeId, "D", out _)
+                    || !Guid.TryParseExact(request.PhysicalOperationId, "D", out _)
+                    || request.ProposalId != testProposal.ProposalId || request.BootId != testProposal.BootId.ToString("D")
+                    || request.Generation != testProposal.Generation || request.DeviceRevision != testProposal.DeviceRevision
+                    || !Conversations.OperationEpoch.Same(request.OperationEpoch, testProposal.OperationEpoch)
+                    || Conversations.OperationEpoch.Key(request.OperationEpoch) != "0"
+                        && (request.PhysicalFingerprint is null or "0"
+                            || !string.Equals(request.PhysicalOperationId, testProposal.ProposalId, StringComparison.OrdinalIgnoreCase))
+                    || testProposal.CatalogVersion != PartyWandCatalog.Version
+                    || request.PresentationEvidence != "completed_by_timing")
+                { return Results.Json(new { errorCode = "outcome_not_eligible" }, statusCode: 409); }
+                var testHash = Convert.ToHexString(SHA256.HashData(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(request)));
+                if (!journal.ConfirmLabOutcome(device, operationId, request.OutcomeId, testHash))
+                { return Results.Json(new { errorCode = "outcome_conflict" }, statusCode: 409); }
+                c.RequestServices.GetService<PersonaLabHardware>()?.ObserveOutcome(lab.OwnerId, lab.SessionId,
+                    device, operationId, testProposal, request.OutcomeId, request.PresentationEvidence);
+                return Results.Json(new LabOutcomeAcknowledgement(1, request.OutcomeId,
+                    testProposal.Generation, request.PhysicalOperationId, request.OperationEpoch, request.PhysicalFingerprint), statusCode: 201);
+            }
+            if (!config.GetValue<bool>("Keepsake:Enabled")) { return Results.NotFound(); }
+            var store = c.RequestServices.GetRequiredService<KeepsakeStore>();
             var proposal = journal.ReadKeepsakeSelection(device, operationId);
             if (request is null || request.SchemaVersion != 1 || proposal is null
                 || !Guid.TryParseExact(request.OutcomeId, "D", out _)

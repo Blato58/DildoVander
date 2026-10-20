@@ -233,8 +233,14 @@ export class ProtocolDeviceConnection {
   configureVoice(mode: VoiceSettings['mode'], voice: VoiceSettings['voice']): boolean {
     return !this.dance.state().canStop && this.voice.configure(mode, voice);
   }
-  startVoice(imageConsent = false): boolean { return !this.dance.state().canStop && this.voice.start(imageConsent); }
-  stopVoice(): boolean { return this.voice.stop(); }
+  startVoice(imageConsent = false, testContext?: string): boolean {
+    if (testContext !== undefined && this.options.source !== 'native-device') return false;
+    return !this.dance.state().canStop && this.voice.start(imageConsent, testContext);
+  }
+  stopVoice(testContextId?: string): boolean {
+    if (testContextId !== undefined && this.options.source !== 'native-device') return false;
+    return this.voice.stop(testContextId);
+  }
   startDance(): boolean { return !this.state.busy && !this.voice.state().pending && this.dance.start(); }
   stopDance(): boolean { return this.dance.stop(); }
 
@@ -1011,6 +1017,7 @@ export class ProtocolDeviceConnection {
     const voice = this.voice.state();
     const snapshot = {
       ...this.state,
+      capabilities: this.device?.capabilities ? [...this.device.capabilities] : [],
       busy: this.state.busy || dance.pending,
       phase: this.state.phase === 'ready' && danceActive(dance.phase) ? 'running' as const : this.state.phase,
       diagnostics: this.device === null ? undefined : {

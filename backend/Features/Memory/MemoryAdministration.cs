@@ -74,6 +74,8 @@ internal static class MemoryAdministration
                 if (string.IsNullOrWhiteSpace(r.DeviceId) || string.IsNullOrWhiteSpace(r.ConversationId)
                     || string.IsNullOrWhiteSpace(r.GuestId) || string.IsNullOrWhiteSpace(r.IdentitySource) || r.ExpectedVersion < 0)
                     return ApiProblem.Create(c, 400, "invalid_request");
+                if (conversations.IsLabConversation(r.DeviceId, r.ConversationId))
+                { return ApiProblem.Create(c, 403, "lab_hardware_guest_binding_forbidden"); }
                 // Binding a new identity is allowed only before speech starts.
                 // Revocation can immediately end a running context.
                 if (!conversations.CanBindGuest(r.DeviceId, r.ConversationId))

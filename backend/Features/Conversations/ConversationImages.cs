@@ -106,6 +106,7 @@ internal sealed partial class ConversationStore
 
     internal SubmitTurnResult SubmitImage(string deviceId, string id, Guid key, CostumeImageUpload upload)
     {
+        if (IsLabConversation(deviceId, id)) { return new(403, null, "lab_hardware_image_forbidden"); }
         if (!OperationEpoch.IsValid(upload.OperationEpoch)) { return new(400, null, "invalid_request"); }
         if (!CostumeJpeg.IsValid(upload.Jpeg) || !CanDecodeImage(upload.Jpeg))
         { return new(400, null, "invalid_image"); }
@@ -191,6 +192,7 @@ internal sealed partial class ConversationStore
     internal GetOperationResult CorrectCostume(string deviceId, string id, Guid key, CostumeImageUpload correlation,
         string description)
     {
+        if (IsLabConversation(deviceId, id)) { return new(403, null); }
         if (!CostumeImageClient.ValidText(description, 240)) { return new(400, null); }
         lock (gate)
         {
@@ -243,6 +245,7 @@ internal sealed partial class ConversationStore
 
     private SubmitTurnResult? ValidateCostumeAccess(string device, string id, CostumeImageUpload upload, bool requireConsent)
     {
+        if (IsLabConversation(device, id)) { return new(403, null, "lab_hardware_image_forbidden"); }
         if (!OperationEpoch.IsValid(upload.OperationEpoch)) { return new(400, null, "invalid_request"); }
         if (!conversations.TryGetValue(id, out var conversation)) { return new(404, null, "conversation_not_found"); }
         if (conversation.DeviceId != device) { return new(403, null, "device_scope_mismatch"); }

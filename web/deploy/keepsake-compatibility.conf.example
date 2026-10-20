@@ -550,6 +550,17 @@ location = /signin {
     add_header Referrer-Policy "no-referrer" always;
     add_header X-Content-Type-Options "nosniff" always;
 }
+location = /persona-lab {
+    if ($request_uri !~ "^/persona-lab(?:[?]|$)") { return 404; }
+    if ($request_method !~ "^(GET|HEAD)$") { return 405; }
+    root /var/www/dildovander/current;
+    try_files /index.html =404;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+}
 location = /settings {
     if ($request_uri !~ "^/settings(?:[?]|$)") { return 404; }
     if ($request_method !~ "^(GET|HEAD)$") { return 405; }
@@ -2691,6 +2702,13 @@ location ^~ /app/v1/ {
     access_log off;
     client_max_body_size 256k;
     proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    proxy_buffering off;
+    proxy_request_buffering off;
     proxy_set_header Host keepsake.example.invalid;
     proxy_set_header X-Forwarded-Proto https;
     proxy_set_header X-Forwarded-For $remote_addr;

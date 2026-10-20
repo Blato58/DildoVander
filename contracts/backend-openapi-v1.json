@@ -1973,7 +1973,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KeepsakeOutcomeAcknowledgement"
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/KeepsakeOutcomeAcknowledgement" },
+                    { "$ref": "#/components/schemas/LabOutcomeAcknowledgement" }
+                  ]
                 }
               }
             }
@@ -2532,7 +2535,8 @@
           },
           "operationEpoch": {
             "$ref": "#/components/schemas/OperationEpoch"
-          }
+          },
+          "testContext": { "type": "string", "minLength": 43, "maxLength": 43, "pattern": "^[A-Za-z0-9_-]{43}$", "description": "Optional one-use Persona Lab admission ticket, explicitly requested on a capable paired suitcase. Bound to the authenticated tester, exact device, boot and admitted revision; expires after 90 seconds before initial admission. Never logged or persisted. Invalid or unsupported tickets must fail closed, never start a production conversation." }
         }
       },
       "Consent": {
@@ -4508,6 +4512,41 @@
             "$ref": "#/components/schemas/OperationEpoch"
           }
         }
+      },
+      "LabOutcomeAcknowledgement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "outcomeId",
+          "sessionEpoch",
+          "physicalOperationId"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "outcomeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "physicalOperationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          },
+          "physicalFingerprint": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          }
+        },
+        "description": "Technical Persona Lab acknowledgement only. Confirms the original test outcome without creating an archive, issuing archive access or returning a locator; optional operation epoch and physical fingerprint echo the original request."
       }
   }
   }

@@ -33,6 +33,7 @@ const provisioningBridge = registerPlugin<ProvisioningBridge>('KufrProvisioning'
 let connection: Connection | null = null;
 let generation = 0;
 let connectionEpoch = 0;
+let labConnectionGeneration = 0;
 let heartbeat: ReturnType<typeof setInterval> | undefined;
 let listening = false;
 const provisioning = new ProvisioningClient(provisioningBridge, (status, text, busy) => {
@@ -42,6 +43,8 @@ const provisioning = new ProvisioningClient(provisioningBridge, (status, text, b
 });
 
 function observe(value: DeviceSnapshot): void {
+  if (snapshot.value?.phase !== 'disconnected' && value.phase === 'disconnected'
+    || snapshot.value?.diagnostics?.bootId !== value.diagnostics?.bootId) ++labConnectionGeneration;
   if (stopPending.value && (value.phase === 'stopped' || value.phase === 'disconnected')) {
     stopPending.value = false; message.value = value.status;
   }
@@ -58,6 +61,7 @@ function observe(value: DeviceSnapshot): void {
 
 function suspend(): void {
   ++generation;
+  ++labConnectionGeneration;
   connection?.release();
   if (connection instanceof SimulatorDeviceConnection || connection instanceof NativeDeviceConnection) connection.suspend();
 }
@@ -205,6 +209,38 @@ function protocol(): SimulatorDeviceConnection | NativeDeviceConnection | null {
   return connection instanceof SimulatorDeviceConnection || connection instanceof NativeDeviceConnection ? connection : null;
 }
 
+export interface LabVoiceTarget {
+  deviceId: string; bootId: string; revision: number; connectionEpoch: number;
+  mode: 'gpt-live' | 'realtime'; voice: 'cedar' | 'marin' | 'coral';
+}
+
+function startLabVoice(imageConsent: false, testContext: string, expected: LabVoiceTarget): boolean {
+  const current = connection;
+  const value = snapshot.value;
+  if (imageConsent !== false || !/^[A-Za-z0-9_-]{43}$/.test(testContext)
+    || expected.connectionEpoch !== labConnectionGeneration
+    || target.value !== 'native' || !(current instanceof NativeDeviceConnection)
+    || !savedDevice.value.paired || savedDevice.value.deviceId !== expected.deviceId
+    || value?.source !== 'native-device' || value.phase === 'disconnected'
+    || value.diagnostics?.deviceId !== expected.deviceId || value.diagnostics.bootId !== expected.bootId
+    || value.revision !== expected.revision || !value.capabilities?.includes('voiceTestContext')
+    || !value.voice?.canStart || value.voice.mode !== expected.mode || value.voice.voice !== expected.voice) return false;
+  // This is submission to the already pinned connection, never a physical ACK.
+  return current.startVoice(false, testContext);
+}
+
+function stopLabVoice(expected: { deviceId: string; bootId: string; connectionEpoch: number; testContextId: string }): boolean {
+  const current = connection;
+  const value = snapshot.value;
+  if (target.value !== 'native' || !(current instanceof NativeDeviceConnection)
+    || expected.connectionEpoch !== labConnectionGeneration
+    || value?.source !== 'native-device' || value.phase === 'disconnected'
+    || !value.capabilities?.includes('voiceTestContext')
+    || !/^[a-f0-9]{64}$/.test(expected.testContextId) || value.voice?.testContextId !== expected.testContextId
+    || value.diagnostics?.deviceId !== expected.deviceId || value.diagnostics.bootId !== expected.bootId) return false;
+  return current.stopVoice(expected.testContextId);
+}
+
 export const deviceSession = {
   snapshot, target, pending, stopPending, message, native, savedDevice, lastObservedAt, discovered, bleDevices, bleStatus, bleMessage, blePending, journalEntries,
   connected: computed(() => snapshot.value !== null && snapshot.value.phase !== 'disconnected'),
@@ -230,6 +266,8 @@ export const deviceSession = {
   cancelText: () => protocol()?.cancelConversation(),
   configureVoice: (mode: 'off' | 'realtime' | 'gpt-live', voice: 'marin' | 'cedar' | 'coral') => protocol()?.configureVoice(mode, voice) ?? false,
   startVoice: (consent: boolean) => protocol()?.startVoice(consent), stopVoice: () => protocol()?.stopVoice(),
+  startLabVoice, stopLabVoice,
+  labConnectionEpoch: () => labConnectionGeneration,
   startDance: () => protocol()?.startDance(), stopDance: () => protocol()?.stopDance(),
   discoverBle, connectBle: (name: string) => provisioning.connect(name), disconnectBle: () => provisioning.disconnect(),
   showConnections: (visible: boolean) => provisioning.show(visible),

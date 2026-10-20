@@ -214,10 +214,17 @@ validate('CreateConversation', { ...conversation, accessToken: 'secret' }, false
 for (const epoch of ['0', '9007199254740993', '18446744073709551615']) {
   validate('OperationEpoch', epoch, true);
   validate('CreateConversation', { ...conversation, operationEpoch: epoch }, true);
+  validate('CreateConversation', { ...conversation, operationEpoch: epoch, testContext: 'A'.repeat(43) }, true);
 }
 for (const epoch of [null, 1, '', '01', '+1', '-1', '1.0', '1e1', '1\n', '18446744073709551616']) {
   validate('OperationEpoch', epoch, false);
   validate('CreateConversation', { ...conversation, operationEpoch: epoch }, false);
+  validate('CreateConversation', { ...conversation, operationEpoch: epoch, testContext: 'A'.repeat(43) }, false);
+}
+validate('CreateConversation', { ...conversation, testContext: 'A'.repeat(43) }, true);
+for (const testContext of ['', 'A'.repeat(42), 'A'.repeat(44), '<'.repeat(43), null]) {
+  validate('CreateConversation', { ...conversation, testContext }, false);
+  validate('CreateConversation', { ...conversation, testContext, operationEpoch: '18446744073709551615' }, false);
 }
 
 const operation = {
@@ -280,6 +287,36 @@ validate('KeepsakeOutcomeRequest', { ...scopedOutcome, operationEpoch: null }, f
 validate('KeepsakeOutcomeAcknowledgement', { schemaVersion: 1, locator: bootId, outcomeId: bootId,
   sessionEpoch: 1, physicalOperationId: clientTurnId, operationEpoch: scopedOutcome.operationEpoch,
   physicalFingerprint: scopedOutcome.physicalFingerprint }, true);
+const labOutcomeAck = { schemaVersion: 1, outcomeId: bootId, sessionEpoch: 1,
+  physicalOperationId: clientTurnId };
+const scopedLabOutcomeAck = { ...labOutcomeAck, operationEpoch: scopedOutcome.operationEpoch,
+  physicalFingerprint: scopedOutcome.physicalFingerprint };
+const outcomeAckSchema = document.paths['/v1/keepsakes/outcomes/{operationId}'].post
+  .responses['201'].content['application/json'].schema;
+assert.deepEqual(outcomeAckSchema.oneOf, [
+  { $ref: '#/components/schemas/KeepsakeOutcomeAcknowledgement' },
+  { $ref: '#/components/schemas/LabOutcomeAcknowledgement' },
+]);
+const validateOutcomeAck = ajv.compile(JSON.parse(JSON.stringify(outcomeAckSchema)
+  .replaceAll('#/components/schemas/', 'https://kufr.local/schemas/')));
+for (const acknowledgement of [labOutcomeAck, scopedLabOutcomeAck]) {
+  validate('LabOutcomeAcknowledgement', acknowledgement, true);
+  validate('KeepsakeOutcomeAcknowledgement', acknowledgement, false);
+  assert.equal(validateOutcomeAck(acknowledgement), true);
+  const archived = { ...acknowledgement, locator: bootId };
+  validate('LabOutcomeAcknowledgement', archived, false);
+  validate('KeepsakeOutcomeAcknowledgement', archived, true);
+  assert.equal(validateOutcomeAck(archived), true);
+  assert.equal(validateOutcomeAck({ ...acknowledgement, locator: 'not-a-locator' }), false);
+  assert.equal(validateOutcomeAck({ ...acknowledgement, archive: true }), false);
+}
+for (const field of ['operationEpoch', 'physicalFingerprint']) {
+  for (const invalid of [null, 1, '', '01', '+1', '-1', '1.0', '18446744073709551616']) {
+    const acknowledgement = { ...scopedLabOutcomeAck, [field]: invalid };
+    validate('LabOutcomeAcknowledgement', acknowledgement, false);
+    assert.equal(validateOutcomeAck(acknowledgement), false);
+  }
+}
 validate('RealtimeLiveStart', { ...realtime, opening: false, text: 'Petr' }, false);
 validate('RealtimeLiveStart', { ...realtime, accessToken: 'secret' }, false);
 validate('RealtimePlayback', { operationId: bootId }, true);

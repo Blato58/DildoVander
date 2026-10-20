@@ -7,6 +7,7 @@ const harness = vi.hoisted(() => ({
   refreshBle: vi.fn(), stopDebug: vi.fn(), forgetProfile: vi.fn(), disconnectBench: vi.fn(),
   adapters: [] as Array<{ connect: ReturnType<typeof vi.fn>; acquire: ReturnType<typeof vi.fn>;
     requestOffline: ReturnType<typeof vi.fn>; release: ReturnType<typeof vi.fn>; suspend: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; uncertain: string;
+    startVoice: ReturnType<typeof vi.fn>; stopVoice: ReturnType<typeof vi.fn>;
     publish: (value: DeviceSnapshot) => void }>,
 }));
 vi.mock('@capacitor/core', () => ({
@@ -18,6 +19,7 @@ vi.mock('../device_connection/NativeDeviceConnection', () => ({
   nativeBridge: { savedDevice: harness.saved, forget: harness.forget, pair: harness.pair, setAddress: harness.setAddress, discover: harness.discover },
   NativeDeviceConnection: class {
     connect = vi.fn(); acquire = vi.fn(); release = vi.fn(); suspend = vi.fn(); stop = vi.fn(); requestOffline = vi.fn(); uncertain = 'selection-in-flight';
+    startVoice = vi.fn().mockReturnValue(true); stopVoice = vi.fn().mockReturnValue(true);
     constructor(public publish: (value: DeviceSnapshot) => void) { harness.adapters.push(this); }
   },
 }));
@@ -33,6 +35,47 @@ beforeEach(async () => {
   harness.stopDebug.mockResolvedValue(undefined); harness.forgetProfile.mockResolvedValue(undefined);
   harness.disconnectBench.mockResolvedValue(undefined);
   session = (await import('./deviceSession')).deviceSession;
+});
+
+it('submits a Lab ticket only to the same capable native connection and never stops a replacement', async () => {
+    await session.connectSaved(); const adapter = harness.adapters[0];
+    const value: DeviceSnapshot = { source: 'native-device', phase: 'ready', controlMode: 'observer', readyMask: 63,
+      revision: 37, capabilities: ['voiceTestContext'], activeCompartment: null, busy: false, status: 'test fixture',
+      voice: { available: true, mode: 'realtime', voice: 'marin', phase: 'idle', error: null,
+        pending: false, canStart: true, canStop: false, canConfigure: true, status: 'ready' },
+      diagnostics: { deviceId: 'kufr-1', bootId: 'boot-fixture', eventSequence: 1, devicePhase: 'ready', deviceUptimeMs: 10,
+        receivedAtMs: 1, roundTripMs: null, faultCount: 0 } };
+    adapter.publish(value);
+    const expected = { deviceId: 'kufr-1', bootId: 'boot-fixture', revision: 37,
+      connectionEpoch: session.labConnectionEpoch(), mode: 'realtime' as const, voice: 'marin' as const,
+      testContextId: 'a'.repeat(64) };
+    const ticket = 'A'.repeat(43);
+    for (const changed of [{ ...expected, revision: 38 }, { ...expected, bootId: 'another-boot' },
+      { ...expected, voice: 'cedar' as const }, { ...expected, connectionEpoch: expected.connectionEpoch - 1 }]) {
+      expect(session.startLabVoice(false, ticket, changed)).toBe(false);
+    }
+    adapter.publish({ ...value, capabilities: [] });
+    expect(session.startLabVoice(false, ticket, expected)).toBe(false);
+    adapter.publish(value);
+    expect(adapter.startVoice).not.toHaveBeenCalled();
+    expect(session.startLabVoice(false, ticket, expected)).toBe(true);
+    expect(adapter.startVoice).toHaveBeenCalledExactlyOnceWith(false, ticket);
+    adapter.publish({ ...value, voice: { ...value.voice!, phase: 'listening', canStart: false, canStop: true,
+      testContextId: expected.testContextId } });
+    expect(session.stopLabVoice(expected)).toBe(true);
+    expect(adapter.stopVoice).toHaveBeenCalledExactlyOnceWith(expected.testContextId);
+    adapter.stopVoice.mockClear();
+    for (const testContextId of [undefined, 'b'.repeat(64)]) {
+      adapter.publish({ ...value, voice: { ...value.voice!, phase: 'listening', canStart: false, canStop: true, testContextId } });
+      expect(session.stopLabVoice(expected)).toBe(false);
+    }
+    expect(adapter.stopVoice).not.toHaveBeenCalled();
+    session.disconnect(); await session.connectSaved(); const replacement = harness.adapters.at(-1)!;
+    replacement.startVoice.mockClear(); replacement.stopVoice.mockClear();
+    replacement.publish(value);
+    expect(session.startLabVoice(false, ticket, expected)).toBe(false);
+    expect(session.stopLabVoice(expected)).toBe(false);
+    expect(replacement.startVoice).not.toHaveBeenCalled(); expect(replacement.stopVoice).not.toHaveBeenCalled();
 });
 afterEach(() => { session.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(finish => { resolve = finish; }); return { promise, resolve }; }

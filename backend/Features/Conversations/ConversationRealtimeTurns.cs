@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Memory;
+using Kufr.Backend.Features.PersonaLab;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -61,6 +62,16 @@ internal sealed partial class ConversationStore
             {
                 return new(403, "device_scope_mismatch", null);
             }
+            var hardware = conversation.LabHardware;
+            if (hardware is not null)
+            {
+                if (hardware.Token.IsCancellationRequested || hardware.ExpiresAt <= now)
+                { return new(409, "lab_hardware_ended", null); }
+                if ((hardware.Session.Engine == GptLiveProtocol.Model) != gptLive
+                    || conversation.TurnCount == 0 && request.DeviceRevision != hardware.Target.ExpectedRevision)
+                { return new(409, "lab_hardware_configuration_mismatch", null); }
+                request = request with { Voice = hardware.Session.Config.Voice };
+            }
             if (!conversation.AudioConsented)
             {
                 return new(403, "audio_consent_required", null);
@@ -105,7 +116,7 @@ internal sealed partial class ConversationStore
             {
                 return new(503, "dialogue_busy", null);
             }
-            var memory = eveningMemory?.ReadContext(deviceId, conversationId, request.Text);
+            var memory = hardware is null ? eveningMemory?.ReadContext(deviceId, conversationId, request.Text) : null;
             var turn = new RealtimeTurnContext(
                 request,
                 conversation.CompletedQuestions < PersonalityCatalog.MinimumQuestions(conversation.PersonalityId),
@@ -115,6 +126,7 @@ internal sealed partial class ConversationStore
                 OutputTokenLimit: handsFree ? 768 : RealtimeProtocol.MaxOutputTokens)
             { PersonalityId = conversation.PersonalityId, LivePrompt = conversation.LivePrompt,
                 CostumeContext = CostumePrompt(conversation) };
+            if (hardware is not null) { turn = LabTurnContext(turn, hardware); }
             if (gptLive)
             {
                 conversation.LiveReadyMask = request.ReadyMask;
@@ -133,13 +145,21 @@ internal sealed partial class ConversationStore
             {
                 return new(429, "turn_limit", null);
             }
-            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected, stopping);
+            var cancellation = hardware is null
+                ? CancellationTokenSource.CreateLinkedTokenSource(disconnected, stopping)
+                : CancellationTokenSource.CreateLinkedTokenSource(disconnected, stopping, hardware.Token);
             cancellation.CancelAfter(TimeSpan.FromSeconds(gptLive ? 180 : 45));
             var call = new RealtimeCall(reservation.OperationId, correlation, turn, memory?.EveningId, cancellation)
             {
                 SessionGeneration = conversation.LiveGeneration,
-                MemoryDeletionEpoch = eveningMemory?.MemoryDeletionEpochFor(deviceId, conversationId) ?? 0
+                MemoryDeletionEpoch = hardware is null ? eveningMemory?.MemoryDeletionEpochFor(deviceId, conversationId) ?? 0 : 0,
+                LabHardware = hardware
             };
+            if (hardware is not null)
+            {
+                personaLab?.Change(hardware.Session.OwnerId, hardware.Session.Id, value => value.Hardware is { } metadata
+                    ? value with { Hardware = metadata with { OperationId = call.OperationId } } : value);
+            }
             activePaidCalls.Add(call.OperationId, new PaidCall(deviceId, conversationId, cancellation));
             RecordAcceptedTurn(conversation, request.ClientTurnId, now);
             return new(200, null, call);
@@ -166,7 +186,7 @@ internal sealed partial class ConversationStore
                 && OperationEpoch.Same(conversation.OperationEpoch, call.Correlation.OperationEpoch)
                 && OperationEpoch.Same(call.Context.Request.OperationEpoch, call.Correlation.OperationEpoch)
                 && conversation.LiveGeneration == call.SessionGeneration
-                && (eveningMemory is null || eveningMemory.MemoryDeletionEpochFor(
+                && (call.LabHardware is not null || eveningMemory is null || eveningMemory.MemoryDeletionEpochFor(
                     call.Correlation.DeviceId, call.Correlation.ConversationId) == call.MemoryDeletionEpoch)
                 && (call.EveningId is null
                     || eveningMemory!.GetStatus(call.Correlation.DeviceId).EveningId == call.EveningId);
@@ -219,14 +239,15 @@ internal sealed partial class ConversationStore
             // A memory write failure must leave the operation fail-able rather
             // than publish a completed journal entry without its result.
             if (!journal.MarkSelectionCompleted(call.OperationId, proposal,
-                eveningMemory?.ReadCapturedShowEvening(call.Correlation.DeviceId, call.Correlation.ConversationId) ?? call.EveningId,
+                call.LabHardware is null ? eveningMemory?.ReadCapturedShowEvening(call.Correlation.DeviceId, call.Correlation.ConversationId) ?? call.EveningId : null,
                 call.MemoryDeletionEpoch, call.Context.PersonalityId))
             {
                 return null;
             }
-            BindFinaleSnapshot(correlation.DeviceId, call.OperationId, proposal, call.SessionGeneration,
+            if (call.LabHardware is null) { BindFinaleSnapshot(correlation.DeviceId, call.OperationId, proposal, call.SessionGeneration,
                 call.Context.Request.DeviceRevision, call.Context.LivePrompt?.Version ?? "realtime-existing", null,
-                eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId);
+                eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId); }
+            ObserveLabCompletion(call, response.Reply, response.CostMicroUsd, response.Decision, response.Compartment, proposal);
             operations.Add(call.OperationId,
                 new TurnOperation(call.OperationId, "turn", "completed", correlation, result, null));
             if (response.Decision == "ask")
@@ -292,6 +313,7 @@ internal sealed record RealtimeCall(
     string? EveningId,
     CancellationTokenSource Cancellation)
 {
+    internal LabHardwareContext? LabHardware { get; init; }
     internal string SessionGeneration { get; init; } = Guid.NewGuid().ToString("D");
     internal long MemoryDeletionEpoch { get; init; }
     // Accessed only under ConversationStore.gate. Provider event identities

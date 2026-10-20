@@ -24,6 +24,9 @@ remain the authority for local snapshots, lease and command reconciliation.
   ProblemDetails. Account mutation requests require antiforgery protection.
 - `src/features/workshop/WorkshopView.vue` owns model inspection, assembly,
   simulation, observation and replay. GPU state stays outside deep reactivity.
+- `src/features/persona-lab/PersonaLabView.vue` owns account-scoped persona
+  testing, evaluations and version management. Its backend feature keeps test
+  memory separate and enforces administrator-only production publication.
 - `src/features/archive/ArchiveView.vue` and `KeepsakeView.vue` own public and
   private guest journeys. Fragment claims are captured and removed before
   application assets or router navigation can disclose them.
@@ -49,6 +52,7 @@ priority transport with the immutable published account session.
 | Companion, `/app/` | `/suitcase` | explicit target; local pairing gates |
 | discovery and provisioning | `/connections` | installation and account scoped |
 | Debug panels | `/suitcase/diagnostics` | capability and role checked |
+| AI Persona Lab | `/persona-lab` | authenticated account; server-enforced ownership and admin publication |
 | Show Pack Director | `/suitcase/director` | exact device read/operate/manage; Stop has priority |
 | Workshop viewer | `/workshop` | public model, explicit live authorization |
 | simulator observer | `/workshop?mode=simulation` | isolated simulator target |
@@ -58,6 +62,10 @@ priority transport with the immutable published account session.
 | account and administration | `/settings`, `/settings/admin` | server enforced |
 | published chronicle and duel links | `/archive/chronicle`, `/archive/duel` | public projection; separate duel move grant |
 | installer manifests, downloads | existing distribution URLs | distribution exception |
+
+The [Persona Lab runbook](../backend/Features/PersonaLab/README.md) describes
+provider diagnostics, memory isolation, technical limits and explicit hardware
+test admission. An ordinary account does not acquire device operating authority.
 
 Show Pack's legacy `/keepsake/duel.html` and `/keepsake/chronicle.html` load the
 same application through exact compatibility routes. Duel grants remain in

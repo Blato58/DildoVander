@@ -6,6 +6,18 @@ import keepsake_proxy as proxy
 
 
 class ApplicationRoutingTests(unittest.TestCase):
+    def test_account_api_supports_duplex_persona_lab_streams(self):
+        config = proxy.render_compatibility('keepsake.example.invalid')
+        block = config.split('location ^~ /app/v1/ {', 1)[1].split('\n}', 1)[0]
+        for directive in ('proxy_http_version 1.1;',
+                          'proxy_set_header Upgrade $http_upgrade;',
+                          'proxy_set_header Connection $keepsake_connection_upgrade;',
+                          'proxy_read_timeout 65s;', 'proxy_send_timeout 65s;',
+                          'proxy_buffering off;', 'proxy_request_buffering off;',
+                          'access_log off;'):
+            self.assertIn(directive, block)
+        self.assertNotIn('try_files', block)
+
     def test_apple_association_is_an_exact_nonredirecting_backend_route(self):
         config = proxy.render_compatibility('keepsake.example.invalid')
         block = config.split('location = /.well-known/apple-app-site-association {', 1)[1].split('\n}', 1)[0]
@@ -21,7 +33,7 @@ class ApplicationRoutingTests(unittest.TestCase):
         config = proxy.render_compatibility('keepsake.example.invalid')
         pages = set(re.findall(r'location = ([^ ]+) \{\n(?:(?!\n}).)*?try_files /index.html =404;', config, re.DOTALL))
         for route in ('/', '/suitcase', '/suitcase/diagnostics', '/suitcase/director', '/connections', '/workshop',
-                      '/archive', '/archive/duel', '/archive/chronicle', '/signin', '/settings', '/settings/admin', '/keepsake/', '/keepsake/evening/'):
+                      '/archive', '/archive/duel', '/archive/chronicle', '/signin', '/settings', '/settings/admin', '/persona-lab', '/keepsake/', '/keepsake/evening/'):
             self.assertIn(route, pages)
         for route in ('/app/index.html', '/companion/index.html', '/simulator/index.html',
                       '/workshop/index.html', '/workshop/viewer.html', '/keepsake/index.html', '/keepsake/evening/index.html',

@@ -10,6 +10,9 @@ namespace Kufr.Backend.Features.GptLive;
 internal sealed class GptLiveClient(IConfiguration configuration) : IDisposable
 {
     private readonly HttpMessageInvoker transport = new(new HttpClientHandler { AllowAutoRedirect = false });
+    private readonly Func<CancellationToken, Task<WebSocket>>? connectOverride;
+    internal GptLiveClient(IConfiguration configuration, Func<CancellationToken, Task<WebSocket>> connect)
+        : this(configuration) => connectOverride = connect;
     internal bool Available => !string.IsNullOrWhiteSpace(configuration["OPENAI_API_KEY"])
        ;
     internal async Task<GptLiveConnection> ConnectAsync(CancellationToken token)
@@ -19,6 +22,7 @@ internal sealed class GptLiveClient(IConfiguration configuration) : IDisposable
     }
     private async Task<WebSocket> ConnectSocketAsync(CancellationToken token)
     {
+        if (connectOverride is not null) { return await connectOverride(token); }
         var socket = new ClientWebSocket();
         socket.Options.SetRequestHeader("Authorization", "Bearer " + configuration["OPENAI_API_KEY"]);
         try
@@ -35,11 +39,22 @@ internal sealed class GptLiveConnection(WebSocket socket, Func<CancellationToken
 {
     private readonly SemaphoreSlim writes = new(1, 1);
     private bool closing;
+    private int disposed;
     private long inputPcmBytes;
     private Action<byte[]>? inputObserver;
     internal long InputPcmBytes => Interlocked.Read(ref inputPcmBytes);
     internal void ObserveInput(Action<byte[]>? observer) => Volatile.Write(ref inputObserver, observer);
     internal long VisualGeneration { get; set; }
+    internal string? ProviderSessionId { get; private set; }
+    internal void CaptureSessionId(JsonElement started)
+    {
+        ProviderSessionId = started.ValueKind == JsonValueKind.Object
+            && started.TryGetProperty("session", out var session) && session.ValueKind == JsonValueKind.Object
+            && session.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String
+            && id.GetString() is { Length: > 0 and <= 128 } value
+            && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-')
+                ? value : null;
+    }
     private long inputGeneration;
     private TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal void AudioReady() => ready.TrySetResult();
@@ -47,29 +62,40 @@ internal sealed class GptLiveConnection(WebSocket socket, Func<CancellationToken
     {
         var generation = Interlocked.Read(ref inputGeneration);
         await ready.Task.WaitAsync(token);
-        Volatile.Read(ref inputObserver)?.Invoke(pcm);
-        await SendAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(pcm) }, token, audio: true, audioBytes: pcm.Length, expectedInputGeneration: generation);
+        await SendAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(pcm) }, token,
+            audio: true, audioBytes: pcm.Length, expectedInputGeneration: generation, observedPcm: pcm);
     }
 
     internal Task CloseAsync(CancellationToken token, string? eventId = null) => eventId is null
         ? SendAsync(new { type = "session.close" }, token, close: true)
         : SendAsync(new { type = "session.close", event_id = eventId }, token, close: true);
 
-    internal async Task SendAsync(object value, CancellationToken token, bool audio = false, bool close = false, int audioBytes = 0, long? expectedInputGeneration = null)
+    internal async Task SendAsync(object value, CancellationToken token, bool audio = false, bool close = false,
+        int audioBytes = 0, long? expectedInputGeneration = null, byte[]? observedPcm = null)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(value, RealtimeProtocol.JsonOptions);
-        if (bytes.Length > 65_536) throw new InvalidDataException("Live command too large.");
-        await writes.WaitAsync(token);
         try
         {
-            // Serialize close with uploads; acknowledge late device chunks without
-            // sending illegal input after the provider close request.
-            if (audio && (closing || expectedInputGeneration != inputGeneration)) return;
-            if (close) closing = true;
-            await socket.SendAsync(bytes, WebSocketMessageType.Text, true, token);
-            if (audio) Interlocked.Add(ref inputPcmBytes, audioBytes);
+            if (bytes.Length > 65_536) { throw new InvalidDataException("Live command too large."); }
+            await writes.WaitAsync(token);
+            try
+            {
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+                // Retired audio must not enter either the provider or the new
+                // generation's input-activity observer after visual revocation.
+                if (audio && (closing || expectedInputGeneration != inputGeneration)) return;
+                if (close)
+                {
+                    closing = true;
+                    ready.TrySetResult();
+                }
+                if (observedPcm is not null) { Volatile.Read(ref inputObserver)?.Invoke(observedPcm); }
+                await socket.SendAsync(bytes, WebSocketMessageType.Text, true, token);
+                if (audio) Interlocked.Add(ref inputPcmBytes, audioBytes);
+            }
+            finally { writes.Release(); }
         }
-        finally { CryptographicOperations.ZeroMemory(bytes); writes.Release(); }
+        finally { CryptographicOperations.ZeroMemory(bytes); }
     }
 
     internal async Task RestartAsync(long generation, CancellationToken token)
@@ -78,6 +104,7 @@ internal sealed class GptLiveConnection(WebSocket socket, Func<CancellationToken
         await writes.WaitAsync(token);
         try
         {
+            ProviderSessionId = null;
             Interlocked.Increment(ref inputGeneration);
             var previousReady = ready;
             ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -113,5 +140,16 @@ internal sealed class GptLiveConnection(WebSocket socket, Func<CancellationToken
         finally { CryptographicOperations.ZeroMemory(bytes); System.Buffers.ArrayPool<byte>.Shared.Return(bytes); }
     }
 
-    public ValueTask DisposeAsync() { socket.Abort(); socket.Dispose(); return ValueTask.CompletedTask; }
+    public ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) == 0)
+        {
+            // Startup failure can leave uploads waiting for session.started.
+            // Teardown owns those waiters even when their request token survives.
+            ready.TrySetCanceled();
+            socket.Abort();
+            socket.Dispose();
+        }
+        return ValueTask.CompletedTask;
+    }
 }

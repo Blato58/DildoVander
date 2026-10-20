@@ -6,6 +6,7 @@ export interface VoiceSettings {
   voice: 'cedar' | 'marin' | 'coral';
   phase: 'unavailable' | 'idle' | 'starting' | 'photo_capture' | 'photo_upload' | 'photo_wait' | 'listening' | 'thinking' | 'speaking' | 'stopping' | 'completed' | 'failed';
   error: 'ai_unavailable' | 'audio_failed' | 'cost_limit' | null;
+  testContextId?: string;
 }
 export interface LocalVoiceState extends VoiceSettings {
   pending: boolean;
@@ -16,7 +17,7 @@ export interface LocalVoiceState extends VoiceSettings {
 }
 interface Context {
   deviceId: string; bootId: string; revision: number; controlMode: string;
-  phase: string; activeCommandId: string | null; voice?: VoiceSettings;
+  phase: string; activeCommandId: string | null; voice?: VoiceSettings; capabilities?: readonly string[];
 }
 const active = (phase: VoiceSettings['phase']) =>
   ['starting', 'photo_capture', 'photo_upload', 'photo_wait', 'listening', 'thinking', 'speaking', 'stopping'].includes(phase);
@@ -69,15 +70,21 @@ export class LocalVoiceClient {
       !['cedar', 'marin', 'coral'].includes(voice) || mode !== 'off' && !this.state().available) return false;
     return this.request('voice.configure', { mode, voice });
   }
-  start(imageConsent = false): boolean {
+  start(imageConsent = false, testContext?: string): boolean {
+    if (testContext !== undefined && (!/^[A-Za-z0-9_-]{43}$/.test(testContext)
+      || !this.context?.capabilities?.includes('voiceTestContext'))) return false;
     if (imageConsent && this.context?.voice?.cameraAvailable !== true) return false;
     return this.state().canStart && this.request('voice.start', { expectedRevision: this.context!.revision,
+      ...(testContext !== undefined ? { testContext } : {}),
       ...(imageConsent ? { imageConsent: true } : {}) });
   }
-  stop(): boolean {
+  stop(testContextId?: string): boolean {
+    if (testContextId !== undefined && (!/^[a-f0-9]{64}$/.test(testContextId)
+      || !this.context?.capabilities?.includes('voiceTestContext')
+      || this.context?.voice?.testContextId !== testContextId)) return false;
     if (!this.state().canStop) return false;
     // Stop may supersede an in-flight start/configure, without waiting for ACK.
-    return this.request('voice.stop', {});
+    return this.request('voice.stop', testContextId === undefined ? {} : { testContextId });
   }
   receive(message: Record<string, unknown>): void {
     if (!this.context || message.bootId !== this.context.bootId || message.requestMessageId !== this.pending) return;

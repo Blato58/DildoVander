@@ -33,6 +33,7 @@ internal sealed record RealtimeTurnContext(
     internal string CostumeContext { get; init; } = "";
     internal string PersonalityId { get; init; } = PersonalityCatalog.DefaultId;
     internal GptLive.LivePromptSnapshot? LivePrompt { get; init; }
+    internal string? InstructionOverride { get; init; }
     internal IReadOnlyList<object> LiveInput { get; init; } = [];
     internal IReadOnlyList<string> LiveMemoryReferences { get; init; } = [];
     internal string OpeningVariation { get; init; } = Request.Opening ? ConversationOpening.Next() : "";
@@ -143,8 +144,7 @@ internal static class RealtimeProtocol
         }
         var options = new RealtimeConversationSessionOptions
         {
-            Instructions = (turn.LivePrompt?.Version == "dv01-adult-v1"
-                ? turn.LivePrompt.Instructions : PersonalityCatalog.DecisionInstructions(turn.PersonalityId)) + "\n" + turn.CostumeContext + "\nServerová pravidla tohoto tahu: "
+            Instructions = Instructions(turn) + "\n" + turn.CostumeContext + "\nServerová pravidla tohoto tahu: "
                 + $"opening={turn.Request.Opening}; requireQuestion={turn.RequireQuestion}; "
                 + $"Dostupné hůlky: {PartyWandCatalog.AvailableForPrompt(turn.Request.ReadyMask)}. "
                 + (turn.Request.ReadyMask == 0
@@ -186,6 +186,20 @@ internal static class RealtimeProtocol
             options.Tools.Add(tool);
         }
         return options;
+    }
+
+    private static string Instructions(RealtimeTurnContext turn)
+    {
+        if (turn.InstructionOverride is { } supplied)
+        {
+            if (string.IsNullOrWhiteSpace(supplied) || supplied.Length > 16_000)
+            {
+                throw new InvalidDataException("Invalid Realtime instruction override.");
+            }
+            return supplied;
+        }
+        return turn.LivePrompt is { } prompt && (prompt.PersonaRevisionId is not null || prompt.Version == "dv01-adult-v1")
+            ? prompt.Instructions : PersonalityCatalog.DecisionInstructions(turn.PersonalityId);
     }
 
     internal static string ContextData(RealtimeTurnContext turn) =>

@@ -15,6 +15,7 @@ internal static class VisualResponsePublisher
         await writes.WaitAsync(token);
         try
         {
+            await session.EnsureHardwareAuthorityAsync(token);
             await conversations.PublishVisualResponse(session.DeviceId, session.ConversationId, visualGeneration, () =>
             {
                 if (session.OutputGeneration != outputGeneration) { throw new VisualResponseRevokedException(); }
