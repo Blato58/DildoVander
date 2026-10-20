@@ -66,6 +66,7 @@ def main():
         ("autonomous_presentation_lifecycle_test", CORE, []),
         ("device_control_runtime_test", CORE, []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
+        ("keepsake_durability_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/DeviceControlRuntime", "device_control/PersistentCommandJournal", "conversation/ConversationRuntimeState", "conversation/PendingProposal", "wand_presentation/WandPresentation"], []),
         ("journal_epoch_test", ["device_control/PersistentCommandJournal"], []),
         ("dance_coordinator_test", ["dance/DanceCoordinator", "physical_effects/PhysicalEffects"], []),
         ("show_trace_mailbox_test", ["physical_effects/PresentationDiagnostics"], []),
