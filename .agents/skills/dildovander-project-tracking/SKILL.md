@@ -22,8 +22,9 @@ view. No local task database, generated status, tracking branch or follow-up PR.
 3. `claim ISSUE --session SESSION --branch BRANCH --worktree PATH --scope PATH`
    records advisory ownership and, when configured, sets the Project In Progress. Repeat `--scope` for literal path prefixes.
    Re-read discovery immediately before edits and scope expansion. Overlap,
-   malformed events or ambiguous simultaneous claims mean stop and agree a
-   division/handoff. Comments are not locks; no elapsed time grants takeover.
+   malformed events or ambiguous simultaneous claims mean pause the overlapping
+   portion and coordinate a division/handoff below; continue independent work
+   where ownership is established. Comments are not locks; no elapsed time grants takeover.
    Session IDs persist across resumptions. Do not remove another session's claim.
 4. Keep task details in its Issue (`note ISSUE --body-file PRIVATE_FILE`). Use
    the discovered **Agent Coordination Hub** only for cross-task STARTED,
@@ -38,6 +39,33 @@ view. No local task database, generated status, tracking branch or follow-up PR.
    merge, records evidence and closes the task. The acceptance flag is your
    evidence-backed assertion; it never proves tests. Configured Project writes
    are read back; DONE release means In Review until verified completion.
+
+## Coordinate before escalating
+
+The owner explicitly grants standing authorization (2026-10-20) for project
+chats/sessions to message each other about ownership, dependencies, source-path
+changes and handoffs. Do not ask again for permission to send these coordination
+messages. This authority covers project coordination only, not third-party
+messages or additional implementation, deployment or other external actions.
+
+Before asking the owner to resolve a coordination conflict, inspect current
+claims and the latest relevant handoff, identify the responsible chat, and use
+available chat discovery/read/messaging tools to contact it with the affected
+paths, dependency and a concrete proposed division or handoff. Include only the
+context needed for that project task. Use an existing chat; do not create a new
+chat just to coordinate. A Hub entry records evidence but does not itself wake
+another chat. Verify any claimed agreement against current ownership before
+editing; record the agreement and ownership change in the private task Issue,
+with a brief cross-task HANDOFF in the Hub. Each claimant releases or updates
+its own claim through the supported workflow; never remove another's claim.
+
+If direct contact is unavailable, leave a concrete private handoff request and
+continue independent work. Silence, an old claim or an isolated branch does not
+authorize takeover or override a recorded restriction, including source-path
+moves. Escalate to the owner only for a decision beyond existing authority, an
+unresolved substantive disagreement, or information/access/action only the owner
+can provide. State attempted coordination and the exact remaining blocker;
+do not ask the owner to relay routine messages or reapprove authorized work.
 
 The helper uses a dedicated installation token or the restricted App setup in the
 setup guide, never owner `gh` credentials or public fallback. Missing access blocks overlapping work; do independent work
