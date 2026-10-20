@@ -14,7 +14,6 @@
 ## Projekty a zdroje pravdy
 
 - `kufr/` je současná priorita: firmware ESP32-S3 v `kufr/firmware/` a samostatný mobilní ovladač ve `kufr/mobilni-aplikace/`.
-- `obludarium/firmware/` je oddělený projekt PlatformIO pro Arduino Nano; neměň ho při práci na kufru bez zadání, které se ho týká.
 - Architekturu, kontrakty, závislosti a kritéria etap určuje [implementační plán](kufr/docs/implementacni-plan.md). Aktuální práci, blokace a předání vedou privátní GitHub Issues podle [koordinačního workflow](docs/development-coordination.md). README popisují aktuálně existující kód, nikoli alternativní roadmapu.
 - Pro zapojení a napájení čti `kufr/docs/efekty-a-napajeni.md`, pro podkladovou pinovou mapu `kufr/docs/pin-mapa-esp32-s3.md` a pro omezení kamery `kufr/docs/kamera.md`. Předběžné profily A/B a bezpečnostní obvod jsou v kapitolách 8 a 10 plánu.
 - Je-li přítomná `.codex/personal-routing.md`, načti ji jako doplněk aktuálních tracked pokynů. Přípravu lokálního kontextu nového worktree popisuje [.codex/environment/README.md](.codex/environment/README.md); Windows checkout, Cloud a VPS nejsou zaměnitelné prostředí.
@@ -122,7 +121,6 @@
   simulátor neprokazují akceptaci na iPhonu. Nativní testy a podpis ověř
   existujícím macOS workflow výše. Běžný app/viewer build nesmí spouštět CAD
   ani ověřování výrobního ZIPu; model má samostatnou verzi a provenance.
-- V `obludarium/firmware/` je sestavovací příkaz `pio run`; projekt je zatím jen startovní kostra.
 - `**/.pio/`, `**/node_modules/` a `**/dist/` jsou generované nebo lokální výstupy. Neupravuj je jako zdrojové soubory.
 - Po změně kódu ověř nejmenší dotčený projekt a relevantní testy. Pokud chybí hardware pro ověření skutečného efektu, uveď tuto mezeru ve výsledku.
 - Při změně pouze dokumentace ověř lokální odkazy, konzistenci etap a rozsah změn; nespouštěj nesouvisející buildy. Do receipts zapisuj pouze skutečně provedené kontroly, u staršího výsledku zachovej datum a rozsah.
