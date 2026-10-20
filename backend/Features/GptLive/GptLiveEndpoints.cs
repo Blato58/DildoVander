@@ -251,9 +251,16 @@ internal static class GptLiveEndpoints
         try
         {
             using var body = await ReadControl(context); var r = body.RootElement;
-            return r.EnumerateObject().Select(p => p.Name).Order().SequenceEqual(new[] { "bootId", "deviceRevision", "generation", "readyMask" })
+            var hasEpoch = r.TryGetProperty("operationEpoch", out var epoch);
+            if (hasEpoch && (epoch.ValueKind != JsonValueKind.String || !OperationEpoch.IsValid(epoch.GetString())))
+                return ApiProblem.Create(context, 400, "invalid_request");
+            var fields = hasEpoch
+                ? new[] { "bootId", "deviceRevision", "generation", "operationEpoch", "readyMask" }
+                : new[] { "bootId", "deviceRevision", "generation", "readyMask" };
+            return r.EnumerateObject().Select(p => p.Name).Order().SequenceEqual(fields)
                 && Guid.TryParseExact(r.GetProperty("bootId").GetString(), "D", out var boot)
-                && conversations.UpdateLiveAvailability(device, id, boot, r.GetProperty("generation").GetInt32(), r.GetProperty("readyMask").GetInt32(), r.GetProperty("deviceRevision").GetInt32())
+                && conversations.UpdateLiveAvailability(device, id, boot, r.GetProperty("generation").GetInt32(),
+                    r.GetProperty("readyMask").GetInt32(), r.GetProperty("deviceRevision").GetInt32(), hasEpoch ? epoch.GetString() : null)
                 ? Results.NoContent() : ApiProblem.Create(context, 409, "conversation_version_mismatch");
         }
         catch (Exception e) when (e is JsonException or InvalidDataException or InvalidOperationException)

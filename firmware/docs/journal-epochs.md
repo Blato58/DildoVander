@@ -45,8 +45,9 @@ neopravňuje k nové operaci v aktuální epoše. Scoped důkaz vyžaduje přesn
 prezentace zachytí vlastník řízení podle zvolené main/short varianty před
 trvalou přípravou a pohybem; při obnově se nevymýšlí.
 
-Backendová trvalá korelace, marker založení identity a reconciliation pinů
-zůstávají nutné před produkční aktivací. Současný čítač device revision nelze
+Backendová trvalá korelace a outcome ACK používají popsanou
+[migraci backendu](backend-operation-epochs.md). Marker založení identity a
+reconciliation pinů zůstávají nutné před produkční aktivací. Současný čítač device revision nelze
 vydávat za epochu. Produkční cesta stále používá epochu nula a limit 32 operací;
 kompakce ani automatické uvolňování důkazů nejsou zapnuté.
 

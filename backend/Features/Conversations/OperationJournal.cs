@@ -72,7 +72,7 @@ internal sealed partial class OperationJournal : IDisposable
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
         var schemaVersion = (long)version.ExecuteScalar()!;
-        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4 and not 5 and not 6 and not 7)
+        if (schemaVersion is not 0 and not 1 and not 2 and not 3 and not 4 and not 5 and not 6 and not 7 and not 8)
         {
             throw new InvalidOperationException("Unsupported backend database schema version.");
         }
@@ -168,7 +168,27 @@ internal sealed partial class OperationJournal : IDisposable
             schema.ExecuteNonQuery();
         }
 
-        schema.CommandText = "PRAGMA user_version=7";
+        schema.CommandText = "PRAGMA table_info(turn_operations)";
+        using (var columns = schema.ExecuteReader())
+        {
+            var hasOperationEpoch = false;
+            while (columns.Read())
+            {
+                hasOperationEpoch |= columns.GetString(1) == "operation_epoch";
+            }
+            columns.Close();
+            if (!hasOperationEpoch)
+            {
+                if (schemaVersion >= 8)
+                {
+                    throw new InvalidOperationException("Backend database schema is missing operation epoch storage.");
+                }
+                schema.CommandText = "ALTER TABLE turn_operations ADD COLUMN operation_epoch TEXT";
+                schema.ExecuteNonQuery();
+            }
+        }
+
+        schema.CommandText = "PRAGMA user_version=8";
         schema.ExecuteNonQuery();
         migration.Commit();
 
@@ -253,6 +273,10 @@ internal sealed partial class OperationJournal : IDisposable
         bool consumesTurn = true,
         long estimatedCostMicroUsd = 0)
     {
+        if (!OperationEpoch.IsValid(correlation.OperationEpoch))
+        {
+            throw new ArgumentException("Invalid operation epoch.", nameof(correlation));
+        }
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
         using (var cleanup = connection.CreateCommand())
@@ -270,6 +294,20 @@ internal sealed partial class OperationJournal : IDisposable
         var existing = FindExisting(connection, transaction, deviceId, route, key, bodyHash);
         if (existing is not null)
         {
+            if (!existing.Conflict)
+            {
+                using var identity = connection.CreateCommand();
+                identity.Transaction = transaction;
+                identity.CommandText = "SELECT operation_epoch FROM turn_operations WHERE operation_id=$operation";
+                identity.Parameters.AddWithValue("$operation", existing.OperationId);
+                using var storedIdentity = identity.ExecuteReader();
+                if (!storedIdentity.Read()
+                    || !TryReadOperationEpoch(storedIdentity, 0, out var storedEpoch)
+                    || !OperationEpoch.Same(storedEpoch, correlation.OperationEpoch))
+                {
+                    existing = existing with { Conflict = true };
+                }
+            }
             transaction.Commit();
             return existing;
         }
@@ -334,9 +372,9 @@ internal sealed partial class OperationJournal : IDisposable
             operation.CommandText = """
                 INSERT INTO turn_operations
                     (operation_id, device_id, conversation_id, boot_id, client_turn_id,
-                     generation, device_revision, status, expires_at_ms, kind)
+                     generation, device_revision, status, expires_at_ms, kind, operation_epoch)
                 VALUES ($operation, $device, $conversation, $boot, $turn,
-                        $generation, $revision, 'pending', $expires, $kind)
+                        $generation, $revision, 'pending', $expires, $kind, $operationEpoch)
                 """;
             operation.Parameters.AddWithValue("$operation", operationId);
             operation.Parameters.AddWithValue("$device", deviceId);
@@ -347,6 +385,7 @@ internal sealed partial class OperationJournal : IDisposable
             operation.Parameters.AddWithValue("$revision", correlation.DeviceRevision);
             operation.Parameters.AddWithValue("$expires", expiresAt);
             operation.Parameters.AddWithValue("$kind", kind);
+            operation.Parameters.AddWithValue("$operationEpoch", (object?)correlation.OperationEpoch ?? DBNull.Value);
             operation.ExecuteNonQuery();
         }
 
@@ -530,7 +569,7 @@ internal sealed partial class OperationJournal : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT device_id, conversation_id, boot_id, client_turn_id,
-                   generation, device_revision, status, kind
+                   generation, device_revision, status, kind, operation_epoch
             FROM turn_operations
             WHERE operation_id = $operation AND expires_at_ms > $now
             """;
@@ -549,13 +588,18 @@ internal sealed partial class OperationJournal : IDisposable
 
         var status = reader.GetString(6);
         var kind = reader.GetString(7);
+        if (!TryReadOperationEpoch(reader, 8, out var operationEpoch))
+        {
+            throw new InvalidOperationException("Persisted operation epoch is invalid.");
+        }
         var correlation = new TurnCorrelation(
             deviceId,
             Guid.Parse(reader.GetString(2)),
             reader.GetString(1),
             Guid.Parse(reader.GetString(3)),
             reader.GetInt32(4),
-            reader.GetInt32(5));
+            reader.GetInt32(5),
+            operationEpoch);
         var operation = status switch
         {
             "completed" => new TurnOperation(
@@ -565,6 +609,23 @@ internal sealed partial class OperationJournal : IDisposable
             _ => new TurnOperation(operationId, kind, status, correlation, null, null)
         };
         return new GetOperationResult(200, operation);
+    }
+
+    private static bool TryReadOperationEpoch(SqliteDataReader reader, int ordinal, out string? operationEpoch)
+    {
+        operationEpoch = null;
+        if (reader.IsDBNull(ordinal))
+        {
+            return true;
+        }
+        // Provider string conversion can normalize a corrupt BLOB into valid
+        // legacy text. Only an actual SQL NULL or TEXT identity is admissible.
+        if (reader.GetValue(ordinal) is not string text || !OperationEpoch.IsValid(text))
+        {
+            return false;
+        }
+        operationEpoch = text;
+        return true;
     }
 
     private JournalReservation? FindExisting(

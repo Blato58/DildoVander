@@ -67,6 +67,7 @@ internal sealed partial class ConversationStore
             }
             if (conversation.BootId != request.BootId
                 || conversation.Generation != request.Generation
+                || !OperationEpoch.Same(conversation.OperationEpoch, request.OperationEpoch)
                 || conversation.CatalogVersion != request.CatalogVersion)
             {
                 return new(409, "conversation_version_mismatch", null);
@@ -118,9 +119,10 @@ internal sealed partial class ConversationStore
             {
                 conversation.LiveReadyMask = request.ReadyMask;
                 conversation.LiveAvailabilityRevision = request.DeviceRevision;
+                conversation.LiveOperationEpoch = request.OperationEpoch;
             }
             var correlation = new TurnCorrelation(deviceId, request.BootId, conversationId,
-                request.ClientTurnId, request.Generation, request.DeviceRevision);
+                request.ClientTurnId, request.Generation, request.DeviceRevision, request.OperationEpoch);
             var reservation = journal.Reserve(deviceId, route, key, bodyHash, correlation,
                 estimatedCostMicroUsd: gptLive ? GptLiveProtocol.SessionReservationMicroUsd : RealtimeProtocol.ReservationMicroUsd(turn));
             if (reservation.Conflict || reservation.Existing)
@@ -161,6 +163,8 @@ internal sealed partial class ConversationStore
                 && activePaidCalls.ContainsKey(call.OperationId)
                 && conversations.TryGetValue(call.Correlation.ConversationId, out var conversation)
                 && conversation.DeviceId == call.Correlation.DeviceId
+                && OperationEpoch.Same(conversation.OperationEpoch, call.Correlation.OperationEpoch)
+                && OperationEpoch.Same(call.Context.Request.OperationEpoch, call.Correlation.OperationEpoch)
                 && conversation.LiveGeneration == call.SessionGeneration
                 && (eveningMemory is null || eveningMemory.MemoryDeletionEpochFor(
                     call.Correlation.DeviceId, call.Correlation.ConversationId) == call.MemoryDeletionEpoch)
@@ -200,7 +204,8 @@ internal sealed partial class ConversationStore
             var proposal = response.Compartment is { } selected
                 ? new SelectionProposal(Guid.NewGuid().ToString("D"), correlation.ConversationId,
                     correlation.ClientTurnId, call.Context.Request.CatalogVersion, correlation.DeviceRevision,
-                    selected, response.Reason, correlation.BootId, correlation.Generation, now.AddSeconds(60))
+                    selected, response.Reason, correlation.BootId, correlation.Generation, now.AddSeconds(60),
+                    correlation.OperationEpoch)
                 : null;
             var result = new TurnResult(response.Reply, response.Decision, response.Reason, proposal);
             if (archive && call.TranscriptEvents.Count == 0 && call.EveningId is not null)

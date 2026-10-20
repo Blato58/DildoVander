@@ -34,16 +34,20 @@ internal sealed partial class ConversationStore
     {
         lock (gate)
         {
-            if (!IsRealtimeTurnCurrent(call) || !conversations.TryGetValue(call.Correlation.ConversationId, out var c))
+            if (!IsRealtimeTurnCurrent(call) || !conversations.TryGetValue(call.Correlation.ConversationId, out var c)
+                || !OperationEpoch.Same(c.LiveOperationEpoch, call.Correlation.OperationEpoch))
                 return (0, call.Context.Request.DeviceRevision, false);
             return (c.LiveReadyMask ?? call.Context.Request.ReadyMask, c.LiveAvailabilityRevision ?? call.Context.Request.DeviceRevision, true);
         }
     }
-    internal bool UpdateLiveAvailability(string device, string conversation, Guid boot, int generation, int mask, int revision)
+    internal bool UpdateLiveAvailability(string device, string conversation, Guid boot, int generation, int mask, int revision,
+        string? operationEpoch = null)
     {
         lock (gate)
         {
-            if (mask is < 0 or > 63 || !conversations.TryGetValue(conversation, out var c) || c.DeviceId != device
+            if (!OperationEpoch.IsValid(operationEpoch) || mask is < 0 or > 63
+                || !conversations.TryGetValue(conversation, out var c) || c.DeviceId != device
+                || !OperationEpoch.Same(c.LiveOperationEpoch, operationEpoch)
                 || c.BootId != boot || c.Generation != generation || c.LiveAvailabilityRevision is not { } old || revision < old
                 || revision == old && mask != c.LiveReadyMask) return false;
             c.LiveReadyMask = mask; c.LiveAvailabilityRevision = revision; return true;
@@ -71,7 +75,7 @@ internal sealed partial class ConversationStore
         var proposal = !characterBlocked && decision.Status == WandDecisionStatus.ValidProposal && decision.Compartment is { } compartment
             ? new SelectionProposal(Guid.NewGuid().ToString("D"), correlation.ConversationId, correlation.ClientTurnId,
                 call.Context.Request.CatalogVersion, correlation.DeviceRevision, compartment, reply.Reason,
-                correlation.BootId, correlation.Generation, clock.GetUtcNow().AddSeconds(60)) : null;
+                correlation.BootId, correlation.Generation, clock.GetUtcNow().AddSeconds(60), correlation.OperationEpoch) : null;
         var result = new TurnResult(reply.Reply, proposal is null ? "no_selection" : "propose", reply.Reason, proposal);
         if (call.EveningId is not null)
         {

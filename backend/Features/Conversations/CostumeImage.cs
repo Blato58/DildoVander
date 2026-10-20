@@ -26,7 +26,9 @@ internal sealed record CostumeContext(string Description, string PossibleCharact
 
 internal sealed record CostumeImageResponse(string Description, string PossibleCharacter, string Uncertainty, long CostMicroUsd);
 internal sealed record CostumeImageUpload(Guid ClientTurnId, Guid BootId, int Generation, int DeviceRevision,
-    string CatalogVersion, byte[] Jpeg)
+    string CatalogVersion, byte[] Jpeg,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? OperationEpoch = null)
 {
     internal string? ImageId { get; init; }
     internal string Source { get; init; } = "phone";
