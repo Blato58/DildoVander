@@ -63,6 +63,7 @@ PersistentCommandJournal::PersistentCommandJournal(JournalStorage& storage)
   const JournalReadResult result = storage_.Read(data.data(), data.size(), length);
   if (result == JournalReadResult::Missing) {
     healthy_ = true;
+    storageMissing_ = true;
   } else if (result == JournalReadResult::Found && Decode(data.data(), length, state_)) {
     healthy_ = true;
   }
@@ -80,6 +81,33 @@ uint64_t PersistentCommandJournal::CurrentEpoch() const {
 
 bool PersistentCommandJournal::HasPending() const {
   return !healthy_ || state_.pendingCompartment != 0;
+}
+
+bool PersistentCommandJournal::ReadHistoryEntry(size_t index, JournalHistoryEntry& entry) const {
+  entry = {};
+  if (!healthy_ || index >= state_.historyCount) return false;
+  const auto& saved = state_.history[index];
+  entry.identity = {saved.epoch, saved.id, saved.compartment, saved.fingerprint};
+  entry.timedCompleted = saved.timedCompleted;
+  entry.evidencePinned = saved.evidencePinned;
+  return true;
+}
+
+bool PersistentCommandJournal::ExportRecord(std::array<uint8_t, RecordSize>& record) const {
+  record.fill(0);
+  if (!healthy_) return false;
+  Encode(state_, record);
+  return true;
+}
+
+bool PersistentCommandJournal::PreviewScopedIdentity(
+    const std::string& deviceId, bool factoryProvisioning,
+    std::array<uint8_t, RecordSize>& record) const {
+  record.fill(0);
+  State next;
+  if (!BuildScopedState(deviceId, factoryProvisioning, next)) return false;
+  Encode(next, record);
+  return true;
 }
 
 bool PersistentCommandJournal::CanBeginOperation() const {
@@ -259,18 +287,24 @@ bool PersistentCommandJournal::PersistReadyMask(uint8_t readyMask) {
   return Persist(next);
 }
 
-bool PersistentCommandJournal::EstablishScopedIdentity(
-    const std::string& deviceId, bool factoryProvisioning) {
+bool PersistentCommandJournal::BuildScopedState(
+    const std::string& deviceId, bool factoryProvisioning, State& next) const {
   if (HasPending() || state_.currentEpoch != 0 || !IsValidDeviceId(deviceId) ||
       (state_.origin == StateOrigin::Missing && !factoryProvisioning)) return false;
-  State next = state_;
+  next = state_;
   next.currentEpoch = 1;
   next.origin = StateOrigin::Scoped;
   next.deviceId = deviceId;
   // All legacy history, including unknown completion and positive evidence,
   // survives adoption until its exact durable consumers are reconciled.
   for (size_t index = 0; index < next.historyCount; ++index) next.history[index].evidencePinned = true;
-  return Persist(next);
+  return true;
+}
+
+bool PersistentCommandJournal::EstablishScopedIdentity(
+    const std::string& deviceId, bool factoryProvisioning) {
+  State next;
+  return BuildScopedState(deviceId, factoryProvisioning, next) && Persist(next);
 }
 
 bool PersistentCommandJournal::AdvanceEpochAndCompact() {
@@ -303,6 +337,22 @@ bool PersistentCommandJournal::ReleaseEvidencePin(
   return false;
 }
 
+bool PersistentCommandJournal::RetainEvidencePin(
+    uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
+  if (HasPending() || state_.origin != StateOrigin::Scoped) return false;
+  State next = state_;
+  for (size_t index = 0; index < next.historyCount; ++index) {
+    auto& entry = next.history[index];
+    if (entry.epoch == epoch && SameUuid(entry.id, id) && entry.compartment == compartment &&
+        entry.fingerprint == fingerprint) {
+      if (entry.evidencePinned) return true;
+      entry.evidencePinned = true;
+      return Persist(next);
+    }
+  }
+  return false;
+}
+
 bool PersistentCommandJournal::IsEvidencePinned(
     uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) const {
   const Entry* entry = ExactEntry(epoch, id, compartment, fingerprint);
@@ -317,6 +367,7 @@ bool PersistentCommandJournal::Persist(const State& next) {
     return false;
   }
   state_ = next;
+  storageMissing_ = false;
   return true;
 }
 

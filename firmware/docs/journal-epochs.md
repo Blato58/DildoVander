@@ -47,7 +47,10 @@ trvalou přípravou a pohybem; při obnově se nevymýšlí.
 
 Backendová trvalá korelace a outcome ACK používají popsanou
 [migraci backendu](backend-operation-epochs.md). Marker založení identity a
-reconciliation pinů zůstávají nutné před produkční aktivací. Současný čítač device revision nelze
+reconciliation pinů popisuje navazující
+[implementace a její produkční brány](journal-establishment.md).
+Zapojení všech trvalých konzumentů zůstává nutné před produkční aktivací.
+Současný čítač device revision nelze
 vydávat za epochu. Produkční cesta stále používá epochu nula a limit 32 operací;
 kompakce ani automatické uvolňování důkazů nejsou zapnuté.
 

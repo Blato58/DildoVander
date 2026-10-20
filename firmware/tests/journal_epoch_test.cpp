@@ -129,6 +129,7 @@ void TestMissingStorageAndExplicitProvisioning() {
   Storage storage;
   Journal empty(storage);
   assert(empty.IsHealthy() && empty.Origin() == Journal::StateOrigin::Missing);
+  assert(empty.IsStorageMissing());
   assert(empty.CurrentEpoch() == 0);
   assert(!empty.EstablishScopedIdentity("kufr-001"));
   assert(!empty.AdvanceEpochAndCompact());
@@ -136,9 +137,11 @@ void TestMissingStorageAndExplicitProvisioning() {
   assert(empty.FindScoped(0, FirstId, 1, 101) == Lookup::StaleEpoch);
   assert(empty.FindScoped(1, FirstId, 1, 101) == Lookup::StaleEpoch);
   assert(empty.PersistReadyMask(63));
+  assert(!empty.IsStorageMissing());
   // A normal inventory write must not disguise missing identity after reboot.
   Journal stillMissing(storage);
   assert(stillMissing.Origin() == Journal::StateOrigin::Missing);
+  assert(!stillMissing.IsStorageMissing());
   assert(!stillMissing.EstablishScopedIdentity("kufr-001"));
   assert(!stillMissing.EstablishScopedIdentity("", true));
   assert(!stillMissing.EstablishScopedIdentity("has space", true));

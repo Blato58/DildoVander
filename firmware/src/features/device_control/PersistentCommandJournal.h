@@ -7,6 +7,7 @@
 
 #include "CommandJournal.h"
 #include "JournalStorage.h"
+#include "JournalEvidence.h"
 
 class PersistentCommandJournal final : public CommandJournal {
  public:
@@ -20,6 +21,7 @@ class PersistentCommandJournal final : public CommandJournal {
   explicit PersistentCommandJournal(JournalStorage& storage);
 
   bool IsHealthy() const;
+  bool IsStorageMissing() const { return healthy_ && storageMissing_; }
   StateOrigin Origin() const;
   const std::string& ScopedDeviceId() const { return state_.deviceId; }
   uint64_t CurrentEpoch() const override;
@@ -32,6 +34,10 @@ class PersistentCommandJournal final : public CommandJournal {
   Lookup Find(const std::string& commandId, uint8_t compartment,
               uint64_t fingerprint) const override;
   size_t HistoryCount() const { return state_.historyCount; }
+  bool ReadHistoryEntry(size_t index, JournalHistoryEntry& entry) const;
+  bool ExportRecord(std::array<uint8_t, RecordSize>& record) const;
+  bool PreviewScopedIdentity(const std::string& deviceId, bool factoryProvisioning,
+                            std::array<uint8_t, RecordSize>& record) const;
   bool CanBeginOperation() const override;
   bool Resolve(uint8_t readyMask) override;
   bool ResolveRestored(uint8_t compartment) override;
@@ -65,6 +71,8 @@ class PersistentCommandJournal final : public CommandJournal {
   // identity is mandatory; release never deletes an entry within its epoch.
   bool ReleaseEvidencePin(uint64_t epoch, const std::string& id,
                           uint8_t compartment, uint64_t fingerprint);
+  bool RetainEvidencePin(uint64_t epoch, const std::string& id,
+                         uint8_t compartment, uint64_t fingerprint);
   bool IsEvidencePinned(uint64_t epoch, const std::string& id,
                         uint8_t compartment, uint64_t fingerprint) const;
 
@@ -88,6 +96,7 @@ class PersistentCommandJournal final : public CommandJournal {
     uint8_t historyCount = 0;
   };
 
+  bool BuildScopedState(const std::string& deviceId, bool factoryProvisioning, State& next) const;
   bool BeginAtEpoch(uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint);
   bool ConfirmTimedAtEpoch(uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint);
   const Entry* ExactEntry(uint64_t epoch, const std::string& id,
@@ -104,4 +113,5 @@ class PersistentCommandJournal final : public CommandJournal {
   JournalStorage& storage_;
   State state_;
   bool healthy_ = false;
+  bool storageMissing_ = false;
 };
