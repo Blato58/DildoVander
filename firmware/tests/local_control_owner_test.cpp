@@ -96,6 +96,13 @@ class Clock final : public LocalControlClockPort {
 class Output final : public LocalControlOutputPort {
  public:
   Output(LocalControlInbox& inbox, Clock& clock) : inbox(inbox), clock(clock) {}
+  bool ControlAck(const LocalSocketAdmission::Handle&,
+                  const LocalControlMessage& message, LocalControlError error) override {
+    ++controlAcks;
+    lastControlKind = message.kind;
+    lastControlError = error;
+    return accept;
+  }
   bool VoiceAck(const LocalSocketAdmission::Handle&, const LocalControlMessage&, bool admitted) override {
     lastVoiceAccepted = admitted; return accept;
   }
@@ -160,6 +167,9 @@ class Output final : public LocalControlOutputPort {
   int snapshots = 0;
   int heartbeats = 0;
   int results = 0;
+  int controlAcks = 0;
+  LocalControlError lastControlError = LocalControlError::None;
+  LocalControlMessageKind lastControlKind = LocalControlMessageKind::Hello;
   std::string lastLease;
   CommandReceipt lastCommand;
   ConversationCommandReceipt lastConversation;
@@ -242,14 +252,15 @@ class Dance final : public kufr::dance::LocalDancePort {
 };
 
 struct Fixture {
-  Fixture()
+  explicit Fixture(bool voiceAvailable = true, bool danceAvailable = true)
       : safety(port), sequence(safety),
         control("kufr-001", Boot, sequence, journal, 1), state(false, 0, ""),
         runtime(control, sequence, state, "neutral-1"),
         conversation(Boot, Conversation), inbox("kufr-001", Boot),
         transport(inbox), output(inbox, clock),
         owner("kufr-001", Boot, runtime, state, conversation, network,
-              inbox, transport, output, ids, recovery, steps, clock, &voice, &dance) {
+              inbox, transport, output, ids, recovery, steps, clock,
+              voiceAvailable ? &voice : nullptr, danceAvailable ? &dance : nullptr) {
     safety.InitializeSafe();
     assert(runtime.RecoverAfterInspection());
   }
@@ -378,7 +389,7 @@ void TestExpiryCancelFailureAndReset() {
   blockedReset.Submit(LocalControlMessageKind::Acquire);
   blockedReset.Submit(LocalControlMessageKind::Stop);
   blockedReset.Submit(LocalControlMessageKind::Reset, 101);
-  assert(blockedReset.control.NeedsRecovery() && blockedReset.transport.closes == 1);
+  assert(blockedReset.control.NeedsRecovery() && blockedReset.transport.closes == 0);
   Fixture reset;
   reset.Connect();
   reset.Submit(LocalControlMessageKind::Acquire);
@@ -499,6 +510,149 @@ void TestMaintenanceReservation() {
   assert(observer.voice.stopped == 2);
 }
 
+void TestBusySelectionKeepsObserverAvailable() {
+  for (const bool maintenance : {false, true}) {
+    Fixture fixture;
+    fixture.Connect();
+    fixture.Submit(LocalControlMessageKind::Acquire);
+    if (maintenance) {
+      fixture.owner.SetMaintenance(true);
+    } else {
+      fixture.dance.status.phase = "playing";
+    }
+    fixture.Submit(LocalControlMessageKind::Selection);
+    assert(fixture.output.lastCommand.error == CommandError::Busy);
+    assert(fixture.transport.closes == 0);
+    assert(fixture.control.HasManualControl());
+    assert(fixture.journal.begins == 0 && fixture.port.vibrations == 0);
+    const int snapshots = fixture.output.snapshots;
+    fixture.Submit(LocalControlMessageKind::StateGet, 101);
+    assert(fixture.output.snapshots > snapshots);
+    fixture.Submit(LocalControlMessageKind::Heartbeat, 102);
+    assert(fixture.output.heartbeats == 1);
+    fixture.Submit(LocalControlMessageKind::Stop, 103);
+    assert(fixture.control.NeedsRecovery());
+    assert(fixture.transport.closes == 0);
+  }
+}
+
+void TestControlRefusalRetryAndLegacyCompatibility() {
+  for (const bool acknowledge : {false, true}) {
+    Fixture fixture;
+    fixture.Connect();
+    auto acquire = fixture.Message(LocalControlMessageKind::Acquire);
+    acquire.acknowledge = acknowledge;
+    fixture.owner.SetMaintenance(true);
+    assert(fixture.inbox.Submit(fixture.handle, acquire));
+    fixture.Poll(100);
+    assert(fixture.output.controlAcks == (acknowledge ? 1 : 0));
+    if (acknowledge) assert(fixture.output.lastControlError == LocalControlError::Busy);
+    assert(!fixture.control.HasManualControl() && fixture.transport.closes == 0);
+    fixture.Submit(LocalControlMessageKind::StateGet, 101);
+    fixture.owner.SetMaintenance(false);
+    assert(fixture.inbox.Submit(fixture.handle, acquire));
+    fixture.Poll(102);
+    assert(fixture.control.HasManualControl() && fixture.transport.closes == 0);
+    assert(fixture.output.lastControlError == LocalControlError::None);
+    assert(fixture.inbox.Submit(fixture.handle, acquire));
+    fixture.Poll(103);
+    if (acknowledge) assert(fixture.output.lastControlError == LocalControlError::ControllerBusy);
+    assert(fixture.control.HasManualControl() && fixture.transport.closes == 0);
+    fixture.Submit(LocalControlMessageKind::Stop, 104);
+    auto reset = fixture.Message(LocalControlMessageKind::Reset);
+    reset.acknowledge = acknowledge;
+    assert(fixture.inbox.Submit(fixture.handle, reset));
+    fixture.Poll(105);
+    if (acknowledge) assert(fixture.output.lastControlError == LocalControlError::RecoveryRequired);
+    assert(fixture.control.NeedsRecovery() && fixture.transport.closes == 0);
+    fixture.recovery.allow = true;
+    assert(fixture.inbox.Submit(fixture.handle, reset));
+    fixture.Poll(106);
+    assert(!fixture.control.NeedsRecovery() && fixture.control.HasManualControl());
+    assert(fixture.output.lastControlError == LocalControlError::None);
+    auto release = fixture.Message(LocalControlMessageKind::Release);
+    release.acknowledge = acknowledge;
+    assert(fixture.inbox.Submit(fixture.handle, release));
+    fixture.Poll(107);
+    assert(!fixture.control.HasManualControl() && fixture.transport.closes == 0);
+    assert(fixture.inbox.Submit(fixture.handle, acquire));
+    fixture.Poll(108);
+    if (acknowledge) {
+      assert(fixture.output.lastControlKind == LocalControlMessageKind::Acquire);
+      assert(fixture.output.lastControlError == LocalControlError::RecoveryRequired);
+    }
+    assert(fixture.control.NeedsRecovery() && !fixture.control.HasManualControl());
+  }
+}
+
+void TestRefusalsDoNotRenewLease() {
+  Fixture fixture;
+  fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::Acquire);
+  fixture.owner.SetMaintenance(true);
+  auto blocked = fixture.Message(LocalControlMessageKind::Acquire);
+  blocked.acknowledge = true;
+  assert(fixture.inbox.Submit(fixture.handle, blocked));
+  fixture.Poll(5000);
+  assert(fixture.control.HasManualControl() && fixture.transport.closes == 0);
+  fixture.Submit(LocalControlMessageKind::Heartbeat, 6100);
+  assert(!fixture.control.HasManualControl() && fixture.transport.closes == 1);
+  assert(fixture.output.heartbeats == 0);
+
+  Fixture outputFailure;
+  outputFailure.Connect();
+  outputFailure.owner.SetMaintenance(true);
+  outputFailure.output.accept = false;
+  assert(outputFailure.inbox.Submit(outputFailure.handle, blocked));
+  outputFailure.Poll(100);
+  assert(outputFailure.transport.closes == 1 && !outputFailure.control.HasManualControl());
+
+  for (const auto kind : {LocalControlMessageKind::Reset, LocalControlMessageKind::Release}) {
+    Fixture wrongLease;
+    wrongLease.Connect();
+    wrongLease.Submit(LocalControlMessageKind::Acquire);
+    wrongLease.owner.SetMaintenance(true);
+    auto invalid = wrongLease.Message(kind);
+    invalid.controlLeaseId = Turn;
+    invalid.acknowledge = true;
+    assert(wrongLease.inbox.Submit(wrongLease.handle, invalid));
+    wrongLease.Poll(101);
+    assert(wrongLease.transport.closes == 1 && !wrongLease.control.HasManualControl());
+    assert(wrongLease.output.controlAcks == 0);
+  }
+}
+
+void TestStaleCommandThenStopAndUnsupportedCapability() {
+  Fixture stale;
+  stale.Connect();
+  stale.Submit(LocalControlMessageKind::Acquire);
+  auto command = stale.Message(LocalControlMessageKind::Selection);
+  ++command.expectedRevision;
+  assert(stale.inbox.Submit(stale.handle, command));
+  stale.Poll(100);
+  assert(stale.output.lastCommand.error == CommandError::StaleRevision);
+  assert(stale.transport.closes == 0 && stale.journal.begins == 0);
+  stale.Submit(LocalControlMessageKind::StateGet, 101);
+  command = stale.Message(LocalControlMessageKind::Selection);
+  command.commandId = Turn;
+  command.sequence = 2;
+  assert(stale.inbox.Submit(stale.handle, command));
+  stale.Poll(102);
+  assert(stale.output.lastCommand.error == CommandError::None && stale.journal.begins == 1);
+  stale.Submit(LocalControlMessageKind::Stop, 103);
+  assert(stale.control.NeedsRecovery() && stale.port.vibrations == 0);
+
+  Fixture unsupported(false, false);
+  unsupported.Connect();
+  unsupported.Submit(LocalControlMessageKind::DanceStart);
+  assert(!unsupported.output.lastDanceAccepted && unsupported.transport.closes == 0);
+  unsupported.Submit(LocalControlMessageKind::StateGet, 101);
+  unsupported.Submit(LocalControlMessageKind::VoiceStart, 101);
+  assert(!unsupported.output.lastVoiceAccepted && unsupported.voice.started == 0);
+  unsupported.Submit(LocalControlMessageKind::Stop, 102);
+  assert(unsupported.dance.starts == 0 && unsupported.transport.closes == 0);
+}
+
 }  // namespace
 
 int main() {
@@ -536,6 +690,10 @@ int main() {
     assert(!fixture.output.lastDanceAccepted && fixture.dance.starts == 0);
   }
   TestMaintenanceReservation();
+  TestBusySelectionKeepsObserverAvailable();
+  TestControlRefusalRetryAndLegacyCompatibility();
+  TestRefusalsDoNotRenewLease();
+  TestStaleCommandThenStopAndUnsupportedCapability();
   TestStandaloneVoice();
   TestHelloAndObserver();
   TestLegacyTextRequiresUpgrade();

@@ -200,7 +200,9 @@ void EspIdfFirmwareUpdate::Tick(uint64_t nowMs, bool networkReady, bool selfTest
   bool reboot = false, rollback = false, confirm = false, notify = false;
   {
     Lock lock(mutex_);
-    const auto decision = policy_.BootHealth(nowMs, networkReady && selfTestReady);
+    // A locally healthy image must survive an unattended boot without a hotspot.
+    // Network readiness still gates every manifest check and download below.
+    const auto decision = policy_.BootHealth(nowMs, selfTestReady);
     if (decision == BootDecision::Rollback) { rollback = true; reserved_ = true; status_.state = "rollback"; }
     if (decision == BootDecision::Confirm) confirm = true;
     if (!bootPending_ && configured_ && work_ == Work::None) {

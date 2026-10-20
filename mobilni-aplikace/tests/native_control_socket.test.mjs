@@ -140,6 +140,41 @@ test('native manual path uses strict shared schema and matching identity before 
   assert.equal(connection.snapshot().phase, 'disconnected');
 });
 
+test('native strict decoder accepts negotiated control refusal and keeps Stop available', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+    parseFrame: (frame) => validateControlMessage(new TextEncoder().encode(frame)),
+  });
+  await settle();
+  native.emit('open');
+  await settle();
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  native.emit('frame', JSON.stringify({
+    protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+    snapshot: { ...fixture, capabilities: [...fixture.capabilities, 'controlAck'], controlMode: 'standalone', controlLeaseId: null },
+  }));
+  assert.equal(connection.acquire(), true);
+  await settle();
+  const request = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(request.acknowledge, true);
+  native.emit('frame', JSON.stringify({
+    protocolVersion: 1, type: 'control.ack', bootId: fixture.bootId,
+    requestMessageId: request.messageId, operation: request.type,
+    revision: fixture.revision, eventSequence: fixture.eventSequence + 1,
+    accepted: false, errorCode: 'busy',
+  }));
+  assert.equal(connection.snapshot().busy, false);
+  assert.equal(connection.snapshot().phase, 'ready');
+  assert.match(connection.snapshot().status, /zaneprázdněný/);
+  assert.equal(native.closed.length, 0);
+  connection.stop();
+  await settle();
+  assert.equal(validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame)).type, 'safety.stop');
+  connection.suspend();
+});
+
 test('malformed, duplicate, oversized and wrong-device snapshots close native control', async () => {
   for (const bad of [
     '{"protocolVersion":1,"protocolVersion":1,"type":"state.snapshot"}',

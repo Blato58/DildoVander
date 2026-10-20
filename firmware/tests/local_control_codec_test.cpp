@@ -45,6 +45,17 @@ void TestConnectionAndLease() {
   assert(!Parse("{" + Common("heartbeat") + Boot() + "}", message));
   assert(!Parse("{" + Common("hello") + Boot() + "}", message));
   assert(!Parse("{" + Common("state.get") + Boot() + Lease() + "}", message));
+  for (const char* type : {"control.acquire", "control.release", "safety.reset"}) {
+    const std::string fields = Boot() + (std::string(type) == "control.acquire" ? "" : Lease()) +
+        (std::string(type) == "safety.reset" ? ",\"inspectionConfirmed\":true" : "");
+    assert(Parse("{" + Common(type) + fields + ",\"acknowledge\":true}", message));
+    assert(message.acknowledge);
+    assert(!Parse("{" + Common(type) + fields + ",\"acknowledge\":false}", message));
+    assert(!Parse("{" + Common(type) + fields + ",\"acknowledge\":true,\"acknowledge\":true}", message));
+  }
+  assert(!Parse("{" + Common("hello") + ",\"acknowledge\":true}", message));
+  assert(!Parse("{" + Common("state.get") + Boot() + ",\"acknowledge\":true}", message));
+  assert(!Parse("{" + Common("heartbeat") + Boot() + Lease() + ",\"acknowledge\":true}", message));
 }
 
 void TestOfflineEnvelope() {

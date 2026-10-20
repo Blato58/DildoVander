@@ -46,6 +46,7 @@ struct LocalControlMessage {
   std::string voiceMode;
   std::string voice;
   bool imageConsent = false;
+  bool acknowledge = false;
   bool shortVariant = false;
   bool enabled = false;
   uint64_t generation = 0;

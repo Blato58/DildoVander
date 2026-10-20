@@ -49,6 +49,8 @@ class LocalControlOwner final {
   void Handle(const LocalControlMessage& message, uint64_t nowMs);
   void Selection(const LocalControlMessage& message, uint64_t nowMs);
   void Reload(const LocalControlMessage& message, uint64_t nowMs);
+  bool ControlAck(const LocalControlMessage& message, LocalControlError error);
+  bool RefuseBusy(const LocalControlMessage& message);
   void Snapshot(uint64_t nowMs);
   bool SameHandle(const LocalSocketAdmission::Handle& handle) const;
 

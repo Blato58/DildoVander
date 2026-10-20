@@ -4,9 +4,18 @@
 #include "LocalSocketAdmission.h"
 #include "../conversation/ConversationSession.h"
 
+enum class LocalControlError : uint8_t {
+  None,
+  Busy,
+  ControllerBusy,
+  RecoveryRequired,
+};
+
 class LocalControlOutputPort {
  public:
   virtual ~LocalControlOutputPort() = default;
+  virtual bool ControlAck(const LocalSocketAdmission::Handle&,
+                          const LocalControlMessage&, LocalControlError) { return false; }
   virtual bool OfflineAck(const LocalSocketAdmission::Handle&,
       const LocalControlMessage&, bool, const std::string&, const std::string&,
       const std::string& = "") { return false; }

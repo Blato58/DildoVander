@@ -2,6 +2,8 @@
 #include "../src/features/firmware_update/OtaManifest.h"
 #include "../src/features/firmware_update/OtaPolicy.h"
 #include "../src/features/firmware_update/EspIdfFirmwareUpdate.h"
+#include "../src/features/physical_effects/PhysicalEffects.h"
+#include "../src/features/device_control/PersistentCommandJournal.h"
 #include <cassert>
 #include <iostream>
 #include <new>
@@ -100,6 +102,8 @@ void Check(EspIdfFirmwareUpdate& ota) {
 }
 void StartInstall(EspIdfFirmwareUpdate& ota) {
   assert(ota.RequestInstall());
+  ota.Tick(0, false, true, true);
+  assert(ota.Status().state == "waiting-idle" && !ota.Reserved() && ota_fake::writes == 0);
   ota.Tick(0, true, true, false);
   assert(ota.Status().state == "waiting-idle" && !ota.Reserved() && ota_fake::writes == 0);
   ota.Tick(0, true, true, true);
@@ -192,6 +196,125 @@ void Failures() {
   EspIdfFirmwareUpdate repeated; assert(repeated.Begin()); Check(repeated);
   assert(repeated.Status().error == "previously-failed-version" && ota_fake::writes == 0);
 }
+class BootPhysicalIo final : public PhysicalIo {
+ public:
+  bool enabled = false;
+  bool failRead = false, failOff = false;
+  unsigned enableCount = 0, servoWrites = 0, vibrationWrites = 0;
+  void EnableOutputs(bool value) override { enabled = value; if (value) ++enableCount; }
+  bool FullOff() override { assert(!enabled); return !failOff; }
+  bool Servo(uint8_t, uint16_t) override { ++servoWrites; return true; }
+  bool Vibration(uint8_t, bool) override { ++vibrationWrites; return true; }
+  bool Lights(const std::array<uint8_t, 108>&) override { return true; }
+  bool ReadInputs(PhysicalInputs& inputs) override { inputs = {}; return !failRead; }
+};
+
+class BootJournalStorage final : public JournalStorage {
+ public:
+  std::vector<uint8_t> bytes;
+  bool failRead = false;
+  unsigned writes = 0;
+  JournalReadResult Read(uint8_t* output, size_t capacity, size_t& length) override {
+    if (failRead || bytes.size() > capacity) return JournalReadResult::Failed;
+    if (bytes.empty()) return JournalReadResult::Missing;
+    std::copy(bytes.begin(), bytes.end(), output);
+    length = bytes.size();
+    return JournalReadResult::Found;
+  }
+  bool Write(const uint8_t* input, size_t length) override {
+    ++writes;
+    bytes.assign(input, input + length);
+    return true;
+  }
+};
+
+struct PassiveBoot final {
+  BootPhysicalIo io;
+  PhysicalEffects effects{io};
+  EspIdfFirmwareUpdate ota;
+  explicit PassiveBoot(bool failOff = false) {
+    ota_fake::Reset();
+    ota_fake::runningState = ESP_OTA_IMG_PENDING_VERIFY;
+    assert(ota.Begin());
+    std::array<ServoCalibration, 6> calibration;
+    calibration.fill({1100, 1900, 500});
+    io.failOff = failOff;
+    assert(effects.Configure(calibration, 1));
+  }
+  void Tick(uint64_t nowMs, bool runtimeReady = true, bool calibrated = true) {
+    effects.Tick(nowMs);
+    const bool selfTestReady = BootSelfTestReady(runtimeReady, true, calibrated, effects);
+    ota.Tick(nowMs, false, selfTestReady, false);
+    assert(!io.enabled && io.enableCount == 0 && io.servoWrites == 0 && io.vibrationWrites == 0);
+    assert(!effects.Healthy() && !effects.Move(1, true) && !effects.StartVibration(1));
+  }
+  void Advance(uint64_t first, uint64_t last, bool runtimeReady = true, bool calibrated = true) {
+    for (uint64_t nowMs = first; nowMs <= last; nowMs += 100) Tick(nowMs, runtimeReady, calibrated);
+  }
+};
+
+void UnattendedBootComposition() {
+  BootJournalStorage storage;
+  PersistentCommandJournal beforeReboot(storage);
+  assert(beforeReboot.PersistReadyMask(63));
+  assert(beforeReboot.Begin("523ef590-ce4d-4901-91b3-79de1bfe7e35", 3));
+  PersistentCommandJournal recovered(storage);
+  assert(recovered.IsHealthy() && recovered.HasPending());
+  const auto pendingBytes = storage.bytes;
+  const unsigned writes = storage.writes;
+  PassiveBoot boot;
+  boot.Advance(0, 4900, recovered.IsHealthy());
+  assert(boot.ota.Reserved() && ota_fake::runningState == ESP_OTA_IMG_PENDING_VERIFY);
+  boot.Tick(5000, recovered.IsHealthy());
+  assert(ota_fake::runningState == ESP_OTA_IMG_VALID && !boot.ota.Reserved());
+  assert(boot.effects.PassiveHealthy() && !boot.effects.IsResting(1));
+  assert(recovered.HasPending() && recovered.PendingCompartment() == 3);
+  assert(storage.bytes == pendingBytes && storage.writes == writes);
+  assert(ota_fake::requested.empty() && !ota_fake::rolledBack);
+}
+
+void PassiveBootFailuresAndReset() {
+  PassiveBoot outputFailure(true);
+  outputFailure.io.failOff = false;
+  outputFailure.Advance(0, 120000);
+  assert(!outputFailure.effects.PassiveHealthy() && ota_fake::rolledBack && outputFailure.ota.Reserved());
+
+  PassiveBoot inputFailure;
+  inputFailure.Advance(0, 4800);
+  inputFailure.io.failRead = true;
+  inputFailure.Tick(4900);
+  inputFailure.io.failRead = false;
+  inputFailure.Advance(5000, 120000);
+  assert(!inputFailure.effects.PassiveHealthy() && ota_fake::rolledBack && inputFailure.ota.Reserved());
+
+  BootJournalStorage unavailable;
+  unavailable.failRead = true;
+  PersistentCommandJournal brokenJournal(unavailable);
+  PassiveBoot storageFailure;
+  storageFailure.Advance(0, 120000, brokenJournal.IsHealthy());
+  assert(storageFailure.effects.PassiveHealthy() && ota_fake::rolledBack && storageFailure.ota.Reserved());
+
+  PassiveBoot missingCalibration;
+  missingCalibration.Advance(0, 120000, true, false);
+  assert(ota_fake::rolledBack && missingCalibration.ota.Reserved());
+
+  PassiveBoot runtimeRecovery;
+  runtimeRecovery.Advance(0, 4800);
+  runtimeRecovery.Tick(4900, false);
+  runtimeRecovery.Advance(5000, 9900);
+  assert(ota_fake::runningState == ESP_OTA_IMG_PENDING_VERIFY && runtimeRecovery.ota.Reserved());
+  runtimeRecovery.Tick(10000);
+  assert(ota_fake::runningState == ESP_OTA_IMG_VALID && !runtimeRecovery.ota.Reserved());
+
+  PassiveBoot firstBoot;
+  firstBoot.Advance(0, 4900);
+  PassiveBoot afterReset;
+  afterReset.Advance(0, 4900);
+  assert(ota_fake::runningState == ESP_OTA_IMG_PENDING_VERIFY && afterReset.ota.Reserved());
+  afterReset.Tick(5000);
+  assert(ota_fake::runningState == ESP_OTA_IMG_VALID && !afterReset.ota.Reserved());
+}
+
 void BootHealth() {
   ota_fake::Reset();
   ota_fake::settings.clear();
@@ -201,8 +324,15 @@ void BootHealth() {
   ota_fake::runningState = ESP_OTA_IMG_PENDING_VERIFY;
   EspIdfFirmwareUpdate health; assert(health.Begin() && health.Reserved());
   assert(!health.RequestCheck());
-  health.Tick(0, true, true, true); health.Tick(5000, true, true, true);
+  health.Tick(0, false, true, true); health.Tick(5000, false, true, true);
   assert(!health.Reserved() && ota_fake::runningState == ESP_OTA_IMG_VALID);
+  assert(health.RequestCheck());
+  health.Tick(6000, false, true, true);
+  assert(health.Status().state == "idle" && ota_fake::requested.empty());
+  health.Tick(6100, true, true, false);
+  assert(health.Status().state == "idle" && ota_fake::requested.empty());
+  health.Tick(6200, true, true, true);
+  assert(health.Status().state == "checking");
   ota_fake::Reset();
   ota_fake::runningState = ESP_OTA_IMG_PENDING_VERIFY;
   EspIdfFirmwareUpdate unhealthy; assert(unhealthy.Begin());
@@ -211,6 +341,6 @@ void BootHealth() {
 }
 }
 int main() {
-  Success(); TransferBufferAndExactLength(); Failures(); BootHealth();
+  Success(); TransferBufferAndExactLength(); Failures(); UnattendedBootComposition(); PassiveBootFailuresAndReset(); BootHealth();
   std::cout << "ESP-IDF OTA adapter success/failure, safe reservation and boot recovery tests passed (fake HTTP/flash/crypto).\n";
 }

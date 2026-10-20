@@ -34,6 +34,7 @@ enum Field : uint32_t {
   Slot = 1U << 20,
   ShortVariant = 1U << 21,
   Enabled = 1U << 22,
+  Acknowledge = 1U << 23,
 };
 
 bool ReadSafeInteger(JsonCursor& cursor, uint64_t& value) {
@@ -313,6 +314,10 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
     } else if (key == "imageConsent") {
       field = ImageConsent;
       valid = cursor.ReadBoolean(message.imageConsent);
+    } else if (key == "acknowledge") {
+      field = Acknowledge;
+      valid = cursor.ReadTrue();
+      message.acknowledge = valid;
     }
     if (!valid || (seen & field) != 0) {
       return false;
@@ -320,8 +325,15 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
     seen |= field;
   } while (cursor.Consume(','));
 
+  uint32_t optionalFields = message.kind == LocalControlMessageKind::VoiceStart
+                                ? static_cast<uint32_t>(ImageConsent) : 0U;
+  if (message.kind == LocalControlMessageKind::Acquire ||
+      message.kind == LocalControlMessageKind::Release ||
+      message.kind == LocalControlMessageKind::Reset) {
+    optionalFields |= Acknowledge;
+  }
   if (!cursor.Consume('}') || !cursor.AtEnd() ||
-      (seen & ~(message.kind == LocalControlMessageKind::VoiceStart ? static_cast<uint32_t>(ImageConsent) : 0U)) != ExpectedFields(message.kind) ||
+      (seen & ~optionalFields) != ExpectedFields(message.kind) ||
       (message.kind != LocalControlMessageKind::Text && length > 2048)) {
     return false;
   }

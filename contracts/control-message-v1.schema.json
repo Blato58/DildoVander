@@ -15,6 +15,7 @@
     { "$ref": "#/$defs/stateGet" },
     { "$ref": "#/$defs/controlAcquire" },
     { "$ref": "#/$defs/controlRelease" },
+    { "$ref": "#/$defs/controlAck" },
     { "$ref": "#/$defs/heartbeat" },
     { "$ref": "#/$defs/heartbeatAck" },
     { "$ref": "#/$defs/selectionStart" },
@@ -359,6 +360,7 @@
       "additionalProperties": false,
       "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId"],
       "properties": {
+        "acknowledge": { "const": true },
         "protocolVersion": { "const": 1 },
         "type": { "const": "control.acquire" },
         "messageId": { "$ref": "#/$defs/uuid" },
@@ -371,6 +373,7 @@
       "additionalProperties": false,
       "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId", "controlLeaseId"],
       "properties": {
+        "acknowledge": { "const": true },
         "protocolVersion": { "const": 1 },
         "type": { "const": "control.release" },
         "messageId": { "$ref": "#/$defs/uuid" },
@@ -378,6 +381,25 @@
         "bootId": { "$ref": "#/$defs/uuid" },
         "controlLeaseId": { "$ref": "#/$defs/uuid" }
       }
+    },
+    "controlAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "bootId", "requestMessageId", "operation", "eventSequence", "revision", "accepted", "errorCode"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "control.ack" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "operation": { "enum": ["control.acquire", "control.release", "safety.reset"] },
+        "eventSequence": { "$ref": "#/$defs/safeInteger" },
+        "revision": { "$ref": "#/$defs/safeInteger" },
+        "accepted": { "type": "boolean" },
+        "errorCode": { "enum": [null, "busy", "controller_busy", "recovery_required"] }
+      },
+      "if": { "properties": { "accepted": { "const": true } } },
+      "then": { "properties": { "errorCode": { "type": "null" } } },
+      "else": { "properties": { "errorCode": { "type": "string" } } }
     },
     "heartbeat": {
       "type": "object",
@@ -766,6 +788,7 @@
         "inspectionConfirmed"
       ],
       "properties": {
+        "acknowledge": { "const": true },
         "protocolVersion": { "const": 1 },
         "type": { "const": "safety.reset" },
         "messageId": { "$ref": "#/$defs/uuid" },

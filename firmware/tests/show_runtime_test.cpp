@@ -10,9 +10,8 @@ struct ClockedJournalStorage final : JournalStorage {
   std::array<uint8_t, PersistentCommandJournal::RecordSize> bytes{};
   ClockedJournalStorage() {
     // Inventory was provisioned before the control owner reads its boot state.
-    present = true;
-    bytes[0] = 'K'; bytes[1] = 'J'; bytes[2] = 'R'; bytes[3] = '1';
-    bytes[4] = 2; bytes[5] = 63;
+    PersistentCommandJournal provisioned(*this);
+    assert(provisioned.PersistReadyMask(63));
   }
   JournalReadResult Read(uint8_t* destination, size_t capacity, size_t& length) override {
     if (!present) return JournalReadResult::Missing;

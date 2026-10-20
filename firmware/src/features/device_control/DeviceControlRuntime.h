@@ -48,6 +48,7 @@ class DeviceControlRuntime final {
   void SetExternalActivity(bool active);
   uint64_t Generation() const;
   uint64_t CurrentRevision() const { return control_.Revision(); }
+  bool NeedsRecovery() const { return control_.NeedsRecovery(); }
   bool HasAutonomousPresentation() const;
   bool SetOfflineAuthority(bool active);
   bool HandoffToOffline(const std::string& leaseId, uint64_t nowMs);

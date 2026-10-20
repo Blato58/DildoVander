@@ -263,6 +263,34 @@ bool LocalControlOutput::Heartbeat(
       ",\"controlLeaseId\":\"" + request.controlLeaseId + "\"}");
 }
 
+bool LocalControlOutput::ControlAck(
+    const LocalSocketAdmission::Handle& handle, const LocalControlMessage& request,
+    LocalControlError error) {
+  const char* operation = nullptr;
+  switch (request.kind) {
+    case LocalControlMessageKind::Acquire: operation = "control.acquire"; break;
+    case LocalControlMessageKind::Release: operation = "control.release"; break;
+    case LocalControlMessageKind::Reset: operation = "safety.reset"; break;
+    default: return false;
+  }
+  const char* code = nullptr;
+  switch (error) {
+    case LocalControlError::None: break;
+    case LocalControlError::Busy: code = "busy"; break;
+    case LocalControlError::ControllerBusy: code = "controller_busy"; break;
+    case LocalControlError::RecoveryRequired: code = "recovery_required"; break;
+  }
+  if (!request.acknowledge || !IsConversationUuid(request.messageId) ||
+      control_.Revision() > MaximumInteger || !AdvanceEvent()) return false;
+  return Send(handle,
+      "{\"protocolVersion\":1,\"type\":\"control.ack\",\"bootId\":\"" + bootId_ +
+      "\",\"requestMessageId\":\"" + request.messageId + "\",\"operation\":\"" + operation +
+      "\",\"eventSequence\":" + std::to_string(eventSequence_) +
+      ",\"revision\":" + std::to_string(control_.Revision()) +
+      ",\"accepted\":" + (error == LocalControlError::None ? "true" : "false") +
+      ",\"errorCode\":" + (code ? "\"" + std::string(code) + "\"" : "null") + "}");
+}
+
 bool LocalControlOutput::CommandAck(
     const LocalSocketAdmission::Handle& handle, const LocalControlMessage& request,
     const CommandReceipt& receipt) {

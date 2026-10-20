@@ -177,6 +177,96 @@ function acquire(connection, socket, leaseId = randomUUID(), eventSequence = 2) 
   return leaseId;
 }
 
+function controlAck(request, overrides = {}) {
+  return {
+    protocolVersion: 1, type: 'control.ack', bootId,
+    requestMessageId: request.messageId, operation: request.type,
+    eventSequence: 2, revision: 1, accepted: false, errorCode: 'busy', ...overrides,
+  };
+}
+
+test('typed control refusals clear exact pending intent and preserve status, Stop and retry', () => {
+  const { connection, socket } = startConnection();
+  socket.message(snapshot({ eventSequence: 2, capabilities: ['controlAck'] }));
+  assert.equal(connection.acquire(), true);
+  const request = socket.sent.at(-1);
+  assert.equal(request.acknowledge, true);
+  validateControlMessage(Buffer.from(JSON.stringify(request)));
+  const refusal = controlAck(request, { eventSequence: 3 });
+  validateControlMessage(Buffer.from(JSON.stringify(refusal)));
+  socket.message(refusal);
+  assert.equal(connection.snapshot().busy, false);
+  assert.match(connection.snapshot().status, /zaneprázdněný/);
+  assert.equal(socket.readyState, FakeSocket.OPEN);
+  socket.message(snapshot({ eventSequence: 4, capabilities: ['controlAck'] }));
+  assert.match(connection.snapshot().status, /zaneprázdněný/);
+  assert.equal(connection.acquire(), true);
+  const retry = socket.sent.at(-1);
+  socket.message(refusal); // The first request cannot clear a newer wait.
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(controlAck(retry, { bootId: randomUUID() }));
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(controlAck(retry, { accepted: true, errorCode: null, eventSequence: 5 }));
+  assert.equal(connection.snapshot().controlMode, 'observer');
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(snapshot({ eventSequence: 6, capabilities: ['controlAck'], controlMode: 'manual', controlLeaseId: randomUUID() }));
+  assert.equal(connection.snapshot().controlMode, 'manual');
+  connection.release();
+  const release = socket.sent.at(-1);
+  assert.equal(release.type, 'control.release');
+  assert.equal(release.acknowledge, true);
+  socket.message(controlAck(release, { eventSequence: 7, errorCode: 'recovery_required' }));
+  assert.equal(connection.snapshot().busy, false);
+  assert.equal(connection.snapshot().controlMode, 'manual');
+  assert.match(connection.snapshot().status, /servisní kontrolu/);
+  connection.stop();
+  assert.equal(socket.sent.at(-1).type, 'safety.stop');
+  connection.suspend();
+});
+
+test('old firmware receives unchanged control requests and completes through snapshots', () => {
+  const { connection, socket } = startConnection();
+  acquire(connection, socket);
+  assert.equal(socket.sent.find(message => message.type === 'control.acquire').acknowledge, undefined);
+  connection.release();
+  assert.equal(socket.sent.at(-1).acknowledge, undefined);
+  socket.message(snapshot({ eventSequence: 3 }));
+  assert.equal(connection.snapshot().controlMode, 'observer');
+  assert.equal(connection.snapshot().busy, false);
+  connection.suspend();
+});
+
+test('control refusal cannot override a newer revision or a safety state', () => {
+  const { connection, socket } = startConnection();
+  socket.message(snapshot({ eventSequence: 2, revision: 4, capabilities: ['controlAck'] }));
+  assert.equal(connection.acquire(), true);
+  const request = socket.sent.at(-1);
+  socket.message(controlAck(request, { eventSequence: 3, revision: 3 }));
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(controlAck(request, { eventSequence: 4, revision: 4 }));
+  assert.equal(connection.snapshot().busy, false);
+  socket.message(snapshot({ eventSequence: 5, revision: 4, capabilities: ['controlAck'], faults: ['journal_failed'] }));
+  assert.equal(connection.snapshot().phase, 'stopped');
+  assert.match(connection.snapshot().status, /servisní kontrolu/);
+  assert.doesNotMatch(connection.snapshot().status, /zaneprázdněný/);
+  connection.suspend();
+});
+
+test('strict control acknowledgement schema rejects malformed results and limits opt-in requests', () => {
+  const request = { protocolVersion: 1, type: 'control.acquire', messageId: randomUUID(), deviceId, bootId, acknowledge: true };
+  const ack = controlAck(request);
+  const validate = value => validateControlMessage(Buffer.from(JSON.stringify(value)));
+  for (const invalid of [
+    { ...ack, accepted: true }, { ...ack, errorCode: null }, { ...ack, errorCode: 'arbitrary' },
+    { ...ack, operation: 'safety.stop' }, { ...ack, requestMessageId: 'invalid' },
+    { ...ack, eventSequence: -1 }, { ...ack, arbitrary: true },
+    { ...request, acknowledge: false }, { ...request, type: 'state.get' },
+  ]) assert.throws(() => validate(invalid));
+  validate({ ...ack, accepted: true, errorCode: null });
+  validate({ ...request, type: 'control.release', controlLeaseId: randomUUID() });
+  validate({ ...request, type: 'safety.reset', controlLeaseId: randomUUID(), inspectionConfirmed: true });
+});
+
 test('debug telemetry reflects accepted samples, reboot and disconnect without exposing a lease', () => {
   const { connection, socket } = startConnection();
   const initial = connection.snapshot().diagnostics;

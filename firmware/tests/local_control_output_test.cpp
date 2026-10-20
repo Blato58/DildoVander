@@ -236,6 +236,34 @@ void TestCommandAndConversationAcks() {
   assert(!fixture.output.ConversationResult({7, 1}, Turn, 0, "\xc0\xaf"));
 }
 
+void TestControlAcknowledgements() {
+  Fixture fixture;
+  fixture.Ready();
+  LocalControlMessage request;
+  request.messageId = Command;
+  for (const auto kind : {LocalControlMessageKind::Acquire,
+                         LocalControlMessageKind::Release,
+                         LocalControlMessageKind::Reset}) {
+    request.kind = kind;
+    assert(!fixture.output.ControlAck({7, 1}, request, LocalControlError::None));
+    request.acknowledge = true;
+    for (const auto error : {LocalControlError::None, LocalControlError::Busy,
+                            LocalControlError::ControllerBusy, LocalControlError::RecoveryRequired}) {
+      assert(fixture.output.ControlAck({7, 1}, request, error));
+    }
+    request.acknowledge = false;
+  }
+  request.acknowledge = true;
+  request.kind = LocalControlMessageKind::StateGet;
+  assert(!fixture.output.ControlAck({7, 1}, request, LocalControlError::Busy));
+  request.kind = LocalControlMessageKind::Acquire;
+  request.messageId = "invalid";
+  assert(!fixture.output.ControlAck({7, 1}, request, LocalControlError::Busy));
+  request.messageId = Command;
+  fixture.transport.accept = false;
+  assert(!fixture.output.ControlAck({7, 1}, request, LocalControlError::Busy));
+}
+
 void TestVoiceWireStatus() {
   Fixture fixture;
   fixture.voice.status.available = true;
@@ -315,6 +343,7 @@ int main() {
   TestCurrentStateAndBounds();
   TestAcceptanceAndIdleStop();
   TestCommandAndConversationAcks();
+  TestControlAcknowledgements();
   TestTerminalResultsAndPhases();
   TestVoiceWireStatus();
 }

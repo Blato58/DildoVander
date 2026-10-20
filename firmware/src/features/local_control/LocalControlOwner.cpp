@@ -191,17 +191,31 @@ void LocalControlOwner::Handle(
     Close();
     return;
   }
+  // Refusals cannot revive a lease that expired while waiting in the inbox.
+  if (!session_->LeaseId().empty() &&
+      !session_->OwnsLiveLease(bootId_, session_->LeaseId(), nowMs)) {
+    Close();
+    return;
+  }
+  if (message.kind == LocalControlMessageKind::Reset &&
+      !session_->OwnsLiveLease(bootId_, message.controlLeaseId, nowMs)) {
+    Close();
+    return;
+  }
   bool accepted = true;
   // Stop/cancel/status remain available while network/OTA owns the idle
   // reservation. A queued controller command cannot start new work then.
   const bool dancing = dance_ && kufr::dance::IsDanceActive(dance_->DanceState());
   if ((maintenance_ || dancing) && (message.kind == LocalControlMessageKind::Acquire ||
       message.kind == LocalControlMessageKind::VoiceStart ||
-      message.kind == LocalControlMessageKind::Text ||
       message.kind == LocalControlMessageKind::Selection ||
       message.kind == LocalControlMessageKind::Reload ||
       message.kind == LocalControlMessageKind::Reset)) {
-    Close();
+    if (!RefuseBusy(message)) {
+      Close();
+    } else {
+      Snapshot(nowMs);
+    }
     return;
   }
   switch (message.kind) {
@@ -260,17 +274,37 @@ void LocalControlOwner::Handle(
     case LocalControlMessageKind::StateGet:
       Snapshot(nowMs);
       return;
-    case LocalControlMessageKind::Acquire:
-      if (voice_) voice_->StopVoice();
-      accepted = (!offline_ || (offline_->PrepareInteraction() &&
-          (!runtime_.OfflineAuthority() || offline_->Leave()))) &&
-          session_->Acquire(bootId_, ids_.NewLeaseId(), nowMs);
+    case LocalControlMessageKind::Acquire: {
+      LocalControlError error = LocalControlError::None;
+      if (!session_->LeaseId().empty()) {
+        error = LocalControlError::ControllerBusy;
+      } else if (runtime_.NeedsRecovery()) {
+        error = LocalControlError::RecoveryRequired;
+      } else {
+        const std::string leaseId = ids_.NewLeaseId();
+        if (leaseId.empty()) {
+          Close();
+          return;
+        }
+        if (voice_) voice_->StopVoice();
+        if ((!offline_ || (offline_->PrepareInteraction() &&
+             (!runtime_.OfflineAuthority() || offline_->Leave()))) &&
+            session_->Acquire(bootId_, leaseId, nowMs)) {
+          error = LocalControlError::None;
+        } else {
+          error = runtime_.NeedsRecovery() ? LocalControlError::RecoveryRequired
+                                           : LocalControlError::Busy;
+        }
+      }
+      accepted = ControlAck(message, error);
       break;
+    }
     case LocalControlMessageKind::Release: {
       SelectionStep step;
       accepted = session_->Release(bootId_, message.controlLeaseId, step);
       if (accepted) {
         steps_.OnStep(step);
+        accepted = ControlAck(message, LocalControlError::None);
       }
       break;
     }
@@ -333,15 +367,21 @@ void LocalControlOwner::Handle(
       accepted = output_.ConversationAck(handle_, message, {error, false});
       break;
     }
-    case LocalControlMessageKind::Reset:
-      accepted = false;
-      inbox_.RunIfCurrent(handle_, [&]() {
-        accepted =
-            session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) &&
-            recovery_.InspectionAllowsRecovery() &&
-            runtime_.RecoverAfterInspection();
+    case LocalControlMessageKind::Reset: {
+      if (!session_->OwnsLiveLease(bootId_, message.controlLeaseId, nowMs)) {
+        Close();
+        return;
+      }
+      bool recovered = false;
+      const bool current = inbox_.RunIfCurrent(handle_, [&]() {
+        recovered = session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) &&
+                    recovery_.InspectionAllowsRecovery() && runtime_.RecoverAfterInspection();
       });
+      if (!current) return;
+      accepted = ControlAck(message, recovered ? LocalControlError::None
+                                               : LocalControlError::RecoveryRequired);
       break;
+    }
     case LocalControlMessageKind::Selection:
       Selection(message, nowMs);
       return;
@@ -360,6 +400,28 @@ void LocalControlOwner::Handle(
     if (message.kind != LocalControlMessageKind::Heartbeat) {
       Snapshot(nowMs);
     }
+  }
+}
+
+bool LocalControlOwner::ControlAck(
+    const LocalControlMessage& message, LocalControlError error) {
+  // Older strict v1 clients only understand the authoritative snapshot.
+  return !message.acknowledge || output_.ControlAck(handle_, message, error);
+}
+
+bool LocalControlOwner::RefuseBusy(const LocalControlMessage& message) {
+  switch (message.kind) {
+    case LocalControlMessageKind::Acquire:
+    case LocalControlMessageKind::Reset:
+      return ControlAck(message, LocalControlError::Busy);
+    case LocalControlMessageKind::VoiceStart:
+      return output_.VoiceAck(handle_, message, false);
+    case LocalControlMessageKind::Selection:
+    case LocalControlMessageKind::Reload:
+      return output_.CommandAck(handle_, message,
+          {CommandError::Busy, CommandOutcome::Rejected, false});
+    default:
+      return false;
   }
 }
 

@@ -266,7 +266,7 @@ jobs:
           "$RUNNER_TEMP/network-profile-storage-test"
           g++ -std=c++14 -Wall -Wextra -Werror src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp tests/firmware_update_test.cpp -o "$RUNNER_TEMP/firmware-update-test"
           "$RUNNER_TEMP/firmware-update-test"
-          g++ -std=c++14 -Wall -Wextra -Werror -I tests/ota_stubs src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp src/features/firmware_update/EspIdfFirmwareUpdate.cpp tests/espidf_firmware_update_test.cpp -o "$RUNNER_TEMP/ota-adapter-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/ota_stubs src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp src/features/firmware_update/EspIdfFirmwareUpdate.cpp src/features/physical_effects/PhysicalEffects.cpp src/features/device_control/PersistentCommandJournal.cpp tests/espidf_firmware_update_test.cpp -o "$RUNNER_TEMP/ota-adapter-test"
           "$RUNNER_TEMP/ota-adapter-test"
           python3 -m unittest discover -s tools -p 'test_*.py'
       - name: Local service discovery lifecycle

@@ -171,6 +171,8 @@ export class ProtocolDeviceConnection {
   private readonly requests = new Map<string, number>();
   private acquirePending = false;
   private releasePending = false;
+  private pendingControl: { id: string; bootId: string; operation: 'control.acquire' | 'control.release' } | null = null;
+  private controlRefusal: string | null = null;
   private awaitingRevision: number | null = null;
   private reconnectAttempt = 0;
   private suspended = false;
@@ -255,6 +257,8 @@ export class ProtocolDeviceConnection {
         this.activeCommand = null;
         this.acquirePending = false;
         this.releasePending = false;
+        this.pendingControl = null;
+        this.controlRefusal = null;
         this.awaitingRevision = null;
         this.requests.clear();
         this.voice.invalidate();
@@ -299,17 +303,22 @@ export class ProtocolDeviceConnection {
       return false;
     }
     this.acquirePending = true;
+    this.controlRefusal = null;
+    const messageId = crypto.randomUUID();
+    this.pendingControl = { id: messageId, bootId: this.device.bootId, operation: 'control.acquire' };
     this.state.busy = true;
     this.state.status = 'Žádám simulátor o ruční lease…';
     this.publish();
     const sent = this.send({
       type: 'control.acquire',
-      messageId: crypto.randomUUID(),
+      messageId,
       deviceId: this.device.deviceId,
       bootId: this.device.bootId,
+      ...(this.device.capabilities?.includes('controlAck') ? { acknowledge: true } : {}),
     });
     if (!sent) {
       this.acquirePending = false;
+      this.pendingControl = null;
       this.state.busy = false;
       this.state.status = 'Převzetí nebylo odesláno; spojení není dostupné.';
       this.publish();
@@ -350,13 +359,21 @@ export class ProtocolDeviceConnection {
     if (!this.device?.controlLeaseId) {
       return;
     }
-    this.send({
+    const messageId = crypto.randomUUID();
+    this.controlRefusal = null;
+    this.pendingControl = { id: messageId, bootId: this.device.bootId, operation: 'control.release' };
+    const sent = this.send({
       type: 'control.release',
-      messageId: crypto.randomUUID(),
+      messageId,
       deviceId: this.device.deviceId,
       bootId: this.device.bootId,
       controlLeaseId: this.device.controlLeaseId,
+      ...(this.device.capabilities?.includes('controlAck') ? { acknowledge: true } : {}),
     });
+    if (!sent) {
+      this.pendingControl = null;
+      return;
+    }
     this.releasePending = true;
     this.state.controlMode = 'observer';
     this.state.busy = true;
@@ -492,6 +509,32 @@ export class ProtocolDeviceConnection {
       if (message.type === 'welcome' || acquisitionCompleted) {
         this.clearRequestTimeout();
       }
+    } else if (message.type === 'control.ack') {
+      const pending = this.pendingControl;
+      if (!pending || pending.id !== message.requestMessageId || pending.bootId !== message.bootId ||
+          pending.operation !== message.operation || this.device?.bootId !== pending.bootId ||
+          !Number.isSafeInteger(message.eventSequence) || Number(message.eventSequence) < this.device.eventSequence ||
+          !Number.isSafeInteger(message.revision) || Number(message.revision) < this.device.revision) return;
+      if (message.accepted === true) return; // Authority still comes from the next snapshot.
+      const statuses: Record<string, string> = {
+        busy: 'Kufr je zaneprázdněný. Stav a Stop zůstávají dostupné; zkuste povel po dokončení.',
+        controller_busy: 'Ruční řízení už je obsazené. Obnovte stav kufru.',
+        recovery_required: 'Kufr vyžaduje servisní kontrolu před dalším řízením.',
+      };
+      if (message.accepted !== false || typeof message.errorCode !== 'string' || !Object.hasOwn(statuses, message.errorCode)) {
+        this.closeFailure = 'protocol_error';
+        this.socket?.close();
+        return;
+      }
+      this.pendingControl = null;
+      this.acquirePending = false;
+      this.releasePending = false;
+      this.clearRequestTimeout();
+      this.controlRefusal = statuses[message.errorCode];
+      this.state.controlMode = this.device.controlMode === 'manual' ? 'manual' : 'observer';
+      this.state.busy = this.pendingCommand !== null || this.activeCommand !== null || this.awaitingRevision !== null;
+      if (this.state.phase !== 'stopped') this.state.status = this.controlRefusal;
+      this.publish();
     } else if (message.type === 'offline.ack' || message.type === 'offline.outbox') {
       const pending = this.offlinePending;
       if (!pending || pending.id !== message.requestMessageId || pending.bootId !== message.bootId
@@ -597,12 +640,18 @@ export class ProtocolDeviceConnection {
     this.lastObservedAtMs = Date.now();
     const previousMask = this.device?.readyMask ?? snapshot.readyMask;
     const previousLeaseId = this.device?.controlLeaseId;
+    if (this.device && (snapshot.phase !== this.device.phase || snapshot.bootId !== this.device.bootId)) {
+      this.controlRefusal = null;
+    }
     if (this.device && snapshot.bootId !== this.device.bootId) {
       this.lastDeviceUptimeMs = 0;
       this.roundTripMs = Number.POSITIVE_INFINITY;
       this.pendingCommand = null;
       this.clearCommand();
       this.sequence = 0;
+      this.pendingControl = null;
+      this.acquirePending = false;
+      this.releasePending = false;
     }
     this.device = snapshot;
     if (this.awaitingRevision !== null &&
@@ -625,8 +674,10 @@ export class ProtocolDeviceConnection {
     }
     if (snapshot.controlMode === 'manual') {
       this.acquirePending = false;
+      if (this.pendingControl?.operation === 'control.acquire') this.pendingControl = null;
     } else {
       this.releasePending = false;
+      if (this.pendingControl?.operation === 'control.release') this.pendingControl = null;
       this.clearCommand();
     }
     if (this.activeCommand?.kind === 'reload' &&
@@ -657,7 +708,7 @@ export class ProtocolDeviceConnection {
         ? this.unresolvedCommand !== null
           ? 'Výsledek předchozího povelu je nejistý. Ovládání vyžaduje servisní kontrolu.'
           : 'Simulátor vyžaduje servisní kontrolu. Obnovení se provádí mimo mobilní UI.'
-        : snapshot.phase === 'dancing'
+        : this.controlRefusal ?? (snapshot.phase === 'dancing'
           ? 'Kufr přehrává skladbu a tančí.'
         : snapshot.activeCommandId
           ? 'Na simulátoru běží výběr; čekám na výsledek.'
@@ -667,7 +718,7 @@ export class ProtocolDeviceConnection {
               ? 'Založení bylo potvrzeno v simulátoru.'
           : snapshot.controlMode === 'manual'
             ? 'Ruční lease na simulátoru je aktivní.'
-            : 'Připojeno k hostitelskému E2 simulátoru v režimu pozorování.',
+            : 'Připojeno k hostitelskému E2 simulátoru v režimu pozorování.'),
     };
     this.voice.update(snapshot);
     this.dance.update(snapshot);

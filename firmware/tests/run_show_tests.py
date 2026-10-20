@@ -57,6 +57,8 @@ def main():
     args = parser.parse_args()
     compiler, env, msvc = compiler_environment()
     checks = [
+        ("firmware_update_test", ["firmware_update/OtaManifest", "firmware_update/OtaPolicy"], []),
+        ("espidf_firmware_update_test", ["firmware_update/OtaManifest", "firmware_update/OtaPolicy", "firmware_update/EspIdfFirmwareUpdate", "physical_effects/PhysicalEffects", "device_control/PersistentCommandJournal"], ["tests/ota_stubs"]),
         ("physical_effects_test", CORE, []),
         ("show_runtime_test", CORE + ["device_control/PersistentCommandJournal"], []),
         ("offline_show_test", CORE, []),
@@ -64,6 +66,7 @@ def main():
         ("autonomous_presentation_lifecycle_test", CORE, []),
         ("device_control_runtime_test", CORE, []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
+        ("journal_epoch_test", ["device_control/PersistentCommandJournal"], []),
         ("dance_coordinator_test", ["dance/DanceCoordinator", "physical_effects/PhysicalEffects"], []),
         ("show_trace_mailbox_test", ["physical_effects/PresentationDiagnostics"], []),
         ("twin_telemetry_test", CORE, []),

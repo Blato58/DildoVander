@@ -1,5 +1,13 @@
 # Firmware AI kufru
 
+Aktuální hranice potvrzení OTA a ručního zotavení popisuje
+[OTA boot a kontrola hardware](docs/ota-boot-health.md). Rozpracovaný přechod
+trvalého journalu na epochy má samostatné
+[rozhodnutí a migrační brány](docs/journal-epochs.md); samotná přítomnost nového
+úložného formátu nepovoluje vyhazování historie v produkci.
+Kompatibilitu typovaných odmítnutí popisuje
+[lokální control ACK](docs/local-control-refusals.md).
+
 ## Jeden PlatformIO projekt
 
 Production i pět samostatně flashovatelných diagnostik sdílí tento projekt

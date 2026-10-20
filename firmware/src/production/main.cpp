@@ -475,7 +475,7 @@ extern "C" void app_main() {
     const bool selfTestReady = kufr::ota::BootSelfTestReady(
         nvsStatus == ESP_OK && journal.IsHealthy() && stationStarted &&
             (!kufr::offline::CompiledBank().complete || offlineAudio.Available()),
-        hardware.ProfileSelected(), calibrated, effects.Healthy());
+        hardware.ProfileSelected(), calibrated, effects);
     firmwareUpdate.Tick(nowMs, station.HasIp(), selfTestReady,
         maintenance.safeIdle && !maintenance.networkHeld && !sdAssets.Reserved());
     sdAssets.Tick(maintenance.safeIdle && !maintenance.networkHeld && !firmwareUpdate.Reserved());
