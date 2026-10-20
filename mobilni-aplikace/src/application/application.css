@@ -85,7 +85,7 @@ textarea { resize: vertical; }
   .application-shell { display: block; padding-bottom: var(--application-navigation-height, calc(5rem + env(safe-area-inset-bottom))); }
   .application-sidebar { display: contents; }
   .application-brand, .sidebar-details { display: none; }
-  .primary-navigation { position: fixed; z-index: 20; bottom: 0; inset-inline: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; padding: .35rem max(.25rem, env(safe-area-inset-right)) calc(.35rem + env(safe-area-inset-bottom)) max(.25rem, env(safe-area-inset-left)); background: var(--aw-surface); border-top: 1px solid var(--aw-border); }
+  .primary-navigation { position: fixed; z-index: 20; bottom: 0; inset-inline: 0; display: grid; grid-template-columns: repeat(var(--application-navigation-count, 5), minmax(0, 1fr)); gap: 0; padding: .35rem max(.25rem, env(safe-area-inset-right)) calc(.35rem + env(safe-area-inset-bottom)) max(.25rem, env(safe-area-inset-left)); background: var(--aw-surface); border-top: 1px solid var(--aw-border); }
   .primary-navigation a { flex-direction: column; gap: .1rem; padding: .45rem .2rem; font-size: .65rem; min-height: 56px; min-width: 0; overflow-wrap: anywhere; text-align: center; }
   .primary-navigation a > span:first-child { font-size: 1.2rem; }
   .application-header { padding: max(.75rem, env(safe-area-inset-top)) max(.75rem, env(safe-area-inset-right)) .75rem max(.75rem, env(safe-area-inset-left)); gap: .5rem; flex-wrap: wrap; }

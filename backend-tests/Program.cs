@@ -7,6 +7,21 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--persona-reliability"]) { await PersonaReliabilityTests.RunAsync(); return; }
+if (args is ["--persona-lab-transport"]) { await PersonaLabTransportTests.RunAsync(); return; }
+if (args is ["--persona-lab-provider-smoke"]) { Environment.ExitCode = await PersonaLabProviderSmoke.RunAsync(); return; }
+if (args is ["--persona-lab"])
+{
+    PersonaLabObservationsTests.Run();
+    await PersonaLabTests.RunAsync();
+    await PersonaLabHardwareTests.RunAsync();
+    return;
+}
+if (args is ["--persona-provider-soak", var seconds])
+{
+    Environment.ExitCode = await PersonaProviderSoak.RunAsync(seconds);
+    return;
+}
 if (args is ["--model-releases"]) { await ModelReleaseTests.RunAsync(); return; }
 if (args is ["--identity"]) { await AccountIdentityTests.RunAsync(); return; }
 if (args is ["--identity-fixture"]) { await AccountIdentityTests.RunBrowserFixtureAsync(); return; }

@@ -2444,7 +2444,8 @@
           "generation": { "type": "integer", "minimum": 0 },
           "catalogVersion": { "type": "string", "minLength": 1 },
           "locale": { "type": "string", "const": "cs-CZ" },
-          "consent": { "$ref": "#/components/schemas/Consent" }
+          "consent": { "$ref": "#/components/schemas/Consent" },
+          "testContext": { "type": "string", "minLength": 43, "maxLength": 43, "pattern": "^[A-Za-z0-9_-]{43}$", "description": "Optional one-use Persona Lab admission ticket, explicitly requested on a capable paired suitcase. Bound to the authenticated tester, exact device, boot and admitted revision; expires after 90 seconds before initial admission. Never logged or persisted. Invalid or unsupported tickets must fail closed, never start a production conversation." }
         }
       },
       "Consent": {

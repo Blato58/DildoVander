@@ -31,7 +31,8 @@ internal static class CommonShowLifecycleTests
             ["Keepsake:Enabled"] = "true", ["Keepsake:DataRoot"] = Path.Combine(root, "content"),
             ["Backend:Memory:Enabled"] = "false", ["Backend:Memory:LongTermPersonalEnabled"] = "false"
         }).Build();
-        using var services = new ServiceCollection().BuildServiceProvider();
+        var keepsakes = new KeepsakeStore(config, TimeProvider.System);
+        using var services = new ServiceCollection().AddSingleton(keepsakes).BuildServiceProvider();
         using var journal = new OperationJournal(config, TimeProvider.System);
         var memory = new EveningMemoryStore(config, journal);
         var memoryOptions = HybridMemoryOptions.Read(config, journal);
@@ -78,7 +79,6 @@ internal static class CommonShowLifecycleTests
         var rotated = memory.Create(physicalDevice, Guid.NewGuid(), "rotate", "hash", original, "Další večer").Response!.ActiveEveningId;
         var access = new DeviceAccessStore(config, TimeProvider.System);
         var token = access.IssueToken(physicalDevice)!.AccessToken;
-        var keepsakes = new KeepsakeStore(config, TimeProvider.System);
         var outcome = new KeepsakeOutcomeEndpoints.OutcomeRequest(1, Guid.NewGuid().ToString("D"), proposal.ProposalId,
             Guid.NewGuid().ToString("D"), proposal.BootId.ToString("D"), proposal.Generation, proposal.DeviceRevision, "completed_by_timing");
         async Task<int?> PublishAsync()
@@ -91,7 +91,7 @@ internal static class CommonShowLifecycleTests
             context.Request.ContentType = "application/json";
             context.Request.ContentLength = body.Length;
             var result = await KeepsakeOutcomeEndpoints.PublishAsync(context, operation.OperationId, access,
-                journal, keepsakes, config, memory, hybridMemory);
+                journal, config, memory, hybridMemory);
             return (result as IStatusCodeHttpResult)?.StatusCode;
         }
         Check(await PublishAsync() == 201 && await PublishAsync() == 201, "actual authenticated outcome endpoint is idempotent");
@@ -145,7 +145,7 @@ internal static class CommonShowLifecycleTests
                 context.Request.ContentType = "application/json";
                 context.Request.ContentLength = body.Length;
                 var result = await KeepsakeOutcomeEndpoints.PublishAsync(context, legacyOperation.OperationId, access,
-                    journal, keepsakes, config, memory, hybridMemory);
+                    journal, config, memory, hybridMemory);
                 return (result as IStatusCodeHttpResult)?.StatusCode;
             }
             if (deleted)

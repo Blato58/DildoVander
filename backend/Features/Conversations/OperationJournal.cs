@@ -172,6 +172,8 @@ internal sealed partial class OperationJournal : IDisposable
         schema.ExecuteNonQuery();
         migration.Commit();
 
+        EnsureLabProvenance(connection);
+
         // A crash after reservation must never trigger automatic provider replay.
         using var recover = connection.CreateCommand();
         recover.CommandText = "UPDATE turn_operations SET status = 'unknown' WHERE status IN ('pending', 'running')";
@@ -190,7 +192,8 @@ internal sealed partial class OperationJournal : IDisposable
         return FindExistingCreate(connection, null, deviceId, key, bodyHash);
     }
 
-    public JournalCreateReservation ReserveCreate(string deviceId, Guid key, string bodyHash)
+    public JournalCreateReservation ReserveCreate(string deviceId, Guid key, string bodyHash,
+        string? labSessionId = null, string? labRevisionId = null, DateTimeOffset? labExpiresAt = null, string? labOwnerId = null)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -213,8 +216,9 @@ internal sealed partial class OperationJournal : IDisposable
         var now = clock.GetUtcNow();
         var response = new ConversationResponse(
             Guid.NewGuid().ToString("D"),
-            now.AddMinutes(15),
-            new ConversationLimits(10, 1000, 900, 1800));
+            labExpiresAt is { } labExpiry
+                ? DateTimeOffset.FromUnixTimeMilliseconds(labExpiry.ToUnixTimeMilliseconds()) : now.AddMinutes(15),
+            new ConversationLimits(10, 1000, labExpiresAt is null ? 900 : 180, labExpiresAt is null ? 1800 : 180));
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
@@ -229,6 +233,10 @@ internal sealed partial class OperationJournal : IDisposable
         command.Parameters.AddWithValue("$responseExpiry", response.ExpiresAt.ToUnixTimeMilliseconds());
         command.Parameters.AddWithValue("$recordExpiry", now.AddHours(24).ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
+        if (labSessionId is not null)
+        {
+            RecordLabCreate(connection, transaction, deviceId, response.ConversationId, labSessionId, labRevisionId!, labOwnerId!);
+        }
         transaction.Commit();
         return new JournalCreateReservation(response, false, false);
     }
@@ -367,6 +375,7 @@ internal sealed partial class OperationJournal : IDisposable
             idempotency.ExecuteNonQuery();
         }
 
+        RecordLabOperation(connection, transaction, deviceId, correlation.ConversationId, operationId);
         transaction.Commit();
         return new JournalReservation(operationId, false, false, false);
     }
@@ -606,7 +615,10 @@ internal sealed partial class OperationJournal : IDisposable
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            SELECT body_hash, conversation_id, response_expires_at_ms
+            SELECT body_hash, conversation_id, response_expires_at_ms,
+                EXISTS (SELECT 1 FROM persona_lab_conversations lab
+                    WHERE lab.conversation_id=conversation_creates.conversation_id
+                    AND lab.device_id=conversation_creates.device_id)
             FROM conversation_creates
             WHERE device_id = $device AND key = $key AND record_expires_at_ms > $now
             """;
@@ -627,7 +639,8 @@ internal sealed partial class OperationJournal : IDisposable
         var response = new ConversationResponse(
             reader.GetString(1),
             DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(2)),
-            new ConversationLimits(10, 1000, 900, 1800));
+            reader.GetInt64(3) != 0 ? new ConversationLimits(10, 1000, 180, 180)
+                : new ConversationLimits(10, 1000, 900, 1800));
         return new JournalCreateReservation(response, true, false);
     }
 

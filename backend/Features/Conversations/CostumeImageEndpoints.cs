@@ -17,6 +17,7 @@ internal static class CostumeImageEndpoints
         {
             var device = DeviceAccessEndpoints.Authenticate(context, access);
             if (device is null) { return ApiProblem.Create(context, 401, "access_token_required"); }
+            if (store.IsLabConversation(device, id)) { return ApiProblem.Create(context, 403, "lab_hardware_image_forbidden"); }
             if (!ReadHeaders(context, out _, out var correlation) || correlation?.Revision is null)
             { return ApiProblem.Create(context, 400, "invalid_request"); }
             var result = store.DiscardVisualRevision(device, id, correlation);
@@ -27,6 +28,7 @@ internal static class CostumeImageEndpoints
         {
             if (!admin.Authenticate(context)) { return ApiProblem.Create(context, 401, "admin_credential_required"); }
             if (string.IsNullOrWhiteSpace(deviceId)) { return ApiProblem.Create(context, 400, "invalid_request"); }
+            if (store.IsLabConversation(deviceId, id)) { return ApiProblem.Create(context, 403, "lab_hardware_image_forbidden"); }
             store.DeleteVisualContext(deviceId, id);
             return Results.NoContent();
         });
@@ -37,6 +39,7 @@ internal static class CostumeImageEndpoints
     {
         var device = DeviceAccessEndpoints.Authenticate(context, access);
         if (device is null) { return ApiProblem.Create(context, 401, "access_token_required"); }
+            if (store.IsLabConversation(device, id)) { return ApiProblem.Create(context, 403, "lab_hardware_image_forbidden"); }
         if (!ReadHeaders(context, out var key, out var upload)) { return ApiProblem.Create(context, 400, "invalid_request"); }
         if (context.Request.ContentType != "image/jpeg") { return ApiProblem.Create(context, 415, "jpeg_required"); }
         byte[]? body;
@@ -58,6 +61,7 @@ internal static class CostumeImageEndpoints
     {
         var device = DeviceAccessEndpoints.Authenticate(context, access);
         if (device is null) { return ApiProblem.Create(context, 401, "access_token_required"); }
+            if (store.IsLabConversation(device, id)) { return ApiProblem.Create(context, 403, "lab_hardware_image_forbidden"); }
         if (!ReadHeaders(context, out var key, out var correlation)) { return ApiProblem.Create(context, 400, "invalid_request"); }
         byte[]? body;
         try { body = await ReadBodyAsync(context, 2048); }

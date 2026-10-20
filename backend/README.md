@@ -12,6 +12,10 @@ to the canonical URL and retains its `KUFR_BACKEND_URL` override.
 
 # Backend kufru
 
+[AI Persona Lab](Features/PersonaLab/README.md) poskytuje oddělené testování
+postavy přihlášeným účtům, verzované instrukce, hodnocení a diagnostiku obou
+podporovaných hlasových enginů.
+
 ## Show Pack
 
 [Provoz a společné kontrakty](../docs/show-pack.md) rozšiřují současné DV01/DV10,

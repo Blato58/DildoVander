@@ -36,6 +36,19 @@ internal static class ConversationStartupMemory
     internal static async Task<string> ProcessInputAsync(RealtimeCall call, ConversationStore conversations,
         HybridMemoryService memory, string text, CancellationToken token)
     {
+        if (call.LabHardware is { } hardware)
+        {
+            if (!conversations.IsRealtimeTurnCurrent(call)) { throw new OperationCanceledException(token); }
+            var testIntent = LiveConversationProjection.Classify(text);
+            if (testIntent is LiveRequestIntent.Memory or LiveRequestIntent.Remember or LiveRequestIntent.Forget)
+            {
+                hardware.Runtime.ObserveHardware(hardware.Session,
+                    Kufr.Backend.Features.PersonaLab.LabContract.Event("hardware_memory", "synthetic_only"));
+                return testIntent == LiveRequestIntent.Memory ? "Synthetic read-only fixture data:\n" + call.Context.EveningContext
+                    : "Simulated memory change only. Production memory was not read or changed.";
+            }
+            return "";
+        }
         var access = conversations.LiveMemoryAccess(call);
         var inputFactEpoch = access is null ? 0 : memory.StoreEpochFor(access);
         if (!conversations.IsRealtimeTurnCurrent(call)) { throw new OperationCanceledException(token); }

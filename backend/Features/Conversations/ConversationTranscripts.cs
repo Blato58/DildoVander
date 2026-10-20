@@ -37,6 +37,11 @@ internal sealed partial class ConversationStore
             {
                 return false;
             }
+            if (call.LabHardware is { } hardware && !hardware.Token.IsCancellationRequested)
+            {
+                if (visitor.Length > 0) { hardware.Runtime.ObserveHardwareTurn(hardware.Session, "user", visitor); }
+                if (reply.Length > 0) { hardware.Runtime.ObserveHardwareTurn(hardware.Session, "assistant", reply); }
+            }
             conversations[call.Correlation.ConversationId].History.Add(new(visitor, reply));
             call.TranscriptEvents.Add(eventId);
             return true;

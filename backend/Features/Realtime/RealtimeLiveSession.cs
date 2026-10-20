@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.GptLive;
+using Kufr.Backend.Features.PersonaLab;
 
 namespace Kufr.Backend.Features.Realtime;
 
@@ -25,6 +26,7 @@ internal sealed class RealtimeLiveSession : IDisposable
     private readonly SemaphoreSlim uploads = new(1);
     private readonly IStreamingAudioInput provider;
     private readonly bool continuous;
+    private readonly LabHardwareContext? labHardware;
     private readonly CancellationTokenSource lifetime;
     private readonly CancellationToken lifetimeToken;
     private RealtimeCall? input;
@@ -45,12 +47,13 @@ internal sealed class RealtimeLiveSession : IDisposable
     private readonly Dictionary<Guid, int> acknowledgedCheckpoints = [];
 
     internal RealtimeLiveSession(string device, string conversation,
-        IStreamingAudioInput provider, CancellationTokenSource lifetime, bool continuous = false)
+        IStreamingAudioInput provider, CancellationTokenSource lifetime, bool continuous = false, LabHardwareContext? labHardware = null)
     {
         DeviceId = device;
         ConversationId = conversation;
         this.provider = provider;
         this.continuous = continuous;
+        this.labHardware = labHardware;
         this.lifetime = lifetime;
         lifetimeToken = lifetime.Token;
     }
@@ -58,6 +61,9 @@ internal sealed class RealtimeLiveSession : IDisposable
     internal Guid Id { get; } = Guid.NewGuid();
     internal string DeviceId { get; }
     internal string ConversationId { get; }
+
+    internal Task EnsureHardwareAuthorityAsync(CancellationToken token) =>
+        labHardware?.EnsureAuthorizedAsync(token) ?? Task.CompletedTask;
 
     internal bool AttachAudioStream()
     {
@@ -160,6 +166,7 @@ internal sealed class RealtimeLiveSession : IDisposable
             }
             try
             {
+                await EnsureHardwareAuthorityAsync(token);
                 await provider.SendAudioAsync(pcm, token);
                 return true;
             }

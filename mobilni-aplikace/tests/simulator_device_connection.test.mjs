@@ -130,6 +130,25 @@ function startConnection() {
   return { connection, socket };
 }
 
+test('Lab carrier requires live native capability and clears capability evidence on disconnect', () => {
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });
+  const voice = { available: true, mode: 'realtime', voice: 'marin', phase: 'idle', error: null };
+  socket.open();
+  socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ voice, capabilities: [] }) });
+  connection.snapshot().capabilities.push('voiceTestContext');
+  assert.equal(connection.startVoice(false, 'A'.repeat(43)), false);
+  socket.message(snapshot({ eventSequence: 2, voice, capabilities: ['voiceTestContext'] }));
+  assert.equal(connection.startVoice(false, 'A'.repeat(43)), true);
+  assert.equal(socket.sent.at(-1).testContext, 'A'.repeat(43));
+  connection.suspend();
+  assert.deepEqual(connection.snapshot().capabilities, []);
+  const simulation = startConnection();
+  simulation.socket.message(snapshot({ eventSequence: 2, voice, capabilities: ['voiceTestContext'] }));
+  assert.equal(simulation.connection.startVoice(false, 'A'.repeat(43)), false);
+  simulation.connection.suspend();
+});
+
 test('real-device transport never sends retired text or cancel frames even when an old snapshot advertises text', () => {
   const socket = new FakeSocket();
   const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });

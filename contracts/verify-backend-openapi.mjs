@@ -207,6 +207,10 @@ validate('CreateConversation', conversation, true);
 validate('CreateConversation', { ...conversation, locale: 'en-US' }, false);
 validate('CreateConversation', { ...conversation, consent: { audio: true } }, false);
 validate('CreateConversation', { ...conversation, accessToken: 'secret' }, false);
+validate('CreateConversation', { ...conversation, testContext: 'A'.repeat(43) }, true);
+for (const testContext of ['', 'A'.repeat(42), 'A'.repeat(44), '<'.repeat(43), null]) {
+  validate('CreateConversation', { ...conversation, testContext }, false);
+}
 
 const operation = {
   operationId: 'op-1', kind: 'turn', status: 'pending',

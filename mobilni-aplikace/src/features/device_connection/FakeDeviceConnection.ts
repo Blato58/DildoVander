@@ -6,6 +6,7 @@ export type ControlMode = 'observer' | 'manual';
 export type DevicePhase = 'ready' | 'running' | 'stopped' | 'disconnected';
 
 export interface DeviceSnapshot {
+  capabilities?: readonly string[];
   source: 'local-fake' | 'e2-simulator' | 'native-device';
   controlMode: ControlMode;
   phase: DevicePhase;

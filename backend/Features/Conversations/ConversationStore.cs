@@ -8,6 +8,7 @@ using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Character;
 using Kufr.Backend.Features.DigitalTwin;
+using Kufr.Backend.Features.PersonaLab;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -22,7 +23,8 @@ internal sealed partial class ConversationStore(
     TwinFakeInputPolicy? twinFakeInputs = null,
     IConfiguration? configuration = null,
     CostumeVisionService? vision = null,
-    ShowCoordinator? show = null)
+    ShowCoordinator? show = null,
+    PersonaLabStore? personaLab = null)
 {
     private readonly Lock gate = new();
     private CharacterPolicy characterPolicy = liveOptions?.Character ?? new();
@@ -55,7 +57,7 @@ internal sealed partial class ConversationStore(
         }
     }
 
-    public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request)
+    public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request, LabHardwareContext? labHardware = null)
     {
         var now = clock.GetUtcNow();
         var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
@@ -64,11 +66,16 @@ internal sealed partial class ConversationStore(
         {
             CleanupExpired(now);
 
+            if ((request.TestContext is null) != (labHardware is null) || labHardware?.Token.IsCancellationRequested == true)
+            { return new CreateResult(409, null); }
+            var labPrompt = labHardware is null ? null : LabPrompt(labHardware);
             var previous = journal.FindExistingCreate(deviceId, key, bodyHash);
             if (previous is not null)
             {
                 if (previous.Conflict) { return new CreateResult(409, null); }
-                if (eveningMemory is not null
+                if (journal.IsLabConversation(deviceId, previous.Response!.ConversationId) != (labHardware is not null))
+                { return new CreateResult(409, null); }
+                if (labHardware is null && eveningMemory is not null
                     && eveningMemory.ReadCapturedShowEvening(deviceId, previous.Response!.ConversationId) is null
                     && eveningMemory.TryAdmitShowVisit(deviceId, () => previous.Response!.ConversationId) is null)
                 {
@@ -83,9 +90,10 @@ internal sealed partial class ConversationStore(
             }
 
             JournalCreateReservation? reservation = null;
-            if (eveningMemory is null)
+            if (eveningMemory is null || labHardware is not null)
             {
-                reservation = journal.ReserveCreate(deviceId, key, bodyHash);
+                reservation = journal.ReserveCreate(deviceId, key, bodyHash, labHardware?.Session.Id,
+                    labHardware?.Session.Config.Id, labHardware?.ExpiresAt, labHardware?.Session.OwnerId);
             }
             else if (eveningMemory.TryAdmitShowVisit(deviceId, () =>
             {
@@ -106,6 +114,7 @@ internal sealed partial class ConversationStore(
             }
 
             var response = reservation.Response!;
+            if (labHardware is not null) { labHardware.ConversationId = response.ConversationId; }
 
             conversations.Add(
                 response.ConversationId,
@@ -117,7 +126,9 @@ internal sealed partial class ConversationStore(
                     request.Consent.Audio,
                     personalityId,
                     response.ExpiresAt,
-                    now.AddMinutes(30)) { ImageConsented = request.Consent.Image, LivePrompt = LivePromptSnapshot.Create(personalityId, (liveOptions ?? new()) with { Character = characterPolicy }) });
+                    labHardware?.ExpiresAt ?? now.AddMinutes(30))
+                { ImageConsented = request.Consent.Image, LivePrompt = labPrompt ?? CreatePersonaSnapshot(personalityId),
+                    LabHardware = labHardware, ExpiresAt = labHardware?.ExpiresAt ?? response.ExpiresAt });
             return new CreateResult(201, response);
         }
     }
@@ -155,6 +166,8 @@ internal sealed partial class ConversationStore(
             {
                 return new SubmitTurnResult(403, null, "device_scope_mismatch");
             }
+            if (conversation.LabHardware is not null)
+            { return new SubmitTurnResult(410, null, "conversation_engine_upgrade_required"); }
 
             if (request.BootId != conversation.BootId
                 || request.Generation != conversation.Generation
@@ -1004,7 +1017,8 @@ internal sealed partial class ConversationStore(
         {
             // Normal/network cleanup after a valid proposal leaves physical
             // outcome unknown. Only the trusted device may resolve that result.
-            if (!journal.HasPendingKeepsakeSelection(conversation.DeviceId, conversationId))
+            if (conversation.LabHardware is not null) { conversation.LabHardware.Lease.Cancel(); }
+            else if (!journal.HasPendingKeepsakeSelection(conversation.DeviceId, conversationId))
             {
                 RecordVisitInterrupted(conversation.DeviceId, conversationId);
             }
@@ -1107,6 +1121,7 @@ internal sealed partial class ConversationStore(
         public bool CostumeCleared { get; set; }
         public int CostumeCorrectionCount { get; set; }
         public string PersonalityId { get; } = selectedPersonalityId;
+        public LabHardwareContext? LabHardware { get; init; }
         public LivePromptSnapshot LivePrompt { get; init; } = LivePromptSnapshot.Create(selectedPersonalityId, new());
         public string LiveGeneration { get; } = Guid.NewGuid().ToString("D");
         public int? LiveReadyMask { get; set; }
@@ -1135,7 +1150,10 @@ internal sealed record CreateConversationRequest(
     int Generation,
     string CatalogVersion,
     string Locale,
-    ConversationConsent Consent);
+    ConversationConsent Consent)
+{
+    public string? TestContext { get; init; }
+}
 internal sealed record TextTurnRequest(
     Guid ClientTurnId,
     Guid BootId,

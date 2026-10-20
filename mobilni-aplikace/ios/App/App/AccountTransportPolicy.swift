@@ -182,6 +182,37 @@ enum AccountTransportPolicy {
             && UUID(uuidString: segments[5]) != nil && segments[6] == "cancel"
     }
 
+    static func personaLab(path: String, method: String) -> Bool {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 5, Array(parts.prefix(4)) == ["", "app", "v1", "persona-lab"] else { return false }
+        let route = Array(parts.dropFirst(4))
+        func hexID(_ value: String, length: Int = 32) -> Bool {
+            value.count == length && value.allSatisfy { "0123456789abcdef".contains($0) }
+        }
+        if route.count == 1 {
+            let exact: [String: Set<String>] = ["catalog": ["GET"], "sessions": ["GET", "POST"],
+                "analytics": ["GET"], "suites": ["GET", "POST"], "diagnostics": ["GET"],
+                "revisions": ["POST"], "rollback": ["POST"]]
+            return exact[route[0]]?.contains(method) == true
+        }
+        if route[0] == "suites" { return route.count == 2 && hexID(route[1]) && method == "GET" }
+        if route[0] == "revisions" {
+            let id = route[1]
+            let valid = hexID(id) || id.hasPrefix("baseline-") && hexID(String(id.dropFirst(9)), length: 16)
+            return route.count == 3 && valid && route[2] == "publish" && method == "POST"
+        }
+        guard route[0] == "sessions", hexID(route[1]) else { return false }
+        if route.count == 2 { return ["GET", "DELETE"].contains(method) }
+        guard route.count == 3 else { return false }
+        switch route[2] {
+        case "context": return method == "GET"
+        case "turns", "end", "socket-ticket", "hardware-ticket": return method == "POST"
+        case "evaluation": return method == "PUT"
+        case "image": return ["POST", "DELETE"].contains(method)
+        default: return false
+        }
+    }
+
     static func account(path: String, method: String) -> Bool {
         if let parts = URLComponents(string: path), parts.scheme == nil, parts.host == nil, parts.fragment == nil,
            !parts.percentEncodedPath.contains("%"), !path.contains("\\"), path.count <= 4096 {
@@ -200,6 +231,7 @@ enum AccountTransportPolicy {
         }
         guard !path.contains("%"), !path.contains("?"), !path.contains("#"), !path.contains("\\"),
               !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else { return false }
+        if path.hasPrefix("/app/v1/persona-lab") { return personaLab(path: path, method: method) }
         if path == "/v1/evenings" { return ["GET", "POST"].contains(method) }
         let evening = path.split(separator: "/").map(String.init)
         if evening.count == 4, evening[0] == "v1", evening[1] == "evenings", UUID(uuidString: evening[2]) != nil, evening[3] == "active" { return method == "PUT" }

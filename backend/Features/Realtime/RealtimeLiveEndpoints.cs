@@ -82,11 +82,12 @@ internal static partial class RealtimeLiveEndpoints
                 throw new OperationCanceledException();
             }
             registered = true;
+            if (call.LabHardware is { } hardwareAdmission) { await hardwareAdmission.EnsureAuthorizedAsync(call.Cancellation.Token); }
             call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token);
             context.Response.ContentType = "application/x-ndjson";
             context.Response.Headers["X-Accel-Buffering"] = "no";
             await using var connection = await provider.ConnectAsync(call.Cancellation.Token);
-            using var session = new RealtimeLiveSession(device, id, connection, lifetime);
+            using var session = new RealtimeLiveSession(device, id, connection, lifetime, labHardware: call.LabHardware);
             live = session;
             if (!registry.Add(session))
             {
@@ -109,8 +110,12 @@ internal static partial class RealtimeLiveEndpoints
                     await WriteEventAsync(context, writes, item(generation), token,
                         () => session.OutputGeneration == generation && conversations.ReadVisualResponseRevision(device, id).Generation == visual);
                 }
-                Task ResponseReadyAsync(CancellationToken token) => SourceEventAsync(generation => new
-                { type = "started", operationId = current.OperationId, correlation = current.Correlation, responseGeneration = generation }, token);
+                Task ResponseReadyAsync(CancellationToken token)
+                {
+                    current.LabHardware?.ProviderReady(connection.ProviderSessionId);
+                    return SourceEventAsync(generation => new
+                    { type = "started", operationId = current.OperationId, correlation = current.Correlation, responseGeneration = generation }, token);
+                }
                 if (!conversations.StartRealtimeTurn(current))
                 {
                     throw new OperationCanceledException(current.Cancellation.Token);
@@ -127,6 +132,7 @@ internal static partial class RealtimeLiveEndpoints
                     await VisualResponsePublisher.PublishAsync(conversations, session, writes, visual, generation, () =>
                     {
                         result = conversations.CompleteRealtimeTurn(current, response) ?? throw new InvalidDataException();
+                        conversations.ObserveLabTokens(current, connection.LastInputTokens, connection.LastOutputTokens);
                         completed = true; finalizedGeneration = generation; finalizedVisual = visual;
                         played = session.PreparePlayback(current.OperationId);
                         return new { type = "completed", operationId = current.OperationId, correlation = current.Correlation,
@@ -173,7 +179,7 @@ internal static partial class RealtimeLiveEndpoints
                     inputContext: (text, token) => ConversationStartupMemory.ProcessInputAsync(current, conversations, memory, text, token),
                     visualContext: () => conversations.ReadVisualContext(device, id),
                     visualRevision: () => conversations.ReadVisualResponseRevision(device, id),
-                    recoveryContext: () => conversations.LiveMemoryAccess(current) is { } permitted ? memory.RecoveryContext(permitted).Text : "",
+                    recoveryContext: () => conversations.LiveMemoryAccess(current) is { } permitted ? memory.RecoveryContext(permitted).Text : current.LabHardware is null ? "" : current.Context.EveningContext,
                     finalize: FinalizeAsync);
                 session.StopListening();
                 conversations.ReleaseRealtimeTurn(current, dispatched, completed);
@@ -316,6 +322,8 @@ internal static partial class RealtimeLiveEndpoints
         }
         try
         {
+            try { await session.EnsureHardwareAuthorityAsync(context.RequestAborted); }
+            catch (OperationCanceledException) { return ApiProblem.Create(context, 403, "lab_hardware_authority_revoked"); }
             var body = await ReadBytesAsync(context, 512);
             using var document = JsonDocument.Parse(body);
             var root = document.RootElement;
