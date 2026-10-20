@@ -14,6 +14,7 @@ internal static class PersonaLabTransportTests
     internal static async Task RunAsync()
     {
         await RunCaseAsync("text history and privacy", 10, TextHistoryAndPrivacyAsync);
+        await RunCaseAsync("eight-turn dialogue recall", 10, DialogueRecallExecutionAsync);
         await RunCaseAsync("provider failure and recovery", 10, ProviderFailureAndRecoveryAsync);
         await RunCaseAsync("suite execution", 10, SuiteExecutionAsync);
         await RunCaseAsync("script isolation between turns", 10, ScriptIsolationBetweenTurnsAsync);
@@ -45,6 +46,8 @@ internal static class PersonaLabTransportTests
         Check(secondWire.Contains("TRANSPORT-FIRST-USER") && secondWire.Contains("TRANSPORT-ANSWER-1")
             && secondWire.Contains("TRANSPORT-SECOND-USER") && StartupMemory(fixture.RealtimeSockets[1].Commands) == LabContract.Memory(session),
             "actual second provider request receives prior user/assistant context and the selected synthetic returning fixture");
+        CheckRestoredHistory(fixture.RealtimeSockets[1].Commands,
+            [new("TRANSPORT-FIRST-USER", "TRANSPORT-ANSWER-1")], "TRANSPORT-SECOND-USER");
         Check(second.Turns.Where(turn => turn.Role == "assistant").All(turn => turn.LatencyMs >= 15 && turn.AudioBytes == 4800),
             "actual per-request timing and delivered audio byte metadata are recorded");
         var stored = fixture.Store.Session("owner", session.Id);
@@ -73,6 +76,33 @@ internal static class PersonaLabTransportTests
         var recovered = await fixture.Runtime.TurnAsync("owner", session.Id, "RECOVERY-EXPLICIT-NEW-TURN", fixture.Token);
         Check(recovered.Turns.Length == 2 && recovered.Turns[0].Text == "RECOVERY-EXPLICIT-NEW-TURN"
             && fixture.RealtimeSockets.Count == 2, "an explicit later turn can use released capacity without replaying failed input");
+    }
+
+    private static async Task DialogueRecallExecutionAsync()
+    {
+        using var fixture = new Fixture();
+        using var host = new TestHostLifetime();
+        using var suites = new PersonaLabSuites(fixture.Store, fixture.Runtime, host);
+        var started = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty",
+            ["dialogue-recall"], "non-cued recall"), _ => Task.FromResult(true));
+        var completed = (await WaitSuiteAsync(fixture, started.Id)).Results.Single();
+        var saved = fixture.Store.Session("owner", completed.SessionId);
+        var script = saved.ScenarioSnapshot!.Script;
+        Check(completed.Status == "completed" && completed.TurnObservations.Length == 8
+            && fixture.RealtimeSockets.Count == 8 && saved.Status == "ended" && saved.Turns.Length == 16,
+            "the eight-turn recall scenario executes and retires every actual fake-provider turn");
+        Check(fixture.RealtimeSockets.Select(socket => CurrentInput(socket.Commands)).SequenceEqual(script.Select(step => step.Input)),
+            "recall suite executes each immutable input without inserting the expected recall answers");
+        var expectedHistory = script.Take(7).Select((step, index) => new DialogExchange(step.Input, $"TRANSPORT-ANSWER-{index + 1}")).ToArray();
+        CheckRestoredHistory(fixture.RealtimeSockets[7].Commands, expectedHistory, script[7].Input);
+        var anchors = completed.TurnObservations.SelectMany(turn => turn.Assertions)
+            .Where(assertion => assertion.Name.StartsWith("anchor:", StringComparison.Ordinal)).ToArray();
+        Check(anchors.Length == 7 && anchors.All(assertion => !assertion.Passed && assertion.Status == "failed"),
+            "generic fake output fails every non-cued recall anchor instead of manufacturing memory quality");
+        Check(saved.Turns.All(turn => turn.Text == "") && completed.TurnObservations.SelectMany(turn => turn.Assertions)
+            .Any(assertion => assertion.Name == "memory-provenance-not-exercised" && assertion.Status == "not_exercised"),
+            "nonrecorded recall tests persist metadata and never infer verified guest identity from lexical output");
+        await suites.StopAsync(fixture.Token);
     }
 
     private static async Task SuiteExecutionAsync()
@@ -486,6 +516,31 @@ internal static class PersonaLabTransportTests
     private static void Check(bool condition, string message)
     {
         if (!condition) { throw new Exception("Persona Lab transport: " + message); }
+    }
+
+    private static void CheckRestoredHistory(IReadOnlyList<string> commands, IReadOnlyList<DialogExchange> expected, string currentInput)
+    {
+        var inputs = new List<(int Index, string Text)>();
+        var responseIndex = -1;
+        for (var index = 0; index < commands.Count; index++)
+        {
+            using var document = JsonDocument.Parse(commands[index]);
+            var root = document.RootElement;
+            if (root.GetProperty("type").GetString() == "response.create") { responseIndex = index; break; }
+            if (!root.TryGetProperty("item", out var item) || !item.TryGetProperty("role", out var role)
+                || role.GetString() != "user" || !item.TryGetProperty("content", out var content)) { continue; }
+            foreach (var part in content.EnumerateArray())
+            {
+                if (part.TryGetProperty("text", out var text) && text.GetString() is { } value) { inputs.Add((index, value)); }
+            }
+        }
+        var restored = inputs.Single(input => input.Text.Contains("\"eveningMemory\"", StringComparison.Ordinal));
+        using var context = JsonDocument.Parse(restored.Text[restored.Text.IndexOf('{')..]);
+        var history = context.RootElement.GetProperty("history").EnumerateArray().Select(exchange => new DialogExchange(
+            exchange.GetProperty("visitorText").GetString()!, exchange.GetProperty("reply").GetString()!)).ToArray();
+        Check(history.SequenceEqual(expected), "decoded provider history contains exactly the ordered prior visitor/assistant pairs");
+        Check(inputs.Count == 2 && inputs[1].Text == currentInput && restored.Index < inputs[1].Index
+            && inputs[1].Index < responseIndex, "restored history and distinct current input precede response creation on the wire");
     }
 
     private static string? StartupMemory(IEnumerable<string> commands)

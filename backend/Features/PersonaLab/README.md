@@ -50,8 +50,12 @@ Responses conversations and STT/dialog/TTS pipelines remain retired.
   fixtures; unavailable words and partially spoken audio are not restored.
 - A scenario suite makes actual provider calls and saves the exact persona,
   model, fixture/scenario snapshot and narrowly defined assertion results. The
-  20 Czech scenarios contain 58 scripted turns with per-turn IDs, timings and
-  results. Each case is capped at eight turns and each suite at 120 turns. Lexical
+  21 Czech scenarios contain 66 scripted turns with per-turn IDs, timings and
+  results. The eight-turn dialogue-recall case asks for earlier fictional names
+  and facts without repeating the expected answer in its retrieval questions,
+  including a corrected alias and intervening topics. Lexical matches remain
+  limited evidence; a person must assess negation, provenance and meaning.
+  Each case is capped at eight turns and each suite at 120 turns. Lexical
   checks are observations, not human quality scores. Compare matching scenarios
   and fixtures before drawing conclusions from A/B ratings. Acoustic, network
   and physical behavior stays `not_exercised` when a text script cannot prove it.

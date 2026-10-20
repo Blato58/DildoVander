@@ -129,7 +129,7 @@ internal static class LabRubric
                 "V tomto tahu byla skutečně vyžádána Live klientská delegace a odesláno simulované selhání. Neprokazuje to správnou reakci modelu ani fyzický účinek.") : NotExercised(check),
             _ when check.StartsWith("anchor:", StringComparison.Ordinal) => new LabAssertion(check,
                 normalized.Contains(check[7..], StringComparison.Ordinal),
-                "Omezený lexikální důkaz: odpověď obsahuje výslovně vyžádaný testovací výraz. Neprokazuje porozumění, pravdivost ani kvalitu persony."),
+                "Omezený lexikální důkaz: odpověď obsahuje předem určený testovací výraz. Neprokazuje porozumění, pravdivost ani kvalitu persony."),
             _ => NotExercised(check)
         }).ToArray();
     }
