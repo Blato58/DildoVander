@@ -23,6 +23,11 @@ internal static class PersonaLabTransportTests
         await RunCaseAsync("observed simulated Live tool failure", 15, LiveToolFailureAsync);
         await RunCaseAsync("shutdown and orphaned suites", 10, ShutdownAndOrphansAsync);
         await RunCaseAsync("voice interruption and reuse", 10, VoiceInterruptionAsync);
+        await RunCaseAsync("continuous voice input admission", 10, ContinuousVoiceInputAsync);
+        await RunCaseAsync("continuous voice normal completion", 10, ContinuousVoiceCompletionAsync);
+        await RunCaseAsync("voice protocol failure diagnostics", 10, VoiceProtocolDiagnosticsAsync);
+        await RunCaseAsync("Realtime input barriers and diagnostics", 10, RealtimeInputBarriersAsync);
+        await RunCaseAsync("blocked voice input shutdown", 10, BlockedVoiceInputShutdownAsync);
         await RunCaseAsync("observed voice recovery", 10, VoiceRecoveryAsync);
         await RunCaseAsync("hardware admission leases", 10, HardwareAdmissionLeasesAsync);
         Console.WriteLine("Persona Lab actual runtime: text history/privacy, provider faults, suite execution, Live final usage, and PCM interruption/reuse passed (fake providers only).");
@@ -477,6 +482,211 @@ internal static class PersonaLabTransportTests
         }
     }
 
+    private static async Task ContinuousVoiceInputAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.VoiceNextRealtime = true;
+        var session = fixture.Session();
+        using var client = new ClientSocket();
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token);
+        await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+        var provider = fixture.RealtimeSockets[0];
+        provider.HoldCancellation = true;
+        await provider.Configurations.Reader.ReadAsync(fixture.Token);
+        await client.JsonAsync("ready", fixture.Token);
+        client.PushBinary(new byte[4800]);
+        await client.BinaryAsync(fixture.Token);
+        // Real capture continues every 20 ms while the assistant is speaking.
+        // The fake emits a second VAD transcript if that PCM reaches the old input.
+        client.PushBinary(new byte[960]);
+        await Task.WhenAny(voice, client.ReceivingAsync(3, fixture.Token));
+        if (voice.IsCompleted) { await voice; }
+        Check(provider.AudioUploads == 1, "continuous capture is discarded after VAD stop instead of entering the replying provider input");
+        client.Push(new { type = "cancel", playedAudioMs = 50 });
+        await provider.CancellationRequested.Task.WaitAsync(fixture.Token);
+        await client.ReceivingAsync(4, fixture.Token);
+        var firstPrefix = Enumerable.Repeat((byte)17, 4800).ToArray();
+        var secondPrefix = Enumerable.Repeat((byte)29, 4800).ToArray();
+        client.PushBinary(firstPrefix);
+        client.PushBinary(secondPrefix);
+        await client.ReceivingAsync(6, fixture.Token);
+        Check(provider.AudioUploads == 1 && !voice.IsCompleted,
+            "fresh barge-in prefix remains bounded locally until the cancelled response is drained");
+        provider.CompleteCancellation();
+        await client.JsonAsync("interrupted", fixture.Token);
+        await provider.Configurations.Reader.ReadAsync(fixture.Token);
+        await client.JsonAsync("turn", fixture.Token, root => root.GetProperty("turn").GetProperty("role").GetString() == "assistant");
+        Check(provider.AudioUploads == 3 && provider.AudioPayloads.Skip(1).SequenceEqual(new[]
+            { Convert.ToBase64String(firstPrefix), Convert.ToBase64String(secondPrefix) }) && fixture.RealtimeSockets.Count == 1,
+            "new listening flushes fresh prefix exactly once and in order on the same provider connection");
+        Check(!fixture.Runtime.Detail("owner", session.Id).Events.Any(entry => entry.Type == "provider_failure"),
+            "continuous capture followed by a real correlated interruption leaves no fabricated provider failure");
+        client.Push(new { type = "end" });
+        await voice.WaitAsync(fixture.Token);
+    }
+
+    private static async Task ContinuousVoiceCompletionAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.VoiceNextRealtime = true;
+        var session = fixture.Session();
+        using var client = new ClientSocket();
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token);
+        await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+        var provider = fixture.RealtimeSockets[0];
+        await client.JsonAsync("ready", fixture.Token);
+        client.PushBinary(new byte[4800]);
+        await client.BinaryAsync(fixture.Token);
+        client.PushBinary(new byte[960]);
+        await Task.WhenAny(voice, client.ReceivingAsync(3, fixture.Token));
+        if (voice.IsCompleted) { await voice; }
+        Check(provider.AudioUploads == 1, "continuous PCM cannot open a second VAD input during an uninterrupted response");
+        provider.CompleteResponse();
+        await client.JsonAsync("turn", fixture.Token, root => root.GetProperty("turn").GetProperty("role").GetString() == "assistant");
+        client.Push(new { type = "end" });
+        await voice.WaitAsync(fixture.Token);
+        var stored = fixture.Store.Session("owner", session.Id);
+        Check(stored.Turns.Select(turn => turn.Role).SequenceEqual(new[] { "user", "assistant" }) && stored.Turns.All(turn => turn.Text == "") &&
+            stored.Events.Any(entry => entry.Type == "provider_turn" && entry.Code == "completed") &&
+            !stored.Events.Any(entry => entry.Type == "provider_failure") && provider.CancelCommands == 0,
+            "the original heard response completes and persists metadata without a cancel, extra transcript, or content recording");
+    }
+
+    private static async Task VoiceProtocolDiagnosticsAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.VoiceNextRealtime = true;
+        var session = fixture.Session();
+        using var client = new ClientSocket();
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token);
+        await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+        await client.JsonAsync("ready", fixture.Token);
+        client.PushBinary(new byte[4800]);
+        await client.BinaryAsync(fixture.Token);
+        fixture.RealtimeSockets[0].Push(new { type = "conversation.item.input_audio_transcription.completed",
+            item_id = "unrelated-input", transcript = "PRIVATE-UNRELATED-TRANSCRIPT" });
+        try { await voice; throw new Exception("Unexpected provider transcription was accepted."); }
+        catch (LabException error) when (error.Code == "lab_realtime_input_transcription_conflict") { }
+        var stored = fixture.Store.Session("owner", session.Id);
+        Check(stored.Turns.Length == 1 && stored.Turns[0].Role == "user" && stored.Events.Any(entry =>
+            entry.Type == "provider_failure" && entry.Code == "realtime_input_transcription_conflict") &&
+            !JsonSerializer.Serialize(stored).Contains("PRIVATE-UNRELATED-TRANSCRIPT", StringComparison.Ordinal),
+            "audio-before-finalization failure has a fixed safe reason and does not fabricate a completed assistant turn");
+    }
+
+    private static async Task RealtimeInputBarriersAsync()
+    {
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var token = lifetime.Token;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var forwarded = new List<byte[]>();
+        using var input = new PersonaLabRealtimeInput(async (pcm, cancellation) =>
+        {
+            forwarded.Add(pcm);
+            entered.TrySetResult();
+            await release.Task.WaitAsync(cancellation);
+        });
+        await input.ListenAsync(token);
+        var uploading = input.SendAsync(new byte[960], token);
+        await entered.Task;
+        var stopped = input.StopAsync(token);
+        await input.SendAsync(new byte[960], token);
+        Check(!stopped.IsCompleted && forwarded.Count == 1, "VAD stop rejects new uploads while draining an already admitted send");
+        release.TrySetResult();
+        await Task.WhenAll(uploading, stopped);
+        await input.ListenAsync(token);
+        var cancelCalls = 0;
+        Check(!await input.InterruptAsync(() => { cancelCalls++; return Task.FromResult(true); }) && cancelCalls == 0,
+            "late cancel in an armed listening generation cannot cancel the next input or buffer it forever");
+        await input.SendAsync(new byte[960], token);
+        Check(forwarded.Count == 2, "listening remains armed after an idle late cancel");
+        await input.StopAsync(token);
+        var cancelResult = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var staleCancel = input.InterruptAsync(() => cancelResult.Task);
+        await input.SendAsync(Enumerable.Repeat((byte)41, 960).ToArray(), token);
+        await input.ListenAsync(token);
+        cancelResult.TrySetResult(false);
+        Check(!await staleCancel, "provider cancellation false is surfaced without inventing an interrupted response");
+        await input.SendAsync(new byte[960], token);
+        Check(forwarded.Count == 4 && forwarded[2].All(value => value == 0),
+            "late false result cannot clear a newer listening generation and flushed prefix is zeroed");
+        await input.StopAsync(token);
+        var acceptedCancel = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lateAccepted = input.InterruptAsync(() => acceptedCancel.Task);
+        await input.SendAsync(new byte[960], token);
+        await input.ListenAsync(token);
+        acceptedCancel.TrySetResult(true);
+        Check(await lateAccepted, "accepted cancellation can finish after its next listening generation has already armed");
+        await input.SendAsync(new byte[960], token);
+        Check(forwarded.Count == 6, "a late true cancellation result cannot close or buffer newer listening input");
+        await input.StopAsync(token);
+        Check(await input.InterruptAsync(() => Task.FromResult(true)), "active response cancellation admits a fresh prefix");
+        await input.SendAsync(new byte[PersonaLabRealtimeInput.MaximumPrefixBytes], token);
+        try { await input.SendAsync(new byte[2], token); throw new Exception("Unbounded interruption prefix accepted."); }
+        catch (LabException error) when (error.Code == "lab_realtime_input_buffer_limit") { }
+        await input.ListenAsync(token);
+        Check(forwarded.Count == 6, "overflow discards the entire old prefix instead of replaying a partial utterance");
+        input.Dispose();
+        await input.SendAsync(new byte[960], token);
+        Check(forwarded.Count == 6, "disposal never forwards later PCM into the provider");
+
+        var flushEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var flushReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var flushed = new List<byte[]>();
+        using var interruptedFlush = new PersonaLabRealtimeInput(async (pcm, cancellation) =>
+        {
+            flushed.Add(pcm);
+            flushEntered.TrySetResult();
+            await flushReleased.Task.WaitAsync(cancellation);
+        });
+        await interruptedFlush.InterruptAsync(() => Task.FromResult(true));
+        await interruptedFlush.SendAsync(Enumerable.Repeat((byte)59, 960).ToArray(), token);
+        await interruptedFlush.SendAsync(Enumerable.Repeat((byte)61, 960).ToArray(), token);
+        var flushing = interruptedFlush.ListenAsync(token);
+        await flushEntered.Task;
+        var flushStopped = interruptedFlush.StopAsync(token);
+        interruptedFlush.Dispose();
+        flushReleased.TrySetResult();
+        await Task.WhenAll(flushing, flushStopped);
+        Check(flushed.Count == 1 && flushed[0].All(value => value == 0),
+            "stop and disposal during prefix flush drain the admitted send, discard the tail and zero owned PCM");
+
+        var reasons = new[]
+        {
+            (new InvalidDataException("Unexpected input transcription."), "realtime_input_transcription_conflict"),
+            (new InvalidDataException("Incomplete Realtime response."), "realtime_response_incomplete"),
+            (new InvalidDataException("Unexpected Realtime session."), "realtime_session_invalid"),
+            (new InvalidDataException("Unexpected Realtime output modality."), "realtime_output_invalid"),
+            (new InvalidDataException("Invalid Realtime tool arguments."), "realtime_tool_invalid"),
+            (new InvalidDataException("Invalid Realtime event field."), "realtime_event_invalid"),
+            (new InvalidDataException("PRIVATE-PROVIDER-DETAIL"), "provider_error")
+        };
+        Check(reasons.All(item => PersonaLabFailureDiagnostics.RealtimeCode(item.Item1) == item.Item2) &&
+            PersonaLabFailureDiagnostics.RealtimeCode(new JsonException("PRIVATE-JSON")) == "realtime_event_invalid" &&
+            PersonaLabFailureDiagnostics.RealtimeCode(new LabException(413, "lab_realtime_input_buffer_limit")) == "realtime_input_buffer_limit",
+            "diagnostics use fixed application reasons and never disclose arbitrary exception messages");
+    }
+
+    private static async Task BlockedVoiceInputShutdownAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.VoiceNextRealtime = true;
+        var session = fixture.Session();
+        using var client = new ClientSocket();
+        var voice = fixture.Runtime.VoiceAsync("owner", session.Id, client, _ => Task.FromResult(true), fixture.Token);
+        await fixture.RealtimeConnected.Reader.ReadAsync(fixture.Token);
+        var provider = fixture.RealtimeSockets[0];
+        provider.BlockAudio = true;
+        await client.JsonAsync("ready", fixture.Token);
+        client.PushBinary(new byte[960]);
+        await provider.AudioBlocked.Task.WaitAsync(fixture.Token);
+        fixture.Runtime.End("owner", session.Id);
+        await voice.WaitAsync(fixture.Token);
+        Check(fixture.Runtime.ActiveCount == 0 && fixture.Store.Session("owner", session.Id).Status == "ended",
+            "ending a session cancels a blocked provider upload and releases its admission without semaphore disposal races");
+    }
+
     private static async Task VoiceInterruptionAsync()
     {
         using var fixture = new Fixture();
@@ -675,7 +885,16 @@ internal static class PersonaLabTransportTests
         internal int AudioUploads { get; private set; }
         internal int CancelCommands { get; private set; }
         internal int? TruncatedAtMs { get; private set; }
+        internal bool HoldCancellation { get; set; }
+        internal bool BlockAudio { get; set; }
+        internal List<string> AudioPayloads { get; } = [];
+        internal TaskCompletionSource CancellationRequested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource AudioBlocked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal void CompleteCancellation() => Done("cancelled");
+        internal void CompleteResponse() => Done("completed");
         private bool created;
+        private bool inputCommitted;
+        private bool responseActive;
         public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType type, bool complete, CancellationToken token)
         {
             using var message = JsonDocument.Parse(buffer);
@@ -684,18 +903,30 @@ internal static class PersonaLabTransportTests
             switch (root.GetProperty("type").GetString())
             {
                 case "session.update":
+                    inputCommitted = false;
                     Push(new { type = "session.updated", session = new { type = "realtime", model = RealtimeProtocol.Model } });
                     Configurations.Writer.TryWrite(true);
                     break;
                 case "input_audio_buffer.append":
+                    if (BlockAudio)
+                    {
+                        AudioBlocked.TrySetResult();
+                        await Task.Delay(Timeout.Infinite, token);
+                    }
                     AudioUploads++;
-                    Push(new { type = "input_audio_buffer.speech_started", item_id = "visitor-" + AudioUploads, audio_start_ms = 0 });
-                    Push(new { type = "input_audio_buffer.speech_stopped", item_id = "visitor-" + AudioUploads, audio_end_ms = 100 });
-                    Push(new { type = "input_audio_buffer.committed", item_id = "visitor-" + AudioUploads });
-                    Push(new { type = "conversation.item.input_audio_transcription.completed", item_id = "visitor-" + AudioUploads, transcript = "Fictional raw microphone input." });
+                    AudioPayloads.Add(root.GetProperty("audio").GetString()!);
+                    if (!inputCommitted || responseActive)
+                    {
+                        inputCommitted = true;
+                        Push(new { type = "input_audio_buffer.speech_started", item_id = "visitor-" + AudioUploads, audio_start_ms = 0 });
+                        Push(new { type = "input_audio_buffer.speech_stopped", item_id = "visitor-" + AudioUploads, audio_end_ms = 100 });
+                        Push(new { type = "input_audio_buffer.committed", item_id = "visitor-" + AudioUploads });
+                        Push(new { type = "conversation.item.input_audio_transcription.completed", item_id = "visitor-" + AudioUploads, transcript = "Fictional raw microphone input." });
+                    }
                     break;
                 case "response.create":
                     Responses++;
+                    responseActive = true;
                     if (fail)
                     {
                         Push(new { type = "error", error = new { type = "server_error", code = "fixture_failure", message = "PRIVATE-PROVIDER-DETAIL" } });
@@ -709,7 +940,8 @@ internal static class PersonaLabTransportTests
                     break;
                 case "response.cancel":
                     CancelCommands++;
-                    Done("cancelled");
+                    CancellationRequested.TrySetResult();
+                    if (!HoldCancellation) { Done("cancelled"); }
                     break;
                 case "conversation.item.truncate":
                     TruncatedAtMs = root.GetProperty("audio_end_ms").GetInt32();
@@ -726,12 +958,16 @@ internal static class PersonaLabTransportTests
             }
             return base.ReceiveAsync(buffer, token);
         }
-        private void Done(string status) => Push(new { type = "response.done", response = new
+        private void Done(string status)
         {
+            responseActive = false;
+            Push(new { type = "response.done", response = new
+            {
             id = "response-" + Responses, status, output = new[] { new { type = "message", role = "assistant", status = "completed",
                 content = new[] { new { type = "output_audio", transcript = reply } } } },
             usage = new { input_tokens = 2, output_tokens = 2, input_token_details = new { text_tokens = 2, audio_tokens = 0 } }
-        } });
+            } });
+        }
     }
 
     private sealed class LiveSocket(string reply, bool holdClose, bool invalidUsage, string? errorStage = null) : QueuedSocket
@@ -823,7 +1059,18 @@ internal static class PersonaLabTransportTests
 
     private sealed class ClientSocket : QueuedSocket
     {
+        private readonly Channel<int> receiving = Channel.CreateUnbounded<int>();
+        private int receiveCount;
         private readonly Channel<(byte[] Data, WebSocketMessageType Type)> output = Channel.CreateUnbounded<(byte[], WebSocketMessageType)>();
+        public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken token)
+        {
+            receiving.Writer.TryWrite(++receiveCount);
+            return base.ReceiveAsync(buffer, token);
+        }
+        internal async Task ReceivingAsync(int count, CancellationToken token)
+        {
+            while (await receiving.Reader.ReadAsync(token) < count) { }
+        }
         public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType type, bool complete, CancellationToken token)
         {
             output.Writer.TryWrite((buffer.ToArray(), type));

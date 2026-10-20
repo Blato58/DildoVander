@@ -221,6 +221,8 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
             var token = socketLife.Token;
             if (recovery) { SaveEvent(session, LabContract.Event("recovery_started", "explicit_retry")); }
             await using var transport = await ConnectAsync(session, token);
+            using var realtimeInput = transport.Realtime is null ? null
+                : new PersonaLabRealtimeInput(transport.Realtime.SendAudioAsync);
             var sender = new LabSocketSender(socket, authorized);
             var timer = Stopwatch.StartNew();
             var inputBytes = 0;
@@ -275,7 +277,7 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                         {
                             await providerReady.Task.WaitAsync(token);
                             if (transport.Live is not null) { await transport.Live.SendAudioAsync(pcm, token); }
-                            else { await transport.Realtime!.SendAudioAsync(pcm, token); }
+                            else { await realtimeInput!.SendAsync(pcm, token); }
                         }
                         finally { CryptographicOperations.ZeroMemory(pcm); }
                         continue;
@@ -285,9 +287,9 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                     if (type == "end") { return; }
                     if (type == "cancel")
                     {
-                        Volatile.Write(ref outputSuppressed, 1);
                         if (transport.Live is not null)
                         {
+                            Volatile.Write(ref outputSuppressed, 1);
                             await transport.Live.SendAsync(new { type = "session.instructions.append", event_id = Guid.NewGuid().ToString("N"), delegation_id = (string?)null,
                                 content = "The visitor interrupted. Stop the current utterance and listen. Do not resume discarded speech. Wait for the visitor to finish." }, token);
                             await sender.JsonAsync(new { type = "interrupted" }, token);
@@ -297,7 +299,16 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                         {
                             var played = message.RootElement.TryGetProperty("playedAudioMs", out var position) && position.TryGetInt32(out var milliseconds)
                                 && milliseconds is >= 0 and <= 180000 ? milliseconds : 0;
-                            if (!await transport.Realtime!.InterruptResponseAsync(played, token))
+                            if (!await realtimeInput!.InterruptAsync(() =>
+                            {
+                                Volatile.Write(ref outputSuppressed, 1);
+                                var cancellation = transport.Realtime!.InterruptResponseAsync(played, token);
+                                if (cancellation.IsCompletedSuccessfully && !cancellation.Result)
+                                {
+                                    Volatile.Write(ref outputSuppressed, 0);
+                                }
+                                return cancellation;
+                            }))
                             {
                                 Volatile.Write(ref outputSuppressed, 0);
                                 await sender.JsonAsync(new { type = "interrupted" }, token);
@@ -400,6 +411,7 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                         }, token,
                         listening: async cancellation =>
                         {
+                            await realtimeInput!.ListenAsync(cancellation);
                             if (providerReady.TrySetResult())
                             {
                                 SaveEvent(session, LabContract.Event("provider_session", "ready", providerSessionId: transport.Realtime.ProviderSessionId));
@@ -407,7 +419,11 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                                 await sender.JsonAsync(new { type = "ready" }, cancellation);
                             }
                         },
-                        speech: (state, cancellation) => sender.JsonAsync(new { type = "speech", state }, cancellation),
+                        speech: async (state, cancellation) =>
+                        {
+                            if (state == "speech_stopped") { await realtimeInput!.StopAsync(cancellation); }
+                            await sender.JsonAsync(new { type = "speech", state }, cancellation);
+                        },
                         visualImage: () => images?.Read(owner, id));
                     }
                     catch (RealtimeResponseInterruptedException interrupted)
@@ -466,13 +482,15 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
             var invalidInput = error is LabException { Status: 400 };
             var code = invalidInput ? "invalid_request" : userCancelled ? "user_cancelled" : cancelled ? "timeout"
                 : error is WebSocketException or IOException ? "transport_error"
-                : session.Engine == GptLiveProtocol.Model && error is not LabException ? LiveFailureDiagnostics.Code(error) : "provider_error";
+                : session.Engine == GptLiveProtocol.Model && error is not LabException ? LiveFailureDiagnostics.Code(error)
+                    : session.Engine == RealtimeProtocol.Model ? PersonaLabFailureDiagnostics.RealtimeCode(error) : "provider_error";
             SaveEvent(session, LabContract.Event(invalidInput ? "request_rejected" : "provider_failure", code));
             if (code == "transport_error") { SaveEvent(session, LabContract.Event("connection_interrupted", "unexpected_close")); }
             if (error is LabException) { throw; }
             throw new LabException(error is OperationCanceledException ? 408 : 502,
                 error is OperationCanceledException ? "lab_provider_timeout"
-                    : session.Engine == GptLiveProtocol.Model ? "lab_" + code : "lab_provider_error");
+                    : session.Engine == GptLiveProtocol.Model || code.StartsWith("realtime_", StringComparison.Ordinal)
+                        ? "lab_" + code : "lab_provider_error");
         }
         finally
         {

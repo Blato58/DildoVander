@@ -165,6 +165,19 @@ describe('Persona Lab user journeys', () => {
     const request = api.transport.mock.calls.find(([path]) => path.endsWith('/image'));
     expect(JSON.parse(request![1].body)).toEqual({ mimeType: 'image/jpeg', dataBase64: 'AA==', consent: true });
   });
+  it('does not claim model audio delivery while browser permission or connection is pending', async () => {
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    api.voiceObserver!.phase('connecting'); await flushPromises();
+    expect(wrapper.text()).toContain('Připojení k modelu zatím není potvrzené.');
+    expect(wrapper.text()).not.toContain('Mikrofon je zapnutý');
+    expect(wrapper.text()).not.toContain('odesílá zvuk do testovacího modelu');
+    api.voiceObserver!.phase('listening'); await flushPromises();
+    expect(wrapper.text()).toContain('Mikrofon je zapnutý.');
+    expect(wrapper.text()).not.toContain('Připojení k modelu zatím není potvrzené.');
+    api.voiceObserver!.phase('speaking'); await flushPromises();
+    expect(wrapper.text()).toContain('Mikrofon je zapnutý.');
+    expect(wrapper.text()).not.toContain('odesílá zvuk do testovacího modelu');
+  });
   it('cancels an explicit recovery backoff before any new provider connection', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); vi.spyOn(Math, 'random').mockReturnValue(0);
     const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');

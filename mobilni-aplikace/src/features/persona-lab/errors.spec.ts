@@ -18,6 +18,17 @@ describe('closed Persona Lab failure categories', () => {
     expect(classifyLabFailure('lab_provider_timeout', 408)).toMatchObject({ category: 'Network', recoverable: true });
     expect(classifyLabFailure('lab_provider_capacity', 403)).toMatchObject({ category: 'Auth', recoverable: false });
   });
+  it('exposes fixed Realtime protocol reasons without offering retries or echoing untrusted text', () => {
+    const conflict = classifyLabFailure('lab_realtime_input_transcription_conflict', 502);
+    expect(conflict).toMatchObject({ category: 'Backend', recoverable: false, manualRestart: false, reauthenticate: false });
+    expect(conflict.message).toContain('Přepis řeči');
+    expect(conflict.action).toContain('časovou osu');
+    for (const reason of ['response_incomplete', 'session_invalid', 'output_invalid', 'tool_invalid', 'event_invalid', 'input_buffer_limit'])
+      expect(classifyLabFailure(`lab_realtime_${reason}`, 502)).toMatchObject({ category: 'Backend', recoverable: false });
+    const untrusted = classifyLabFailure('lab_realtime_event_invalid untrusted text');
+    expect(untrusted.category).toBe('Unknown');
+    expect(describeLabFailure(untrusted)).not.toContain('untrusted text');
+  });
   it('distinguishes validated tool, infrastructure and media evidence from unknown causes', () => {
     expect(classifyLabFailure('lab_provider_invalid_delegation').category).toBe('Tool');
     expect(classifyLabFailure('lab_live_memory_storage_failed').category).toBe('Infrastructure');
