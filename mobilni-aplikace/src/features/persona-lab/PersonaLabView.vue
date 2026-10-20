@@ -205,7 +205,11 @@ function chooseImage(event: Event): void {
                 <AwButton v-if="lab.recoverable && !lab.voiceActive" :disabled="lab.busy" @click="lab.startVoice(true)">Zkusit hlas znovu ({{ lab.reconnects + 1 }}/2)</AwButton>
                 <AwButton variant="danger" @click="lab.end">Ukončit test</AwButton>
               </div>
-              <p v-if="lab.voiceActive" role="status">{{ phaseLabels[lab.voicePhase] }}. Mikrofon {{ lab.muted ? 'je ztlumený' : 'odesílá zvuk do testovacího modelu' }}.</p>
+              <p v-if="lab.voiceActive" role="status">
+                {{ phaseLabels[lab.voicePhase] }}.
+                <template v-if="lab.voicePhase === 'connecting'">Připravuji zvuk a spojení. Připojení k modelu zatím není potvrzené.</template>
+                <template v-else>Mikrofon {{ lab.muted ? 'je ztlumený' : 'je zapnutý' }}.</template>
+              </p>
               <form class="lab-composer" @submit.prevent="lab.send">
                 <AwField id="lab-message" label="Vaše zpráva" :hint="lab.voiceActive ? 'Text je během hlasového spojení pozastavený. Pro textové pokračování ukončete hlas.' : undefined"><textarea class="aw-input" id="lab-message" v-model="lab.text" rows="3" maxlength="4000" :disabled="lab.busy || lab.simulationBlocked || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open'" placeholder="Napište hostův vstup…" /></AwField>
                 <div class="lab-actions"><AwButton type="submit" variant="primary" :busy="lab.busy" :disabled="lab.simulationBlocked || !lab.text.trim() || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open' || !lab.selectedEngineReady">Odeslat do modelu</AwButton><AwButton v-if="selectedScenario?.openingText" :disabled="lab.busy || lab.simulationBlocked || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open'" @click="lab.text = selectedScenario.openingText">Vložit úvod scénáře</AwButton></div>

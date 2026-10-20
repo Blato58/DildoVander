@@ -87,6 +87,19 @@ Cancelled Realtime receives now abort/drain the outstanding SDK read before
 disposing its enumerator. Retired audio generations cannot affect a new input
 observer, and teardown releases pending upload readiness waiters.
 
+Lab Realtime closes microphone upload admission at provider speech-stop and drains
+in-flight sends before the provider input buffer is retired. PCM received while a
+response finishes is discarded. An explicit interruption can retain at most
+96,000 bytes (two seconds of 24 kHz mono PCM16); it is uploaded at most once, in order,
+only after the next provider listening phase. A late cancel cannot retire that
+new input. Overflow ends voice with a specific diagnostic rather than silently
+losing the start of the next utterance. Stop/end clears this volatile prefix.
+
+Protocol failures use fixed, application-owned reason codes in the timeline.
+Unknown exceptions remain generic; provider error bodies, arbitrary exception
+messages and visitor speech are never copied into these technical diagnostics.
+The microphone indicator reports local capture, not proof of provider delivery.
+
 For an incident, record model, persona revision, session/turn/event identifiers,
 platform and the approximate UTC time. The timeline distinguishes connection,
 provider, cancellation and context trimming. Export sanitized diagnostics, then
