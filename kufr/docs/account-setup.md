@@ -210,6 +210,10 @@ mazat návštěvnický archiv ani znovu zapínat první anonymní bootstrap.
 Podepsaná aplikace musí mít skutečně nastavené build hodnoty `KUFR_ACCOUNT_ORIGIN`
 a `KUFR_PASSKEY_RP_DOMAIN`, Associated Domains entitlement
 `webcredentials:<RP-domain>` a platné AASA se skutečným Team ID a bundle ID.
+Ruční signing workflow čte repository variable `KUFR_PASSKEY_RP_DOMAIN` a přes
+ověřený signing helper nastaví doménu i `KUFR_ACCOUNT_ORIGIN=https://<doména>`
+pouze v App Release konfiguraci. Chybějící nebo neplatná doména podpis zablokuje;
+nejde o provider credential. Doména backendu a jeho AASA musejí odpovídat.
 Bez nich nativní přihlášení vypíše chybějící konfiguraci. Nativní passkeys běží
 přes `ASAuthorizationPlatformPublicKeyCredentialProvider` na iOS 16+; stejná
 backendová Identity ověřuje jejich attestation/assertion. Nejde o vlastní OAuth
