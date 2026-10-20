@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "DildoVander Show Pack HTTP extension",
-    "version": "2026.10.19.1",
+    "version": "2026.10.20.1",
     "description": "Extends backend-openapi-v1.json. Physical authority stays in local control-message-v1. No GET generates content."
   },
   "paths": {
@@ -1354,6 +1354,190 @@
           }
         }
       }
+    },
+    "/v1/show/devices/{deviceId}/ambient-previews": {
+      "post": {
+        "operationId": "post_ambient_preview",
+        "x-source": "Features/Show/ShowAmbientPreviewEndpoints.cs",
+        "x-account-permission": "operate",
+        "description": "Explicitly generate one authored phone-only preview. Audited 24-hour idempotency; independent concurrency of one, eight-second provider deadline, at most 16 cached results for 60 seconds. Does not mutate Show state or issue device commands.",
+        "security": [
+          {
+            "ServerAdmin": []
+          },
+          {
+            "AccountSession": [],
+            "AccountCsrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-DV-Device-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Required and equal to deviceId for an account session; never substitutes for operator authorization."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cached preview result, including failed generation; never a device playback acknowledgement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmbientPreviewResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "One already-admitted generation is pending; Retry-After: 1.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmbientPreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid operation identity or request."
+          },
+          "401": {
+            "description": "Account session or server-admin credential required."
+          },
+          "403": {
+            "description": "Operate permission or matching account device scope required."
+          },
+          "404": {
+            "description": "Unknown device or preview operation."
+          },
+          "409": {
+            "description": "Operation identity conflicts with the original request."
+          },
+          "410": {
+            "description": "Previously consumed operation has expired; no automatic provider retry."
+          },
+          "503": {
+            "description": "Speech disabled, unavailable or preview lane busy."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmbientPreviewRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/show/devices/{deviceId}/ambient-previews/{operationId}": {
+      "get": {
+        "operationId": "get_ambient_preview_result",
+        "x-source": "Features/Show/ShowAmbientPreviewEndpoints.cs",
+        "x-account-permission": "operate",
+        "description": "Read an already-admitted phone-only preview. No generation or retry on GET; same operate authority as creation. No device playback ACK.",
+        "security": [
+          {
+            "ServerAdmin": []
+          },
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-DV-Device-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Required and equal to deviceId for an account session; never substitutes for operator authorization."
+          },
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cached preview result, including failed generation; never a device playback acknowledgement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmbientPreviewResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "One already-admitted generation is pending; Retry-After: 1.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmbientPreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid operation identity or request."
+          },
+          "401": {
+            "description": "Account session or server-admin credential required."
+          },
+          "403": {
+            "description": "Operate permission or matching account device scope required."
+          },
+          "404": {
+            "description": "Unknown device or preview operation."
+          },
+          "409": {
+            "description": "Operation identity conflicts with the original request."
+          },
+          "410": {
+            "description": "Previously consumed operation has expired; no automatic provider retry."
+          },
+          "503": {
+            "description": "Speech disabled, unavailable or preview lane busy."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1374,6 +1558,18 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Existing expiring device access token; server derives device scope from token."
+      },
+      "AccountSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-dv-account",
+        "description": "Authenticated account session with operate permission for the X-DV-Device-Id scope."
+      },
+      "AccountCsrf": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-DV-CSRF",
+        "description": "Account antiforgery token for preview creation; server-admin bearer requests use their existing boundary."
       }
     },
     "schemas": {
@@ -2132,6 +2328,94 @@
             "description": "Explicit physical Stop command revision, independent of quiet and settings."
           }
         }
+      },
+      "AmbientPreviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operationId"
+        ],
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "not": {
+              "const": "00000000-0000-0000-0000-000000000000"
+            }
+          }
+        }
+      },
+      "AmbientPreviewResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "operationId",
+          "lineId",
+          "text",
+          "synthetic"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ]
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "synthetic": {
+            "type": "boolean"
+          },
+          "wavBase64": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 682728,
+            "description": "Cached PCM16 mono 32kHz WAV, at most eight seconds; fake mode returns an explicitly synthetic silent fixture."
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "ready"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "wavBase64"
+              ],
+              "properties": {
+                "wavBase64": {
+                  "type": "string",
+                  "minLength": 4
+                }
+              }
+            }
+          }
+        ]
       }
     }
   }

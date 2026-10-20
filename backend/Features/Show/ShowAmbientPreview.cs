@@ -2,11 +2,13 @@ using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Speech;
 
 namespace Kufr.Backend.Features.Show;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record ShowAmbientPreviewRequest(Guid OperationId);
 internal sealed record ShowAmbientPreviewResponse(string Status, Guid OperationId, string LineId, string Text,
     bool Synthetic, string? WavBase64 = null, string? Code = null);

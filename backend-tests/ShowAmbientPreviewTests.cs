@@ -29,7 +29,21 @@ internal static class ShowAmbientPreviewTests
         await UnavailableFailureAndCancellationAsync();
         await RetentionCapacityAndRestartAsync();
         await EndpointsRequireOperateAsync();
+        await MapsWithoutPreviewRegistrationAsync();
         Console.WriteLine("Phone ambient preview tests passed: operator scope, bounded audio, idempotency, no GET generation, cancellation and unchanged show state (no network provider).");
+    }
+
+    private static async Task MapsWithoutPreviewRegistrationAsync()
+    {
+        using var fixture = new Fixture();
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton(fixture.Show);
+        builder.Services.AddSingleton<ServerAdminAccess>();
+        await using var app = builder.Build();
+        app.MapShowEndpoints();
+        var endpoints = ((Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints).ToArray();
+        Check(endpoints.Length >= 5, "Show route metadata does not infer preview as an additional body when an unrelated host omits its registration");
     }
 
     private static async Task OneClaimAndUnchangedShowAsync()
@@ -227,6 +241,9 @@ internal static class ShowAmbientPreviewTests
         { Check(response.StatusCode == HttpStatusCode.Forbidden, "read-only operator cannot generate audio"); }
         client.DefaultRequestHeaders.Remove("X-Test-User");
         client.DefaultRequestHeaders.Add("X-Test-User", "operator");
+        using (var response = await client.PostAsJsonAsync(path, new { operationId = operation, text = "untrusted provider input" }))
+        { Check(response.StatusCode == HttpStatusCode.BadRequest && fixture.Calls == 0,
+            "preview input matches the documented UUID-only request without dispatching provider work"); }
         using (var response = await client.GetAsync(path + "/" + operation))
         { Check(response.StatusCode == HttpStatusCode.NotFound && fixture.Calls == 0, "authorized GET never creates audio"); }
         using (var response = await client.PostAsJsonAsync(path, new { operationId = operation }))

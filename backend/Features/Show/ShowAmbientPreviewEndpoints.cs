@@ -1,5 +1,6 @@
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Identity;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Kufr.Backend.Features.Show;
 
@@ -8,14 +9,14 @@ internal static class ShowAmbientPreviewEndpoints
     internal static IEndpointRouteBuilder MapShowAmbientPreviews(this IEndpointRouteBuilder routes)
     {
         routes.MapPost("/v1/show/devices/{deviceId}/ambient-previews", async (string deviceId,
-            ShowAmbientPreviewRequest request, HttpContext context, ShowCoordinator show, ShowAmbientPreview preview) =>
+            ShowAmbientPreviewRequest request, HttpContext context, ShowCoordinator show, [FromServices] ShowAmbientPreview preview) =>
         {
             var denied = await AuthorizeAsync(context, deviceId, show);
             if (denied is not null) { return denied; }
             return Respond(context, preview.Start(deviceId, request.OperationId));
         });
         routes.MapGet("/v1/show/devices/{deviceId}/ambient-previews/{operationId:guid}", async (string deviceId,
-            Guid operationId, HttpContext context, ShowCoordinator show, ShowAmbientPreview preview) =>
+            Guid operationId, HttpContext context, ShowCoordinator show, [FromServices] ShowAmbientPreview preview) =>
         {
             var denied = await AuthorizeAsync(context, deviceId, show);
             if (denied is not null) { return denied; }

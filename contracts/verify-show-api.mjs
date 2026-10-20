@@ -25,6 +25,21 @@ const validate = (name, value, expected) => {
   const check = ajv.getSchema(`urn:show:${name}`);
   assert.equal(check(value), expected, `${name}: ${JSON.stringify(check.errors)}`);
 };
+const previewId = '11111111-1111-4111-8111-111111111111';
+validate('AmbientPreviewRequest', { operationId: previewId }, true);
+validate('AmbientPreviewRequest', { operationId: '00000000-0000-0000-0000-000000000000' }, false);
+validate('AmbientPreviewRequest', { operationId: previewId, text: 'arbitrary provider input' }, false);
+const preview = { status: 'ready', operationId: previewId, lineId: 'ambient-one', text: 'Authored cue.', synthetic: false, wavBase64: 'UklGRg==' };
+validate('AmbientPreviewResponse', preview, true);
+validate('AmbientPreviewResponse', { ...preview, wavBase64: null }, false);
+validate('AmbientPreviewResponse', { ...preview, wavBase64: 'a'.repeat(682729) }, false);
+validate('AmbientPreviewResponse', { ...preview, status: 'pending', wavBase64: null }, true);
+for (const [path, method] of [['/v1/show/devices/{deviceId}/ambient-previews', 'post'], ['/v1/show/devices/{deviceId}/ambient-previews/{operationId}', 'get']]) {
+  const operation = document.paths[path][method];
+  assert.equal(operation['x-account-permission'], 'operate');
+  assert.ok(operation.security.some(scheme => Object.hasOwn(scheme, 'AccountSession')
+    && (method === 'get' || Object.hasOwn(scheme, 'AccountCsrf'))));
+}
 const command = { commandId: 'cmd-1', expectedStateRevision: 7, kind: 'override',
   sessionId: 'visit-1', sessionGeneration: 'generation-1', value: '2', ttlSeconds: 30 };
 validate('ShowCommand', command, true);
