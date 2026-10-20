@@ -38,8 +38,36 @@ RealtimeSessionEngine::RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive
       post_(std::move(post)), expected_(opening), snapshot_(snapshot), completed_(std::move(completed)) {
   startedAtMs_.store(now_()); lastTurnAtMs_.store(now_());
 }
+RealtimeSessionEngine::RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive,
+    std::function<bool()> current, std::function<uint64_t()> now,
+    std::function<uint64_t()> utc, std::function<void(const char*)> phase,
+    PostPort post, const TurnCorrelation& opening,
+    const ConversationRuntimeSnapshot& snapshot,
+    std::function<bool(const TurnOperationObservation&)> completed, AsyncPorts ports)
+    : RealtimeSessionEngine(audio, gptLive, std::move(current), std::move(now),
+          std::move(utc), std::move(phase), std::move(post), opening, snapshot, std::move(completed)) {
+  playback_ = &ports.playback;
+  control_ = &ports.control;
+  capture_ = std::move(ports.capture);
+  if (!capture_) Fail();
+}
+void RealtimeSessionEngine::Capture(bool enabled) {
+  if (playback_) capture_(enabled);
+  else audio_.Listen(enabled);
+}
+void RealtimeSessionEngine::Stop() {
+  stop_.store(true); uploading_.store(false); inputEpoch_.fetch_add(1);
+  if (playback_) {
+    if (capture_) capture_(false);
+    playback_->Stop(); control_->Stop();
+  }
+}
+void RealtimeSessionEngine::Fail() {
+  failed_.store(true);
+  if (playback_) Stop();
+}
 bool RealtimeSessionEngine::Current() const {
-  return !stop_.load() && !failed_.load() && !audio_.Failed() && current_() &&
+  return !stop_.load() && !failed_.load() && (playback_ ? !playback_->Failed() : !audio_.Failed()) && current_() &&
       expected_.operationEpoch == snapshot_.operationEpoch &&
       now_() - startedAtMs_ < 480000 && now_() - lastTurnAtMs_ < (gptLive_ ? 190000 : 80000);
 }
@@ -48,14 +76,27 @@ int RealtimeSessionEngine::Post(const std::string& path, const void* data, size_
   return Current() ? post_(path, data, size, type, inputId, sequence) : 0;
 }
 bool RealtimeSessionEngine::SendInput(const std::vector<uint8_t>& pcm, uint32_t capturedEpoch) {
-  std::lock_guard<std::mutex> lock(inputMutex_);
-  if (!uploading_.load() || capturedEpoch != inputEpoch_.load() || !Current()) return true;
-  const std::string path = "/v1/conversations/" + conversationId_ + "/" + endpoint_ + "/" + streamId_ + "/audio";
-  inputBytes_ += pcm.size();
-  if (inputBytes_ > (gptLive_ ? 8640000u : 1440000u) ||
-      Post(path, pcm.data(), pcm.size(), "application/octet-stream", inputId_, sequence_++) != 204) {
-    failed_.store(true); return false;
+  std::string path, input;
+  unsigned sequence;
+  uint64_t claim;
+  {
+    std::lock_guard<std::mutex> lock(inputMutex_);
+    if (!uploading_.load() || capturedEpoch != inputEpoch_.load() || !Current()) return true;
+    if (inputInFlight_) return false;
+    const size_t limit = gptLive_ ? 8640000u : 1440000u;
+    if (pcm.empty() || pcm.size() % 2 || pcm.size() > 32768 || pcm.size() > limit - inputBytes_) {
+      failed_.store(true); return false;
+    }
+    path = "/v1/conversations/" + conversationId_ + "/" + endpoint_ + "/" + streamId_ + "/audio";
+    input = inputId_; sequence = sequence_++;
+    inputBytes_ += pcm.size(); inputInFlight_ = true; claim = ++inputClaim_;
   }
+  const int status = Post(path, pcm.data(), pcm.size(), "application/octet-stream", input, sequence);
+  {
+    std::lock_guard<std::mutex> lock(inputMutex_);
+    if (inputClaim_ == claim) inputInFlight_ = false;
+  }
+  if (status != 204) { Fail(); return false; }
   return true;
 }
 bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
@@ -82,20 +123,23 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
   if (event.type == "listening") {
     // Context refresh can repeat the same listen event. Captured PCM keeps its
     // input epoch and sequence; it must never be relabelled as fresh input.
-    if (uploading_.load() && event.inputId == inputId_) return true;
-    if (terminal_ || (!gptLive_ && !operationId_.empty()) || uploading_.load()) return false;
-    std::lock_guard<std::mutex> lock(inputMutex_);
-    expected_.clientTurnId = event.inputId;
-    inputId_ = event.inputId; sequence_ = 0; inputBytes_ = 0;
-    inputEpoch_.fetch_add(1);
+    {
+      std::lock_guard<std::mutex> lock(inputMutex_);
+      if (uploading_.load() && event.inputId == inputId_) return true;
+      if (terminal_ || (!gptLive_ && !operationId_.empty()) || uploading_.load()) return false;
+      expected_.clientTurnId = event.inputId;
+      inputId_ = event.inputId; sequence_ = 0; inputBytes_ = 0;
+      inputEpoch_.fetch_add(1);
+      uploading_.store(true);
+    }
     lastTurnAtMs_ = now_();
-    audio_.Listen(true); uploading_.store(true); phase_("listening"); return true;
+    Capture(true); phase_("listening"); return true;
   }
   if (event.type == "speech_started") return uploading_.load() && event.inputId == inputId_;
   if (event.type == "speech_stopped") {
     if (!uploading_.load() || event.inputId != inputId_) return false;
     uploading_.store(false); inputEpoch_.fetch_add(1);
-    audio_.Listen(false); phase_("thinking"); return true;
+    Capture(false); phase_("thinking"); return true;
   }
   if (event.type == "started") {
     const bool restarting = !gptLive_ && responseRestartPending_ && event.operationId == operationId_;
@@ -111,11 +155,18 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
   if (event.type == "audio_cancel") {
     if (!event.responseGeneration || !Current()) return false;
     if (event.responseGeneration <= responseGeneration_) return true;
-    if (!audio_.CancelPlayback()) return false;
+    if (playback_) {
+      AbandonActions();
+      closedPending_ = false;
+      inputEpoch_.fetch_add(1);
+      const auto cancelled = playback_->Cancel(event.responseGeneration);
+      if (cancelled == VoicePlaybackPort::Progress::Failed) { Fail(); return false; }
+      cancelPending_ = cancelled == VoicePlaybackPort::Progress::Pending;
+    } else if (!audio_.CancelPlayback()) return false;
     responseGeneration_ = event.responseGeneration;
     responseRestartPending_ = !gptLive_ && !operationId_.empty();
     segmentPlaying_ = false;
-    audio_.Listen(uploading_.load());
+    Capture(uploading_.load());
     phase_(uploading_.load() ? "listening" : "thinking");
     return true;
   }
@@ -124,10 +175,16 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     std::vector<uint8_t> pcm(32768);
     size_t size = 0;
     const bool decoded = DecodeRealtimePcm(event.delta, pcm.data(), pcm.size(), size);
-    audioBytes_ += size;
-    if (!decoded || !size || size % 2 || audioBytes_ > (gptLive_ ? 9120000u : 1440000u)) {
+    if (!decoded || !size || size % 2) {
       std::fill(pcm.begin(), pcm.end(), 0); return false;
     }
+    if (playback_) {
+      const bool queued = Audio(responseGeneration_, pcm.data(), size);
+      std::fill(pcm.begin(), pcm.end(), 0);
+      return queued;
+    }
+    audioBytes_ += size;
+    if (audioBytes_ > (gptLive_ ? 9120000u : 1440000u)) { std::fill(pcm.begin(), pcm.end(), 0); return false; }
     pcm.resize(size); segmentPlaying_ = true; phase_("speaking");
     const bool played = Current() && audio_.Play(pcm);
     std::fill(pcm.begin(), pcm.end(), 0);
@@ -135,6 +192,7 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
   }
   if (event.type == "pause") {
     if (!gptLive_ || operationId_.empty()) return false;
+    if (playback_) return AdmitAction(ActionKind::Pause, event);
     if (segmentPlaying_) {
       if (!audio_.Drain() || !Current()) return false;
       segmentPlaying_ = false;
@@ -144,6 +202,7 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
   }
   if (event.type == "completed") {
     if (operationId_.empty() || responseRestartPending_ || event.operationId != operationId_ || audioBytes_ == 0 || !Current()) return false;
+    if (playback_) return AdmitAction(ActionKind::Completed, event);
     const uint64_t utc = utc_();
     if (utc <= 0) return false;
     const auto decision = EvaluateTurnOperationWithProposal(operationId_, expected_, snapshot_.generation,
@@ -161,6 +220,7 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
   }
   if (event.type == "playback_checkpoint") {
     if (!gptLive_ || operationId_.empty() || event.pcmBytes != audioBytes_ || !Current()) return false;
+    if (playback_) return AdmitAction(ActionKind::Checkpoint, event);
     if (segmentPlaying_) {
       if (!audio_.Drain() || !Current()) return false;
       segmentPlaying_ = false;
@@ -175,8 +235,150 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     phase_("listening"); return Current();
   }
   if (event.type == "closed") {
+    if (playback_ && actionCount_ != 0) { closedPending_ = true; return true; }
     if (!terminal_ || !operationId_.empty()) return false;
     closed_ = true; return true;
   }
   return false;
+}
+
+bool RealtimeSessionEngine::Audio(uint64_t generation, const uint8_t* pcm, size_t length) {
+  if (!playback_ || !Current() || !sessionSeen_) return false;
+  if (generation < responseGeneration_) return true;
+  for (size_t index = 0; index != actionCount_; ++index) {
+    if (actions_[index].kind == ActionKind::Completed) { Fail(); return false; }
+  }
+  if (generation != responseGeneration_ || operationId_.empty() || responseRestartPending_
+      || !pcm || !length || length % 2 || length > 32768) return false;
+  const size_t limit = gptLive_ ? 9120000u : 1440000u;
+  if (length > limit - audioBytes_ || !playback_->Queue(generation, pcm, length)) {
+    Fail(); return false;
+  }
+  audioBytes_ += length; ++audioRevision_; segmentPlaying_ = true;
+  if (!gptLive_) Capture(false);
+  phase_("speaking");
+  return true;
+}
+
+bool RealtimeSessionEngine::ValidCompleted(const TurnOperationObservation& operation,
+    const TurnCorrelation& expected) const {
+  if (!Current() || !utc_()) return false;
+  const auto result = EvaluateTurnOperationWithProposal(operationId_, expected,
+      snapshot_.generation, snapshot_.deviceRevision, snapshot_.catalogVersion,
+      snapshot_.readyMask, utc_(), operation, snapshot_.operationEpoch);
+  return result == TurnPollDecision::ReplyReady || result == TurnPollDecision::ProposalReady;
+}
+
+bool RealtimeSessionEngine::AdmitAction(ActionKind kind, const RealtimeEvent& event) {
+  for (size_t index = 0; index != actionCount_; ++index) {
+    if (actions_[index].kind == ActionKind::Completed) { Fail(); return false; }
+  }
+  if (actionCount_ == actions_.size()) { Fail(); return false; }
+  if (kind == ActionKind::Completed) {
+    if (!ValidCompleted(event.operation, expected_)) return false;
+    for (size_t index = 0; index < actionCount_; ++index) {
+      if (actions_[index].kind == ActionKind::Completed) return false;
+    }
+  }
+  if (kind == ActionKind::Checkpoint && (event.playbackId.empty() || event.playbackId.size() > 128)) return false;
+  Action action;
+  action.kind = kind; action.generation = responseGeneration_;
+  action.admittedAt = now_(); action.turnStartedAt = lastTurnAtMs_.load();
+  action.audioRevision = audioRevision_; action.expected = expected_;
+  action.command.operationId = operationId_;
+  action.command.responseGeneration = responseGeneration_;
+  action.command.pcmBytes = audioBytes_;
+  if (kind == ActionKind::Completed) {
+    action.command.kind = VoiceControlPort::Kind::Played;
+    action.operation = event.operation;
+  } else if (kind == ActionKind::Checkpoint) {
+    action.command.kind = VoiceControlPort::Kind::Checkpoint;
+    action.command.playbackId = event.playbackId;
+  }
+  // Request at admission, before any later PCM may change the accepted frontier.
+  if (!playback_->RequestDrain(action.generation, action.drain) || action.drain <= lastDrainHandle_) {
+    Fail(); return false;
+  }
+  lastDrainHandle_ = action.drain;
+  actions_[actionCount_++] = std::move(action);
+  return true;
+}
+
+void RealtimeSessionEngine::PopAction() {
+  if (actions_[0].drain) playback_->AbandonDrain(actions_[0].drain);
+  if (actions_[0].control) control_->Abandon(actions_[0].control);
+  for (size_t index = 1; index < actionCount_; ++index) actions_[index - 1] = std::move(actions_[index]);
+  actions_[--actionCount_] = Action{};
+}
+
+void RealtimeSessionEngine::AbandonActions() {
+  while (actionCount_) PopAction();
+}
+
+bool RealtimeSessionEngine::Poll() {
+  if (!playback_) return Current();
+  if (!Current()) { AbandonActions(); Fail(); return false; }
+  if (cancelPending_) {
+    const auto progress = playback_->Cancel(responseGeneration_);
+    if (progress == VoicePlaybackPort::Progress::Failed) { AbandonActions(); Fail(); return false; }
+    if (progress == VoicePlaybackPort::Progress::Pending) return true;
+    cancelPending_ = false;
+  }
+  if (actionCount_) {
+    auto& action = actions_[0];
+    const auto now = now_();
+    if (action.generation != responseGeneration_ || now - action.admittedAt >= 35000
+        || now - action.turnStartedAt >= (gptLive_ ? 190000u : 80000u)) {
+      AbandonActions(); Fail(); return false;
+    }
+    if (!action.drained) {
+      const auto progress = playback_->PollDrain(action.drain);
+      if (progress == VoicePlaybackPort::Progress::Pending) return true;
+      if (progress == VoicePlaybackPort::Progress::Failed || !Current()) {
+        AbandonActions(); Fail(); return false;
+      }
+      action.drained = true;
+      if (action.kind == ActionKind::Completed && !ValidCompleted(action.operation, action.expected)) {
+        AbandonActions(); Fail(); return false;
+      }
+      if (action.kind == ActionKind::Pause) {
+        if (action.audioRevision == audioRevision_) {
+          segmentPlaying_ = false; Capture(uploading_.load()); phase_("listening");
+        }
+        PopAction();
+        return true;
+      }
+    }
+    if (!action.control) {
+      if (!control_->Submit(action.command, action.control) || action.control <= lastControlHandle_) {
+        AbandonActions(); Fail(); return false;
+      }
+      lastControlHandle_ = action.control;
+      return true;
+    }
+    const auto progress = control_->Poll(action.control);
+    if (progress == VoiceControlPort::Progress::Pending) return true;
+    if (progress == VoiceControlPort::Progress::Failed || !Current()
+        || (action.kind == ActionKind::Completed && !ValidCompleted(action.operation, action.expected))) {
+      AbandonActions(); Fail(); return false;
+    }
+    const Action settled = action;
+    PopAction();
+    if (settled.audioRevision == audioRevision_) segmentPlaying_ = false;
+    if (settled.kind == ActionKind::Completed) {
+      // Typed played success precedes the sole domain publication. The original
+      // observation is checked with a fresh clock again after that exact ACK.
+      if (!completed_(settled.operation)) { AbandonActions(); Fail(); return false; }
+      terminal_ = settled.operation.decision != "ask" || turns_ == 10;
+      operationId_.clear(); phase_(terminal_ ? "completed" : "thinking");
+    } else {
+      if (!segmentPlaying_) Capture(uploading_.load());
+      phase_("listening");
+    }
+  }
+  if (!actionCount_ && closedPending_) {
+    if (!terminal_ || !operationId_.empty()) { Fail(); return false; }
+    closedPending_ = false; closed_ = true;
+  }
+  return true;
 }

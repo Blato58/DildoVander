@@ -59,6 +59,7 @@ uint16_t BoundedPlaybackOwner::QueuedForScrubLocked() {
 uint16_t BoundedPlaybackOwner::RevokeLocked(State state, Error error) {
   state_ = state;
   if (!operation_.consumed) operation_.result = {Progress::Failed, error};
+  for (size_t i = 0; i != drainCount_; ++i) drains_[i].result = {Progress::Failed, error};
   return QueuedForScrubLocked();
 }
 void BoundedPlaybackOwner::Scrub(uint16_t mask) {
@@ -122,6 +123,7 @@ BoundedPlaybackOwner::Result BoundedPlaybackOwner::RequestStart(Scope scope, Han
     if (!exhausted) {
       scope_ = scope;
       acceptedSequence_ = acceptedSamples_ = playedSamples_ = lastDrainSamples_ = 0;
+      drainCount_ = 0;
       handle = NewOperationLocked(Handle::Kind::Start, scope);
     }
     ++fences_;
@@ -144,6 +146,7 @@ BoundedPlaybackOwner::Result BoundedPlaybackOwner::RequestCancel(
     if (!exhausted) {
       scope_.generation = nextGeneration;
       acceptedSequence_ = acceptedSamples_ = playedSamples_ = lastDrainSamples_ = 0;
+      drainCount_ = 0;
       handle = NewOperationLocked(Handle::Kind::Cancel, scope_);
     }
     ++fences_;
@@ -224,22 +227,53 @@ BoundedPlaybackOwner::Result BoundedPlaybackOwner::RequestDrain(
   if (state_ != State::Ready || filling_ || (!operation_.consumed &&
       (operation_.handle.kind_ == Handle::Kind::Start || operation_.handle.kind_ == Handle::Kind::Cancel)))
     return Rejected(Error::Busy);
+  return ReserveDrainLocked(scope, sequence, samples, handle);
+}
+BoundedPlaybackOwner::Result BoundedPlaybackOwner::ReserveDrain(
+    Scope scope, uint64_t sequence, uint64_t samples, Handle& handle) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!CurrentLocked(scope)) return Rejected(Error::Stale);
+  if (filling_ || (state_ != State::Ready && state_ != State::Draining && state_ != State::Cancelling))
+    return Rejected(Error::Busy);
+  return ReserveDrainLocked(scope, sequence, samples, handle);
+}
+BoundedPlaybackOwner::Result BoundedPlaybackOwner::ReserveDrainLocked(
+    Scope scope, uint64_t sequence, uint64_t samples, Handle& handle) {
   if (!samples || sequence != acceptedSequence_ || samples != acceptedSamples_ || samples <= lastDrainSamples_)
     return Rejected(Error::FrontierMismatch);
-  state_ = State::Draining;
-  handle = NewOperationLocked(Handle::Kind::Drain, scope, sequence, samples);
+  if (drainCount_ && drains_[drainCount_ - 1].handle.samples_ == samples) {
+    handle = drains_[drainCount_ - 1].handle;
+    return Pending();
+  }
+  if (drainCount_ == drains_.size()) return Rejected(Error::Busy);
+  handle = {};
+  handle.owner_ = this; handle.incarnation_ = incarnation_;
+  handle.kind_ = Handle::Kind::Drain; handle.scope_ = scope;
+  handle.sequence_ = sequence; handle.samples_ = samples;
+  drains_[drainCount_++] = {handle, Pending(), false};
+  if (state_ != State::Cancelling) state_ = State::Draining;
   return Pending();
 }
 BoundedPlaybackOwner::Result BoundedPlaybackOwner::Poll(const Handle& handle) {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (handle.kind_ == Handle::Kind::Drain) {
+    size_t index = 0;
+    while (index != drainCount_ && !SameHandle(handle, drains_[index].handle)) ++index;
+    if (index == drainCount_) return Rejected(Error::InvalidHandle);
+    const auto result = drains_[index].result;
+    if (index || result.progress == Progress::Pending) return result;
+    for (size_t i = 1; i != drainCount_; ++i) drains_[i - 1] = drains_[i];
+    drains_[--drainCount_] = {};
+    if (state_ == State::Draining && result.progress == Progress::Succeeded) {
+      lastDrainSamples_ = handle.samples_;
+      state_ = drainCount_ ? State::Draining : State::Ready;
+    }
+    return result;
+  }
   if (!SameHandle(handle, operation_.handle) || operation_.consumed) return Rejected(Error::InvalidHandle);
   const auto result = operation_.result;
   if (result.progress != Progress::Pending) {
     operation_.consumed = true;
-    if (handle.kind_ == Handle::Kind::Drain && state_ == State::Draining && result.progress == Progress::Succeeded) {
-      lastDrainSamples_ = handle.samples_;
-      state_ = State::Ready;
-    }
   }
   return result;
 }
@@ -253,6 +287,10 @@ bool BoundedPlaybackOwner::FenceCurrent(void* context, Scope scope) {
     const auto& slot = owner.slots_[claim.slot];
     return (owner.state_ == State::Ready || owner.state_ == State::Draining) &&
         slot.state == SlotState::Playing && slot.scope == scope && slot.firstSample == claim.firstSample;
+  }
+  if (claim.kind == WorkKind::Drain) {
+    return owner.drainCount_ && SameHandle(claim.operation, owner.drains_[0].handle) &&
+        owner.state_ == State::Draining && owner.drains_[0].result.progress == Progress::Pending;
   }
   if (!SameHandle(claim.operation, owner.operation_.handle) || owner.operation_.consumed) return false;
   if (claim.kind == WorkKind::Begin) return owner.state_ == State::Starting;
@@ -268,14 +306,14 @@ bool BoundedPlaybackOwner::RunOne() {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!configured_ || workerActive_ || fences_) return false;
-    scope = scope_; operation = operation_.handle;
+    scope = scope_; operation = state_ == State::Draining && drainCount_ ? drains_[0].handle : operation_.handle;
     if (state_ == State::Starting) work = WorkKind::Begin;
     else if (state_ == State::Cancelling) work = WorkKind::Cancel;
     else if (state_ == State::Ready || state_ == State::Draining) {
       // The barrier is immutable even if reader enqueue advances the accepted
       // frontier. A completed but unconsumed proof also holds all later PCM.
       if (state_ == State::Draining && playedSamples_ == operation.samples_) {
-        if (operation_.result.progress != Progress::Pending) return false;
+        if (drains_[0].result.progress != Progress::Pending) return false;
         work = WorkKind::Drain;
       } else {
         for (size_t i = 0; i != SlotCount; ++i) if (slots_[i].state == SlotState::Queued && slots_[i].scope == scope &&
@@ -305,9 +343,12 @@ bool BoundedPlaybackOwner::RunOne() {
     if (CurrentLocked(scope)) {
       if (!succeeded || (work == WorkKind::Play && firstSample != playedSamples_)) fail = true;
       else if (work == WorkKind::Play) playedSamples_ += bytes / 2;
+      else if (work == WorkKind::Drain && drainCount_ && SameHandle(operation, drains_[0].handle)) {
+        drains_[0].result = {Progress::Succeeded};
+      }
       else if (SameHandle(operation, operation_.handle) && !operation_.consumed) {
         operation_.result = {Progress::Succeeded};
-        if (work == WorkKind::Begin || work == WorkKind::Cancel) state_ = State::Ready;
+        if (work == WorkKind::Begin || work == WorkKind::Cancel) state_ = drainCount_ ? State::Draining : State::Ready;
       }
     }
   }

@@ -1,5 +1,7 @@
 #include <cassert>
 #include <iostream>
+#include <future>
+#include <chrono>
 #include "../src/features/voice_turn/RealtimeSessionEngine.h"
 
 struct Audio final : VoiceAudioPort {
@@ -89,7 +91,47 @@ void TestResponseReset(bool gptLive, uint64_t operationEpoch = 0) {
   assert(playedBody == "{\"operationId\":\"operation\",\"responseGeneration\":2}");
 }
 
+void TestInputIoDoesNotOwnReaderMutex() {
+  Audio audio;
+  TurnCorrelation correlation; correlation.conversationId = "conversation";
+  ConversationRuntimeSnapshot snapshot;
+  std::promise<void> entered, release;
+  auto released = release.get_future().share();
+  std::mutex sentMutex;
+  std::vector<std::pair<std::string, unsigned>> sent;
+  RealtimeSessionEngine engine(audio, false, [] { return true; }, [] { return 100; },
+      [] { return 1800000000ull; }, [](const char*) {},
+      [&](const std::string&, const void*, size_t, const char*, const std::string& input, unsigned sequence) {
+        bool first;
+        {
+          std::lock_guard<std::mutex> lock(sentMutex);
+          first = sent.empty(); sent.emplace_back(input, sequence);
+        }
+        if (first) { entered.set_value(); released.wait(); }
+        return 204;
+      }, correlation, snapshot, [](const TurnOperationObservation&) { return true; });
+  RealtimeEvent event; event.type = "session"; event.streamId = "stream"; assert(engine.Event(event));
+  event.type = "listening"; event.inputId = "input-a"; assert(engine.Event(event));
+  const auto originalEpoch = engine.InputEpoch();
+  auto upload = std::async(std::launch::async, [&] { return engine.SendInput(std::vector<uint8_t>(6), originalEpoch); });
+  assert(entered.get_future().wait_for(std::chrono::seconds(1)) == std::future_status::ready);
+  auto reader = std::async(std::launch::async, [&] {
+    RealtimeEvent next; next.type = "speech_stopped"; next.inputId = "input-a";
+    if (!engine.Event(next)) return false;
+    next.type = "listening"; next.inputId = "input-b";
+    return engine.Event(next);
+  });
+  assert(reader.wait_for(std::chrono::seconds(1)) == std::future_status::ready && reader.get());
+  assert(engine.InputEpoch() != originalEpoch);
+  assert(!engine.SendInput(std::vector<uint8_t>(4), engine.InputEpoch())); // Sole old upload claim is still borrowed.
+  release.set_value(); assert(upload.get());
+  assert(engine.SendInput(std::vector<uint8_t>(4), engine.InputEpoch()));
+  assert(sent.size() == 2 && sent[0] == std::make_pair(std::string("input-a"), 0u)
+      && sent[1] == std::make_pair(std::string("input-b"), 0u));
+}
+
 int main() {
+  TestInputIoDoesNotOwnReaderMutex();
   TestResponseReset(false);
   TestResponseReset(true);
   TestResponseReset(false, UINT64_MAX);

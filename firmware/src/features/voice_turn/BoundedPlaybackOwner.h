@@ -95,6 +95,10 @@ class BoundedPlaybackOwner final {
   // Capture the exact accepted sequence/sample frontier. Later same-scope PCM
   // may queue behind it, but cannot play until its single-use result is consumed.
   Result RequestDrain(Scope scope, uint64_t sequence, uint64_t samples, Handle& handle);
+  // Up to four ordered barriers can be captured before earlier receipts are
+  // consumed. Same-frontier callers share the one raw proof. Later PCM never
+  // passes the head barrier while the reader installs/consumes another one.
+  Result ReserveDrain(Scope scope, uint64_t sequence, uint64_t samples, Handle& handle);
   Result Poll(const Handle& handle);
   void Stop();
   // Cleanup from an older engine cannot mute or alter a successor session.
@@ -135,6 +139,7 @@ class BoundedPlaybackOwner final {
   void StopFence();
   Result Fail(Scope expected, Error error);
   Handle NewOperationLocked(Handle::Kind kind, Scope scope, uint64_t sequence = 0, uint64_t samples = 0);
+  Result ReserveDrainLocked(Scope scope, uint64_t sequence, uint64_t samples, Handle& handle);
   Port& port_;
   uint8_t* const workspace_;
   const uint64_t incarnation_;
@@ -147,6 +152,8 @@ class BoundedPlaybackOwner final {
   Scope scope_;
   State state_ = State::Stopped;
   Operation operation_;
+  std::array<Operation, 4> drains_{};
+  size_t drainCount_ = 0;
   uint64_t lastSession_ = 0, acceptedSequence_ = 0, acceptedSamples_ = 0, playedSamples_ = 0;
   uint64_t lastDrainSamples_ = 0;
   size_t fences_ = 0;

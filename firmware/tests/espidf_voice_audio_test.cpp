@@ -8,29 +8,36 @@
 #include <future>
 #include <iostream>
 #include <cstring>
+#include <algorithm>
 #include "../src/features/voice_turn/EspIdfVoiceAudio.h"
 #include "nvs.h"
 namespace {
 bool verified=false, profileB=false;
+bool muteWriteOk = true;
 std::atomic<int> mute{0}, writes{0}, gpioWrites{0};
 std::atomic<bool> partialWrite{false};
 std::mutex gpioSignalMutex;
 std::condition_variable gpioSignal;
 unsigned muteSignals = 0;
 std::function<void()> writing;
+std::function<void()> reading;
+bool captureReadOk = false;
+bool captureResultOk = true, captureShort = false;
+int32_t captureSample = 0x12340000;
 int captureIterations = 0;
 struct CaptureFinished {};
-void PumpOnce() {
- captureIterations = 1;
+void Pump(unsigned count) {
+ captureIterations = static_cast<int>(count);
  try { CapturedAudioTask().run(CapturedAudioTask().context); }
  catch (const CaptureFinished&) {}
 }
+void PumpOnce() { Pump(1); }
 }
 int gpio_set_direction(int pin,int mode) { assert(pin==16 && mode==GPIO_MODE_OUTPUT); return 0; }
 int gpio_set_level(int pin,int level) {
  assert(pin==16); ++gpioWrites; mute=level;
  if (!level) { std::lock_guard<std::mutex> lock(gpioSignalMutex); ++muteSignals; gpioSignal.notify_all(); }
- return 0;
+ return muteWriteOk ? 0 : ESP_FAIL;
 }
 int nvs_open(const char* space,int,nvs_handle_t* handle) { assert(std::strcmp(space,"wand_audio")==0); *handle=1; return ESP_OK; }
 int nvs_get_u8(nvs_handle_t,const char* key,uint8_t* value) { assert(std::strcmp(key,"profile_a_ok")==0); *value=verified; return ESP_OK; }
@@ -46,9 +53,15 @@ int i2s_channel_init_std_mode(i2s_chan_handle_t,const i2s_std_config_t* config) 
  return ESP_OK;
 }
 int i2s_channel_enable(i2s_chan_handle_t) { return ESP_OK; }
-int i2s_channel_read(i2s_chan_handle_t,void*,size_t,size_t*,unsigned) {
+int i2s_channel_read(i2s_chan_handle_t,void* bytes,size_t size,size_t* used,unsigned) {
  if (captureIterations-- == 0) throw CaptureFinished{};
- return ESP_FAIL;
+ if (!captureReadOk) return ESP_FAIL;
+ auto* slots = static_cast<int32_t*>(bytes);
+ std::fill(slots, slots + size / sizeof(int32_t), captureSample);
+ *used = size;
+ if (reading) reading();
+ if (captureShort) *used = size - 8;
+ return captureResultOk ? ESP_OK : ESP_FAIL;
 }
 int i2s_channel_write(i2s_chan_handle_t,const void*,size_t size,size_t* used,unsigned) {
  ++writes; *used=partialWrite ? size - 8 : size; if(writing)writing(); return ESP_OK;
@@ -268,5 +281,114 @@ int main() {
  FencedPlaybackMutePreservesSessionAcrossBlockedIo();
  FencedStopAndPartialIoCannotYieldSuccess();
  ProfileBSoftwareFenceKeepsFactoryMutePinsUntouched();
+ profileB=false;
+ {
+  EspIdfVoiceAudio capture;
+  assert(capture.Initialize(true));
+  capture.Continuous(true); capture.Begin(); capture.SetCaptureEnabled(true);
+  captureReadOk = true;
+  std::vector<uint8_t> captured;
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.size() == 960);
+  assert(std::any_of(captured.begin(), captured.end(), [](uint8_t byte) { return byte != 0; }));
+  // The borrowed RX block starts before speaker onset and returns after Drain
+  // cleared playing_. Its whole timeline block must remain tainted/silent.
+  reading = [&]() { assert(capture.Play(pcm)); assert(capture.Drain()); };
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.size() == 960);
+  assert(std::all_of(captured.begin(), captured.end(), [](uint8_t byte) { return byte == 0; }));
+  captureSample = 0; reading = {};
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.size() == 960);
+  assert(std::all_of(captured.begin(), captured.end(), [](uint8_t byte) { return byte == 0; })); // No tainted FIR tail.
+  captureSample = 0x12340000;
+  // One actual capture invocation retains the same FIR across all three reads.
+  // The speaker boundary must erase both tainted samples and prior FIR history.
+  unsigned readStage = 0;
+  reading = [&]() {
+    ++readStage;
+    if (readStage == 1) captureSample = 0x76540000;
+    if (readStage == 2) { assert(capture.Play(pcm)); assert(capture.Drain()); captureSample = 0; }
+  };
+  Pump(3);
+  assert(readStage == 3 && capture.TakeInput(captured) && captured.size() == 3 * 960);
+  assert(std::any_of(captured.begin(), captured.begin() + 960, [](uint8_t byte) { return byte != 0; }));
+  assert(std::all_of(captured.begin() + 960, captured.end(), [](uint8_t byte) { return byte == 0; }));
+  captureSample = 0x12340000;
+  reading = {}; PumpOnce(); assert(capture.TakeInput(captured) && captured.size() == 960);
+  assert(std::any_of(captured.begin(), captured.end(), [](uint8_t byte) { return byte != 0; }));
+  assert(capture.Play(pcm));
+  reading = [&]() { assert(capture.Drain()); };
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.size() == 960);
+  assert(std::all_of(captured.begin(), captured.end(), [](uint8_t byte) { return byte == 0; }));
+  // A response mute alone cannot certify profile B's queued tail as quiet.
+  assert(capture.Play(pcm) && capture.MutePlayback());
+  reading = {}; PumpOnce(); assert(capture.TakeInput(captured) && captured.size() == 960);
+  assert(std::all_of(captured.begin(), captured.end(), [](uint8_t byte) { return byte == 0; }));
+  assert(capture.CancelPlayback());
+  reading = [&]() { capture.Stop(); capture.Begin(); capture.SetCaptureEnabled(true); };
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.empty()); // No old lease restamping.
+  reading = [&]() { capture.SetCaptureEnabled(false); capture.SetCaptureEnabled(true); };
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.empty());
+  reading = {};
+  // Capture requests during a worker write do not invalidate TX or change mute.
+  writing = [&]() { const auto before = mute.load(); capture.SetCaptureEnabled(false); capture.SetCaptureEnabled(true); assert(mute == before); };
+  assert(capture.Play(pcm)); writing = {};
+  assert(capture.Drain());
+  capture.Continuous(false);
+  assert(capture.Play(pcm) && capture.MutePlayback());
+  capture.SetCaptureEnabled(true); // A reader request cannot certify the TX tail.
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.empty());
+  assert(capture.CancelPlayback());
+  PumpOnce(); assert(capture.TakeInput(captured) && captured.size() == 960);
+  ScopedFence firstReader, nextReader;
+  assert(capture.Begin(firstReader.View()) && capture.SetCaptureEnabled(1, true));
+  firstReader.current = false;
+  auto nextFence = nextReader.View(); nextFence.scope.session = 2;
+  assert(capture.Begin(nextFence) && capture.SetCaptureEnabled(2, true));
+  PumpOnce();
+  assert(!capture.TakeInput(captured) && captured.empty()); // A legacy reader cannot steal scoped PCM.
+  assert(!capture.SetCaptureEnabled(1, false));
+  assert(!capture.TakeInput(1, captured) && captured.empty());
+  assert(capture.TakeInput(2, captured) && captured.size() == 960); // Old reader did not dequeue new PCM.
+  capture.SetCaptureEnabled(false); // Legacy cleanup cannot disable scoped capture.
+  capture.Listen(false);
+  PumpOnce(); assert(capture.TakeInput(2, captured) && captured.size() == 960);
+  // A DMA failure belongs only to the capture epoch that borrowed the buffer.
+  // Replacing that lease while read is blocked cannot fail the successor.
+  ScopedFence afterFailure;
+  auto failureFence = afterFailure.View(); failureFence.scope.session = 3;
+  reading = [&]() {
+    capture.Stop();
+    assert(capture.Begin(failureFence) && capture.SetCaptureEnabled(3, true));
+    captureResultOk = false;
+  };
+  PumpOnce();
+  assert(!capture.Failed() && capture.TakeInput(3, captured) && captured.empty());
+  captureResultOk = true; reading = {};
+  PumpOnce(); assert(capture.TakeInput(3, captured) && captured.size() == 960);
+  ScopedFence afterShort;
+  auto shortFence = afterShort.View(); shortFence.scope.session = 4;
+  reading = [&]() {
+    capture.Stop();
+    assert(capture.Begin(shortFence) && capture.SetCaptureEnabled(4, true));
+    captureShort = true;
+  };
+  PumpOnce();
+  assert(!capture.Failed() && capture.TakeInput(4, captured) && captured.empty());
+  captureShort = false; reading = {};
+  PumpOnce(); assert(capture.TakeInput(4, captured) && captured.size() == 960);
+  captureResultOk = false;
+  PumpOnce(); assert(capture.Failed()); // Current-lease RX faults still fail closed.
+  captureResultOk = true;
+  capture.Stop(); captureReadOk = false;
+  capture.Begin();
+  muteWriteOk = false; capture.Listen(true);
+  assert(capture.Failed());
+  muteWriteOk = true;
+  ScopedFence afterMuteFailure;
+  auto muteFence = afterMuteFailure.View(); muteFence.scope.session = 5;
+  assert(capture.Begin(muteFence) && capture.SetCaptureEnabled(5, true));
+  captureReadOk = true;
+  PumpOnce(); assert(!capture.Failed() && capture.TakeInput(5, captured) && captured.size() == 960);
+  capture.Stop(); captureReadOk = false;
+ }
  std::cout<<"ESP audio profiles, owner fences, stalled IO, sticky Begin/Stop and partial DMA checks passed; host only\n";
 }
