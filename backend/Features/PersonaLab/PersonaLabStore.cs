@@ -268,6 +268,7 @@ internal sealed partial class PersonaLabStore
                 engine = session.Engine is "gpt-live-1" or "gpt-realtime-2.1" ? session.Engine : "unknown",
                 personaRevisionId = Token(session.Config.Id, 64) ?? "unknown",
                 platform = session.Platform is "web" or "ios" ? session.Platform : "unknown",
+                executionPlatforms = LabContract.NormalizeExecutionPlatforms(session.ExecutionPlatforms),
                 createdAt = session.CreatedAt,
                 endedAt = session.EndedAt,
                 status = Token(session.Status, 32) ?? "unknown",

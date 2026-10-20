@@ -8,6 +8,7 @@ internal sealed partial class PersonaLabStore
 {
     internal LabSuite CreateSuite(string owner, LabSuiteRequest request)
     {
+        LabContract.ExecutionPlatform(request.ExecutionPlatform);
         LabContract.Text(request.RevisionId, 100);
         LabContract.Text(request.Label, 80);
         if (!LabContract.Engine(request.Engine) || !LabContract.Fixtures.Any(x => x.Id == request.FixtureId)
@@ -202,7 +203,7 @@ internal sealed class PersonaLabSuites(PersonaLabStore store, PersonaLabRuntime 
                             else { results[resultIndex] = result; }
                             suite = suite with { Results = results.ToArray() };
                             store.SaveSuite(suite);
-                        });
+                        }, request.ExecutionPlatform);
                     }
                     suite = suite with { Status = suite.Results.All(x => x.Status == "completed") ? "completed" : "failed", CompletedAt = DateTimeOffset.UtcNow,
                         FailureCode = lifetime.IsCancellationRequested ? "interrupted" : suite.FailureCode };
@@ -256,6 +257,7 @@ internal sealed class PersonaLabSuites(PersonaLabStore store, PersonaLabRuntime 
     }
     private static void ValidateRequest(LabSuiteRequest request)
     {
+        LabContract.ExecutionPlatform(request.ExecutionPlatform);
         if (!LabContract.Platform(request.Platform) || request.ScenarioIds is null || request.ScenarioIds.Length < 1
             || request.ScenarioIds.Length > Math.Min(32, LabContract.Scenarios.Length)
             || request.ScenarioIds.Distinct(StringComparer.Ordinal).Count() != request.ScenarioIds.Length)
@@ -276,7 +278,7 @@ internal sealed class PersonaLabSuites(PersonaLabStore store, PersonaLabRuntime 
         : [new(1, scenario.OpeningText, ["nonempty-output", "short-reply", "no-explicit-movement-claim"])];
 
     private async Task RunScenarioAsync(LabSession session, Func<CancellationToken, Task<bool>> authorized,
-        CancellationToken token, Action<LabSuiteResult> progress)
+        CancellationToken token, Action<LabSuiteResult> progress, string? executionPlatform)
     {
         using var reservation = runtime.ReserveScript(session.OwnerId, session.Id, out var scriptOwner);
         var scenario = session.ScenarioSnapshot ?? throw new LabException(400, "lab_script_snapshot_missing");
@@ -299,7 +301,7 @@ internal sealed class PersonaLabSuites(PersonaLabStore store, PersonaLabRuntime 
                 LabTurnObservation observation;
                 try
                 {
-                    var observed = await AuthorizedTurnAsync(session, step.Input, authorized, token, scriptOwner);
+                    var observed = await AuthorizedTurnAsync(session, step.Input, authorized, token, scriptOwner, executionPlatform);
                     var added = observed.Turns.Where(turn => !before.Contains(turn.Id)).ToArray();
                     var visitor = added.LastOrDefault(turn => turn.Role == "user");
                     var assistant = added.LastOrDefault(turn => turn.Role == "assistant");
@@ -332,10 +334,10 @@ internal sealed class PersonaLabSuites(PersonaLabStore store, PersonaLabRuntime 
         }
     }
     private async Task<LabSession> AuthorizedTurnAsync(LabSession session, string input,
-        Func<CancellationToken, Task<bool>> authorized, CancellationToken suiteToken, Guid scriptOwner)
+        Func<CancellationToken, Task<bool>> authorized, CancellationToken suiteToken, Guid scriptOwner, string? executionPlatform)
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(suiteToken);
-        var work = runtime.TurnAsync(session.OwnerId, session.Id, input, lifetime.Token, scriptOwner);
+        var work = runtime.TurnAsync(session.OwnerId, session.Id, input, lifetime.Token, scriptOwner, executionPlatform);
         var monitor = MonitorAsync();
         try
         {

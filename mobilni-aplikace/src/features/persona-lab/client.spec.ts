@@ -88,7 +88,35 @@ describe('Persona Lab account requests', () => {
     expect(JSON.parse(transport.mock.calls[0][1].body).platform).toBe('web');
     platform.mockReturnValue('ios');
     await client.createSuite({ revisionId: 'r', engine: 'gpt-live-1', fixtureId: 'f', scenarioIds: ['s'], label: 'Suite', recordContent: false });
-    expect(JSON.parse(transport.mock.calls[1][1].body).platform).toBe('ios');
+    expect(JSON.parse(transport.mock.calls[1][1].body)).toMatchObject({ platform: 'ios', executionPlatform: 'ios' });
+  });
+  it('reports the executing client platform with each admitted text and voice-ticket request', async () => {
+    transport.mockImplementation(async () => new Response('{}'));
+    const client = new PersonaLabClient(() => 'tester');
+    platform.mockReturnValue('ios');
+    await client.text('session', 'hello');
+    expect(JSON.parse(transport.mock.calls[0][1].body)).toEqual({ text: 'hello', platform: 'ios' });
+    await client.ticket('session', true);
+    expect(JSON.parse(transport.mock.calls[1][1].body)).toMatchObject({ recovery: true, platform: 'ios' });
+  });
+  it('fails closed before text, ticket, and suite activity when the platform is unsupported', async () => {
+    platform.mockReturnValue(undefined as unknown as string);
+    const client = new PersonaLabClient(() => 'tester');
+    await expect(client.text('session', 'hello')).rejects.toMatchObject({ code: 'client_platform_unsupported' });
+    await expect(client.ticket('session')).rejects.toMatchObject({ code: 'client_platform_unsupported' });
+    await expect(client.createSuite({ revisionId: 'r', engine: 'gpt-live-1', fixtureId: 'f', scenarioIds: ['s'], label: 'Suite', recordContent: false })).rejects.toMatchObject({ code: 'client_platform_unsupported' });
+    expect(transport).not.toHaveBeenCalled();
+  });
+  it('projects only canonical bounded execution platform values into diagnostics', () => {
+    const session = { id: 'test', engine: 'gpt-live-1', config: { id: 'revision' }, turns: [], events: [],
+      executionPlatforms: ['ios', 'unknown', 'ios', 'android', 'SECRET'] } as unknown as LabSession;
+    expect(technicalDiagnostics(session)).toMatchObject({ executionPlatforms: ['ios', 'unknown'] });
+    expect(JSON.stringify(technicalDiagnostics(session))).not.toContain('SECRET');
+    session.executionPlatforms = ['ios', 'unexpected'];
+    expect(technicalDiagnostics(session)).toMatchObject({ executionPlatforms: ['ios', 'unknown'] });
+    session.executionPlatforms = [...Array(32).fill('ios'), 'SECRET'];
+    expect(technicalDiagnostics(session)).toMatchObject({ executionPlatforms: ['ios', 'unknown'] });
+    expect(JSON.stringify(technicalDiagnostics(session))).not.toContain('SECRET');
   });
   it('exports hardware binding observations without a bearer capability or a false simulation claim', () => {
     const hardware = { deviceId: 'case', bootId: 'boot', expectedRevision: 2, conversationId: null, status: 'prepared',

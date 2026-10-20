@@ -34,6 +34,7 @@ internal static class PersonaLabTests
         try
         {
             PersistenceAndOwnership(root);
+            LegacyExecutionPlatforms(root);
             DialogueRecallScenario();
             DiagnosticsPrivacyAndBounds(root);
             DeletedSuiteResultsStayDeleted(root);
@@ -46,6 +47,43 @@ internal static class PersonaLabTests
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, recursive: true); }
     }
+    private static void LegacyExecutionPlatforms(string root)
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var empty = new PersonaLabStore(Path.Combine(root, "normalization.sqlite"), Baseline());
+        var session = empty.CreateSession("owner", new(empty.ActiveRevisionId, "gpt-live-1", "first-visit", "empty", "legacy"));
+        var node = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(session, options))!.AsObject();
+        node.Remove("executionPlatforms");
+        Check(JsonSerializer.Deserialize<LabSession>(node.ToJsonString(), options)!.ExecutionPlatforms.Length == 0,
+            "historical preparation metadata does not invent execution history");
+        node["executionPlatforms"] = null;
+        Check(JsonSerializer.Deserialize<LabSession>(node.ToJsonString(), options)!.ExecutionPlatforms.Length == 0,
+            "null legacy execution arrays normalize safely");
+        node["executionPlatforms"] = new System.Text.Json.Nodes.JsonArray("web", "ios", "unknown", "web", "PRIVATE-PLATFORM", null);
+        Check(JsonSerializer.Deserialize<LabSession>(node.ToJsonString(), options)!.ExecutionPlatforms.SequenceEqual(["ios", "unknown", "web"]),
+            "legacy execution arrays normalize arbitrary strings and nulls to unknown, deduplicate and sort at three canonical values");
+        node["executionPlatforms"] = new System.Text.Json.Nodes.JsonArray("ios", "unexpected-platform", null);
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+        {
+            DataSource = Path.Combine(root, "normalization.sqlite"), Pooling = false
+        }.ToString()))
+        {
+            connection.Open();
+            using var update = connection.CreateCommand();
+            update.CommandText = "UPDATE lab_documents SET json=$json WHERE kind='session' AND id=$id";
+            update.Parameters.AddWithValue("$json", node.ToJsonString());
+            update.Parameters.AddWithValue("$id", session.Id);
+            Check(update.ExecuteNonQuery() == 1, "malformed historical mixed-set fixture is persisted");
+        }
+        var reopened = new PersonaLabStore(Path.Combine(root, "normalization.sqlite"), Baseline());
+        Check(reopened.Session("owner", session.Id).ExecutionPlatforms.SequenceEqual(["ios", "unknown"]),
+            "reopening malformed mixed execution history preserves uncertainty instead of claiming iOS-only execution");
+        using var diagnostics = JsonDocument.Parse(JsonSerializer.Serialize(reopened.Diagnostics()));
+        Check(diagnostics.RootElement.GetProperty("recentSessions")[0].GetProperty("executionPlatforms")
+            .EnumerateArray().Select(value => value.GetString()).SequenceEqual(["ios", "unknown"]),
+            "diagnostics exports bounded mixed history with uncertainty and excludes arbitrary persisted claims");
+    }
+
     private static void DialogueRecallScenario()
     {
         var script = LabContract.Scenarios.Single(scenario => scenario.Id == "dialogue-recall").Script;
@@ -164,6 +202,7 @@ internal static class PersonaLabTests
             sessions.Add(store.Change(owner, session.Id, value => value with
             {
                 CreatedAt = instant.AddMinutes(index / 3), EndedAt = instant.AddHours(1), Status = new string('s', 32),
+                ExecutionPlatforms = ["ios", "web", "unknown", secret, "ios"],
                 Config = value.Config with { Id = new string('r', 64), Name = secret, Instructions = secret, Sha256 = secret, SourceVersion = secret },
                 Turns = [new(new string('u', 32), "user", secret, instant)], Events = events,
                 Evaluation = new(LabContract.Metrics.ToDictionary(metric => metric, _ => 4), secret, [new(new string('u', 32), secret)]),
@@ -185,10 +224,12 @@ internal static class PersonaLabTests
             !storage.GetProperty("simulationOnly").GetBoolean(), "technical diagnostics excludes recorded content, ownership, images and nested hardware data");
         Check(System.Text.Encoding.UTF8.GetByteCount(json) < 256 * 1024,
             "full bounded technical export stays below 256 KiB with maximum token and numeric widths");
-        string[] sessionFields = ["sessionId", "engine", "personaRevisionId", "platform", "createdAt", "endedAt", "status", "testMode", "eventsTruncated", "events"];
+        string[] sessionFields = ["sessionId", "engine", "personaRevisionId", "platform", "executionPlatforms", "createdAt", "endedAt", "status", "testMode", "eventsTruncated", "events"];
         string[] eventFields = ["id", "type", "createdAt", "code", "latencyMs", "decision", "compartment", "costMicroUsd", "providerSessionId", "inputTokens", "outputTokens"];
         Check(recent.All(session => session.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(sessionFields.Order())),
             "recent system sessions use the exact technical field whitelist");
+        Check(recent.All(session => session.GetProperty("executionPlatforms").EnumerateArray().Select(value => value.GetString())
+            .SequenceEqual(["ios", "unknown", "web"])), "diagnostics exposes only the bounded canonical execution set");
         Check(recent.All(session => session.GetProperty("eventsTruncated").GetBoolean() && session.GetProperty("events").GetArrayLength() == 20 &&
             session.GetProperty("events").EnumerateArray().All(entry => entry.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(eventFields.Order()))),
             "each session bounds its technical event projection at twenty with the exact whitelist");
@@ -301,6 +342,9 @@ internal static class PersonaLabTests
         Check(registry.Take(native.Token, "session", "capacitor://localhost").Owner == "alice", "native origin explicitly bound");
         var recovery = registry.Mint(admission with { Recovery = true });
         Check(registry.Take(recovery.Token, "session", admission.Origin).Recovery, "explicit recovery admission is bound to the one-use server ticket");
+        var ios = registry.Mint(admission with { Platform = "ios" });
+        Check(registry.Take(ios.Token, "session", admission.Origin).Platform == "ios", "execution platform survives one-use ticket redemption");
+        Reject(() => registry.Mint(admission with { Platform = "" }), 400, "empty explicit platform cannot mint a ticket");
     }
     private static void ProductionPublication(string root)
     {
@@ -428,8 +472,17 @@ internal static class PersonaLabTests
         Check((await admin.PostAsJsonAsync("/app/v1/persona-lab/revisions/" + draft.Id + "/publish", new { expectedActiveRevisionId = store.ActiveRevisionId })).IsSuccessStatusCode,
             "admin publication passes real CSRF, role and recent-session checks");
         var ticketResponse = await client.PostAsJsonAsync("/app/v1/persona-lab/sessions/" + owned.Id + "/socket-ticket",
-            new { socketOrigin = "capacitor://localhost" });
+            new { socketOrigin = "capacitor://localhost", platform = "ios" });
         Check(ticketResponse.IsSuccessStatusCode, "native socket ticket minted by authenticated protected mutation");
+        Check(store.Session("alice", owned.Id).ExecutionPlatforms.Length == 0, "authenticated unused iOS ticket leaves execution history empty");
+        var invalidTicket = await client.PostAsJsonAsync("/app/v1/persona-lab/sessions/" + owned.Id + "/socket-ticket",
+            new { platform = "android" });
+        Check(invalidTicket.StatusCode == HttpStatusCode.BadRequest && (await invalidTicket.Content.ReadAsStringAsync()).Contains("lab_platform_invalid"),
+            "authenticated socket-ticket endpoint rejects invalid execution claims with the fixed code");
+        var invalidTurn = await client.PostAsJsonAsync("/app/v1/persona-lab/sessions/" + owned.Id + "/turns",
+            new { text = "Valid test input", platform = "" });
+        Check(invalidTurn.StatusCode == HttpStatusCode.BadRequest && (await invalidTurn.Content.ReadAsStringAsync()).Contains("lab_platform_invalid"),
+            "authenticated text endpoint rejects empty explicit claims before provider admission");
         var ticket = (await ticketResponse.Content.ReadFromJsonAsync<LabTicket>())!;
         using var socket = new ClientWebSocket();
         socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
@@ -439,6 +492,7 @@ internal static class PersonaLabTests
         var frame = await socket.ReceiveAsync(bytes.AsMemory(), CancellationToken.None);
         using var message = JsonDocument.Parse(bytes.AsMemory(0, frame.Count));
         Check(message.RootElement.GetProperty("code").GetString() == "lab_provider_unavailable", "real WS ticket accepted then unavailable provider fails honestly");
+        Check(store.Session("alice", owned.Id).ExecutionPlatforms.Length == 0, "unavailable provider admission does not fabricate execution history");
         using var replay = new ClientWebSocket();
         replay.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
         replay.Options.SetRequestHeader("Origin", "capacitor://localhost");
