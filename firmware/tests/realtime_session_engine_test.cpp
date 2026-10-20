@@ -15,7 +15,7 @@ struct Audio final : VoiceAudioPort {
   unsigned played = 0, drained = 0, cancelled = 0;
 };
 
-void TestResponseReset(bool gptLive) {
+void TestResponseReset(bool gptLive, uint64_t operationEpoch = 0) {
   Audio audio;
   TurnCorrelation correlation;
   correlation.deviceId = "fixture";
@@ -24,11 +24,13 @@ void TestResponseReset(bool gptLive) {
   correlation.clientTurnId = "input";
   correlation.generation = 4;
   correlation.deviceRevision = 37;
+  correlation.operationEpoch = operationEpoch;
   ConversationRuntimeSnapshot snapshot;
   snapshot.generation = 4;
   snapshot.deviceRevision = 37;
   snapshot.catalogVersion = "catalog";
   snapshot.readyMask = 63;
+  snapshot.operationEpoch = operationEpoch;
   unsigned inputs = 0, completed = 0;
   std::string playedBody;
   RealtimeSessionEngine engine(audio, gptLive, [] { return true; }, [] { return 100; },
@@ -90,6 +92,8 @@ void TestResponseReset(bool gptLive) {
 int main() {
   TestResponseReset(false);
   TestResponseReset(true);
+  TestResponseReset(false, UINT64_MAX);
+  TestResponseReset(true, UINT64_MAX);
   uint64_t now = 100;
   bool current = true;
   unsigned inputs = 0;

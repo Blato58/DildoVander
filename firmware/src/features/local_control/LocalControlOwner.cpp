@@ -141,6 +141,7 @@ void LocalControlOwner::Disconnect() {
   session_.reset();
   handle_ = {};
   hello_ = false;
+  includeOperationEpoch_ = false;
 }
 
 void LocalControlOwner::Close() {
@@ -157,7 +158,7 @@ bool LocalControlOwner::SameHandle(
 
 void LocalControlOwner::Snapshot(uint64_t nowMs) {
   if (session_ && hello_) {
-    if (!output_.Snapshot(handle_, session_->LeaseId(), nowMs)) {
+    if (!output_.ScopedSnapshot(handle_, session_->LeaseId(), nowMs, includeOperationEpoch_)) {
       Close();
     } else {
       lastSnapshotAtMs_ = nowMs;
@@ -253,13 +254,13 @@ void LocalControlOwner::Handle(
         } else if (message.kind == LocalControlMessageKind::OfflineStart) {
           result = !maintenance_ && !dancing && offline_->Start(message.messageId,
               message.compartment, message.shortVariant, message.generation,
-              message.expectedRevision, clock_.NowMs());
+              message.expectedRevision, clock_.NowMs(), false, message.operationEpoch);
         } else if (message.kind == LocalControlMessageKind::Quiet) {
           result = offline_->Quiet(message.enabled);
         } else if (message.kind == LocalControlMessageKind::OfflineAmbient) {
           result = offline_->ConfigureAmbient(message.enabled);
         } else if (message.kind == LocalControlMessageKind::OfflineSyncAck) {
-          result = offline_->Acknowledge(message.commandId);
+          result = offline_->Acknowledge(message.commandId, message.operationEpoch);
         }
       });
       if (!result) {
@@ -268,10 +269,11 @@ void LocalControlOwner::Handle(
       }
       accepted = output_.OfflineAck(handle_, message, result, error,
           offline_ ? offline_->StatusJson() : "null",
-          message.kind == LocalControlMessageKind::OfflineOutbox && offline_ ? offline_->OutboxJson() : "");
+          message.kind == LocalControlMessageKind::OfflineOutbox && offline_ ? offline_->OutboxJson(includeOperationEpoch_) : "");
       break;
     }
     case LocalControlMessageKind::StateGet:
+      includeOperationEpoch_ = includeOperationEpoch_ || message.includeOperationEpoch;
       Snapshot(nowMs);
       return;
     case LocalControlMessageKind::Acquire: {
@@ -428,6 +430,7 @@ bool LocalControlOwner::RefuseBusy(const LocalControlMessage& message) {
 void LocalControlOwner::Selection(
     const LocalControlMessage& message, uint64_t nowMs) {
   SelectionCommand command;
+  command.operationEpoch = message.operationEpoch;
   command.commandId = message.commandId;
   command.deviceId = message.deviceId;
   command.bootId = message.bootId;
@@ -469,6 +472,7 @@ void LocalControlOwner::Selection(
 void LocalControlOwner::Reload(
     const LocalControlMessage& message, uint64_t nowMs) {
   InventoryReloadCommand command;
+  command.operationEpoch = message.operationEpoch;
   command.commandId = message.commandId;
   command.deviceId = message.deviceId;
   command.bootId = message.bootId;

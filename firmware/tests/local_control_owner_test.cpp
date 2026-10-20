@@ -119,6 +119,12 @@ class Output final : public LocalControlOutputPort {
     lastLease = lease;
     return accept;
   }
+  bool ScopedSnapshot(const LocalSocketAdmission::Handle& handle, const std::string& lease,
+                      uint64_t nowMs, bool includeOperationEpoch) override {
+    scopedEpoch = includeOperationEpoch;
+    return Snapshot(handle, lease, nowMs);
+  }
+  bool scopedEpoch = false;
   bool Heartbeat(const LocalSocketAdmission::Handle&,
                   const LocalControlMessage&, uint64_t) override {
     ++heartbeats;
@@ -655,7 +661,50 @@ void TestStaleCommandThenStopAndUnsupportedCapability() {
 
 }  // namespace
 
+void TestStaleEpochRefusalLeavesStatusAndStopAvailable() {
+  Fixture fixture;
+  fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::Acquire);
+  auto request = fixture.Message(LocalControlMessageKind::Selection);
+  request.hasOperationEpoch = true;
+  request.operationEpoch = 1;
+  assert(fixture.inbox.Submit(fixture.handle, request));
+  fixture.Poll(100);
+  assert(fixture.output.lastCommand.error == CommandError::WrongOperationEpoch);
+  assert(fixture.journal.begins == 0 && !fixture.control.HasPendingSelection());
+  assert(fixture.transport.closes == 0);
+  const int before = fixture.output.snapshots;
+  request = fixture.Message(LocalControlMessageKind::StateGet);
+  request.includeOperationEpoch = true;
+  assert(fixture.inbox.Submit(fixture.handle, request));
+  fixture.Poll(100);
+  assert(fixture.output.scopedEpoch && fixture.output.snapshots > before);
+  fixture.Submit(LocalControlMessageKind::Stop);
+  assert(fixture.transport.closes == 0 && fixture.safety.NeedsRecovery());
+}
+
+void TestEpochNegotiationResetsWithConnection() {
+  Fixture fixture;
+  fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::StateGet);
+  assert(!fixture.output.scopedEpoch);
+  auto request = fixture.Message(LocalControlMessageKind::StateGet);
+  request.includeOperationEpoch = true;
+  assert(fixture.inbox.Submit(fixture.handle, request));
+  fixture.Poll(100);
+  assert(fixture.output.scopedEpoch);
+  fixture.Submit(LocalControlMessageKind::StateGet);
+  assert(fixture.output.scopedEpoch);
+  fixture.inbox.Disconnect(fixture.handle);
+  fixture.Poll(100);
+  fixture.Connect();
+  fixture.Submit(LocalControlMessageKind::StateGet);
+  assert(!fixture.output.scopedEpoch);
+}
+
 int main() {
+  TestStaleEpochRefusalLeavesStatusAndStopAvailable();
+  TestEpochNegotiationResetsWithConnection();
   {
     Fixture fixture;
     fixture.Connect();

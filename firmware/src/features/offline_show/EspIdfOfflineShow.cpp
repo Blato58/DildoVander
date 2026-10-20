@@ -13,13 +13,16 @@ EspIdfOutboxStorage::EspIdfOutboxStorage(bool initialized) {
 }
 bool EspIdfOutboxStorage::Read(Outbox& outbox) {
   if (!opened_) return false;
-  size_t size = sizeof(outbox);
-  const esp_err_t result = nvs_get_blob(handle_, "outbox", &outbox, &size);
+  size_t size = 0;
+  const esp_err_t result = nvs_get_blob(handle_, "outbox", nullptr, &size);
   if (result == ESP_ERR_NVS_NOT_FOUND) { outbox = {}; return true; }
-  return result == ESP_OK && size == sizeof(outbox);
+  if (result != ESP_OK || (size != sizeof(Outbox) && size != sizeof(storage::LegacyOutboxV1))) return false;
+  std::vector<uint8_t> bytes(size);
+  return nvs_get_blob(handle_, "outbox", bytes.data(), &size) == ESP_OK
+      && storage::DecodeOutboxBytes(bytes.data(), size, outbox);
 }
 bool EspIdfOutboxStorage::Write(const Outbox& outbox) {
-  return opened_ && nvs_set_blob(handle_, "outbox", &outbox, sizeof(outbox)) == ESP_OK && nvs_commit(handle_) == ESP_OK;
+  return opened_ && outbox.version == 2 && nvs_set_blob(handle_, "outbox", &outbox, sizeof(outbox)) == ESP_OK && nvs_commit(handle_) == ESP_OK;
 }
 
 bool EspIdfOfflineAudio::Begin() {

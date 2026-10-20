@@ -75,6 +75,7 @@ class LocalControlOwner final {
   uint64_t connectedAtMs_ = 0;
   uint64_t lastSnapshotAtMs_ = 0;
   bool hello_ = false;
+  bool includeOperationEpoch_ = false;
   bool maintenance_ = false;
   bool danceAdmission_ = false;
   kufr::offline::OfflineShow* offline_ = nullptr;

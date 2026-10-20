@@ -37,6 +37,8 @@ class PersistentCommandJournal final : public CommandJournal {
   bool ResolveRestored(uint8_t compartment) override;
   bool ConfirmTimedPresentation(const std::string& id, uint8_t compartment, uint64_t fingerprint) override;
   bool WasTimedPresentationCompleted(const std::string& id, uint8_t compartment) const override;
+  bool WasLegacyTimedPresentationCompleted(const std::string& id,
+                                           uint8_t compartment) const override;
   bool PersistReadyMask(uint8_t readyMask) override;
 
   // Owner-only opt-in after provisioning/reconciliation. Missing storage is

@@ -50,6 +50,8 @@ class DeviceControlRuntime final {
   uint64_t CurrentRevision() const { return control_.Revision(); }
   bool NeedsRecovery() const { return control_.NeedsRecovery(); }
   bool HasAutonomousPresentation() const;
+  // Consulted only by the control owner immediately before new admission.
+  bool CanCapturePresentationFingerprint() const;
   bool SetOfflineAuthority(bool active);
   bool HandoffToOffline(const std::string& leaseId, uint64_t nowMs);
   bool OfflineAuthority() const { return offlineAuthority_; }
@@ -57,8 +59,16 @@ class DeviceControlRuntime final {
   bool ReserveDecoration(uint64_t generation, bool preserveConversationSnapshot = false);
   bool ReleaseDecoration(uint64_t generation);
   bool HasDecoration() const { return decorationActive_; }
+  bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot,
+                                    uint64_t operationEpoch,
+                                    uint64_t fingerprint) const {
+    return control_.WasTimedPresentationCompleted(id, slot, operationEpoch, fingerprint);
+  }
   CommandJournal::Lookup FindOperation(const std::string& id, uint8_t slot,
-                                      uint64_t fingerprint) const { return control_.FindOperation(id, slot, fingerprint); }
+                                      uint64_t fingerprint,
+                                      uint64_t operationEpoch = 0) const {
+    return control_.FindOperation(id, slot, fingerprint, operationEpoch);
+  }
 
  private:
   void RecordLeaseLoss(bool hadManualControl);
@@ -70,6 +80,7 @@ class DeviceControlRuntime final {
   uint64_t generation_ = 0;
   uint64_t publishedGeneration_ = 0;
   uint64_t publishedRevision_ = 0;
+  uint64_t publishedOperationEpoch_ = 0;
   uint8_t publishedReadyMask_ = 0;
   bool published_ = false;
   bool externalActivity_ = false;

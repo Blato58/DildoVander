@@ -68,6 +68,7 @@ def main():
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
         ("keepsake_durability_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/DeviceControlRuntime", "device_control/PersistentCommandJournal", "conversation/ConversationRuntimeState", "conversation/PendingProposal", "wand_presentation/WandPresentation"], []),
         ("journal_epoch_test", ["device_control/PersistentCommandJournal"], []),
+        ("operation_epoch_core_test", CORE + ["device_control/PersistentCommandJournal", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession"], []),
         ("dance_coordinator_test", ["dance/DanceCoordinator", "physical_effects/PhysicalEffects"], []),
         ("show_trace_mailbox_test", ["physical_effects/PresentationDiagnostics"], []),
         ("twin_telemetry_test", CORE, []),

@@ -47,6 +47,9 @@ struct LocalControlMessage {
   std::string voice;
   bool imageConsent = false;
   bool acknowledge = false;
+  bool includeOperationEpoch = false;
+  bool hasOperationEpoch = false;
+  uint64_t operationEpoch = 0;
   bool shortVariant = false;
   bool enabled = false;
   uint64_t generation = 0;

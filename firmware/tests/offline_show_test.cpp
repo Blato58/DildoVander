@@ -265,9 +265,120 @@ void ScriptedStandaloneAndVoiceReadiness() {
   assert(std::string(missing.Preflight()) == "missing_assets");
   assert(!missing.Arm(f.runtime.Generation(), f.control.Revision()));
 }
+
+class EpochJournal final : public CommandJournal {
+ public:
+  uint64_t epoch = 1;
+  unsigned begins = 0;
+  bool HasPending() const override { return false; }
+  uint8_t PendingCompartment() const override { return 0; }
+  uint8_t ReadyMask() const override { return 63; }
+  uint64_t CurrentEpoch() const override { return epoch; }
+  bool Begin(const std::string&, uint8_t) override { ++begins; return false; }
+  bool BeginScoped(uint64_t, const std::string&, uint8_t, uint64_t) override { ++begins; return false; }
+  Lookup FindScoped(uint64_t originalEpoch, const std::string&, uint8_t, uint64_t) const override {
+    return originalEpoch == epoch ? Lookup::Missing : Lookup::StaleEpoch;
+  }
+  bool Resolve(uint8_t) override { return false; }
+  bool PersistReadyMask(uint8_t) override { return true; }
+};
+void PendingAudioCannotRestampOperationEpoch() {
+  FakeIo io; PhysicalEffects effects(io); SafetyAdapter port(effects);
+  SafetyController safety(port); SelectionSequence sequence(safety, true);
+  EpochJournal journal;
+  DeviceControl control("device", Boot, sequence, journal, 1);
+  ConversationRuntimeState state(false, 0, "");
+  DeviceControlRuntime runtime(control, sequence, state, OfflineShow::CatalogVersion());
+  PhysicalPresentation physical(effects, runtime); WandPresentation presentation(physical);
+  Audio audio; Storage storage;
+  std::array<ServoCalibration, 6> calibration; calibration.fill({1100, 1900, 500});
+  assert(effects.Configure(calibration, 1));
+  assert(runtime.BindPresentation(presentation) && runtime.RecoverAfterInspection());
+  OfflineShow offline(runtime, state, control, presentation, physical, audio, storage,
+      "device", Boot, Evening, &Bank);
+  const std::string id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  assert(offline.Arm(runtime.Generation(), control.Revision()));
+  assert(!offline.Start(id, 1, false, runtime.Generation(), control.Revision(), 30));
+  assert(offline.Start(id, 1, false, runtime.Generation(), control.Revision(), 30, false, 1));
+  assert(storage.saved.records[0].operationEpoch == 1 && storage.saved.records[0].physicalFingerprint
+      == PhysicalPresentation::OperationFingerprint(false));
+  journal.epoch = 2;
+  runtime.PublishCurrent();
+  audio.busy = false;
+  offline.Tick(40, true); // Intro may finish, but the saved admission epoch remains one.
+  audio.busy = false;
+  offline.Tick(50, true);
+  assert(journal.begins == 0 && !offline.Active());
+  assert(storage.saved.records[0].operationEpoch == 1 && !storage.saved.records[0].completed);
+  assert(storage.saved.records[0].operationId[0] && offline.OutboxJson() == "[]");
+}
+void LegacyPodMigrationAndEpochAcknowledgement() {
+  storage::LegacyOutboxV1 legacy;
+  legacy.offlineEnabled = true; legacy.ambientEnabled = true; legacy.quiet = true;
+  legacy.serverSettingsRevision = 17; legacy.serverStopRevision = 19;
+  for (size_t index = 0; index < 2; ++index) {
+    auto& record = legacy.records[index];
+    const char* id = index ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    std::copy(id, id + 37, record.operationId.begin());
+    std::copy(Boot, Boot + 37, record.bootId.begin());
+    std::copy(Evening, Evening + 37, record.localEveningId.begin());
+    record.generation = 23; record.startedAtMs = 100; record.completedAtMs = index ? 0 : 200;
+    record.slot = static_cast<uint8_t>(index + 1); record.completed = index == 0;
+    record.scripted = true; record.shortVariant = true;
+  }
+  Outbox migrated;
+  assert(storage::DecodeOutboxBytes(&legacy, sizeof(legacy), migrated));
+  assert(migrated.version == 2 && migrated.offlineEnabled && migrated.ambientEnabled && migrated.quiet);
+  assert(migrated.serverSettingsRevision == 17 && migrated.serverStopRevision == 19);
+  for (size_t index = 0; index < 2; ++index) {
+    const auto& original = legacy.records[index]; const auto& record = migrated.records[index];
+    assert(record.operationId == original.operationId && record.bootId == original.bootId
+        && record.localEveningId == original.localEveningId);
+    assert(record.generation == 23 && record.startedAtMs == 100 && record.completedAtMs == original.completedAtMs);
+    assert(record.completed == original.completed && record.scripted && record.shortVariant);
+    assert(record.operationEpoch == 0 && record.physicalFingerprint == 0 && record.deviceRevision == 0);
+  }
+  Outbox roundtrip;
+  assert(storage::DecodeOutboxBytes(&migrated, sizeof(migrated), roundtrip));
+  assert(roundtrip.records[1].operationId == legacy.records[1].operationId && !roundtrip.records[1].completed);
+  assert(!storage::DecodeOutboxBytes(&legacy, sizeof(legacy) - 1, roundtrip));
+  legacy.version = 2;
+  assert(!storage::DecodeOutboxBytes(&legacy, sizeof(legacy), roundtrip));
+  Rig f;
+  f.storage.saved = migrated;
+  f.storage.saved.records[2] = migrated.records[0];
+  f.storage.saved.records[2].operationEpoch = 9007199254740993ull;
+  f.storage.saved.records[2].physicalFingerprint = 101;
+  OfflineShow rebooted(f.runtime, f.state, f.control, f.presentation, f.physical,
+      f.audio, f.storage, "device", Boot, Evening, &Bank);
+  const auto id = std::string(migrated.records[0].operationId.data());
+  const auto legacyResponse = rebooted.OutboxJson();
+  assert(legacyResponse.find("operationEpoch") == std::string::npos);
+  assert(legacyResponse.find(id) != std::string::npos); // The epoch-zero record is still visible.
+  assert(rebooted.OutboxJson(true).find("\"operationEpoch\":\"9007199254740993\"") != std::string::npos);
+  assert(rebooted.Acknowledge(id));
+  assert(!f.storage.saved.records[0].operationId[0] && f.storage.saved.records[2].operationId[0]);
+  assert(rebooted.OutboxJson() == "[]");
+  assert(rebooted.OutboxJson(true).find(id) != std::string::npos);
+  assert(rebooted.Acknowledge(id)); // Replaying an unaware ACK cannot remove the scoped record.
+  assert(f.storage.saved.records[2].operationId[0]);
+  assert(rebooted.Acknowledge(id, 9007199254740992ull)); // Foreign ACK is a harmless replay.
+  assert(f.storage.saved.records[2].operationId[0]);
+  f.storage.fail = true;
+  assert(!rebooted.Acknowledge(id, 9007199254740993ull));
+  assert(f.storage.saved.records[2].operationId[0]);
+  f.storage.fail = false;
+  OfflineShow afterFailedWrite(f.runtime, f.state, f.control, f.presentation, f.physical,
+      f.audio, f.storage, "device", Boot, Evening, &Bank);
+  assert(afterFailedWrite.Acknowledge(id, 9007199254740993ull));
+  assert(!f.storage.saved.records[2].operationId[0] && f.storage.saved.records[1].operationId[0]);
+  assert(!afterFailedWrite.Acknowledge(f.storage.saved.records[1].operationId.data()));
+}
 }
 
 int main() {
+  PendingAudioCannotRestampOperationEpoch();
+  LegacyPodMigrationAndEpochAcknowledgement();
   AllSlotsAndVariantsUseJournalAndIdempotentOutbox();
   StopFailureCapacityAndEpochFence();
   AmbientThirtyMinutesAndQuiet();

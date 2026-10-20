@@ -40,6 +40,7 @@ RealtimeSessionEngine::RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive
 }
 bool RealtimeSessionEngine::Current() const {
   return !stop_.load() && !failed_.load() && !audio_.Failed() && current_() &&
+      expected_.operationEpoch == snapshot_.operationEpoch &&
       now_() - startedAtMs_ < 480000 && now_() - lastTurnAtMs_ < (gptLive_ ? 190000 : 80000);
 }
 int RealtimeSessionEngine::Post(const std::string& path, const void* data, size_t size,
@@ -100,7 +101,7 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     const bool restarting = !gptLive_ && responseRestartPending_ && event.operationId == operationId_;
     if (terminal_ || (!operationId_.empty() && !restarting) || uploading_.load()) return false;
     const auto decision = EvaluateTurnOperation(event.operationId, expected_, snapshot_.generation,
-                                               snapshot_.deviceRevision, event.operation);
+                                               snapshot_.deviceRevision, event.operation, snapshot_.operationEpoch);
     if (decision != TurnPollDecision::ReplyReady) return false;
     if (!restarting && ++turns_ > 10) return false;
     responseRestartPending_ = false;
@@ -146,7 +147,8 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     const uint64_t utc = utc_();
     if (utc <= 0) return false;
     const auto decision = EvaluateTurnOperationWithProposal(operationId_, expected_, snapshot_.generation,
-        snapshot_.deviceRevision, snapshot_.catalogVersion, snapshot_.readyMask, static_cast<uint64_t>(utc), event.operation);
+        snapshot_.deviceRevision, snapshot_.catalogVersion, snapshot_.readyMask,
+        static_cast<uint64_t>(utc), event.operation, snapshot_.operationEpoch);
     if (decision != TurnPollDecision::ReplyReady && decision != TurnPollDecision::ProposalReady) return false;
     if ((!gptLive_ || segmentPlaying_) && !audio_.Drain()) return false;
     if (!Current() || !completed_(event.operation)) return false;

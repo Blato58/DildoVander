@@ -502,3 +502,41 @@ test('old socket close cannot invalidate a pending offline command on its replac
   assert.equal((await ambient).ambientEnabled, true);
   connection.suspend();
 });
+
+
+test('native epoch negotiation waits for validated metadata and scopes only new physical intent', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+    parseFrame: frame => validateControlMessage(new TextEncoder().encode(frame)),
+  });
+  await settle(); native.emit('open'); await settle();
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  const leaseId = randomUUID();
+  const state = { ...fixture, capabilities: [...fixture.capabilities, 'operationEpoch'],
+    controlMode: 'manual', controlLeaseId: leaseId };
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId, snapshot: state }));
+  await settle();
+  const metadata = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(metadata.type, 'state.get'); assert.equal(metadata.includeOperationEpoch, true);
+  assert.equal(connection.select(1), false);
+  native.emit('frame', JSON.stringify({ ...state, eventSequence: fixture.eventSequence + 1, operationEpoch: '18446744073709551615' }));
+  assert.equal(connection.select(1), true); await settle();
+  const heartbeat = JSON.parse(native.sent.at(-1).frame);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'heartbeat.ack', requestMessageId: heartbeat.messageId,
+    bootId: fixture.bootId, controlLeaseId: leaseId, revision: fixture.revision, deviceUptimeMs: 100 }));
+  await settle();
+  const command = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(command.operationEpoch, '18446744073709551615');
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'command.ack', commandId: command.commandId,
+    bootId: fixture.bootId, eventSequence: fixture.eventSequence + 2, revision: fixture.revision,
+    status: 'rejected', errorCode: 'wrong_operation_epoch' }));
+  await settle();
+  assert.equal(native.closed.length, 0);
+  assert.equal(JSON.parse(native.sent.at(-1).frame).includeOperationEpoch, true);
+  connection.stop(); await settle();
+  const stop = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(stop.type, 'safety.stop'); assert.equal(Object.hasOwn(stop, 'operationEpoch'), false);
+  connection.suspend();
+});

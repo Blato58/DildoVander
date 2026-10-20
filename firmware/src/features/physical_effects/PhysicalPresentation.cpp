@@ -11,6 +11,15 @@ uint64_t ScoreFingerprint(bool repeat) {
 }
 }
 
+uint64_t PhysicalPresentation::OperationFingerprint(bool shortVariant) {
+  return ScoreFingerprint(shortVariant);
+}
+
+uint64_t PhysicalPresentation::CurrentOperationFingerprint() const {
+  if (phase_ != Phase::Idle || !runtime_.CanCapturePresentationFingerprint() ||
+      !effects_.Healthy()) return 0;
+  return ScoreFingerprint(repeat_);
+}
 
 bool PhysicalPresentation::SelectVariant(bool shortVariant) {
   if (phase_ != Phase::Idle || runtime_.HasAutonomousPresentation() ||
@@ -22,7 +31,8 @@ bool PhysicalPresentation::SelectVariant(bool shortVariant) {
 bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposalId,
                                   const ConversationRuntimeSnapshot& snapshot) {
   const uint64_t acceptedAtMs = nowMs_;
-  replayRejected_ = runtime_.FindOperation(proposalId, compartment, ScoreFingerprint(repeat_))
+  replayRejected_ = runtime_.FindOperation(proposalId, compartment, ScoreFingerprint(repeat_),
+                                          snapshot.operationEpoch)
       != CommandJournal::Lookup::Missing;
   if (replayRejected_) return false;
   if (proposalId.empty() || proposalId.size() > 96 ||

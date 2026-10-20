@@ -32,6 +32,7 @@ enum class CommandError : uint8_t {
   NotCalibrated,
   SafetyLatched,
   JournalFailed,
+  WrongOperationEpoch,
 };
 
 enum class ControlCommandKind : uint8_t {
@@ -57,6 +58,7 @@ struct SelectionCommand {
   uint32_t maxAgeMs = 0;
   uint8_t compartment = 0;
   SelectionSource source = SelectionSource::Manual;
+  uint64_t operationEpoch = 0;
 
   bool SameContentAs(const SelectionCommand& other) const;
 };
@@ -72,6 +74,7 @@ struct InventoryReloadCommand {
   uint32_t maxAgeMs = 0;
   uint8_t compartment = 0;
   bool inspectionConfirmed = false;
+  uint64_t operationEpoch = 0;
 
   bool SameContentAs(const InventoryReloadCommand& other) const;
 };
@@ -116,7 +119,8 @@ class DeviceControl {
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
   bool BeginAutonomousPresentation(const std::string& proposalId,
                                    uint8_t compartment,
-                                   uint64_t expectedRevision, uint64_t fingerprint = 0);
+                                   uint64_t expectedRevision, uint64_t fingerprint = 0,
+                                   uint64_t operationEpoch = 0);
   bool CompleteAutonomousPresentation(uint8_t compartment);
   bool ConfirmTimedPresentation();
   void FaultAutonomousPresentation();
@@ -125,6 +129,7 @@ class DeviceControl {
 
   uint64_t Revision() const;
   uint64_t CalibrationRevision() const;
+  uint64_t OperationEpoch() const { return journal_.CurrentEpoch(); }
   const std::string& PendingCommandId() const;
   const LastSelectionResult& LastResult() const;
   uint8_t ReadyMask() const;
@@ -138,8 +143,15 @@ class DeviceControl {
   bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
     return journal_.WasTimedPresentationCompleted(id, slot);
   }
+  bool WasLegacyTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
+    return journal_.WasLegacyTimedPresentationCompleted(id, slot);
+  }
+  bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot,
+                                    uint64_t operationEpoch,
+                                    uint64_t fingerprint) const;
   CommandJournal::Lookup FindOperation(const std::string& id, uint8_t slot,
-                                      uint64_t fingerprint) const { return journal_.Find(id, slot, fingerprint); }
+                                      uint64_t fingerprint,
+                                      uint64_t operationEpoch = 0) const;
 
  private:
   struct CachedResult {
@@ -154,7 +166,7 @@ class DeviceControl {
                         bool consumeSequence);
   void Remember(const SelectionCommand& command, CommandReceipt receipt);
   void Remember(const InventoryReloadCommand& command, CommandReceipt receipt);
-  CachedResult* FindCached(const std::string& commandId);
+  CachedResult* FindCached(uint64_t operationEpoch, const std::string& commandId);
   CommandOutcome FinishCurrent(CommandOutcome outcome);
   bool LoseManualControl(SelectionStep& step);
 
@@ -172,10 +184,12 @@ class DeviceControl {
   size_t nextResultIndex_ = 0;
   std::string pendingCommandId_;
   uint8_t pendingCompartment_ = 0;
+  uint64_t pendingOperationEpoch_ = 0;
   bool executionStarted_ = false;
   uint8_t autonomousCompartment_ = 0;
   std::string autonomousOperationId_;
   uint64_t autonomousFingerprint_ = 0;
+  uint64_t autonomousOperationEpoch_ = 0;
   uint8_t lastCompletedAutonomousCompartment_ = 0;
   LastSelectionResult lastResult_;
 };

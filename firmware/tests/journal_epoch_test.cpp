@@ -238,6 +238,9 @@ void TestLegacyMigrationAndEvidence() {
         assert(adopted.FindHistorical(0, FirstId, 1, 101) == Lookup::Same);
         assert(adopted.IsEvidencePinned(0, FirstId, 1, 101));
         assert(adopted.WasTimedPresentationCompletedHistorical(0, FirstId, 1, 101) == (version == 3));
+        assert(adopted.WasLegacyTimedPresentationCompleted(UpperId, 1) == (version == 3));
+        assert(!adopted.WasLegacyTimedPresentationCompleted(FirstId, 2));
+        assert(!adopted.WasTimedPresentationCompleted(FirstId, 1));
       }
       assert(adopted.FindScoped(0, FirstId, 1, 101) == Lookup::StaleEpoch);
       assert(!adopted.Begin(FirstId, 1));

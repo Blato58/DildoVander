@@ -49,14 +49,33 @@ struct Outcome {
   uint64_t generation = 0, startedAtMs = 0, completedAtMs = 0;
   uint8_t slot = 0;
   bool completed = false, scripted = false, shortVariant = false;
+  uint64_t operationEpoch = 0, physicalFingerprint = 0, deviceRevision = 0;
 };
 struct Outbox {
-  uint32_t version = 1;
+  uint32_t version = 2;
   bool offlineEnabled = false;
   bool ambientEnabled = false, quiet = false;
   uint64_t serverSettingsRevision = 0, serverStopRevision = 0;
   std::array<Outcome, 8> records{};
 };
+// The original NVS blob used this POD layout. Keep it distinct from v2 so a
+// firmware upgrade never reads old bytes with the enlarged Outcome stride.
+namespace storage {
+struct LegacyOutcomeV1 {
+  std::array<char, 37> operationId{}, bootId{}, localEveningId{};
+  uint64_t generation = 0, startedAtMs = 0, completedAtMs = 0;
+  uint8_t slot = 0;
+  bool completed = false, scripted = false, shortVariant = false;
+};
+struct LegacyOutboxV1 {
+  uint32_t version = 1;
+  bool offlineEnabled = false;
+  bool ambientEnabled = false, quiet = false;
+  uint64_t serverSettingsRevision = 0, serverStopRevision = 0;
+  std::array<LegacyOutcomeV1, 8> records{};
+};
+bool DecodeOutboxBytes(const void* bytes, size_t length, Outbox& outbox);
+}
 class StoragePort {
  public:
   virtual ~StoragePort() = default;
@@ -76,7 +95,8 @@ class OfflineShow final {
   const char* Preflight() const;
   bool Arm(uint64_t generation, uint64_t revision);
   bool Start(const std::string& operationId, uint8_t slot, bool shortVariant,
-      uint64_t generation, uint64_t revision, uint64_t nowMs, bool scripted = false);
+      uint64_t generation, uint64_t revision, uint64_t nowMs, bool scripted = false,
+      uint64_t operationEpoch = 0);
   bool StartNext(const std::string& operationId, uint64_t nowMs);
   bool StartNext(uint64_t nowMs);
   void Tick(uint64_t nowMs, bool idle);
@@ -94,11 +114,11 @@ class OfflineShow final {
   bool Leave();
   bool PrepareInteraction();
   bool AmbientActive() const { return ambientAudio_ || (ambientLight_ && !Active() && runtime_.HasDecoration()); }
-  bool Acknowledge(const std::string& operationId);
+  bool Acknowledge(const std::string& operationId, uint64_t operationEpoch = 0);
   bool Armed() const { return armed_; }
   bool Active() const { return activeIndex_ >= 0; }
   std::string StatusJson() const;
-  std::string OutboxJson() const;
+  std::string OutboxJson(bool includeOperationEpoch = false) const;
   static const char* CatalogVersion();
  private:
   size_t Count() const;

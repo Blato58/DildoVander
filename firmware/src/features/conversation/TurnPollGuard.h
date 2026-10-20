@@ -32,6 +32,7 @@ struct TurnProposal {
   uint64_t generation = 0;
   uint64_t deviceRevision = 0;
   uint8_t compartment = 0;
+  uint64_t operationEpoch = 0;
 };
 
 struct TurnCorrelation {
@@ -41,6 +42,7 @@ struct TurnCorrelation {
   std::string clientTurnId;
   uint64_t generation = 0;
   uint64_t deviceRevision = 0;
+  uint64_t operationEpoch = 0;
 };
 
 struct TurnOperationObservation {
@@ -60,7 +62,8 @@ TurnPollDecision EvaluateTurnOperation(
     const TurnCorrelation& expected,
     uint64_t currentGeneration,
     uint64_t currentDeviceRevision,
-    const TurnOperationObservation& observed);
+    const TurnOperationObservation& observed,
+    uint64_t currentOperationEpoch = 0);
 
 // The proposal is data only. An autonomous presentation adapter must separately
 // enforce its own safety, calibration, and actuator gates.
@@ -72,7 +75,8 @@ TurnPollDecision EvaluateTurnOperationWithProposal(
     const std::string& currentCatalogVersion,
     uint8_t currentReadyMask,
     uint64_t nowUtcSeconds,
-    const TurnOperationObservation& observed);
+    const TurnOperationObservation& observed,
+    uint64_t currentOperationEpoch = 0);
 
 // Conservative monotonic TTL; subtracts one UTC second for clock granularity.
 bool ParseConversationUtcExpiry(const std::string& value, uint64_t& seconds);

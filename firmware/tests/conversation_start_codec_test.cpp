@@ -28,6 +28,11 @@ int main() {
                      "\"locale\":\"cs-CZ\",\"consent\":{\"audio\":false,\"image\":false}}");
   std::string replay;
   assert(BuildConversationStartRequest(request, replay) && replay == body);
+  request.operationEpoch = UINT64_MAX;
+  assert(BuildConversationStartRequest(request, body));
+  assert(body.find("\"operationEpoch\":\"18446744073709551615\"") != std::string::npos);
+  assert(BuildConversationStartRequest(request, replay) && replay == body);
+  request.operationEpoch = 0;
   request.catalogVersion = "bad\"value";
   assert(!BuildConversationStartRequest(request, body) && body.empty());
   request.catalogVersion = "demo-v1";

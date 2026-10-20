@@ -27,6 +27,11 @@ class LocalControlOutputPort {
                        const std::string& requestId, uint64_t nowMs) = 0;
   virtual bool Snapshot(const LocalSocketAdmission::Handle& handle,
                         const std::string& leaseId, uint64_t nowMs) = 0;
+  virtual bool ScopedSnapshot(const LocalSocketAdmission::Handle& handle,
+                              const std::string& leaseId, uint64_t nowMs,
+                              bool) {
+    return Snapshot(handle, leaseId, nowMs);
+  }
   virtual bool Heartbeat(const LocalSocketAdmission::Handle& handle,
                          const LocalControlMessage& request,
                          uint64_t nowMs) = 0;

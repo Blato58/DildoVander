@@ -10,6 +10,11 @@ const messages = lines.map((line) => validateControlMessage(Buffer.from(line)));
 const snapshots = messages.flatMap((message) => message.type === 'welcome'
   ? [message.snapshot] : message.type === 'state.snapshot' ? [message] : []);
 
+assert.ok(snapshots.some(state => state.operationEpoch === '0'));
+assert.ok(snapshots.some(state => state.operationEpoch === '18446744073709551615'));
+assert.ok(snapshots.some(state => !Object.hasOwn(state, 'operationEpoch')));
+assert.ok(messages.filter(message => message.type === 'welcome').every(message => !Object.hasOwn(message.snapshot, 'operationEpoch')));
+assert.ok(messages.some(message => message.type === 'command.ack' && message.errorCode === 'wrong_operation_epoch'));
 assert.ok(snapshots.some((state) => state.calibrationRevision === 0 &&
   state.readyMask === 0 && state.phase === 'recoveryRequired'));
 assert.ok(snapshots.some((state) => state.faults.includes('journal_failed') &&

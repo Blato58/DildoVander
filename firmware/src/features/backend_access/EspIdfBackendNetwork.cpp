@@ -257,7 +257,27 @@ bool EspIdfBackendNetwork::BeginPendingPresentation(
       replyInbox_.HasPending(runtimeState_)) {
     return false;
   }
-  if (!presentation.Start(pendingProposal_, runtimeState_, nowMs)) {
+  TurnProposal proposal;
+  if (pendingProposal_.Read(proposal, runtimeState_, nowMs) && proposal.operationEpoch != 0) {
+    // This is the single control owner. The mutex retains the original intent;
+    // no variant selection may interleave between fingerprint capture and Start.
+    const bool candidateMatches = !keepsakeCandidate_.outcomeId.empty() &&
+        keepsakeCandidate_.operationEpoch == proposal.operationEpoch &&
+        keepsakeCandidate_.physicalOperationId == proposal.proposalId &&
+        keepsakeCandidate_.compartment == proposal.compartment;
+    if (candidateMatches && keepsakeCandidate_.physicalFingerprint == 0)
+      keepsakeCandidate_.physicalFingerprint = presentation.CurrentOperationFingerprint();
+    if (!candidateMatches || keepsakeCandidate_.physicalFingerprint == 0 ||
+        !keepsake_.Prepare(keepsakeCandidate_)) {
+      RetireCandidateLocked("proposal_start_rejected");
+      pendingProposal_.Clear();
+      terminalProposalOutstanding_ = false;
+      return false;
+    }
+  }
+  // Scoped preparation may persist flash; recheck its original TTL after I/O.
+  const uint64_t admissionAtMs = proposal.operationEpoch != 0 ? MonotonicMs() : nowMs;
+  if (!presentation.Start(pendingProposal_, runtimeState_, admissionAtMs)) {
     RetireCandidateLocked("proposal_start_rejected");
     pendingProposal_.Clear();
     terminalProposalOutstanding_ = false;
@@ -619,6 +639,7 @@ void EspIdfBackendNetwork::RunTurn(
   }
   startRequest.audioConsent = false;
   startRequest.generation = snapshot.generation;
+  startRequest.operationEpoch = snapshot.operationEpoch;
   startRequest.catalogVersion = snapshot.catalogVersion;
   EspIdfConversationTextTransport textTransport(settings_.BackendHost());
   EspIdfTurnPollTransport pollTransport(settings_.BackendHost());
@@ -651,6 +672,7 @@ void EspIdfBackendNetwork::RunTurn(
   turnRequest.generation = snapshot.generation;
   turnRequest.deviceRevision = snapshot.deviceRevision;
   turnRequest.readyMask = snapshot.readyMask;
+  turnRequest.operationEpoch = snapshot.operationEpoch;
   const uint64_t turnStartedAtMs = MonotonicMs();
   const std::time_t trustedUtcAtStart = std::time(nullptr);
   if (trustedUtcAtStart <= 0) {
@@ -696,6 +718,7 @@ void EspIdfBackendNetwork::RunTurn(
   expected.clientTurnId = turnRequest.clientTurnId;
   expected.generation = turnRequest.generation;
   expected.deviceRevision = snapshot.deviceRevision;
+  expected.operationEpoch = snapshot.operationEpoch;
   TurnPollSchedule schedule;
   schedule.Begin(turnStartedAtMs, MonotonicMs());
   bool replyConsumed = false;
@@ -717,7 +740,7 @@ void EspIdfBackendNetwork::RunTurn(
         snapshot.readyMask,
         ConservativeUtcSeconds(static_cast<uint64_t>(trustedUtcAtStart),
                                turnStartedAtMs, nowMs),
-        tokens.AccessToken(nowMs));
+        tokens.AccessToken(nowMs), snapshot.operationEpoch);
     if (result.statusCode == 401 &&
         tokens.HandleUnauthorized(MonotonicMs())) {
       result = pollTransport.Poll(
@@ -726,7 +749,7 @@ void EspIdfBackendNetwork::RunTurn(
           snapshot.readyMask,
           ConservativeUtcSeconds(static_cast<uint64_t>(trustedUtcAtStart),
                                  turnStartedAtMs, MonotonicMs()),
-          tokens.AccessToken(MonotonicMs()));
+          tokens.AccessToken(MonotonicMs()), snapshot.operationEpoch);
     }
     const uint64_t completedAtMs = MonotonicMs();
     if (result.statusCode == 200 &&
@@ -750,8 +773,11 @@ void EspIdfBackendNetwork::RunTurn(
         KeepsakeOutcome keepsakeCandidate{accepted.operationId, GenerateEspIdfConversationUuid(), result.proposal.proposalId,
             result.proposal.proposalId, result.proposal.bootId, result.proposal.generation, result.proposal.deviceRevision, 0};
         keepsakeCandidate.compartment = result.proposal.compartment;
-        const bool keepsakePrepared = keepsake_.Prepare(keepsakeCandidate);
-        if (!keepsakePrepared) ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
+        keepsakeCandidate.operationEpoch = result.proposal.operationEpoch;
+        const bool scopedCandidate = keepsakeCandidate.operationEpoch != 0;
+        const bool keepsakePrepared = !scopedCandidate && keepsake_.Prepare(keepsakeCandidate);
+        if (!scopedCandidate && !keepsakePrepared)
+          ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
         bool stored = false;
         {
           std::lock_guard<std::mutex> lock(presentationMutex_);
@@ -764,7 +790,7 @@ void EspIdfBackendNetwork::RunTurn(
                       turnStartedAtMs, completedAtMs)));
           if (stored) {
             terminalProposalOutstanding_ = true;
-            keepsakeCandidate_ = keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
+            keepsakeCandidate_ = scopedCandidate || keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
           }
         }
         if (stored) {
@@ -1016,12 +1042,14 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
     request.imageConsent = imageConsent;
     request.correlation.deviceId = identity_.DeviceId(); request.correlation.bootId = bootId_;
     request.correlation.generation = snapshot.generation; request.correlation.deviceRevision = snapshot.deviceRevision;
+    request.correlation.operationEpoch = snapshot.operationEpoch;
     VoiceWorkflowPorts ports;
     ports.current = current; ports.uuid = GenerateEspIdfConversationUuid;
     ports.close = [&]() { return CloseConversation(coordinator, cleanup, tokens, startRequest); };
     ports.create = [&](bool photoConsent, const std::string& key, std::string& conversation) {
       startRequest.audioConsent = true; startRequest.imageConsent = photoConsent;
       startRequest.generation = snapshot.generation; startRequest.catalogVersion = snapshot.catalogVersion;
+      startRequest.operationEpoch = snapshot.operationEpoch;
       startRequest.idempotencyKey = key;
       const auto started = coordinator.Start(startRequest, MonotonicMs());
       conversation = coordinator.ConversationId();
@@ -1062,15 +1090,18 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
     KeepsakeOutcome keepsakeCandidate{final.operationId, GenerateEspIdfConversationUuid(), final.proposal.proposalId,
         final.proposal.proposalId, final.proposal.bootId, final.proposal.generation, final.proposal.deviceRevision, 0};
     keepsakeCandidate.compartment = final.proposal.compartment;
-    const bool keepsakePrepared = remaining && keepsake_.Prepare(keepsakeCandidate);
-    if (remaining && !keepsakePrepared) ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
+    keepsakeCandidate.operationEpoch = final.proposal.operationEpoch;
+    const bool scopedCandidate = keepsakeCandidate.operationEpoch != 0;
+    const bool keepsakePrepared = remaining && !scopedCandidate && keepsake_.Prepare(keepsakeCandidate);
+    if (remaining && !scopedCandidate && !keepsakePrepared)
+      ESP_LOGW(LogTag, "Keepsake preparation unavailable; physical proposal continues");
     {
       std::lock_guard<std::mutex> lock(presentationMutex_);
       proposalStored = remaining && current()
           && pendingProposal_.Store(final.proposal, snapshot, runtimeState_, MonotonicMs(), remaining);
       if (proposalStored) {
         terminalProposalOutstanding_ = true;
-        keepsakeCandidate_ = keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
+        keepsakeCandidate_ = scopedCandidate || keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
       }
     }
     if (!proposalStored && keepsakePrepared) keepsake_.Retire(keepsakeCandidate, "proposal_store_rejected");

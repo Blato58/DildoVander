@@ -11,6 +11,7 @@ struct ConversationRuntimeSnapshot {
   uint64_t version = 0;
   uint8_t readyMask = 0;
   std::string catalogVersion;
+  uint64_t operationEpoch = 0;
 };
 
 // The control owner publishes one coherent view after every journal/control
@@ -23,7 +24,8 @@ class ConversationRuntimeState final {
   bool Read(ConversationRuntimeSnapshot& snapshot) const;
   bool Matches(const ConversationRuntimeSnapshot& snapshot) const;
   bool Publish(uint64_t generation, uint64_t deviceRevision,
-               uint8_t readyMask, const std::string& catalogVersion);
+               uint8_t readyMask, const std::string& catalogVersion,
+               uint64_t operationEpoch = 0);
   void Invalidate();
 
  private:

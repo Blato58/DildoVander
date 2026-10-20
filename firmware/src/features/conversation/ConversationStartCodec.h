@@ -13,6 +13,7 @@ struct ConversationStartRequest {
   uint64_t generation = 0;
   bool audioConsent = false;
   bool imageConsent = false;
+  uint64_t operationEpoch = 0;
 };
 
 struct ConversationStartResponse {

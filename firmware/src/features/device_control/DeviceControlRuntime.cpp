@@ -131,7 +131,8 @@ bool DeviceControlRuntime::BeginAutonomousPresentation(
     return false;
   }
   const bool started = control_.BeginAutonomousPresentation(
-      proposalId, compartment, expectedSnapshot.deviceRevision, fingerprint);
+      proposalId, compartment, expectedSnapshot.deviceRevision, fingerprint,
+      expectedSnapshot.operationEpoch);
   PublishCurrent();
   return started;
 }
@@ -222,13 +223,15 @@ bool DeviceControlRuntime::PublishCurrent() {
   }
 
   const uint64_t revision = control_.Revision();
+  const uint64_t operationEpoch = control_.OperationEpoch();
   const uint8_t readyMask = control_.ReadyMask();
   if (published_ && publishedGeneration_ == generation_ &&
-      publishedRevision_ == revision && publishedReadyMask_ == readyMask) {
+      publishedRevision_ == revision && publishedReadyMask_ == readyMask &&
+      publishedOperationEpoch_ == operationEpoch) {
     return true;
   }
 
-  if (!runtime_.Publish(generation_, revision, readyMask, catalogVersion_)) {
+  if (!runtime_.Publish(generation_, revision, readyMask, catalogVersion_, operationEpoch)) {
     runtime_.Invalidate();
     published_ = false;
     return false;
@@ -236,6 +239,7 @@ bool DeviceControlRuntime::PublishCurrent() {
 
   publishedGeneration_ = generation_;
   publishedRevision_ = revision;
+  publishedOperationEpoch_ = operationEpoch;
   publishedReadyMask_ = readyMask;
   published_ = true;
   return true;
@@ -252,6 +256,14 @@ void DeviceControlRuntime::SetExternalActivity(bool active) {
 
 bool DeviceControlRuntime::HasAutonomousPresentation() const {
   return control_.HasAutonomousPresentation();
+}
+
+bool DeviceControlRuntime::CanCapturePresentationFingerprint() const {
+  return !externalActivity_ && !decorationActive_ && !offlineAuthority_ &&
+      !control_.NeedsRecovery() && !control_.HasManualControl() &&
+      !control_.HasPendingSelection() && !control_.HasAutonomousPresentation() &&
+      !selection_.IsBusy() && presentation_ != nullptr &&
+      presentation_->State() == WandPresentationState::Idle;
 }
 
 bool DeviceControlRuntime::SetOfflineAuthority(bool active) {

@@ -66,6 +66,11 @@ int EspIdfCostumeUpload::Request(const std::string& path, const std::vector<uint
         esp_http_client_set_header(client, "Device-Revision", revision.c_str()) == ESP_OK &&
         esp_http_client_set_header(client, "Catalog-Version", catalog_.c_str()) == ESP_OK &&
         esp_http_client_set_post_field(client, reinterpret_cast<const char*>(jpeg->data()), static_cast<int>(jpeg->size())) == ESP_OK;
+    if (correlation_.operationEpoch != 0) {
+      const std::string operationEpoch = std::to_string(correlation_.operationEpoch);
+      configured = configured &&
+          esp_http_client_set_header(client, "Operation-Epoch", operationEpoch.c_str()) == ESP_OK;
+    }
   }
   const esp_err_t performed = configured && current_() ? esp_http_client_perform(client) : ESP_FAIL;
   const int status = performed == ESP_OK && current_() && !received.overflow ? esp_http_client_get_status_code(client) : 0;

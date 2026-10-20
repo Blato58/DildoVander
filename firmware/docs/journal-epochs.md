@@ -13,7 +13,7 @@ nesmí převzít novou epochu z aktuálního snapshotu. Záměrně nově vydaný
 s novou epochou je nová identita, i kdyby opakoval UUID. Na drátu musí být
 epocha kanonický desetinný řetězec, aby ji JavaScript nezaokrouhlil.
 
-## Dva implementační checkpointy
+## Implementační checkpointy
 
 První checkpoint přidává bounded úložný formát v4 a testovaný engine. Zachová
 legacy admission v epoše nula a **nezapíná produkční kompakci**. Explicitní
@@ -28,12 +28,27 @@ obnov podporovaný obraz a servisně ověř stav. Provisioning ani kalibrace se
 nemigrují. Automatický rollback během pending bootu nemá důvod přepisovat
 journal; potvrzení OTA samo jeho obsah nemění.
 
-Druhý checkpoint musí před zapnutím přenést epochu přes všechny producenty a
-kontroly: manuální výběr, online návrh, offline show, simulator, backend,
-snapshoty, památky a jejich ACK. Chybějící nebo stará epocha pak selže uzavřeně.
-Současný čítač device revision nelze bez další migrace vydávat za tento plot.
-Dokud druhý checkpoint není integrován, kapacitní omezení produkční legacy
-cesty zůstává otevřené.
+Navazující checkpoint přenáší původní epochu přes firmware snapshoty, manuální
+řízení, online požadavky a návrhy, offline show a jejich trvalé důkazy a ACK.
+Chybějící pole znamená legacy nulu, nikdy aktuální epochu zařízení. Rozhraní
+LAN přidává capability `operationEpoch`; klient poté žádá
+`state.get {"includeOperationEpoch":true}`. Starý klient dostává původní
+snapshot a pouze legacy offline záznamy. Scoped záznamy zůstávají v zařízení
+a legacy ACK je nemůže odstranit. Retry si uchovává původní desetinný řetězec,
+včetně hodnot nad přesností JavaScript `Number`.
+
+Offline blob v2 obsahuje uloženou epochu, revizi a fingerprint. Čtení skutečného
+POD formátu v1 používá původní velikost i stride; nepřepisuje jen číslo verze.
+Starý pozitivní důkaz lze vyhledat v historické epoše nula i po adopci, ale
+neopravňuje k nové operaci v aktuální epoše. Scoped důkaz vyžaduje přesnou
+čtveřici epochy, UUID, přihrádky a fingerprintu. Fingerprint nové online
+prezentace zachytí vlastník řízení podle zvolené main/short varianty před
+trvalou přípravou a pohybem; při obnově se nevymýšlí.
+
+Backendová trvalá korelace, marker založení identity a reconciliation pinů
+zůstávají nutné před produkční aktivací. Současný čítač device revision nelze
+vydávat za epochu. Produkční cesta stále používá epochu nula a limit 32 operací;
+kompakce ani automatické uvolňování důkazů nejsou zapnuté.
 
 ## Pořadí trvalých přechodů
 

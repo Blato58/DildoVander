@@ -12,6 +12,7 @@ bool PendingProposal::Store(
       proposal.catalogVersion != snapshot.catalogVersion ||
       proposal.generation != snapshot.generation ||
       proposal.deviceRevision != snapshot.deviceRevision ||
+      proposal.operationEpoch != snapshot.operationEpoch ||
       (snapshot.readyMask & (1u << (proposal.compartment - 1))) == 0 ||
       !runtimeState.Matches(snapshot)) {
     return false;

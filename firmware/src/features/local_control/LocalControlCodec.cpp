@@ -35,10 +35,25 @@ enum Field : uint32_t {
   ShortVariant = 1U << 21,
   Enabled = 1U << 22,
   Acknowledge = 1U << 23,
+  OperationEpoch = 1U << 24,
+  IncludeOperationEpoch = 1U << 25,
 };
 
 bool ReadSafeInteger(JsonCursor& cursor, uint64_t& value) {
   return cursor.ReadUnsigned(value) && value <= MaximumSafeInteger;
+}
+
+bool ReadOperationEpoch(JsonCursor& cursor, uint64_t& value) {
+  std::string decimal;
+  if (!cursor.ReadString(decimal, 20) || decimal.empty() ||
+      (decimal.size() > 1 && decimal.front() == '0')) return false;
+  value = 0;
+  for (char digit : decimal) {
+    if (digit < '0' || digit > '9' ||
+        value > (UINT64_MAX - static_cast<uint64_t>(digit - '0')) / 10) return false;
+    value = value * 10 + static_cast<uint64_t>(digit - '0');
+  }
+  return true;
 }
 
 bool ReadUuid(JsonCursor& cursor, std::string& value) {
@@ -314,6 +329,14 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
     } else if (key == "imageConsent") {
       field = ImageConsent;
       valid = cursor.ReadBoolean(message.imageConsent);
+    } else if (key == "operationEpoch") {
+      field = OperationEpoch;
+      valid = ReadOperationEpoch(cursor, message.operationEpoch);
+      message.hasOperationEpoch = true;
+    } else if (key == "includeOperationEpoch") {
+      field = IncludeOperationEpoch;
+      valid = cursor.ReadTrue();
+      message.includeOperationEpoch = true;
     } else if (key == "acknowledge") {
       field = Acknowledge;
       valid = cursor.ReadTrue();
@@ -332,6 +355,11 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
       message.kind == LocalControlMessageKind::Reset) {
     optionalFields |= Acknowledge;
   }
+  if (message.kind == LocalControlMessageKind::StateGet) optionalFields |= IncludeOperationEpoch;
+  if (message.kind == LocalControlMessageKind::Selection ||
+      message.kind == LocalControlMessageKind::Reload ||
+      message.kind == LocalControlMessageKind::OfflineStart ||
+      message.kind == LocalControlMessageKind::OfflineSyncAck) optionalFields |= OperationEpoch;
   if (!cursor.Consume('}') || !cursor.AtEnd() ||
       (seen & ~optionalFields) != ExpectedFields(message.kind) ||
       (message.kind != LocalControlMessageKind::Text && length > 2048)) {

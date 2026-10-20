@@ -14,6 +14,8 @@ class WandPresentationPort {
   virtual ~WandPresentationPort() = default;
   virtual void ObserveOwnerTime(uint64_t) {}
   virtual bool AdmissionWasDuplicateOrConflict() const { return false; }
+  // Control owner only: capture with a new intent immediately before admission.
+  virtual uint64_t CurrentOperationFingerprint() const { return 0; }
   virtual bool IsReady(uint8_t compartment) const = 0;
   virtual bool IsSafeToContinue() const = 0;
   virtual uint64_t RaiseTimeoutMs(uint8_t) const { return 3000; }
@@ -51,6 +53,8 @@ class WandPresentation final {
   void Stop();
   bool RecoverAfterInspection(bool inspected);
   WandPresentationState State() const;
+  // Owner-only; callers must retain the captured value with the new intent.
+  uint64_t CurrentOperationFingerprint() const;
   uint8_t Compartment() const;
 
  private:
@@ -64,4 +68,5 @@ class WandPresentation final {
   uint64_t presentationStartedAtMs_ = 0;
   uint64_t lastObservedAtMs_ = 0;
   std::string lastProposalId_;
+  uint64_t lastProposalEpoch_ = 0;
 };

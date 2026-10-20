@@ -41,6 +41,10 @@ class CommandJournal {
   // existing post-persist timing validation. Legacy admission/ready state is not proof.
   virtual bool ConfirmTimedPresentation(const std::string&, uint8_t, uint64_t) { return false; }
   virtual bool WasTimedPresentationCompleted(const std::string&, uint8_t) const { return false; }
+  // Historical epoch-zero proof only; this never authorizes new admission.
+  virtual bool WasLegacyTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
+    return WasTimedPresentationCompleted(id, slot);
+  }
   // Persist a confirmed reload without opening or closing a selection record.
   virtual bool PersistReadyMask(uint8_t readyMask) = 0;
 };

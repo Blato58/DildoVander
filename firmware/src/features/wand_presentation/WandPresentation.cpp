@@ -13,6 +13,10 @@ bool Elapsed(uint64_t nowMs, uint64_t startedAtMs, uint64_t durationMs) {
 
 WandPresentation::WandPresentation(WandPresentationPort& port) : port_(port) {}
 
+uint64_t WandPresentation::CurrentOperationFingerprint() const {
+  return state_ == WandPresentationState::Idle ? port_.CurrentOperationFingerprint() : 0;
+}
+
 bool WandPresentation::Start(
     PendingProposal& pending,
     const ConversationRuntimeState& runtime,
@@ -23,7 +27,8 @@ bool WandPresentation::Start(
   TurnProposal preview;
   if (!pending.Read(preview, runtime, nowMs) ||
       preview.compartment < 1 || preview.compartment > 6 ||
-      preview.proposalId.empty() || preview.proposalId == lastProposalId_ ||
+      preview.proposalId.empty() ||
+      (preview.proposalId == lastProposalId_ && preview.operationEpoch == lastProposalEpoch_) ||
       !port_.IsReady(preview.compartment) ||
       !port_.IsSafeToContinue() ||
       !port_.IsResting(preview.compartment)) {
@@ -37,10 +42,12 @@ bool WandPresentation::Start(
       (snapshot.readyMask & (1u << (proposal.compartment - 1))) == 0 ||
       proposal.catalogVersion != snapshot.catalogVersion ||
       proposal.generation != snapshot.generation ||
-      proposal.deviceRevision != snapshot.deviceRevision) {
+      proposal.deviceRevision != snapshot.deviceRevision ||
+      proposal.operationEpoch != snapshot.operationEpoch) {
     return false;
   }
   lastProposalId_ = proposal.proposalId;
+  lastProposalEpoch_ = proposal.operationEpoch;
   compartment_ = proposal.compartment;
   phaseStartedAtMs_ = nowMs;
   presentationStartedAtMs_ = nowMs;

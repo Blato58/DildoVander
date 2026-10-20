@@ -583,3 +583,90 @@ test('last observed local time changes only on accepted snapshots or matched hea
     assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, wallClock);
   } finally { connection.suspend(); Date.now = dateNow; }
 });
+
+
+test('operation epoch negotiation gates physical intent and preserves the captured retry envelope', () => {
+  const { connection, socket } = startConnection();
+  const leaseId = acquire(connection, socket);
+  socket.message(snapshot({ eventSequence: 3, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'] }));
+  const metadataRequest = socket.sent.at(-1);
+  assert.equal(metadataRequest.type, 'state.get');
+  assert.equal(metadataRequest.includeOperationEpoch, true);
+  validateControlMessage(Buffer.from(JSON.stringify(metadataRequest)));
+  assert.equal(connection.select(1), false);
+  socket.message(snapshot({ eventSequence: 4, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'], operationEpoch: '18446744073709551615' }));
+  const first = preflight(connection, socket, 1);
+  assert.equal(first.operationEpoch, '18446744073709551615');
+  validateControlMessage(Buffer.from(JSON.stringify(first)));
+  socket.message(snapshot({ eventSequence: 5, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'], operationEpoch: '7' }));
+  advance(500);
+  assert.deepEqual(socket.sent.at(-1), first);
+  socket.message({ protocolVersion: 1, type: 'command.ack', commandId: first.commandId,
+    bootId, status: 'rejected', errorCode: 'wrong_operation_epoch', revision: 1, eventSequence: 6 });
+  assert.equal(socket.readyState, FakeSocket.OPEN);
+  assert.equal(socket.sent.at(-1).includeOperationEpoch, true);
+  assert.equal(connection.select(1), false);
+  socket.message(snapshot({ eventSequence: 7, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'], operationEpoch: '7' }));
+  const fresh = preflight(connection, socket, 1);
+  assert.equal(fresh.operationEpoch, '7');
+  assert.notEqual(fresh.commandId, first.commandId);
+  assert.equal(fresh.sequence, first.sequence);
+  connection.stop();
+  assert.equal(socket.sent.at(-1).type, 'safety.stop');
+  assert.equal(socket.sent.at(-1).operationEpoch, undefined);
+  connection.suspend();
+});
+
+test('epoch validation rejects lossy or noncanonical metadata while old firmware payloads stay unchanged', () => {
+  for (const operationEpoch of ['00', '-1', '+1', '1e0', '18446744073709551616', 1]) {
+    const { connection, socket } = startConnection();
+    socket.message(snapshot({ eventSequence: 2, operationEpoch }));
+    assert.equal(socket.readyState, FakeSocket.CLOSED);
+    connection.suspend();
+  }
+  const { connection, socket } = startConnection();
+  acquire(connection, socket);
+  const command = preflight(connection, socket, 1);
+  assert.equal(Object.hasOwn(command, 'operationEpoch'), false);
+  connection.suspend();
+});
+
+test('offline acknowledgement keeps imported epoch rather than current device metadata', async () => {
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });
+  socket.open();
+  socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ capabilities: ['operationEpoch'] }) });
+  await assert.rejects(connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '4' }), /metadata/);
+  socket.message(snapshot({ eventSequence: 2, capabilities: ['operationEpoch'], operationEpoch: '8' }));
+  const ack = connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '4' });
+  const request = socket.sent.at(-1);
+  assert.equal(request.operationEpoch, '4');
+  validateControlMessage(Buffer.from(JSON.stringify(request)));
+  socket.message(snapshot({ eventSequence: 3, capabilities: ['operationEpoch'], operationEpoch: '9' }));
+  assert.equal(request.operationEpoch, '4');
+  offlineAck(socket, request);
+  await ack;
+  const legacy = connection.requestOffline('offline_sync_ack', undefined, randomUUID());
+  const legacyRequest = socket.sent.at(-1);
+  assert.equal(legacyRequest.operationEpoch, '0');
+  offlineAck(socket, legacyRequest); await legacy;
+  connection.suspend();
+});
+
+
+test('an explicit scoped offline acknowledgement cannot downgrade to old firmware', async () => {
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });
+  socket.open(); socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot() });
+  const before = socket.sent.length;
+  await assert.rejects(connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '4' }), /epochu/);
+  assert.equal(socket.sent.length, before);
+  const legacy = connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '0' });
+  const request = socket.sent.at(-1); assert.equal(Object.hasOwn(request, 'operationEpoch'), false);
+  offlineAck(socket, request); await legacy;
+  connection.suspend();
+});

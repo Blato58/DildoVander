@@ -88,6 +88,12 @@ jobs:
             tests/keepsake_persistence_codec_test.cpp "$cjson/cJSON.o" \
             -o "$RUNNER_TEMP/keepsake-codec-test"
           "$RUNNER_TEMP/keepsake-codec-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I "$cjson" \
+            src/features/conversation/ConversationStartCodec.cpp \
+            src/features/device_control/PersistentCommandJournal.cpp \
+            tests/epoch_evidence_test.cpp "$cjson/cJSON.o" \
+            -o "$RUNNER_TEMP/epoch-evidence-test"
+          "$RUNNER_TEMP/epoch-evidence-test"
       - name: Optional costume photo consent and HTTPS upload
         working-directory: firmware
         shell: bash

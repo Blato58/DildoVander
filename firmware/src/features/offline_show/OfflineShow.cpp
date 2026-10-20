@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cstddef>
+#include <type_traits>
 
 #include "OfflineBank.generated.h"
 #include "../../protocol/JsonWriter.h"
@@ -27,6 +29,45 @@ bool ValidId(const std::array<char, 37>& id) {
 }
 }
 
+namespace storage {
+static_assert(sizeof(LegacyOutcomeV1) == 144 && offsetof(LegacyOutboxV1, records) == 24
+    && sizeof(LegacyOutboxV1) == 1176, "Legacy NVS layout must retain its original record stride");
+static_assert(std::is_trivially_copyable<Outbox>::value, "NVS outbox requires a POD representation");
+bool DecodeOutboxBytes(const void* bytes, size_t length, Outbox& outbox) {
+  if (!bytes) return false;
+  if (length == sizeof(Outbox)) {
+    Outbox decoded;
+    std::memcpy(&decoded, bytes, sizeof(decoded));
+    if (decoded.version != 2) return false;
+    outbox = decoded;
+    return true;
+  }
+  if (length != sizeof(LegacyOutboxV1)) return false;
+  LegacyOutboxV1 legacy;
+  std::memcpy(&legacy, bytes, sizeof(legacy));
+  if (legacy.version != 1) return false;
+  Outbox migrated;
+  migrated.offlineEnabled = legacy.offlineEnabled;
+  migrated.ambientEnabled = legacy.ambientEnabled;
+  migrated.quiet = legacy.quiet;
+  migrated.serverSettingsRevision = legacy.serverSettingsRevision;
+  migrated.serverStopRevision = legacy.serverStopRevision;
+  for (size_t index = 0; index < legacy.records.size(); ++index) {
+    const auto& source = legacy.records[index];
+    auto& target = migrated.records[index];
+    target.operationId = source.operationId; target.bootId = source.bootId;
+    target.localEveningId = source.localEveningId;
+    target.generation = source.generation; target.startedAtMs = source.startedAtMs;
+    target.completedAtMs = source.completedAtMs; target.slot = source.slot;
+    target.completed = source.completed; target.scripted = source.scripted;
+    target.shortVariant = source.shortVariant;
+    // Missing identity stays epoch zero; no completion evidence is synthesized.
+  }
+  outbox = migrated;
+  return true;
+}
+}
+
 const char* OfflineShow::CatalogVersion() { return "ollivander-private-party-v1"; }
 const BankView& CompiledBank() {
   static const BankView view{bank::Clips, sizeof(bank::Clips) / sizeof(Clip),
@@ -41,7 +82,7 @@ OfflineShow::OfflineShow(DeviceControlRuntime& runtime, ConversationRuntimeState
     : runtime_(runtime), state_(state), control_(control), presentation_(presentation),
       physical_(physical), sceneBridge_(physical), audio_(audio), storage_(storage), deviceId_(deviceId),
       bootId_(bootId), localEveningId_(localEveningId), bank_(bank ? *bank : CompiledBank()) {
-  storageHealthy_ = storage_.Read(outbox_) && outbox_.version == 1;
+  storageHealthy_ = storage_.Read(outbox_) && outbox_.version == 2;
   ambientEnabled_ = storageHealthy_ && outbox_.ambientEnabled;
   quiet_ = outbox_.quiet;
   for (const auto& record : outbox_.records) {
@@ -97,13 +138,14 @@ bool OfflineShow::Arm(uint64_t generation, uint64_t revision) {
 }
 
 bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool shortVariant,
-    uint64_t generation, uint64_t revision, uint64_t nowMs, bool scripted) {
+    uint64_t generation, uint64_t revision, uint64_t nowMs, bool scripted, uint64_t operationEpoch) {
   if (operationId.size() != 36 || slot < 1 || slot > 6) return false;
   for (const auto& previous : outbox_.records) {
-    if (operationId == previous.operationId.data()) return previous.slot == slot &&
-        previous.shortVariant == shortVariant && previous.generation == generation && previous.scripted == scripted;
+    if (operationEpoch == previous.operationEpoch && operationId == previous.operationId.data()) return previous.slot == slot &&
+        previous.shortVariant == shortVariant && previous.generation == generation && previous.scripted == scripted
+        && previous.deviceRevision == revision;
   }
-  if (runtime_.FindOperation(operationId, slot, 0) != CommandJournal::Lookup::Missing) return false;
+  if (runtime_.FindOperation(operationId, slot, 0, operationEpoch) != CommandJournal::Lookup::Missing) return false;
   if (!armed_ || Active() || generation != runtime_.Generation() || revision != control_.Revision() ||
       std::strcmp(Preflight(), "ready") || !(control_.ReadyMask() & (1u << (slot - 1)))) return false;
   CancelAmbient();
@@ -126,6 +168,8 @@ bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool short
   }
   record.generation = generation; record.startedAtMs = nowMs; record.slot = slot;
   record.scripted = scripted; record.shortVariant = shortVariant;
+  record.operationEpoch = operationEpoch; record.deviceRevision = revision;
+  record.physicalFingerprint = operationEpoch ? PhysicalPresentation::OperationFingerprint(shortVariant) : 0;
   if (!storage_.Write(updated)) {
     storageHealthy_ = false; runtime_.ReleaseDecoration(generation); return false;
   }
@@ -142,7 +186,7 @@ bool OfflineShow::StartNext(const std::string& operationId, uint64_t nowMs) {
     const uint8_t slot = nextSlot_;
     nextSlot_ = static_cast<uint8_t>(nextSlot_ % 6 + 1);
     if (control_.ReadyMask() & (1u << (slot - 1)))
-      return Start(operationId, slot, false, runtime_.Generation(), control_.Revision(), nowMs, true);
+      return Start(operationId, slot, false, runtime_.Generation(), control_.Revision(), nowMs, true, control_.OperationEpoch());
   }
   return false;
 }
@@ -291,10 +335,12 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
       runtime_.ReleaseDecoration(record.generation);
       ConversationRuntimeSnapshot snapshot;
       TurnProposal proposal;
-      if (!state_.Read(snapshot)) { Stop(); return; }
+      if (!state_.Read(snapshot) || snapshot.operationEpoch != record.operationEpoch
+          || snapshot.generation != record.generation || snapshot.deviceRevision != record.deviceRevision) { Stop(); return; }
       proposal.proposalId = record.operationId.data(); proposal.compartment = record.slot;
       proposal.bootId = bootId_; proposal.catalogVersion = snapshot.catalogVersion;
-      proposal.generation = snapshot.generation; proposal.deviceRevision = snapshot.deviceRevision;
+      proposal.generation = record.generation; proposal.deviceRevision = record.deviceRevision;
+      proposal.operationEpoch = record.operationEpoch;
       if (!physical_.SelectVariant(record.shortVariant) ||
           !pending_.Store(proposal, snapshot, state_, nowMs, 2000) ||
           !runtime_.StartOfflinePresentation(pending_, nowMs)) { Stop(); return; }
@@ -305,8 +351,11 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
     if (presentation_.State() != WandPresentationState::Idle) return;
     // The physical owner only returns Idle after its durable, calibrated timing
     // completion gate. Audio completion alone can never produce an outcome.
-    if (!control_.WasTimedPresentationCompleted(record.operationId.data(), record.slot) ||
-        !CompleteRecord(nowMs)) { Stop(); return; }
+    const bool completed = record.operationEpoch
+        ? control_.WasTimedPresentationCompleted(record.operationId.data(), record.slot,
+            record.operationEpoch, record.physicalFingerprint)
+        : control_.WasLegacyTimedPresentationCompleted(record.operationId.data(), record.slot);
+    if (!completed || !CompleteRecord(nowMs)) { Stop(); return; }
     const Clip* ending = FindClip(record.slot % 2 ? "ending-1" : "ending-2");
     activeIndex_ = -1;
     idleAtMs_ = nowMs; ambientLight_ = false;
@@ -360,10 +409,11 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
   }
 }
 
-bool OfflineShow::Acknowledge(const std::string& operationId) {
+bool OfflineShow::Acknowledge(const std::string& operationId, uint64_t operationEpoch) {
   if (!storageHealthy_ || Active()) return false;
   for (size_t index = 0; index < outbox_.records.size(); ++index) {
-    if (operationId != outbox_.records[index].operationId.data()) continue;
+    if (operationEpoch != outbox_.records[index].operationEpoch
+        || operationId != outbox_.records[index].operationId.data()) continue;
     if (!outbox_.records[index].completed) return false;
     Outbox updated = outbox_;
     updated.records[index] = {};
@@ -397,15 +447,19 @@ std::string OfflineShow::StatusJson() const {
   return json + "]}";
 }
 
-std::string OfflineShow::OutboxJson() const {
+std::string OfflineShow::OutboxJson(bool includeOperationEpoch) const {
   std::string json = "[";
   bool first = true;
   if (!storageHealthy_) return "[]";
   for (const auto& record : outbox_.records) {
     if (!record.operationId[0] || !record.completed) continue;
+    // An unaware client cannot carry the original epoch back in its ACK.
+    if (record.operationEpoch && !includeOperationEpoch) continue;
     if (!first) json += ',';
     first = false;
-    json += "{\"operationId\":\"" + std::string(record.operationId.data()) + "\",\"deviceId\":";
+    json += "{\"operationId\":\"" + std::string(record.operationId.data()) + "\""
+        + (record.operationEpoch ? ",\"operationEpoch\":\"" + std::to_string(record.operationEpoch) + "\"" : "")
+        + ",\"deviceId\":";
     String(deviceId_, json);
     json += ",\"bootId\":\"" + std::string(record.bootId.data()) + "\",\"localEveningId\":\"" +
         record.localEveningId.data() + "\",\"eveningId\":null,\"generation\":" + std::to_string(record.generation) +

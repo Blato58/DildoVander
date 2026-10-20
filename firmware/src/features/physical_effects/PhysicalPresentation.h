@@ -17,6 +17,9 @@ class PhysicalPresentation final : public WandPresentationPort {
   // Explicit command selection is idle-only; callers that do not select retain
   // the normal first/main and subsequent/short behavior.
   bool SelectVariant(bool shortVariant);
+  // Capture with a newly created operation; retries retain the saved value.
+  static uint64_t OperationFingerprint(bool shortVariant = false);
+  uint64_t CurrentOperationFingerprint() const override;
   void ObserveOwnerTime(uint64_t nowMs) override { nowMs_ = nowMs; }
   bool AdmissionWasDuplicateOrConflict() const override { return replayRejected_; }
   void BindAudio(PresentationAudioPort& audio) { audio_ = &audio; }

@@ -58,7 +58,10 @@ bool BuildConversationTextTurnRequest(
   body += ",\"readyMask\":" + std::to_string(request.readyMask) +
           ",\"deviceRevision\":" +
           std::to_string(request.deviceRevision) +
-          ",\"catalogVersion\":\"" + request.catalogVersion + "\"}";
+          ",\"catalogVersion\":\"" + request.catalogVersion + "\"";
+  if (request.operationEpoch != 0)
+    body += ",\"operationEpoch\":\"" + std::to_string(request.operationEpoch) + "\"";
+  body += "}";
   if (body.size() > 4096) {
     body.clear();
     return false;
@@ -83,6 +86,9 @@ bool BuildConversationOpeningRequest(
          ",\"readyMask\":" + std::to_string(request.readyMask) +
          ",\"deviceRevision\":" +
          std::to_string(request.deviceRevision) +
-         ",\"catalogVersion\":\"" + request.catalogVersion + "\"}";
+         ",\"catalogVersion\":\"" + request.catalogVersion + "\"";
+  if (request.operationEpoch != 0)
+    body += ",\"operationEpoch\":\"" + std::to_string(request.operationEpoch) + "\"";
+  body += "}";
   return body.size() <= 4096;
 }

@@ -51,6 +51,7 @@ const char* ErrorName(CommandError error) {
     case CommandError::None: return "none";
     case CommandError::InvalidMessage: return "invalid_message";
     case CommandError::Unauthorized: return "unauthorized";
+    case CommandError::WrongOperationEpoch: return "wrong_operation_epoch";
     case CommandError::WrongBoot: return "wrong_boot";
     case CommandError::LeaseExpired: return "lease_expired";
     case CommandError::Expired: return "expired";
@@ -172,7 +173,8 @@ bool LocalControlOutput::BuildResult(
 }
 
 bool LocalControlOutput::BuildSnapshot(
-    const std::string& leaseId, uint64_t nowMs, std::string& json) {
+    const std::string& leaseId, uint64_t nowMs, std::string& json,
+    bool includeOperationEpoch) {
   if (!ValidDeviceId(deviceId_) || !IsConversationUuid(bootId_) ||
       !IsConversationUuid(conversation_.ConversationId()) ||
       !OptionalUuid(conversation_.ActiveTurnId()) || !OptionalUuid(leaseId) ||
@@ -204,6 +206,7 @@ bool LocalControlOutput::BuildSnapshot(
       deviceId_ + "\",\"bootId\":\"" + bootId_ +
       "\",\"deviceUptimeMs\":" + std::to_string(nowMs) +
       ",\"eventSequence\":" + std::to_string(eventSequence_) +
+      (includeOperationEpoch ? ",\"operationEpoch\":\"" + std::to_string(control_.OperationEpoch()) + "\"" : "") +
       ",\"revision\":" + std::to_string(control_.Revision()) +
       ",\"controlMode\":\"" + (liveLease ? "manual" : recovery ? "recovery" : "standalone") +
       "\",\"controlLeaseId\":" + NullableUuid(liveLease ? leaseId : "") +
@@ -236,6 +239,12 @@ bool LocalControlOutput::Welcome(
 bool LocalControlOutput::Snapshot(
     const LocalSocketAdmission::Handle& handle, const std::string& leaseId,
     uint64_t nowMs) {
+  return ScopedSnapshot(handle, leaseId, nowMs, false);
+}
+
+bool LocalControlOutput::ScopedSnapshot(
+    const LocalSocketAdmission::Handle& handle, const std::string& leaseId,
+    uint64_t nowMs, bool includeOperationEpoch) {
   std::string json;
   if (ResultChanged()) {
     if (!AdvanceEvent() || !BuildResult(eventSequence_, json) || !Send(handle, json)) {
@@ -243,7 +252,7 @@ bool LocalControlOutput::Snapshot(
     }
     RememberResult();
   }
-  return AdvanceEvent() && BuildSnapshot(leaseId, nowMs, json) && Send(handle, json);
+  return AdvanceEvent() && BuildSnapshot(leaseId, nowMs, json, includeOperationEpoch) && Send(handle, json);
 }
 
 bool LocalControlOutput::Heartbeat(
@@ -298,7 +307,9 @@ bool LocalControlOutput::CommandAck(
       !AdvanceEvent()) {
     return false;
   }
-  const bool accepted = receipt.error == CommandError::None;
+  const CommandError error = receipt.error == CommandError::WrongOperationEpoch && !request.hasOperationEpoch
+      ? CommandError::InvalidMessage : receipt.error;
+  const bool accepted = error == CommandError::None;
   return Send(handle,
       "{\"protocolVersion\":1,\"type\":\"command.ack\",\"commandId\":\"" +
       request.commandId + "\",\"bootId\":\"" + bootId_ +
@@ -306,7 +317,7 @@ bool LocalControlOutput::CommandAck(
       ",\"revision\":" + std::to_string(control_.Revision()) +
       ",\"status\":\"" + (accepted ? "accepted" : "rejected") +
       "\",\"errorCode\":" +
-      (accepted ? "null" : "\"" + std::string(ErrorName(receipt.error)) + "\"") + "}");
+      (accepted ? "null" : "\"" + std::string(ErrorName(error)) + "\"") + "}");
 }
 
 bool LocalControlOutput::ConversationAck(

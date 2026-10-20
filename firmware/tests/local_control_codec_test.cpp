@@ -58,6 +58,28 @@ void TestConnectionAndLease() {
   assert(!Parse("{" + Common("heartbeat") + Boot() + Lease() + ",\"acknowledge\":true}", message));
 }
 
+void TestOperationEpoch() {
+  LocalControlMessage message;
+  const std::string state = "{" + Common("state.get") + Boot();
+  assert(Parse(state + ",\"includeOperationEpoch\":true}", message));
+  assert(message.includeOperationEpoch);
+  assert(!Parse(state + ",\"includeOperationEpoch\":false}", message));
+  assert(!Parse("{" + Common("hello") + ",\"includeOperationEpoch\":true}", message));
+  const std::string ack = "{" + Common("offline_sync_ack") + Boot() +
+      ",\"commandId\":\"" + Id + "\"";
+  for (const char* valid : {"0", "1", "9007199254740993", "18446744073709551615"}) {
+    assert(Parse(ack + ",\"operationEpoch\":\"" + valid + "\"}", message));
+    assert(message.hasOperationEpoch);
+  }
+  assert(message.operationEpoch == UINT64_MAX);
+  for (const char* invalid : {"", "00", "01", "-1", "+1", "1e0", "1.0", "18446744073709551616", "99999999999999999999"}) {
+    assert(!Parse(ack + ",\"operationEpoch\":\"" + invalid + "\"}", message));
+  }
+  assert(!Parse(ack + ",\"operationEpoch\":1}", message));
+  assert(!Parse(state + ",\"operationEpoch\":\"1\"}", message));
+  assert(Parse(ack + "}", message) && !message.hasOperationEpoch && message.operationEpoch == 0);
+}
+
 void TestOfflineEnvelope() {
   LocalControlMessage message;
   for (const char* type : {"offline_preflight", "offline_outbox"}) {
@@ -152,6 +174,7 @@ int main(int argc, char** argv) {
   assert(!Parse("{" + common + ",\"type\":\"dance.stop\",\"expectedRevision\":1}", dance));
   TestConnectionAndLease();
   TestOfflineEnvelope();
+  TestOperationEpoch();
   TestTextAndHostileJson();
   TestPhysicalEnvelope();
   // Shared repository fixtures are supplied by the local/CI runner.

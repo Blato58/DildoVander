@@ -224,9 +224,15 @@ const PersistentCommandJournal::Entry* PersistentCommandJournal::ExactEntry(
 bool PersistentCommandJournal::WasTimedPresentationCompleted(
     const std::string& id, uint8_t compartment) const {
   if (!healthy_ || state_.currentEpoch != 0) return false;
+  return WasLegacyTimedPresentationCompleted(id, compartment);
+}
+
+bool PersistentCommandJournal::WasLegacyTimedPresentationCompleted(
+    const std::string& id, uint8_t compartment) const {
+  if (!healthy_) return false;
   for (size_t index = 0; index < state_.historyCount; ++index) {
     const auto& entry = state_.history[index];
-    if (SameUuid(entry.id, id) && entry.compartment == compartment &&
+    if (entry.epoch == 0 && SameUuid(entry.id, id) && entry.compartment == compartment &&
         entry.fingerprint != 0 && entry.timedCompleted) return true;
   }
   return false;

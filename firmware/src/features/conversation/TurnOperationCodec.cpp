@@ -4,6 +4,7 @@
 
 #include "ConversationSession.h"
 #include "ConversationStartCodec.h"
+#include "../device_control/OperationEpoch.h"
 
 namespace {
 
@@ -76,6 +77,11 @@ bool ReadCorrelation(Cursor& cursor, TurnCorrelation& correlation) {
       if (!cursor.ReadUnsigned(correlation.deviceRevision)) {
         return false;
       }
+    } else if (key == "operationEpoch") {
+      field = 64;
+      std::string epoch;
+      if (!cursor.ReadString(epoch, 20, true) ||
+          !ParseOperationEpoch(epoch, correlation.operationEpoch)) return false;
     } else {
       return false;
     }
@@ -84,7 +90,7 @@ bool ReadCorrelation(Cursor& cursor, TurnCorrelation& correlation) {
     }
     seen |= field;
   } while (cursor.Consume(','));
-  return cursor.Consume('}') && seen == 63;
+  return cursor.Consume('}') && (seen & 63) == 63;
 }
 
 bool ReadProposal(Cursor& cursor, TurnProposal& proposal) {
@@ -137,13 +143,18 @@ bool ReadProposal(Cursor& cursor, TurnProposal& proposal) {
     } else if (key == "expiresAt") {
       field = 512;
       if (!cursor.ReadString(proposal.expiresAt, 35, true)) return false;
+    } else if (key == "operationEpoch") {
+      field = 1024;
+      std::string epoch;
+      if (!cursor.ReadString(epoch, 20, true) ||
+          !ParseOperationEpoch(epoch, proposal.operationEpoch)) return false;
     } else {
       return false;
     }
     if ((seen & field) != 0) return false;
     seen |= field;
   } while (cursor.Consume(','));
-  return cursor.Consume('}') && seen == 1023;
+  return cursor.Consume('}') && (seen & 1023) == 1023;
 }
 
 bool ReadResult(Cursor& cursor, TurnOperationObservation& operation,

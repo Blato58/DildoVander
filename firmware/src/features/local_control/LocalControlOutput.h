@@ -33,6 +33,9 @@ class LocalControlOutput final : public LocalControlOutputPort {
                 const std::string& requestId, uint64_t nowMs) override;
   bool Snapshot(const LocalSocketAdmission::Handle& handle,
                  const std::string& leaseId, uint64_t nowMs) override;
+  bool ScopedSnapshot(const LocalSocketAdmission::Handle& handle,
+                      const std::string& leaseId, uint64_t nowMs,
+                      bool includeOperationEpoch) override;
   bool Heartbeat(const LocalSocketAdmission::Handle& handle,
                   const LocalControlMessage& request, uint64_t nowMs) override;
   bool CommandAck(const LocalSocketAdmission::Handle& handle,
@@ -48,7 +51,7 @@ class LocalControlOutput final : public LocalControlOutputPort {
  private:
   bool AdvanceEvent();
   bool BuildSnapshot(const std::string& leaseId, uint64_t nowMs,
-                      std::string& json);
+                      std::string& json, bool includeOperationEpoch = false);
   bool BuildResult(uint64_t eventSequence, std::string& json) const;
   bool Send(const LocalSocketAdmission::Handle& handle, const std::string& json);
   bool ResultChanged() const;

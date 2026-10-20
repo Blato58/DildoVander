@@ -121,15 +121,23 @@ export class DirectorSession {
   async syncOffline(confirmed: boolean): Promise<void> {
     if (!confirmed || !this.online() || !this.local.matches(this.client.deviceId)) return;
     await this.perform('Synchronizace', async () => {
-      const current = this.guard(); const outbox = await this.local.offline('offline_outbox') as {records: Array<{operationId:string;deviceId:string}>}; current();
+      const current = this.guard(); const outbox = await this.local.offline('offline_outbox') as {records: Array<{operationId:string;deviceId:string;operationEpoch?:string}>}; current();
       if (!Array.isArray(outbox.records) || outbox.records.length > 8) throw new Error('Neplatný outbox.');
       let count = 0;
       for (const outcome of outbox.records) {
         current(); if (outcome.deviceId !== this.client.deviceId || !this.local.matches(this.client.deviceId)) throw new Error('Výsledek patří jinému kufru.');
-        const result = await this.request<{operationId:string}>('/offline-outcomes', {schemaVersion:1,outcome}, true);
+        const operationEpoch = outcome.operationEpoch ?? '0';
+        const result = await this.request<{operationId:string;operationEpoch?:string}>('/offline-outcomes', {schemaVersion:1,outcome}, true);
         if (result.operationId !== outcome.operationId) throw new Error('Server nepotvrdil tento výsledek.');
+        const acknowledgedEpoch = result.operationEpoch;
+        if (operationEpoch !== '0' && (typeof acknowledgedEpoch !== 'string' ||
+            !/^[1-9][0-9]{0,19}$/.test(acknowledgedEpoch) ||
+            (acknowledgedEpoch.length === 20 && acknowledgedEpoch > '18446744073709551615') ||
+            acknowledgedEpoch !== operationEpoch)) {
+          throw new Error('Server nepotvrdil původní epochu tohoto výsledku.');
+        }
         current(); if (!this.local.matches(this.client.deviceId)) throw new Error('Místní kufr se změnil.');
-        await this.local.offline('offline_sync_ack', undefined, outcome.operationId); current(); ++count;
+        await this.local.offline('offline_sync_ack', undefined, outcome.operationId, { operationEpoch }); current(); ++count;
       }
       this.offlineState = `Server přijal ${count} výsledků; místní ACK následovalo až po jeho potvrzení. Provenience: operator_relay.`;
     });

@@ -18,19 +18,10 @@
 namespace {
 uint64_t NowMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }
 
-bool Valid(const KeepsakeOutcome& item) {
-  return IsConversationUuid(item.operationId) && IsConversationUuid(item.outcomeId)
-      && IsConversationUuid(item.proposalId) && IsConversationUuid(item.physicalOperationId)
-      && IsConversationUuid(item.bootId) && item.generation <= INT32_MAX && item.deviceRevision <= INT32_MAX;
-}
+bool Valid(const KeepsakeOutcome& item) { return keepsake_persistence::Valid(item); }
 
 std::string Body(const KeepsakeOutcome& item, bool persistent) {
-  return "{\"schemaVersion\":1," + std::string(persistent ? "\"operationId\":\"" + item.operationId + "\"," : "")
-      + "\"outcomeId\":\"" + item.outcomeId + "\",\"proposalId\":\"" + item.proposalId
-      + "\",\"physicalOperationId\":\"" + item.physicalOperationId + "\",\"bootId\":\"" + item.bootId
-      + "\",\"generation\":" + std::to_string(item.generation) + ",\"deviceRevision\":"
-      + std::to_string(item.deviceRevision) + (persistent ? ",\"compartment\":" + std::to_string(item.compartment) : "")
-      + ",\"presentationEvidence\":\"completed_by_timing\"}";
+  return keepsake_persistence::Body(item, persistent);
 }
 
 bool Text(cJSON* root, const char* name, std::string& target, size_t maximum = 36) {
@@ -124,14 +115,14 @@ bool EspIdfKeepsakeNotifier::Prepare(const KeepsakeOutcome& outcome) {
   std::lock_guard<std::mutex> lock(persistenceMutex_);
   if (!outbox_.Prepare(outcome)) return false;
   if (Persist(outbox_.State())) return true;
-  outbox_.RemovePrepared(outcome.outcomeId);
+  outbox_.RemovePrepared(outcome.outcomeId, outcome.operationEpoch);
   healthy_.store(false);
   return false;
 }
 
 KeepsakeQueueResult EspIdfKeepsakeNotifier::Queue(const KeepsakeOutcome& outcome) {
   if (!healthy_.load() || !Valid(outcome)
-      || !ownerJournal_.WasTimedPresentationCompleted(outcome.physicalOperationId, outcome.compartment))
+      || !HasKeepsakePhysicalEvidence(ownerJournal_, outcome))
     return KeepsakeQueueResult::Rejected;
   const auto result = outbox_.Queue(outcome);
   if (result == KeepsakeQueueResult::VolatilePendingPersistence && task_) xTaskNotifyGive(task_);
@@ -217,9 +208,9 @@ void EspIdfKeepsakeNotifier::Run() {
     const uint64_t nowMs = NowMs();
     if (persisted && outbox_.NextReady(nowMs, outcome) && nowMs >= disabledUntilMs
         && backendOnline_.load() && station_.HasIp() && tokens.EnsureToken(nowMs)) {
-      if (outbox_.HasDisposition(outcome.outcomeId)) {
-        outbox_.Complete(outcome.outcomeId);
-        outbox_.RemovePrepared(outcome.outcomeId);
+      if (outbox_.HasDisposition(outcome.outcomeId, outcome.operationEpoch)) {
+        outbox_.Complete(outcome.outcomeId, outcome.operationEpoch);
+        outbox_.RemovePrepared(outcome.outcomeId, outcome.operationEpoch);
         if (!PersistCurrent()) healthy_.store(false);
         continue;
       }
@@ -236,15 +227,15 @@ void EspIdfKeepsakeNotifier::Run() {
       } else if (PermanentKeepsakeFailure(status, errorCode)) {
         // Commit terminal evidence before advancing: a reboot cannot resurrect this send.
         if (outbox_.RecordDisposition(outcome, errorCode) && PersistCurrent()) {
-          outbox_.Complete(outcome.outcomeId);
-          outbox_.RemovePrepared(outcome.outcomeId);
+          outbox_.Complete(outcome.outcomeId, outcome.operationEpoch);
+          outbox_.RemovePrepared(outcome.outcomeId, outcome.operationEpoch);
           if (!PersistCurrent()) healthy_.store(false);
         } else {
           healthy_.store(false);
-          outbox_.Defer(outcome.outcomeId, NowMs());
+          outbox_.Defer(outcome.outcomeId, NowMs(), outcome.operationEpoch);
         }
       } else {
-        outbox_.Defer(outcome.outcomeId, NowMs());
+        outbox_.Defer(outcome.outcomeId, NowMs(), outcome.operationEpoch);
         // Blank 404 means feature/route unavailable, never a confirmed deleted outcome.
         if (status == 404 && errorCode.empty()) disabledUntilMs = NowMs() + 30000;
       }

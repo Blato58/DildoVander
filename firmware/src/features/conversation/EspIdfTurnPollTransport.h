@@ -30,7 +30,8 @@ class EspIdfTurnPollTransport final {
                           const std::string& currentCatalogVersion,
                           uint8_t currentReadyMask,
                           uint64_t nowUtcSeconds,
-                          const char* accessToken);
+                          const char* accessToken,
+                          uint64_t currentOperationEpoch = 0);
 
  private:
   struct ResponseBody {

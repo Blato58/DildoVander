@@ -19,10 +19,22 @@ constexpr char Turn[] = "8475532e-92b2-487e-b476-7f98f0030e68";
 
 class Storage final : public JournalStorage {
  public:
-  Storage(bool populate, bool fail) : fail(fail) {
+  Storage(bool populate, bool fail, uint64_t epoch = 0) : fail(fail) {
     if (populate) {
       PersistentCommandJournal initial(*this);
       assert(initial.PersistReadyMask(63));
+      if (epoch) {
+        assert(initial.EstablishScopedIdentity("kufr-001", true));
+        // Synthesize a valid persisted uint64 boundary without 2^64 rotations.
+        for (unsigned byte = 0; byte < 8; ++byte) data[44 + byte] = static_cast<uint8_t>(epoch >> (8 * byte));
+        uint32_t crc = 0xffffffffU;
+        for (size_t index = 0; index < data.size() - 4; ++index) {
+          crc ^= data[index];
+          for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1) ? 0xedb88320U : 0);
+        }
+        crc = ~crc;
+        for (unsigned byte = 0; byte < 4; ++byte) data[data.size() - 4 + byte] = static_cast<uint8_t>(crc >> (8 * byte));
+      }
     }
   }
   JournalReadResult Read(uint8_t* output, size_t capacity,
@@ -89,8 +101,8 @@ class Voice final : public LocalVoicePort {
 };
 
 struct Fixture {
-  Fixture(uint64_t calibration = 1, bool populated = true, bool fault = false)
-      : storage(populated, fault), journal(storage), safety(port), sequence(safety),
+  Fixture(uint64_t calibration = 1, bool populated = true, bool fault = false, uint64_t epoch = 0)
+      : storage(populated, fault, epoch), journal(storage), safety(port), sequence(safety),
         control("kufr-001", Boot, sequence, journal, calibration),
         conversation(Boot, Conversation),
         output("kufr-001", Boot, control, journal, safety, sequence,
@@ -137,6 +149,30 @@ struct Fixture {
   Dance dance;
   LocalControlOutput output;
 };
+
+void TestNegotiatedEpochMetadata() {
+  Fixture maximum(1, true, false, UINT64_MAX);
+  assert(maximum.control.OperationEpoch() == UINT64_MAX);
+  assert(maximum.output.ScopedSnapshot({7, 1}, "", 100, true));
+  assert(maximum.transport.messages.back().find("\"operationEpoch\":\"18446744073709551615\"") != std::string::npos);
+  Fixture fixture;
+  assert(fixture.output.Welcome({7, 1}, Command, 100));
+  assert(fixture.transport.messages.back().find("\"operationEpoch\":") == std::string::npos);
+  assert(fixture.Snapshot());
+  assert(fixture.transport.messages.back().find("\"operationEpoch\":") == std::string::npos);
+  assert(fixture.output.ScopedSnapshot({7, 1}, "", 100, true));
+  assert(fixture.transport.messages.back().find("\"operationEpoch\":\"0\"") != std::string::npos);
+  LocalControlMessage request;
+  request.commandId = Command;
+  request.sequence = 1;
+  CommandReceipt receipt{CommandError::WrongOperationEpoch, CommandOutcome::Rejected, false};
+  assert(fixture.output.CommandAck({7, 1}, request, receipt));
+  assert(fixture.transport.messages.back().find("\"errorCode\":\"invalid_message\"") != std::string::npos);
+  request.hasOperationEpoch = true;
+  request.operationEpoch = UINT64_MAX;
+  assert(fixture.output.CommandAck({7, 1}, request, receipt));
+  assert(fixture.transport.messages.back().find("\"errorCode\":\"wrong_operation_epoch\"") != std::string::npos);
+}
 
 void TestCurrentStateAndBounds() {
   Fixture uncalibrated(0, false);
@@ -340,6 +376,7 @@ int main() {
     request.messageId = Command;
     assert(fixture.output.DanceAck({7, 1}, request, true));
   }
+  TestNegotiatedEpochMetadata();
   TestCurrentStateAndBounds();
   TestAcceptanceAndIdleStop();
   TestCommandAndConversationAcks();

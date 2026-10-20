@@ -5,6 +5,7 @@ import { LocalConversationClient, type ConversationDeviceState } from './LocalCo
 
 interface ProtocolSnapshot extends ConversationDeviceState {
   type: 'state.snapshot';
+  operationEpoch?: string;
   voice?: VoiceSettings;
   dance?: DanceSettings;
   deviceId: string;
@@ -28,6 +29,7 @@ type PendingCommand = {
   revision: number;
   readyMask: number;
   leaseId: string;
+  operationEpoch?: string;
   sentAt: number;
 };
 
@@ -37,6 +39,7 @@ type ActiveCommand = {
   compartment: number;
   revision: number;
   encoded: string;
+  sequence: number;
   sentAt: number;
   retries: number;
 };
@@ -58,7 +61,7 @@ export interface ProtocolConnectionOptions {
 
 export type OfflineCommandKind = 'offline_preflight' | 'offline_arm' | 'offline_start' | 'quiet'
   | 'offline_ambient' | 'offline_outbox' | 'offline_sync_ack';
-export interface OfflineCommandOptions { enabled?: boolean; shortVariant?: boolean }
+export interface OfflineCommandOptions { enabled?: boolean; shortVariant?: boolean; operationEpoch?: string }
 export interface OfflineShowStatus {
   state: 'ready' | 'audio_only' | 'missing_assets' | 'incompatible_catalog' | 'calibration_required' | 'recovery_required';
   armed: boolean; quiet: boolean; generation: number; readyMask: number; outboxCount: number;
@@ -67,9 +70,16 @@ export interface OfflineShowStatus {
 }
 export interface OfflineOutbox { type: 'offline.outbox'; offline: OfflineShowStatus; records: unknown[] }
 
+// Keep uint64 epochs as canonical decimals: JavaScript numbers cannot preserve them.
+function validOperationEpoch(value: unknown): value is string {
+  return typeof value === 'string' && /^(0|[1-9][0-9]{0,19})$/.test(value) &&
+    (value.length < 20 || value <= '18446744073709551615');
+}
+
 // One owner of lease, command retry and uncertain-result reconciliation, shared
 // by the development proxy and the native pinned-TLS transport.
 export class ProtocolDeviceConnection {
+  private operationEpochPending = false;
   private offlineStatus: OfflineShowStatus | null = null;
   private offlinePending: { id: string; kind: OfflineCommandKind; bootId: string; resolve: (value: OfflineShowStatus | OfflineOutbox) => void;
     reject: (error: Error) => void; timer: number } | null = null;
@@ -100,6 +110,13 @@ export class ProtocolDeviceConnection {
     if (kind === 'offline_sync_ack' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(commandId ?? '')) {
       return Promise.reject(new Error('Potvrzení synchronizace vyžaduje přesné ID importovaného výsledku.'));
     }
+    if ((kind === 'offline_start' || kind === 'offline_sync_ack') && !this.operationEpochReady()) {
+      return Promise.reject(new Error('Nejprve vyčkejte na aktuální metadata kufru.'));
+    }
+    if (options.operationEpoch !== undefined && (kind !== 'offline_sync_ack' || !validOperationEpoch(options.operationEpoch) ||
+        (options.operationEpoch !== '0' && !this.device.capabilities?.includes('operationEpoch')))) {
+      return Promise.reject(new Error('Výsledek nemá platnou epochu operace.'));
+    }
     const messageId = crypto.randomUUID();
     const message: Record<string, unknown> = { type: kind, messageId,
       deviceId: this.device.deviceId, bootId: this.device.bootId };
@@ -112,7 +129,15 @@ export class ProtocolDeviceConnection {
       if (typeof options.enabled !== 'boolean') return Promise.reject(new Error('Zadejte výslovné zapnutí nebo vypnutí.'));
       message.enabled = options.enabled;
     }
-    if (kind === 'offline_sync_ack') message.commandId = commandId;
+    if (kind === 'offline_start' && this.device.capabilities?.includes('operationEpoch') &&
+        this.device.operationEpoch !== undefined) {
+      message.operationEpoch = this.device.operationEpoch;
+    }
+    if (kind === 'offline_sync_ack') {
+      message.commandId = commandId;
+      // The imported record owns this epoch. Never replace it with current metadata.
+      if (this.device.capabilities?.includes('operationEpoch')) message.operationEpoch = options.operationEpoch ?? '0';
+    }
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.offlinePending = null; this.offlineStatus = null;
@@ -423,8 +448,13 @@ export class ProtocolDeviceConnection {
     });
   }
 
+  private operationEpochReady(): boolean {
+    return !!this.device && (!this.device.capabilities?.includes('operationEpoch') ||
+      (!this.operationEpochPending && this.device.operationEpoch !== undefined));
+  }
+
   private prepareCommand(kind: PendingCommand['kind'], compartment: number): boolean {
-    if (!this.device?.controlLeaseId || this.pendingCommand !== null ||
+    if (!this.device?.controlLeaseId || !this.operationEpochReady() || this.pendingCommand !== null ||
         this.activeCommand !== null || this.state.busy ||
         this.state.phase !== 'ready' || this.conversation.snapshot().pending || !Number.isInteger(compartment) ||
         compartment < 1 || compartment > 6) {
@@ -442,6 +472,7 @@ export class ProtocolDeviceConnection {
       revision: this.device.revision,
       readyMask: this.device.readyMask,
       leaseId: this.device.controlLeaseId,
+      operationEpoch: this.device.capabilities?.includes('operationEpoch') ? this.device.operationEpoch : undefined,
       sentAt: performance.now(),
     };
     this.state.busy = true;
@@ -503,6 +534,11 @@ export class ProtocolDeviceConnection {
         this.offlineStatus = null;
       }
       this.applySnapshot(candidate);
+      if (candidate.capabilities?.includes('operationEpoch') && candidate.operationEpoch === undefined &&
+          !this.operationEpochPending) {
+        this.operationEpochPending = true;
+        this.sendRequest('state.get', { deviceId: candidate.deviceId, bootId: candidate.bootId });
+      }
       if (this.stableSince === null) { this.stableSince = performance.now(); }
       // A single welcome followed by another immediate close is not recovery.
       if (performance.now() - this.stableSince >= 5000) { this.reconnectAttempt = 0; }
@@ -574,6 +610,11 @@ export class ProtocolDeviceConnection {
       this.publish();
       if (message.status === 'accepted') {
         this.armResultTimeout();
+      } else if (message.errorCode === 'wrong_operation_epoch') {
+        // Epoch refusals consume no server sequence. New intent reuses that slot.
+        this.sequence = active.sequence - 1;
+        this.operationEpochPending = true;
+        this.sendRequest('state.get', { deviceId: this.device!.deviceId, bootId: this.device!.bootId });
       } else {
         this.socket?.close();
       }
@@ -653,6 +694,8 @@ export class ProtocolDeviceConnection {
       this.acquirePending = false;
       this.releasePending = false;
     }
+    if (snapshot.operationEpoch !== undefined) this.operationEpochPending = false;
+    if (this.device?.bootId !== snapshot.bootId) this.operationEpochPending = false;
     this.device = snapshot;
     if (this.awaitingRevision !== null &&
         snapshot.revision >= this.awaitingRevision) {
@@ -750,6 +793,7 @@ export class ProtocolDeviceConnection {
       controlLeaseId: snapshot.controlLeaseId,
       sequence: ++this.sequence,
       expectedRevision: snapshot.revision,
+      ...(pending.operationEpoch === undefined ? {} : { operationEpoch: pending.operationEpoch }),
       issuedAtDeviceMs: Math.floor(this.lastDeviceUptimeMs + now - this.lastDeviceSampleAt),
       maxAgeMs: 2000,
       payload: pending.kind === 'select'
@@ -769,6 +813,7 @@ export class ProtocolDeviceConnection {
       compartment: pending.compartment,
       revision: snapshot.revision,
       encoded,
+      sequence: command.sequence,
       sentAt: now,
       retries: 0,
     };
@@ -787,7 +832,8 @@ export class ProtocolDeviceConnection {
       return false;
     }
     const snapshot = value as Partial<ProtocolSnapshot>;
-    return snapshot.type === 'state.snapshot' &&
+    return (snapshot.operationEpoch === undefined || validOperationEpoch(snapshot.operationEpoch)) &&
+      snapshot.type === 'state.snapshot' &&
       typeof snapshot.deviceId === 'string' &&
       typeof snapshot.bootId === 'string' &&
       Number.isSafeInteger(snapshot.deviceUptimeMs) &&
@@ -803,7 +849,10 @@ export class ProtocolDeviceConnection {
 
   private sendRequest(type: string, fields: Record<string, unknown>): boolean {
     const messageId = crypto.randomUUID();
-    const sent = this.send({ type, messageId, ...fields });
+    const sent = this.send({ type, messageId, ...fields,
+      ...(type === 'state.get' && this.device?.capabilities?.includes('operationEpoch')
+        ? { includeOperationEpoch: true } : {}),
+    });
     if (sent && type === 'heartbeat') {
       this.requests.set(messageId, performance.now());
       if (this.requests.size > 4) {
