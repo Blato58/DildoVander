@@ -20,10 +20,10 @@ export function isShowAccountPath(path: string, method = 'GET'): boolean {
       const evening = values.get('eveningId') ?? '';
       return [...values].length === 1 && validEvening(evening);
     }
-    return query === undefined && (suffix === '' || new RegExp(`^/duels/${uuid}$`).test(suffix));
+    return query === undefined && (suffix === '' || new RegExp(`^/(?:duels|ambient-previews)/${uuid}$`).test(suffix));
   }
   return method === 'POST' && query === undefined && (
-    ['/commands', '/end-evening', '/offline-outcomes', '/duels'].includes(suffix)
+    ['/commands', '/end-evening', '/offline-outcomes', '/duels', '/ambient-previews'].includes(suffix)
     || /^\/prophecies\/[A-Za-z0-9_-]{1,128}\/reveal$/.test(suffix)
     || new RegExp(`^/duels/${uuid}/(?:start|cancel|grants|grants/revoke)$`).test(suffix));
 }

@@ -84,6 +84,7 @@ builder.Services.AddSingleton(sp => new ShowCoordinator(sp.GetRequiredService<IC
     sp.GetRequiredService<OperationJournal>(), sp.GetRequiredService<EveningMemoryStore>(),
     sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<ShowSpeechProvider>();
+builder.Services.AddSingleton<ShowAmbientPreview>();
 builder.Services.AddSingleton<ShowDeviceCueBridge>();
 builder.Services.AddHostedService<ShowDeviceCueWorker>();
 builder.Services.AddSingleton(GptLiveOptions.Read(builder.Configuration));

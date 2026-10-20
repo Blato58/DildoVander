@@ -8,7 +8,7 @@ internal static class AccountShowAuthorization
     public static bool IsAccount(HttpContext context) => !context.Request.Headers.ContainsKey("Authorization")
         && context.User.HasClaim(claim => claim.Type == AccountIdentity.SessionClaim);
 
-    public static async Task<IResult?> RequireAsync(HttpContext context, string deviceId)
+    public static async Task<IResult?> RequireAsync(HttpContext context, string deviceId, string? requiredPermission = null)
     {
         if (!IsAccount(context))
         {
@@ -23,7 +23,7 @@ internal static class AccountShowAuthorization
         var path = (context.Request.Path.Value ?? "").TrimEnd('/');
         var grantManagement = path.EndsWith("/grants", StringComparison.OrdinalIgnoreCase)
             || path.EndsWith("/grants/revoke", StringComparison.OrdinalIgnoreCase);
-        var permission = context.Request.Method == "GET" ? "read" : grantManagement ? "manage" : "operate";
+        var permission = requiredPermission ?? (context.Request.Method == "GET" ? "read" : grantManagement ? "manage" : "operate");
         if (!await AccountResourceAuthorization.HasPermissionAsync(context, "device", deviceId, permission))
         { return ApiProblem.Create(context, 403, "resource_access_denied"); }
         var sensitive = context.Request.Method != "GET" && (grantManagement
