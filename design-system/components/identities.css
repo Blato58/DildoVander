@@ -1,0 +1,21 @@
+/* Shared presentation variants. Feature state and layout remain in their owners. */
+[data-theme='lord-voldemort'] { accent-color: var(--aw-accent); }
+[data-theme='lord-voldemort'] .aw-nav a[aria-current='page'] {
+  color: var(--aw-ivory);
+  background: var(--aw-elevated);
+  box-shadow: none;
+}
+[data-theme='lord-voldemort'] :is(.aw-card, .aw-dialog, .aw-notice) { box-shadow: none; }
+[data-theme='lord-voldemort'] :is(.aw-button, .aw-root .aw-button) { font-size: var(--aw-text-button); font-weight: 500; }
+[data-theme='lord-voldemort'] .aw-button--secondary { border-color: var(--aw-border-subtle); background: var(--aw-surface); }
+[data-theme='lord-voldemort'] .aw-button--secondary:hover { border-color: var(--aw-border); background: var(--aw-elevated); }
+[data-theme='lord-voldemort'] :is(.aw-button--ghost, .aw-wand-number) { color: var(--aw-link); }
+[data-theme='lord-voldemort'] .aw-tabs { gap: var(--aw-space-1); padding-bottom: var(--aw-space-2); border-bottom: 1px solid var(--aw-border-subtle); }
+[data-theme='lord-voldemort'] .aw-tabs [aria-selected='true'] { color: var(--aw-ivory); background: var(--aw-elevated); border-color: var(--aw-border); }
+[data-theme='lord-voldemort'] .aw-badge { font-weight: 500; }
+[data-theme='lord-voldemort'] .aw-table th { font-size: var(--aw-text-caption); }
+[data-theme='lord-voldemort'] .aw-dialog { border-color: var(--aw-border-subtle); }
+[data-theme='lord-voldemort'] :is(code, pre, .aw-mono) { font-variant-ligatures: none; }
+.aw-theme-selector { display: flex; align-items: center; flex-wrap: wrap; gap: var(--aw-space-2); padding: var(--aw-space-2) var(--aw-space-4); font-size: var(--aw-text-small); color: var(--aw-muted); }
+.aw-theme-selector select { width: auto; max-width: 100%; }
+.aw-select { width: 100%; min-height: var(--aw-touch); padding: var(--aw-space-2) var(--aw-space-3); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-control); background: var(--aw-void); color: var(--aw-ivory); }

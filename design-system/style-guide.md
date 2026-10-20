@@ -18,7 +18,17 @@ Identita DildoVanderu zůstává v názvech, příbězích, modelu kufru a skute
 hůlkách. Humor může doplnit text, ale nesmí nahradit akci, chybu nebo stav.
 Stop se vždy jmenuje Stop. Simulaci a nejistou polohu označujte doslova.
 
-## Pevné barvy
+## Vizuální identity
+
+Výchozí **Lord Voldemort** používá neutrální `#0f0f11`, text `#e3e4e6`
+a akcent `#606acc`. Úspěch je `#69c967`, chyba `#ff7e78`, zvláštní role
+`#c2a1ff`. **Olivander** zachovává níže popsanou původní identitu Vapour Chrome.
+Obě identity používají lokální Inter a IBM Plex Mono. Paletu i rozměry
+prezentace řídí `themeRegistry` v `tokens.json`; [téma a obnova](THEMES.md)
+popisují přepínání a zálohu. Pro drobný akční text používejte `--aw-link`,
+protože přesný nový akcent není určen pro běžný text na všech plochách.
+
+## Zachovaná primitiva Olivanderu
 
 | Primitivum | Hodnota | Úloha |
 | --- | --- | --- |
@@ -76,6 +86,8 @@ Pohyb vysvětluje změnu stavu. Trvalé pulzování, odpočítávání bez zdroj
 animovaný úspěch místo potvrzení nejsou přípustné. Reduced motion přechody
 vypíná. Bezpečnostní změna se zobrazí okamžitě.
 
-Tmavé téma je výchozí; explicitní `data-theme="light"` nebo `"dark"` má
-přednost. `"system"` je vědomá volba aplikace. Stejné komponenty musí být
-čitelné v obou tématech bez lokálních pevných barev pro text a plochy.
+Výchozí je `data-theme="lord-voldemort"`; původní identita používá
+`data-theme="olivander"`. Sdílený runtime řeší persistenci i bezpečný fallback.
+Historické light/dark/system selektory zůstávají pro staré integrace.
+Stejné komponenty musí být čitelné v obou identitách bez lokálních pevných
+barev pro text a plochy.

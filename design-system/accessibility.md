@@ -13,7 +13,8 @@ stavu a dostupnost akcí. Statické CSS tyto podmínky nenahrazuje.
 - Běžný text má kontrast nejméně 4,5 : 1, velký text 3 : 1. Aktivní hranice
   ovládání a focus mají nejméně 3 : 1 vůči sousední ploše. Ověřujte konkrétní
   kombinaci, nikoli jen samotnou paletu. Disabled prvky nejsou potvrzení stavu.
-- Focus je 3px informační obrys s odstupem 4 px. Neodstraňujte jej; nesmí být
+- Focus používá sémantické tokeny: Lord Voldemort má 2px obrys s odstupem 3 px,
+  Olivander zachovává 3px obrys s odstupem 4 px. Neodstraňujte jej; nesmí být
   zakryt sticky navigací. Ověřte Tab, Shift+Tab, Enter a případně Escape.
 - Interaktivní cíl má nejméně 44 × 44 px; sousední mobilní akce odděluje 8 px.
   Bezpečnostní Stop musí zůstat snadno dosažitelný a slovně označený.

@@ -96,7 +96,8 @@ jako neaktuální. Historii lze filtrovat podle názvu nebo čísla přihrádky
 a tlačítkem **Vymazat zobrazení** vyčistit pouze v této stránce. Tyto akce
 neposílají žádný povel modelu a nemění journal. Nové události se nadále
 přidávají, nejnovější nahoře, nejvýše 100. Tlačítko v záhlaví přepíná
-světlý a tmavý vzhled; stránka začíná v tmavém režimu.
+Lord Voldemort a Olivander; výchozí je Lord Voldemort. Volba se ukládá
+společným runtime do místního úložiště a nemění spojení ani stav modelu.
 
 Každé nové připojení vyčistí místní historii, aby se nemíchaly relativní
 časy různých běhů modelu. Snapshot ukazuje čas přijetí podle prohlížeče;

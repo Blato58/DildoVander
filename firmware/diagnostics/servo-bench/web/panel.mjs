@@ -7,6 +7,21 @@ import { mountBenchUi, benchGuidance, statusBadge, notice, emptyState } from "./
 
 mountBenchUi(document);
 
+const themePreference = globalThis.DildoVanderTheme;
+const themeButton = document.getElementById("theme-toggle");
+function renderThemeControl() {
+  const current = themePreference.themes.find(theme => theme.id === themePreference.getTheme());
+  const next = themePreference.themes.find(theme => theme.id !== current.id);
+  themeButton.textContent = `Vzhled: ${current.label}`;
+  themeButton.setAttribute("aria-label", `Vzhled: ${current.label}. Změnit na ${next.label}`);
+}
+themeButton.addEventListener("click", () => {
+  const next = themePreference.themes.find(theme => theme.id !== themePreference.getTheme());
+  themePreference.setTheme(next.id);
+});
+themePreference.subscribe(renderThemeControl);
+renderThemeControl();
+
 const elements = Object.fromEntries([
   "connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm", "pulse",
   "stop", "state", "error", "readback", "log", "log-empty", "mcp", "bench-readiness",

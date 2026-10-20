@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import math
 import argparse
-import html
 
 from geometry import ROOT,COLORS,PARAMS,bounds,Item,box
 from check_fit import scene
@@ -13,8 +12,7 @@ import chassis
 import inspect_data
 import harness
 import layout
-from viewer_style import snapshot_styles
-from viewer_document import render_document
+from viewer_document import render_document, render_reference_document
 from twin_manifest import build_manifest, geometry_digest
 from export_model_bundle import write_model_bundle, source_revision
 from model_verification import write_generation_receipt
@@ -136,15 +134,7 @@ def viewer():
     inspect_data.snapshot_sources()
     inspect_data.assert_snapshot_current()
     evidence=json.loads(inspect_data.SNAPSHOT.read_text(encoding="utf-8"))["sources"]
-    sections=[]
-    for record,anchor,title in zip(evidence,("inventar","zapojeni"),("Inventář a rozměry","Potvrzené elektrické zapojení")):
-        sections.append(f'<section id="{anchor}"><h2>{title}</h2><p>{html.escape(record["name"])}</p>'
-                        f'<p>SHA-256: <code>{record["sha256"]}</code></p><pre>{html.escape(record["text"])}</pre></section>')
-    document='<!doctype html><html lang="cs"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Podklady F2 · Vapour Chrome</title>'
-    document+='<style>'+snapshot_styles().read_text(encoding="utf-8")+'</style>'
-    document+='<style>body{max-width:1100px;margin:32px auto;padding:0 20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-family:var(--aw-font-mono)}code{overflow-wrap:anywhere}section{margin-top:40px;padding-top:24px;border-top:1px solid var(--aw-border)}nav{display:flex;flex-wrap:wrap;gap:16px}nav a{min-height:44px;display:inline-flex;align-items:center}</style><body class="aw-root">'
-    document+='<h1>Úplné zdrojové podklady F2</h1><p>Ověřený otisk zdrojových dokumentů přibalený pro samostatné použití. Text včetně původních odkazů je zachovaný; odkazy uvnitř přepisu odkazují do původního repozitáře.</p>'
-    document+='<nav aria-label="Zdrojové podklady"><a href="#inventar">Inventář a rozměry</a><a href="#zapojeni">Zapojení</a><a href="viewer.html">3D sestava</a></nav>'+''.join(sections)+'</body></html>'
+    document=render_reference_document(evidence)
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/"reference-sources.html").write_text(document,encoding="utf-8")
     payload = model_payload()

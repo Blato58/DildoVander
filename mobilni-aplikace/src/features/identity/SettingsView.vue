@@ -46,7 +46,7 @@ function trust(session: AccountSession) {
       <p>HTTP API v1 · ModelBundle 1. Model a firmware mají samostatnou verzi ve své funkci.</p>
     </section>
     <AwNotice v-if="error" tone="danger" role="alert">{{ error }}</AwNotice><AwNotice v-if="message" tone="success" role="status">{{ message }}</AwNotice>
-    <section class="aw-card"><h2>Vzhled</h2><label for="account-theme">Barevné téma</label><select id="account-theme" v-model="preferences.theme" class="aw-select"><option value="dark">Tmavé</option><option value="light">Světlé</option><option value="system">Podle zařízení</option></select></section>
+    <section class="aw-card"><h2>Vzhled</h2><label for="account-theme">Barevné téma</label><select id="account-theme" v-model="preferences.theme" class="aw-select"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></section>
     <section v-if="!account" class="aw-card"><h2>Přihlášení</h2><p>Přihlaste se pro soukromý archiv, přidělené prostředky a správu přístupů.</p><RouterLink to="/signin" class="aw-button aw-button--primary">Přihlásit se</RouterLink></section>
     <template v-else>
       <AccountArchiveList />

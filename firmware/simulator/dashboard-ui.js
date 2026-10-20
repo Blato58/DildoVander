@@ -11,7 +11,7 @@ export function mountDashboardUi(document) {
     button({ id: 'clear-events', label: 'Vymazat zobrazení', disabled: true }),
   ].join('');
   document.querySelector('#theme-control').innerHTML = button({
-    id: 'theme-toggle', label: 'Světlý režim', attributes: { 'aria-pressed': 'false' },
+    id: 'theme-toggle', label: 'Vzhled: Lord Voldemort',
   });
 }
 

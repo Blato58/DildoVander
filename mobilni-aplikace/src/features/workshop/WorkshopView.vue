@@ -304,7 +304,7 @@ onBeforeUnmount(() => { ++loadGeneration; loadAbort?.abort(); disconnect(); stop
       <AwStatus>
         {{ offline ? 'Offline · pouze prohlížení' : 'Žádné fyzické povely' }}
       </AwStatus>
-      <AwField v-if="preferences" id="offline-theme" label="Vzhled offline vieweru"><select id="offline-theme" v-model="preferences.theme" class="aw-input"><option value="dark">Tmavý</option><option value="light">Světlý</option><option value="system">Podle zařízení</option></select></AwField>
+      <AwField v-if="preferences" id="offline-theme" label="Vzhled offline vieweru"><select id="offline-theme" v-model="preferences.theme" class="aw-input"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></AwField>
     </header>
     <AwNotice v-if="loading" title="Načítám vydání modelu">
       Kontroluji identitu, velikost a integritu dat.

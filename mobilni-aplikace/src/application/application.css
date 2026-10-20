@@ -4,7 +4,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
 button, input, select, textarea { font: inherit; }
-a { color: var(--aw-accent); text-underline-offset: .2em; }
+a { color: var(--aw-link); text-underline-offset: .2em; }
 p { overflow-wrap: anywhere; }
 h1, h2, h3 { line-height: 1.18; letter-spacing: -.025em; text-wrap: balance; }
 h1 { font-size: clamp(2rem, 4vw, 3.5rem); margin: 0; font-weight: 600; }
@@ -69,7 +69,7 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 .aw-field-description { margin: 0; color: var(--aw-muted); font-size: .8rem; }
 .aw-field-error { margin: 0; }
 .aw-dialog { max-width: min(35rem, calc(100vw - 2rem)); background: var(--aw-surface); color: var(--aw-ivory); border: 1px solid var(--aw-border); border-radius: .65rem; padding: 1.5rem; }
-.aw-dialog::backdrop { background: #0009; }
+.aw-dialog::backdrop { background: var(--aw-dialog-backdrop); }
 .aw-input { max-width: 100%; min-width: 0; font-size: 1rem; }
 textarea { resize: vertical; }
 @media (max-width: 1100px) {
@@ -105,3 +105,59 @@ textarea { resize: vertical; }
   .notification-stack { padding-inline: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Full theme names stay readable in both presentations, including narrow phones. */
+.theme-control select { width: 10.5rem; max-width: 100%; }
+.home-download { display: grid; justify-items: start; gap: var(--aw-space-2); }
+.home-download p { margin: 0; }
+.account-link { display: inline-flex; align-items: center; min-height: 44px; }
+.application-footer { align-items: center; }
+.application-install-link { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* Lord Voldemort uses the quieter, compact proportions of the desktop workspace.
+   Olivander keeps the original application rules above. */
+:root[data-theme="lord-voldemort"] h1 { font-size: var(--application-page-title, clamp(1.7rem, 3vw, 2.25rem)); letter-spacing: -.035em; }
+:root[data-theme="lord-voldemort"] h2 { font-size: 1.05rem; letter-spacing: -.015em; }
+:root[data-theme="lord-voldemort"] .application-shell { grid-template-columns: var(--application-sidebar-width, 14rem) minmax(0, 1fr); }
+:root[data-theme="lord-voldemort"] .application-sidebar { padding: var(--application-sidebar-padding, 1.25rem .75rem); gap: var(--application-sidebar-gap, 2rem); }
+:root[data-theme="lord-voldemort"] .application-brand { letter-spacing: -.02em; }
+:root[data-theme="lord-voldemort"] .brand-mark { border-radius: .65rem; width: 2rem; height: 2rem; background: var(--aw-elevated); color: var(--aw-ivory); border: 1px solid var(--aw-border); }
+:root[data-theme="lord-voldemort"] .primary-navigation { gap: var(--application-nav-gap, .2rem); }
+:root[data-theme="lord-voldemort"] .primary-navigation a { min-height: var(--application-nav-height, 44px); padding: var(--application-nav-padding, .55rem .75rem); gap: .65rem; font-size: .85rem; border-radius: .5rem; }
+:root[data-theme="lord-voldemort"] .application-header { padding-block: max(.75rem, env(safe-area-inset-top)) .75rem; padding-inline: max(1.5rem, env(safe-area-inset-left)) max(1.5rem, env(safe-area-inset-right)); }
+:root[data-theme="lord-voldemort"] .application-main { padding: var(--application-main-padding, 2rem clamp(1rem, 3vw, 2.5rem)); max-width: 90rem; }
+:root[data-theme="lord-voldemort"] .page-stack { gap: 1rem; }
+:root[data-theme="lord-voldemort"] .eyebrow { text-transform: none; letter-spacing: .015em; font-weight: 500; font-size: .75rem; }
+:root[data-theme="lord-voldemort"] .home-layout { gap: 1.5rem; padding-block: .25rem; }
+:root[data-theme="lord-voldemort"] .home-introduction { padding-block: .5rem 1rem; }
+:root[data-theme="lord-voldemort"] .home-lead { font-size: 1rem; }
+:root[data-theme="lord-voldemort"] .home-readiness { padding: var(--aw-panel-padding, 1.25rem); border-radius: .75rem; }
+:root[data-theme="lord-voldemort"] .home-readiness h2 { margin-block: .5rem 1rem; }
+:root[data-theme="lord-voldemort"] .workspace-link { padding-top: 1.5rem; }
+:root[data-theme="lord-voldemort"] .workspace-number { margin-bottom: 1rem; }
+:root[data-theme="lord-voldemort"] .workspace-link h2 { font-size: 1.05rem; }
+:root[data-theme="lord-voldemort"] .aw-field label { font-size: .8rem; }
+:root[data-theme="lord-voldemort"] .application-footer { padding-block: 1rem; }
+@media (max-width: 1100px) and (min-width: 721px) {
+  :root[data-theme="lord-voldemort"] .application-shell { grid-template-columns: 12rem minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .theme-control select { width: 10.5rem; max-width: 100%; }
+  :root[data-theme="lord-voldemort"] .application-shell { display: block; }
+  :root[data-theme="lord-voldemort"] .application-sidebar { display: contents; }
+  :root[data-theme="lord-voldemort"] .primary-navigation { gap: 0; }
+  :root[data-theme="lord-voldemort"] .primary-navigation a { min-height: 56px; padding: .45rem .2rem; gap: .1rem; font-size: .65rem; }
+  :root[data-theme="lord-voldemort"] .application-header { padding: max(.75rem, env(safe-area-inset-top)) max(.75rem, env(safe-area-inset-right)) .75rem max(.75rem, env(safe-area-inset-left)); }
+  :root[data-theme="lord-voldemort"] .application-main { padding: 1.5rem 1rem; }
+  :root[data-theme="lord-voldemort"] .home-layout { gap: 1rem; }
+  :root[data-theme="lord-voldemort"] .workspace-link { padding-block: 1.5rem; }
+}
+
+:root[data-theme="lord-voldemort"] .eyebrow,
+:root[data-theme="lord-voldemort"] .workspace-action { color: var(--aw-link); }
+:root[data-theme="lord-voldemort"] .application-brand,
+:root[data-theme="lord-voldemort"] .workspace-link,
+:root[data-theme="lord-voldemort"] .connection-context > a { color: var(--aw-ivory); }
+:root[data-theme="lord-voldemort"] .primary-navigation a { color: var(--aw-muted); }
+:root[data-theme="lord-voldemort"] .primary-navigation a.selected,
+:root[data-theme="lord-voldemort"] .primary-navigation a:hover { color: var(--aw-link); }

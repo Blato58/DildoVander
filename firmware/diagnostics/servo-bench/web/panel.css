@@ -4,6 +4,7 @@
 .bench-skip:focus { top: 16px; }
 .bench .aw-header { align-items: start; }
 .bench .aw-header p { margin-bottom: 0; }
+.bench-header-actions { display: flex; align-items: center; justify-content: end; flex-wrap: wrap; gap: var(--aw-space-3); }
 .bench-boundary { max-width: 70ch; color: var(--aw-muted); margin-block: var(--aw-space-4) var(--aw-space-6); }
 .bench-readiness { margin-block: var(--aw-space-6); }
 .bench-nav { display: flex; flex-wrap: wrap; gap: var(--aw-space-2); padding-block: var(--aw-space-3); margin-bottom: var(--aw-space-6); border-block: 1px solid var(--aw-border-subtle); }
@@ -49,3 +50,8 @@
   .bench-setup .bench-section:last-child { padding-bottom: var(--aw-space-6); }
 }
 @media (max-width: 480px) { .bench { padding: var(--aw-space-4); } .actions button { flex-basis: 100%; } .bench-nav a { flex: 1 1 40%; } }
+
+[data-theme="lord-voldemort"] .bench-nav { gap: var(--aw-space-1); }
+[data-theme="lord-voldemort"] .bench-nav a { border-radius: var(--aw-radius-control); }
+[data-theme="lord-voldemort"] .bench-section { padding-bottom: var(--aw-space-6); }
+[data-theme="lord-voldemort"] .log { border-color: var(--aw-border); }

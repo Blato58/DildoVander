@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Capacitor } from '@capacitor/core';
 import { useRoute, useRouter } from 'vue-router';
 import AwButton from '../components/AwButton.vue';
 import AwNotice from '../components/AwNotice.vue';
@@ -14,6 +15,7 @@ import { servoBench } from '../features/suitcase/servoBench';
 const route = useRoute();
 const router = useRouter();
 const preferences = usePreferences();
+const browserMode = !Capacitor.isNativePlatform();
 const main = ref<HTMLElement>();
 const navigationElement = ref<HTMLElement>();
 const navigationHeight = ref('calc(5rem + env(safe-area-inset-bottom))');
@@ -98,7 +100,7 @@ onBeforeUnmount(() => {
       <header class="application-header">
         <div class="connection-context"><RouterLink to="/connections">{{ targetLabel }}</RouterLink><span v-if="servoBench.connected.value" class="context-detail">USB servo servis · Stop vypíná PWM, napájení není měřené</span><span v-else-if="phoneActive" class="context-detail">Aktivní telefonní zkouška · oddělená od hlasu kufru</span><span v-else-if="deviceSession.message.value" class="context-detail">{{ deviceSession.message.value }}</span></div>
         <div class="header-actions">
-          <label class="theme-control"><span class="sr-only">Barevný režim</span><select v-model="preferences.theme" aria-label="Barevný režim"><option value="dark">Tmavý</option><option value="light">Světlý</option><option value="system">Systém</option></select></label>
+          <label class="theme-control"><span class="sr-only">Vzhled aplikace</span><select v-model="preferences.theme" aria-label="Vzhled aplikace"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></label>
           <RouterLink v-if="!account" class="account-link" to="/signin">Přihlásit se</RouterLink><RouterLink v-else class="account-link" to="/settings">{{ account.displayName }}</RouterLink>
           <AwButton variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
         </div>
@@ -111,7 +113,7 @@ onBeforeUnmount(() => {
           <component :is="Component" v-if="!renderedRoute.meta.keepAlive" :key="renderedRoute.name" />
         </RouterView>
       </main>
-      <footer class="application-footer"><span>DildoVander</span><span>Model, simulace a fyzický kufr mají vlastní stav ověření.</span></footer>
+      <footer class="application-footer"><span>DildoVander</span><a v-if="browserMode" class="application-install-link" href="/ios/">Aplikace pro iPhone</a><span>Model, simulace a fyzický kufr mají vlastní stav ověření.</span></footer>
     </div>
   </div>
 </template>

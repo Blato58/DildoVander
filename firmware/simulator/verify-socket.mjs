@@ -144,6 +144,11 @@ try {
   const page = await requestPage(simulator.port, certificate, '/simulator');
   assert.equal(page.status, 200);
   assert.match(page.body, /SIMULACE/);
+  assert.match(page.body, /<script src="\.\.\/design-system\/theme\.js"><\/script>/);
+  const theme = await requestPage(simulator.port, certificate, '/design-system/theme.js');
+  assert.equal(theme.status, 200);
+  assert.match(theme.body, /globalThis\.DildoVanderTheme =/);
+  assert.match(theme.body, /lord-voldemort/);
   const script = await requestPage(simulator.port, certificate, '/simulator/dashboard.js');
   assert.equal(script.status, 200);
   assert.match(script.body, /v1\/observe/);

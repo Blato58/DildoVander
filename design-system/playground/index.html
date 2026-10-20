@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="cs" data-theme="dark">
-<head>
+<html lang="cs" data-theme="lord-voldemort">
+<head><script src="../theme.js"></script><script src="../theme-controls.js" defer></script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
@@ -13,7 +13,7 @@
 <body class="aw-root">
   <p class="aw-preview-label">Interaktivní ukázka • pevná data • bez připojení kufru</p>
   <main class="aw-main aw-stack">
-    <header class="aw-header"><div><p class="aw-eyebrow">Vapour Chrome</p><h1>Sdílené ovládání</h1><p class="aw-muted">Stejné tokeny, srozumitelné stavy a klávesnicové ovládání.</p></div><label>Téma <select class="aw-input" id="theme"><option value="dark">Tmavé</option><option value="light">Světlé</option><option value="system">Systémové</option></select></label></header>
+    <header class="aw-header"><div><p class="aw-eyebrow">Vapour Chrome</p><h1>Sdílené ovládání</h1><p class="aw-muted">Stejné tokeny, srozumitelné stavy a klávesnicové ovládání.</p></div><label>Téma <select class="aw-input" id="theme" data-theme-select></select></label></header>
     <section class="aw-card aw-stack" aria-labelledby="buttons-title"><h2 id="buttons-title">Akce a dostupnost</h2><div class="aw-row" id="buttons"></div><div class="aw-row" id="badges"></div><div id="notice"></div></section>
     <section class="aw-card aw-stack" aria-labelledby="tabs-title"><h2 id="tabs-title">Přehled ukázky</h2><div class="aw-tabs" role="tablist" aria-label="Přehled" id="tabs"><button class="aw-button aw-button--secondary" type="button" role="tab" id="tab-wands" aria-controls="panel-wands" aria-selected="true">Hůlky</button><button class="aw-button aw-button--secondary" type="button" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false">Historie</button><button class="aw-button aw-button--secondary" type="button" role="tab" id="tab-device" aria-controls="panel-device" aria-selected="false" disabled>Živé zařízení</button></div><div id="panel-wands" role="tabpanel" tabindex="0"><div class="playground-wands" id="wands"></div></div><div id="panel-history" role="tabpanel" tabindex="0" hidden></div><div id="panel-device" role="tabpanel" hidden></div></section>
     <section class="aw-card aw-stack" aria-labelledby="form-title"><h2 id="form-title">Formulář a dialog</h2><div id="field"></div><div id="dialog-action"></div><p id="dialog-result" class="aw-muted" role="status">Dialog zatím nebyl otevřen.</p></section>

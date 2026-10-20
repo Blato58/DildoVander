@@ -134,6 +134,7 @@ export async function createSimulatorServer({ certificate, privateKey, token, br
   const designAssetFiles = [
     ['arcane-workshop.css', 'text/css; charset=utf-8'],
     ['ui.js', 'text/javascript; charset=utf-8'],
+    ['theme.js', 'text/javascript; charset=utf-8'],
     ['tokens/palette.css', 'text/css; charset=utf-8'],
     ['tokens/typography.css', 'text/css; charset=utf-8'],
     ['tokens/layout.css', 'text/css; charset=utf-8'],

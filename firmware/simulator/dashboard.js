@@ -263,12 +263,19 @@ clearEventsButton.addEventListener('click', () => {
   emptyTimeline.innerHTML = emptyState({ title: 'Zobrazení vymazáno', message: 'Nové události se budou přidávat dál; model se nezměnil.' });
   eventFilter.focus();
 });
+const themePreference = globalThis.DildoVanderTheme;
+function renderThemeControl() {
+  const current = themePreference.themes.find(theme => theme.id === themePreference.getTheme());
+  const next = themePreference.themes.find(theme => theme.id !== current.id);
+  themeButton.textContent = `Vzhled: ${current.label}`;
+  themeButton.setAttribute('aria-label', `Vzhled: ${current.label}. Změnit na ${next.label}`);
+}
 themeButton.addEventListener('click', () => {
-  const light = document.documentElement.dataset.theme !== 'light';
-  document.documentElement.dataset.theme = light ? 'light' : 'dark';
-  themeButton.textContent = light ? 'Tmavý režim' : 'Světlý režim';
-  themeButton.setAttribute('aria-pressed', String(light));
+  const next = themePreference.themes.find(theme => theme.id !== themePreference.getTheme());
+  themePreference.setTheme(next.id);
 });
+themePreference.subscribe(renderThemeControl);
+renderThemeControl();
 tokenInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     connect();

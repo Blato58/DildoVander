@@ -1,19 +1,16 @@
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import { computed, onScopeDispose, ref } from 'vue';
+import { getTheme, setTheme, subscribe, themes, type ThemeId } from '../../../design-system/theme.mjs';
 
-type Theme = 'dark' | 'light' | 'system';
-const isTheme = (value: unknown): value is Theme => ['dark', 'light', 'system'].includes(String(value));
-
+// The shared runtime owns persistence and document state for every UI surface.
+// Pinia bridges its notifications into Vue without remounting application views.
 export const usePreferences = defineStore('preferences', () => {
-  let initial: Theme = 'dark';
-  try {
-    const saved = localStorage.getItem('dildovander.theme') ?? localStorage.getItem('aw-theme');
-    if (isTheme(saved)) initial = saved;
-  } catch { /* Private browsing may deny storage; memory preference still works. */ }
-  const theme = ref<Theme>(initial);
-  watch(theme, value => {
-    document.documentElement.dataset.theme = value;
-    try { localStorage.setItem('dildovander.theme', value); } catch { /* Optional persistence. */ }
-  }, { immediate: true });
-  return { theme };
+  const currentTheme = ref<ThemeId>(getTheme());
+  const unsubscribe = subscribe((value: ThemeId) => { currentTheme.value = value; });
+  onScopeDispose(unsubscribe);
+  const theme = computed({
+    get: () => currentTheme.value,
+    set: (value: ThemeId) => { setTheme(value); },
+  });
+  return { theme, themes };
 });

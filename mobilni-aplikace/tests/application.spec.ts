@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { nextTick } from 'vue';
+import { nextTick, ref } from 'vue';
+import { Capacitor } from '@capacitor/core';
 import AwButton from '../src/components/AwButton.vue';
 import AwField from '../src/components/AwField.vue';
 import SuitcaseView from '../src/features/suitcase/SuitcaseView.vue';
@@ -32,6 +33,39 @@ function renderSuitcase() {
 }
 
 describe('application boundaries', () => {
+  it.each([false, true])('keeps browser-only install navigation out of native context (native=%s)', async native => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(native);
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<p>Current operation</p>' } }] });
+    await router.push('/'); await router.isReady();
+    const wrapper = mount(App, { global: { plugins: [router, createPinia()] } });
+    wrappers.push(wrapper);
+    expect(wrapper.find('.application-install-link').exists()).toBe(!native);
+    expect(wrapper.get('main').text()).toBe('Current operation');
+  });
+  it('switches both registered themes without replacing the route, draft or focus', async () => {
+    let mounts = 0;
+    const editor = {
+      setup() { mounts += 1; return { draft: ref('') }; },
+      template: '<label>Rozepsaná poznámka<input v-model="draft" /></label>',
+    };
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: editor }] });
+    await router.push('/'); await router.isReady();
+    const wrapper = mount(App, { attachTo: document.body, global: { plugins: [router, createPinia()] } });
+    wrappers.push(wrapper);
+    const input = wrapper.get('main input');
+    await input.setValue('Poznámka zůstává');
+    (input.element as HTMLInputElement).focus();
+    const selector = wrapper.get('select[aria-label="Vzhled aplikace"]');
+    expect(selector.findAll('option').map(option => option.text())).toEqual(['Lord Voldemort', 'Olivander']);
+    for (const theme of ['olivander', 'lord-voldemort']) {
+      await selector.setValue(theme);
+      expect(document.documentElement.dataset.theme).toBe(theme);
+      expect(wrapper.get('main input').element).toBe(input.element);
+      expect((input.element as HTMLInputElement).value).toBe('Poznámka zůstává');
+      expect(document.activeElement).toBe(input.element);
+    }
+    expect(mounts).toBe(1);
+  });
   it('rejects unsafe login return locations', () => {
     for (const value of ['//evil.test', 'https://evil.test', '/\\evil.test', '/signin', '/guest/v1', '/settings\nadmin']) expect(safeReturnPath(value)).toBe('/');
     expect(safeReturnPath('/workshop?part=tray')).toBe('/workshop?part=tray');

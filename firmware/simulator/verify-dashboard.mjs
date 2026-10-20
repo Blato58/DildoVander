@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { mountDashboardUi, modelGuidance, statusBadge, notice, emptyState } from './dashboard-ui.js';
 
+const themeRuntime = await readFile(new URL('../../design-system/theme.js', import.meta.url), 'utf8');
 const script = (await readFile(new URL('./dashboard.js', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/, '');
 
 function createPage(staticPreview, fetchResponse) {
@@ -33,18 +34,21 @@ function createPage(staticPreview, fetchResponse) {
   nodes.get('#disconnect').disabled = true;
   const requests = [];
   const body = { hasAttribute: () => staticPreview, dataset: {} };
-  const documentElement = { dataset: { theme: 'dark' } };
+  const documentElement = { dataset: {}, style: {} };
+  const storedPreferences = new Map();
   const context = {
     document: { body, documentElement, querySelector: (selector) => nodes.get(selector), createElement: createNode },
     window: { addEventListener() {} },
+    localStorage: { getItem: key => storedPreferences.get(key), setItem: (key, value) => storedPreferences.set(key, value) },
     AbortController, TextDecoder, mountDashboardUi, modelGuidance, statusBadge, notice, emptyState,
     fetch: async (path, options) => {
       requests.push({ path, options });
       return fetchResponse ? fetchResponse(options) : { ok: false, status: 401 };
     },
   };
+  runInNewContext(themeRuntime, context);
   runInNewContext(script, context);
-  return { nodes, requests, body, documentElement };
+  return { nodes, requests, body, documentElement, storedPreferences };
 }
 
 const preview = createPage(true);
@@ -136,9 +140,14 @@ assert.equal(streamed.nodes.get('#clear-events').disabled, true);
 assert.equal(observerSignal.aborted, false, 'Clearing the local timeline must not change the model connection');
 assert.equal(streamed.requests.length, 1, 'Local filters and clearing must not issue model commands');
 streamed.nodes.get('#theme-toggle').listeners.click();
-assert.equal(streamed.documentElement.dataset.theme, 'light');
+assert.equal(streamed.documentElement.dataset.theme, 'olivander');
+assert.equal(streamed.storedPreferences.get('dildovander.theme'), 'olivander');
+assert.match(streamed.nodes.get('#theme-toggle').attributes['aria-label'], /Olivander.*Lord Voldemort/);
 streamed.nodes.get('#theme-toggle').listeners.click();
-assert.equal(streamed.documentElement.dataset.theme, 'dark');
+assert.equal(streamed.documentElement.dataset.theme, 'lord-voldemort');
+assert.equal(observerSignal.aborted, false, 'Theme changes preserve the observer connection');
+assert.equal(streamed.requests.length, 1, 'Theme changes never issue model commands');
+assert.deepEqual([...streamed.storedPreferences.keys()], ['dildovander.theme'], 'Only theme preference may be persisted');
 finishStream();
 await observing;
 assert.equal(streamed.body.dataset.connection, 'disconnected');

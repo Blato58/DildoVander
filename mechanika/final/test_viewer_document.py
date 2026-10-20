@@ -16,6 +16,20 @@ from preview_ui_fixture import fixture_payload
 
 
 class ViewerDocumentTests(unittest.TestCase):
+    def test_reference_document_is_themed_offline_and_preserves_escaped_evidence(self):
+        result = viewer_document.render_reference_document([
+            {"name": "Synthetic reference", "sha256": "abc123", "text": "</script><img src=x>"},
+            {"name": "Synthetic wiring", "sha256": "def456", "text": "Unchanged source text"},
+        ])
+        self.assertIn('data-theme-select', result)
+        self.assertIn('Lord Voldemort', result)
+        self.assertIn('Olivander', result)
+        self.assertLess(result.index('globalThis.DildoVanderTheme'), result.index('<style>'))
+        self.assertIn('&lt;/script&gt;&lt;img src=x&gt;', result)
+        self.assertIn('Unchanged source text', result)
+        self.assertNotIn('<img src=x>', result)
+        self.assertNotIn('@import', result)
+
     def test_real_document_embeds_compiler_plan_trace_renderer_and_escapes_data(self):
         result = viewer_document.render_document({"meshes": [], "note": "</script><img src=x>"})
         self.assertIn('id="show-inspector"', result)
@@ -28,8 +42,30 @@ class ViewerDocumentTests(unittest.TestCase):
         self.assertIn('globalThis.VapourUI =', result)
         self.assertIn('globalThis.VapourViewerUi =', result)
         self.assertNotIn('__WORKSHOP_UI_RUNTIME__', result)
+        self.assertIn('globalThis.DildoVanderTheme =', result)
+        self.assertLess(result.index('globalThis.DildoVanderTheme ='), result.index('<style>'))
         self.assertNotRegex(result, r'<script[^>]+src=')
         self.assertNotRegex(result, re.compile(r'^\s*(?:import|export)\s', re.MULTILINE))
+
+    def test_offline_theme_bootstrap_persists_without_network(self):
+        document = viewer_document.render_document({"meshes": []})
+        runtime = next(source for source in re.findall(r'<script>(.*?)</script>', document, re.DOTALL)
+                       if 'globalThis.DildoVanderTheme =' in source)
+        prelude = """
+const assert = require('node:assert/strict');
+const stored = new Map();
+globalThis.fetch = () => { throw new Error('Offline theme requested network'); };
+globalThis.document = {documentElement:{dataset:{},style:{}},querySelector:()=>({})};
+globalThis.localStorage = {getItem:key=>stored.get(key),setItem:(key,value)=>stored.set(key,value)};
+"""
+        checks = """
+assert.equal(document.documentElement.dataset.theme, 'lord-voldemort');
+DildoVanderTheme.setTheme('olivander');
+assert.equal(document.documentElement.dataset.theme, 'olivander');
+assert.equal(stored.get('dildovander.theme'), 'olivander');
+"""
+        result = subprocess.run(['node', '-e', prelude + runtime + checks], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_actual_offline_bundle_executes_shared_controls_without_network(self):
         document = viewer_document.render_document({"meshes": []})
@@ -59,6 +95,7 @@ assert.equal(elements.get('error').hidden, false);
 
     def test_packaged_runtime_snapshot_regenerates_without_shared_tree(self):
         expected = viewer_runtime.bundle_ui_runtime()
+        self.assertIn('globalThis.DildoVanderTheme =', expected)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             archive_path = root / 'synthetic-ui-only.zip'

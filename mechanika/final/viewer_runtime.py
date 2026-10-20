@@ -1,16 +1,21 @@
-"""Bundle the two authored native UI modules for the self-contained file viewer."""
+"""Bundle theme bootstrap and authored native UI modules for the self-contained file viewer."""
 from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parent
 SHARED_RUNTIME = ROOT.parent.parent / "design-system" / "ui.js"
+SHARED_THEME = SHARED_RUNTIME.parent / "theme.js"
+SHARED_CONTROLS = SHARED_RUNTIME.parent / "theme-controls.js"
 SNAPSHOT = ROOT / "workshop-ui-runtime.js"
 VIEWER_IMPORT = "import { button, notice, statusBadge } from '../../design-system/ui.js';"
 
 
 def snapshot_runtime() -> Path:
     if SHARED_RUNTIME.is_file():
-        source = SHARED_RUNTIME.read_text(encoding="utf-8-sig")
+        # Retain both sources in the existing presentation snapshot so exported
+        # packages can regenerate their head bootstrap without the shared tree.
+        source = "\n".join(path.read_text(encoding="utf-8-sig") for path in (
+            SHARED_THEME, SHARED_CONTROLS, SHARED_RUNTIME))
         if not SNAPSHOT.is_file() or SNAPSHOT.read_text(encoding="utf-8") != source:
             SNAPSHOT.write_text(source, encoding="utf-8")
     if not SNAPSHOT.is_file():

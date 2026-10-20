@@ -5,22 +5,23 @@ VapourViewerUi.mountViewerUi(document);
 const runtimeTools = () => document.getElementById('twin-details');
 let twinViewer = null;
 const canvas = el('view');
-const themeKey = 'dildovander.theme';
-let viewerTheme = 'dark', rendererReady = false;
-try { viewerTheme = localStorage.getItem(themeKey) === 'light' ? 'light' : 'dark'; } catch { /* The viewer also works without storage. */ }
+const themePreference = globalThis.DildoVanderTheme;
+let viewerTheme = themePreference.getTheme(), rendererReady = false;
+let viewerSelectionColor = [];
 function applyViewerTheme() {
-  document.documentElement?.setAttribute('data-theme', viewerTheme);
-  const light = viewerTheme === 'light';
-  el('theme-toggle').setAttribute('aria-pressed', String(light));
-  el('theme-toggle').setAttribute('aria-label', light ? 'Tmavý vzhled' : 'Světlý vzhled');
-  el('theme-toggle').textContent = light ? 'Tmavý vzhled' : 'Světlý vzhled';
+  viewerTheme = themePreference.getTheme();
+  viewerSelectionColor = colorVector(getComputedStyle(document.documentElement).getPropertyValue('--aw-viewer-selection').trim());
+  const current = themePreference.themes.find(theme => theme.id === viewerTheme);
+  const next = themePreference.themes.find(theme => theme.id !== viewerTheme);
+  el('theme-toggle').setAttribute('aria-label', `Vzhled: ${current.label}. Změnit na ${next.label}`);
+  el('theme-toggle').textContent = `Vzhled: ${current.label}`;
+  if (rendererReady) requestDraw();
 }
+themePreference.subscribe(applyViewerTheme);
 applyViewerTheme();
 el('theme-toggle').onclick = () => {
-  viewerTheme = viewerTheme === 'light' ? 'dark' : 'light';
-  applyViewerTheme();
-  try { localStorage.setItem(themeKey, viewerTheme); } catch { /* Theme remains available for this session. */ }
-  if (rendererReady) requestDraw();
+  const next = themePreference.themes.find(theme => theme.id !== themePreference.getTheme());
+  themePreference.setTheme(next.id);
 };
 function reportViewerError(message) {
   VapourViewerUi.renderViewerError(el('viewer-error'), message);
@@ -56,7 +57,7 @@ if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
 }
 gl.useProgram(program);
 const loc = {};
-for (const name of ['projection', 'view', 'move', 'color', 'picking', 'highlight', 'opacity']) loc[name] = gl.getUniformLocation(program, name);
+for (const name of ['projection', 'view', 'move', 'color', 'selectionColor', 'picking', 'highlight', 'opacity']) loc[name] = gl.getUniformLocation(program, name);
 const pa = gl.getAttribLocation(program, 'p'), na = gl.getAttribLocation(program, 'n');
 gl.enableVertexAttribArray(pa);
 gl.enableVertexAttribArray(na);
@@ -460,8 +461,9 @@ function draw() {
   hovered = inspecting() && !drag ? pick() : null;
   hoveredConnection = inspecting() && !drag && !selectedWire && !selectedEndpoint ? wireHit() : null;
   const selected = pinned || hovered;
-  const background = viewerTheme === 'light' ? [238,241,245] : [27,36,48];
-  gl.clearColor(...background.map(channel => channel/255),1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  const background = themePreference.themes.find(theme => theme.id === viewerTheme).background;
+  gl.clearColor(...[1,3,5].map(index => parseInt(background.slice(index,index+2),16)/255),1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.uniform3fv(loc.selectionColor, viewerSelectionColor);
   renderMeshes(false, hovered || selected);
   el('liftvalue').textContent = lift(trayAngles[+el('tray').value-1] || 0).toFixed(1)+' mm';
   el('lidvalue').textContent = el('lid').value+'°';
