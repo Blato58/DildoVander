@@ -63,7 +63,7 @@ test('published active reference pins model identity and bytes without any CAD s
   await assert.rejects(loadPublishedBundle('https://model.example/models/', { fetcher }), /identity mismatch/);
 });
 test('verified provenance requires a matching successful report tied to exact model/source identity', async () => {
-  const report = { result: 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE', physical_test_performed: false, sources: { 'geometry.py': 'a'.repeat(64) }, modelEvidence: { schemaVersion: 1, modelId: manifest.modelId, modelAssetSha256: manifest.assets[0].sha256, sourceRevision: manifest.provenance.sourceRevision, sourceHashes: { 'geometry.py': 'a'.repeat(64) } } };
+  const report = { result: 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE', physical_test_performed: false, sources: { 'MONT\u00c1\u017d.md': 'a'.repeat(64) }, modelEvidence: { schemaVersion: 1, modelId: manifest.modelId, modelAssetSha256: manifest.assets[0].sha256, sourceRevision: manifest.provenance.sourceRevision, sourceHashes: { 'MONT\u00c1\u017d.md': 'a'.repeat(64) } } };
   async function loadReport(value) {
     const proof = new TextEncoder().encode(JSON.stringify(value));
     const published = clone(manifest); published.provenance = { ...published.provenance, kind: 'cad-export', cadVerification: 'verified' };
@@ -72,8 +72,13 @@ test('verified provenance requires a matching successful report tied to exact mo
     return loadBundle(published, async path => path === 'model.json' ? bytes : proof);
   }
   assert.equal((await loadReport(report)).manifest.provenance.cadVerification, 'verified');
-  for (const mutate of [r => r.result = 'FAIL', r => r.physical_test_performed = true, r => r.modelEvidence.modelAssetSha256 = 'b'.repeat(64), r => r.modelEvidence.sourceHashes = {}, r => r.sources['geometry.py'] = 'b'.repeat(64)]) {
+  for (const mutate of [r => r.result = 'FAIL', r => r.physical_test_performed = true, r => r.modelEvidence.modelAssetSha256 = 'b'.repeat(64), r => r.modelEvidence.sourceHashes = {}, r => r.sources['MONT\u00c1\u017d.md'] = 'b'.repeat(64)]) {
     const altered = clone(report); mutate(altered); await assert.rejects(loadReport(altered), /CAD/);
+  }
+  for (const source of ['../MONT\u00c1\u017d.md', '/MONT\u00c1\u017d.md', 'a//b.md', 'a\\b.md', 'a/<b>.md', 'MONT.md\n']) {
+    const altered = clone(report);
+    altered.sources = altered.modelEvidence.sourceHashes = { [source]: 'a'.repeat(64) };
+    await assert.rejects(loadReport(altered), /source evidence path/);
   }
   const flipped = clone(manifest); flipped.provenance = { ...flipped.provenance, kind: 'cad-export', cadVerification: 'verified' };
   assert.throws(() => validateManifest(flipped), /certificate count/);
@@ -192,4 +197,24 @@ test('Vue overlay snapshots preserve original routes, pins, flexible ends, dimen
   assert.equal(overlay.pins.length,6); assert.equal(overlay.flex.length,1); assert.equal(overlay.dimensions.length,3); assert.equal(overlay.orientation.length,4);
   state.mode = 'assembly'; state.assemblyIndex = 0;
   assert.equal(overlaySnapshot(rich,state,rich.meshes,graphics.perspective(1440/900,fitted.distance,430),graphics.look(eye,fitted.target),1440,900).routes.length,0);
+});
+
+test('electrical route polarity survives validation without widening resource identifiers', () => {
+  const candidate = richWorkshopModel(model);
+  candidate.routes[0].transport_points = null;
+  candidate.routes[0].disconnected_points = null;
+  for (const id of ['P12+', 'F_LED+-01', 'S1-+', 'P12-']) {
+    candidate.routes[0].id = id;
+    assert.equal(validateModel(candidate, manifest), candidate);
+  }
+  for (const id of ['P12/+', '<P12+>', 'P12+\\escape', 'P12+\n', null, 12]) {
+    candidate.routes[0].id = id;
+    assert.throws(() => validateModel(candidate, manifest), /invalid cable route/);
+  }
+  candidate.routes[0].id = 'P12+';
+  for (const value of [[], [[0, 0, 0]], 'missing']) {
+    candidate.routes[0].transport_points = value;
+    assert.throws(() => validateModel(candidate, manifest), /invalid parked cable route/);
+  }
+  assert.throws(() => safeAssetPath('P12+.json'), /unsafe asset path/);
 });

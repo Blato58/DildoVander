@@ -18,6 +18,9 @@ internal static class ModelBundleValidation
     public const long MaxBytes = 96L * 1024 * 1024;
     public static bool IsHash(string? value) => value is not null && Regex.IsMatch(value, "^[a-f0-9]{64}$", RegexOptions.CultureInvariant);
     private static bool IsId(string value) => Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$", RegexOptions.CultureInvariant);
+    private static bool IsRouteId(string value) => Regex.IsMatch(value, @"\A[A-Za-z0-9][A-Za-z0-9_.:+-]{0,159}\z", RegexOptions.CultureInvariant);
+    private static bool IsSourceEvidencePath(string value) => value.Length is > 0 and <= 240
+        && Regex.IsMatch(value, @"\A[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*(?:/[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*)*\z", RegexOptions.CultureInvariant);
     private static bool IsAssetPath(string value) => value.Length is > 0 and <= 240
         && Regex.IsMatch(value, "^[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*(?:/[A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*)*$", RegexOptions.CultureInvariant);
     internal static void Require(bool condition)
@@ -148,7 +151,7 @@ internal static class ModelBundleValidation
         var count = 0; var paths = new HashSet<string>(StringComparer.Ordinal);
         foreach (var source in sourceHashes.EnumerateObject())
         {
-            count++; Require(count <= 512 && paths.Add(source.Name) && IsAssetPath(source.Name)
+            count++; Require(count <= 512 && paths.Add(source.Name) && IsSourceEvidencePath(source.Name)
                 && source.Value.ValueKind == JsonValueKind.String && IsHash(source.Value.GetString())
                 && recorded.TryGetProperty(source.Name, out var actual) && actual.ValueKind == JsonValueKind.String && actual.GetString() == source.Value.GetString());
         }
@@ -240,12 +243,12 @@ internal static class ModelBundleValidation
         foreach (var route in routes.EnumerateArray())
         {
             var id = Text(route, "id"); var origin = Text(route, "from"); var destination = Text(route, "to");
-            Require(IsId(id) && ids.Add(id) && origin.Length is > 0 and <= 160 && destination.Length is > 0 and <= 160
+            Require(IsRouteId(id) && ids.Add(id) && origin.Length is > 0 and <= 160 && destination.Length is > 0 and <= 160
                 && origin.All(c => c >= ' ') && destination.All(c => c >= ' '));
             var points = route.GetProperty("points"); ValidatePolyline(points);
             foreach (var key in new[] { "transport_points", "disconnected_points" })
             {
-                if (route.TryGetProperty(key, out var parked)) { ValidatePolyline(parked); }
+                if (route.TryGetProperty(key, out var parked) && parked.ValueKind != JsonValueKind.Null) { ValidatePolyline(parked); }
             }
             if (route.TryGetProperty("point_lift_weights", out var weights))
             {
