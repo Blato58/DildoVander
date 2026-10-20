@@ -53,40 +53,97 @@ bool EspIdfVoiceAudio::Initialize(bool nvsInitialized, AudioBoardPort* board) {
   return true;
 }
 
-void EspIdfVoiceAudio::Begin() {
-  Stop();
+namespace {
+bool Allowed(const BoundedPlaybackOwner::Fence* fence) { return !fence || fence->Current(); }
+void ScrubBytes(void* data, size_t size) {
+  auto* bytes = static_cast<volatile uint8_t*>(data);
+  for (size_t i = 0; i != size; ++i) bytes[i] = 0;
+}
+struct PlaybackScratch {
+  PlaybackScratch() { samples.reserve(684); }
+  ~PlaybackScratch() {
+    if (samples.data()) ScrubBytes(samples.data(), samples.capacity() * sizeof(int16_t));
+    ScrubBytes(slots.data(), sizeof(slots));
+  }
+  std::vector<int16_t> samples;
+  std::array<int32_t, 1368> slots{};
+};
+}
+
+void EspIdfVoiceAudio::Begin() { BeginPlayback(nullptr); }
+bool EspIdfVoiceAudio::Begin(const Fence& fence) { return BeginPlayback(&fence); }
+uint32_t EspIdfVoiceAudio::StopLocked() {
+  active_.store(false);
+  listening_.store(false);
+  playing_.store(false);
+  const uint32_t epoch = epoch_.fetch_add(1) + 1;
+  if (available_) Mute(false);
+  return epoch;
+}
+bool EspIdfVoiceAudio::BeginPlayback(const Fence* fence) {
+  StopCues();
+  uint32_t epoch;
+  {
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    if (!available_ || !Allowed(fence)) return false;
+    epoch = StopLocked();
+  }
+  // A cue/older admitted DMA write may hold this lock for its bounded IO wait.
+  // Stop never waits on it. Recheck both fences after that wait before revival.
   std::lock_guard<std::mutex> outputLock(outputGate_);
-  if (board_ && !board_->AudioReady()) { failed_.store(true); return; }
+  std::lock_guard<std::mutex> muteLock(muteGate_);
+  if (epoch_.load() != epoch || !Allowed(fence)) return false;
+  if ((board_ && !board_->AudioReady()) || !Mute(false)) { failed_.store(true); return false; }
   failed_.store(false);
   if (input_) xQueueReset(input_);
   outputRate_.Reset();
   active_.store(true);
+  return true;
 }
 
 void EspIdfVoiceAudio::Listen(bool enabled) {
-  listening_.store(false);
-  if (!Mute(false)) { Stop(); return; }
-  epoch_.fetch_add(1);
-  if (input_) xQueueReset(input_);
-  if (enabled) {
-    failed_.store(false);
-    playing_.store(false);
-    outputRate_.Reset();
-    muteGate_.lock();
-    listening_.store(active_.load());
-    muteGate_.unlock();
+  bool muted;
+  {
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    listening_.store(false);
+    muted = Mute(false);
+    if (muted) {
+      epoch_.fetch_add(1);
+      if (enabled) {
+        failed_.store(false);
+        playing_.store(false);
+        listening_.store(active_.load());
+      }
+    }
   }
+  if (!muted) { Stop(); return; }
+  if (input_) xQueueReset(input_);
+  // outputRate_ belongs exclusively to the playback worker. First Play resets
+  // it; reader-side capture changes must not race that worker's FIR history.
 }
 
 void EspIdfVoiceAudio::Stop() {
   StopCues();
-  muteGate_.lock();
-  active_.store(false);
-  listening_.store(false);
+  std::lock_guard<std::mutex> muteLock(muteGate_);
+  StopLocked();
+}
+bool EspIdfVoiceAudio::MutePlayback() {
+  std::lock_guard<std::mutex> muteLock(muteGate_);
   playing_.store(false);
   epoch_.fetch_add(1);
-  if (available_) Mute(false);
-  muteGate_.unlock();
+  return available_ && Mute(false);
+}
+bool EspIdfVoiceAudio::PlaybackCurrent(const Fence* fence, uint32_t epoch, bool requirePlaying) const {
+  return active_.load() && !failed_.load() && epoch_.load() == epoch &&
+      (!requirePlaying || playing_.load()) && Allowed(fence);
+}
+bool EspIdfVoiceAudio::PlaybackFault(const Fence* fence, uint32_t epoch) {
+  std::lock_guard<std::mutex> muteLock(muteGate_);
+  if (epoch_.load() == epoch && Allowed(fence)) {
+    failed_.store(true);
+    StopCues(); StopLocked();
+  }
+  return false;
 }
 
 bool EspIdfVoiceAudio::TakeInput(std::vector<uint8_t>& pcm) {
@@ -103,88 +160,118 @@ bool EspIdfVoiceAudio::TakeInput(std::vector<uint8_t>& pcm) {
   return !failed_.load();
 }
 
-bool EspIdfVoiceAudio::CancelPlayback() {
-  // The network reader owns Play and this method. Stop remains sticky on the
-  // independent control task. Mute first: a short admitted DMA tail can remain.
-  const uint32_t epoch = epoch_.load();
+bool EspIdfVoiceAudio::CancelPlayback() { return CancelPlayback(static_cast<const Fence*>(nullptr)); }
+bool EspIdfVoiceAudio::CancelPlayback(const Fence& fence) { return CancelPlayback(&fence); }
+bool EspIdfVoiceAudio::CancelPlayback(const Fence* fence) {
+  uint32_t epoch;
   {
     std::lock_guard<std::mutex> muteLock(muteGate_);
-    if (!active_.load() || failed_.load()) return false;
+    if (!active_.load() || failed_.load() || !Allowed(fence)) return false;
     playing_.store(false);
+    epoch = epoch_.fetch_add(1) + 1;
     if (!Mute(false)) return false;
   }
-  // Replace the eight descriptor DMA tail with silence before a new Play can
-  // open output. B's SD cannot mute instantly; the admitted tail is a physical
-  // latency limit, but it must never be reopened by the next response.
+  // Worker-owned flush. Profile B's admitted DMA tail cannot mute instantly;
+  // the immediate fence prevents future unmute, and these writes clear the tail.
   std::array<int32_t, 640> silence{};
   for (int i = 0; i < 9; ++i) {
     std::lock_guard<std::mutex> outputLock(outputGate_);
+    {
+      std::lock_guard<std::mutex> muteLock(muteGate_);
+      if (!PlaybackCurrent(fence, epoch, false)) return false;
+    }
     size_t written = 0;
-    if (!active_.load() || epoch_.load() != epoch ||
-        i2s_channel_write(tx_, silence.data(), sizeof(silence), &written, 100) != ESP_OK ||
-        written != sizeof(silence)) return false;
+    const bool wrote = i2s_channel_write(tx_, silence.data(), sizeof(silence), &written, 100) == ESP_OK &&
+        written == sizeof(silence);
+    if (!wrote) return PlaybackFault(fence, epoch);
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    if (!PlaybackCurrent(fence, epoch, false)) return false;
   }
+  std::lock_guard<std::mutex> muteLock(muteGate_);
+  if (!PlaybackCurrent(fence, epoch, false)) return false;
   outputRate_.Reset();
   return true;
 }
 
 bool EspIdfVoiceAudio::Play(const std::vector<uint8_t>& pcm) {
-  if (!available_ || pcm.empty() || pcm.size() % 2 || pcm.size() > 32768) return false;
-  // Stop is sticky until Begin. A block admitted just before cancellation must
-  // not reopen the speaker after the control task has already muted it.
-  muteGate_.lock();
-  const bool active = active_.load();
-  const uint32_t epoch = epoch_.load();
-  const bool first = active && !playing_.exchange(true);
-  if (!continuous_.load()) listening_.store(false);
-  muteGate_.unlock();
-  if (!active) return false;
-  if (first) outputRate_.Reset();
-  std::vector<int16_t> samples;
-  samples.reserve(684);
-  std::array<int32_t, 1368> slots{};
-  for (size_t offset = 0; offset < pcm.size(); offset += 1024) {
-    if (!playing_.load() || epoch_.load() != epoch) return false;
-    samples.clear();
-    const size_t end = std::min(pcm.size(), offset + 1024);
-    for (size_t i = offset; i < end; i += 2)
-      outputRate_.Push(static_cast<int16_t>(pcm[i] | (pcm[i + 1] << 8)), samples);
-    for (size_t i = 0; i < samples.size(); ++i) {
-      // Conservative initial volume 25%; duplicate into stereo 32-bit slots.
-      slots[i * 2] = slots[i * 2 + 1] = static_cast<int32_t>(samples[i]) * 16384;
-    }
-    muteGate_.lock();
-    const bool allowed = playing_.load() && epoch_.load() == epoch;
-    const bool unmuted = allowed && Mute(true);
-    muteGate_.unlock();
-    if (!unmuted) { Stop(); return false; }
-    std::lock_guard<std::mutex> outputLock(outputGate_);
-    size_t written = 0;
-    if (i2s_channel_write(tx_, slots.data(), samples.size() * 8, &written, 100) != ESP_OK ||
-        written != samples.size() * 8) { Stop(); return false; }
-    if (!playing_.load() || epoch_.load() != epoch) { Mute(false); return false; }
+  return PlayPlayback(nullptr, pcm.data(), pcm.size());
+}
+bool EspIdfVoiceAudio::Play(const Fence& fence, const uint8_t* pcm, size_t length) {
+  return PlayPlayback(&fence, pcm, length);
+}
+bool EspIdfVoiceAudio::PlayPlayback(const Fence* fence, const uint8_t* pcm, size_t length) {
+  if (!available_ || !pcm || !length || length % 2 || length > 32768) return false;
+  uint32_t epoch;
+  bool first;
+  {
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    if (!active_.load() || failed_.load() || !Allowed(fence)) return false;
+    epoch = epoch_.load();
+    first = !playing_.exchange(true);
+    if (!continuous_.load()) listening_.store(false);
   }
-  std::fill(samples.begin(), samples.end(), 0);
+  if (first) outputRate_.Reset();
+  PlaybackScratch scratch;
+  for (size_t offset = 0; offset < length; offset += 1024) {
+    if (!PlaybackCurrent(fence, epoch, true)) return false;
+    scratch.samples.clear();
+    const size_t end = std::min(length, offset + 1024);
+    for (size_t i = offset; i < end; i += 2)
+      outputRate_.Push(static_cast<int16_t>(pcm[i] | (pcm[i + 1] << 8)), scratch.samples);
+    for (size_t i = 0; i < scratch.samples.size(); ++i) {
+      scratch.slots[i * 2] = scratch.slots[i * 2 + 1] = static_cast<int32_t>(scratch.samples[i]) * 16384;
+    }
+    bool unmuted;
+    {
+      std::lock_guard<std::mutex> muteLock(muteGate_);
+      if (!PlaybackCurrent(fence, epoch, true)) return false;
+      unmuted = Mute(true);
+    }
+    if (!unmuted) return PlaybackFault(fence, epoch);
+    std::lock_guard<std::mutex> outputLock(outputGate_);
+    {
+      std::lock_guard<std::mutex> muteLock(muteGate_);
+      if (!PlaybackCurrent(fence, epoch, true)) return false;
+    }
+    size_t written = 0;
+    const bool wrote = i2s_channel_write(tx_, scratch.slots.data(), scratch.samples.size() * 8, &written, 100) == ESP_OK &&
+        written == scratch.samples.size() * 8;
+    if (!wrote) return PlaybackFault(fence, epoch);
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    if (!PlaybackCurrent(fence, epoch, true)) return false;
+  }
   return true;
 }
 
-bool EspIdfVoiceAudio::Drain() {
-  // Flush the queued DMA with silence before ACK. Stop remains immediate on its
-  // own task; no playback-complete ACK is issued if interrupted.
-  const uint32_t epoch = epoch_.load();
+bool EspIdfVoiceAudio::Drain() { return DrainPlayback(nullptr); }
+bool EspIdfVoiceAudio::Drain(const Fence& fence) { return DrainPlayback(&fence); }
+bool EspIdfVoiceAudio::DrainPlayback(const Fence* fence) {
+  uint32_t epoch;
+  {
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    epoch = epoch_.load();
+    if (!PlaybackCurrent(fence, epoch, true)) return false;
+  }
   std::array<int32_t, 640> silence{};
   for (int i = 0; i < 9; ++i) {
     std::lock_guard<std::mutex> outputLock(outputGate_);
+    {
+      std::lock_guard<std::mutex> muteLock(muteGate_);
+      if (!PlaybackCurrent(fence, epoch, true)) return false;
+    }
     size_t written = 0;
-    if (!playing_.load() || epoch_.load() != epoch ||
-        i2s_channel_write(tx_, silence.data(), sizeof(silence), &written, 100) != ESP_OK ||
-        written != sizeof(silence)) return false;
+    const bool wrote = i2s_channel_write(tx_, silence.data(), sizeof(silence), &written, 100) == ESP_OK &&
+        written == sizeof(silence);
+    if (!wrote) return PlaybackFault(fence, epoch);
+    std::lock_guard<std::mutex> muteLock(muteGate_);
+    if (!PlaybackCurrent(fence, epoch, true)) return false;
   }
+  std::lock_guard<std::mutex> muteLock(muteGate_);
+  if (!PlaybackCurrent(fence, epoch, true)) return false;
   const bool muted = Mute(false);
   playing_.store(false);
   return muted;
 }
-
 
 void EspIdfVoiceAudio::Cue(uint16_t frequencyHz, uint16_t durationMs) {
   (void)TryCue(frequencyHz, durationMs);

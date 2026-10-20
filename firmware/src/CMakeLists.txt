@@ -37,6 +37,8 @@ idf_component_register(
         "features/show_cues/EspIdfDeviceShowTransport.cpp"
         "features/physical_effects/EspIdfPhysicalIo.cpp"
         "features/voice_turn/EspIdfVoiceAudio.cpp"
+        "features/voice_turn/BoundedPlaybackOwner.cpp"
+        "features/voice_turn/BoundedVoicePlayback.cpp"
         "features/voice_turn/EspIdfRealtimeTransport.cpp"
         "features/voice_turn/RealtimeEventCodec.cpp"
         "features/voice_turn/RealtimeSessionEngine.cpp"
