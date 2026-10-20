@@ -82,8 +82,15 @@ blocker; `--status "In Review"` records review readiness. Only the sole active
 claimant may change status. Keep the dedicated board free of foreign-repository
 Issues and duplicate titles; a missing/ambiguous title stops synchronization.
 
-When a PR or review is still pending, follow the repository's
-[asynchronous handoff](../../../docs/development-coordination.md#asynchronous-pr-follow-up):
-reuse a native heartbeat for this chat, preserve the private task/session in its
-prompt, and end the active turn. Resume on actionable failure or verified
-success; do not wait in a local watch loop or create a separate tracking task.
+Continue available authorized implementation, investigation, validation and fixes
+in the active chat, including independent work while CI/CD runs. Use the
+repository's [asynchronous handoff](../../../docs/development-coordination.md#asynchronous-pr-follow-up)
+only for a long wait on actual queued or running CI/CD with no available
+independent work: reuse a native heartbeat for this chat, preserve the private
+task/session in its prompt, and end the turn. Pause it when that wait ends or
+actionable work becomes available, then resume work. Checkpoints and quiet
+notification preferences do not authorize scheduled implementation continuation.
+Do not schedule review-only waits or peer-dependency polling; coordinate a direct
+readiness handoff with the responsible chat and continue independent work. If
+fully blocked, record the exact dependency and next action and await that handoff.
+Do not use a local watch loop or create a separate tracking task.

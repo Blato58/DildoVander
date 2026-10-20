@@ -21,17 +21,33 @@ credential must not trigger public tracking or an unsupported completion claim.
 
 ## Asynchronous PR follow-up
 
-When CI or a PR review is pending, hand off to a native Codex heartbeat attached
-to the current chat, normally every five minutes, then end the active turn.
-Reuse the existing follow-up for that PR; do not create a separate chat or a
-second tracker. Stop local watch/poll processes without cancelling remote CI.
+Keep working in the active chat while any authorized implementation,
+investigation, validation or actionable fix is available. Do independent work
+while CI/CD runs. A checkpoint, commit, push or preference for quiet progress
+does not justify ending implementation or scheduling its continuation.
+
+Use a native Codex heartbeat only for a long wait on an actual queued or running
+CI/CD job, after all available independent work is exhausted. Attach it to the
+current chat, normally every five minutes, then end the active turn. Reuse the
+existing follow-up for that wait; do not create a separate chat or a second
+tracker. Stop local watch/poll processes without cancelling remote CI.
+
+Do not schedule ordinary implementation continuation, review-only waits or
+repeated checks on another chat's progress. Coordinate dependencies directly
+with the responsible chat, agree on a concrete readiness handoff and continue
+independent work. If nothing remains available, record the exact blocker and
+next action and await that direct handoff. Escalate only decisions or
+interventions that require the owner; do not replace the handoff with a timer.
 
 Include the repository/PR, current branch and checkout, private task/session,
 credential routing, actual validation, remaining work and existing authorization
 in the private follow-up prompt. Fetch the current head and its checks each run;
-never act on a superseded run. If nothing actionable changed, return quietly.
-On failure, inspect logs and relevant feedback, fix and validate, push and hand
-off again. On success, re-read all reviews, unresolved threads and Codex review
+never act on a superseded run. If the same CI/CD wait remains with no available
+work, return quietly. As soon as the wait ends or actionable work becomes
+available, pause the heartbeat and resume work in the active chat. On failure,
+inspect logs and relevant feedback, fix, validate and push; schedule another
+follow-up only if the CI/CD wait criteria above are met again. On success,
+re-read all reviews, unresolved threads and Codex review
 state immediately before any authorized merge. Verify the merge, record evidence
 in the private Issue and synchronize the Project. Never merge failing checks or
 an unresolved relevant finding. Pause the follow-up when work completes or a
