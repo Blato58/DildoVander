@@ -60,6 +60,13 @@ never regenerate CAD just for chrome or require manufacturing archives for
 application builds. Validate schema, paths, size, checksums and compatibility;
 model source/version and app source/version are independent.
 
+For model-only iteration use `scripts/cad.ps1 build` and `publish` (preview).
+See [CAD workflow](../../../kufr/mechanika/final/CAD-WORKFLOW.md). App/viewer
+checks never invoke this generator. Only the dedicated manual generation
+workflow may build CAD in Actions. `verify` checks bundle integrity/schema;
+`verify --manufacturing` explicitly requests the expensive existing pipeline.
+Never promote an unverified preview to production or infer physical acceptance.
+
 Read `references/application.md` for feature ownership, identity/pairing,
 claim capture, viewer lifecycle and focused validation. Route guards are UX;
 server permission checks, native PoP/pinning and guest capabilities own access.

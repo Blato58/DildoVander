@@ -103,14 +103,18 @@
 
 ## Sestavení a ověření
 
-- Majitel 20. 10. 2026 odstranil CAD z CI/CD do přípravy nového řešení.
-  Žádné PR, push ani ruční GitHub workflow nesmí spouštět CAD, slicer,
-  rendery nebo výrobní ověření. Lokální mechanické kontroly a provenience
-  zůstávají povinné; dopad určuje `scripts/ci/cad_impact.py` se sdílenou
+- CAD se negeneruje ani výrobně neověřuje v automatickém/mandatory CI/CD.
+  Výslovný ruční fallback `kufr-cad-generate.yml` generuje pouze ModelBundle.
+  Lokálně používej `scripts/cad.ps1 build` nebo `publish` (výchozí preview);
+  příkazy a hranice popisuje [CAD workflow](kufr/mechanika/final/CAD-WORKFLOW.md).
+  Běžný build nespouští testy, kolize, slicer, PNG ani výrobní ZIP. Plná
+  výrobní validace je výslovné `scripts/cad.ps1 verify --manufacturing`.
+  Před výrobou zůstávají mechanické kontroly a provenience povinné;
+  dopad určuje `scripts/ci/cad_impact.py` se sdílenou
   politikou `source_inputs.py`. Viewer HTML/CSS/JS ověř cílenými testy bez
   regenerace geometrie. Zelené softwarové CI neprokazuje mechanickou akceptaci.
   Podrobnosti jsou v [CAD README](kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
-- Pro mechanické změny použij běžnou inkrementální `Regenerate.ps1` a zachovej
+- Pro výrobní akceptaci mechanických změn použij inkrementální `Regenerate.ps1` a zachovej
   kontroly kolizí, montáže a tisku. Ověřené nezměněné výsledky lze znovu použít
   jen se shodou vstupů a ověřenými bytes/proveniencí. `-Force` a kompletní
   regeneraci použij pouze na výslovné zadání nebo se zdůvodněním závislosti;

@@ -5,11 +5,8 @@ import json
 import math
 import argparse
 import html
-import vtk
-import numpy as np
 
 from geometry import ROOT,COLORS,PARAMS,bounds,Item,box
-from build import OUT
 from check_fit import scene
 import mechanism
 import chassis
@@ -22,6 +19,8 @@ from twin_manifest import build_manifest, geometry_digest
 from export_model_bundle import write_model_bundle, source_revision
 from model_verification import write_generation_receipt
 
+OUT = ROOT / "exports"
+
 
 def mesh(shape):
     vertices,faces=shape.tessellate(0.15,0.15)
@@ -29,6 +28,7 @@ def mesh(shape):
 
 
 def actor(item):
+    import vtk
     vertices,faces=mesh(item.shape)
     points=vtk.vtkPoints()
     for v in vertices:
@@ -57,6 +57,7 @@ def actor(item):
 
 def cable_actor(route,transport=False):
     """The exact harness polyline; tube radius is display-only, not bundle size."""
+    import vtk
     coordinates=(route.get("transport_points") or route["points"]) if transport else route["points"]
     points=vtk.vtkPoints()
     for coordinate in coordinates:
@@ -89,6 +90,7 @@ def cable_actor(route,transport=False):
 
 
 def render(items,path,title,camera,target,parallel=300,wires=False,transport=False):
+    import vtk
     renderer=vtk.vtkRenderer()
     renderer.SetBackground(0.945,0.929,0.898)
     for item in items:
@@ -145,6 +147,15 @@ def viewer():
     document+='<nav aria-label="Zdrojové podklady"><a href="#inventar">Inventář a rozměry</a><a href="#zapojeni">Zapojení</a><a href="viewer.html">3D sestava</a></nav>'+''.join(sections)+'</body></html>'
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/"reference-sources.html").write_text(document,encoding="utf-8")
+    payload = model_payload()
+    (OUT/"twin.manifest.json").write_text(json.dumps(payload["twinManifest"],ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    write_model_bundle(payload, OUT / "model-release", source_revision=source_revision())
+    write_generation_receipt(OUT / "model-release", ROOT, OUT / "model-generation.json")
+    (OUT/"viewer.html").write_text(render_document(payload),encoding="utf-8")
+
+
+def model_payload(mesh_provider=mesh):
+    """Actual scene data, without rendering, printable exports or verification."""
     meshes=[]
     items=[item for item in scene(lid=0) if not item.name.startswith("spare_")]
     normal_names={item.name for item in items}
@@ -152,7 +163,7 @@ def viewer():
     transport_names={item.name for item in transport_items}
     items += [item for item in transport_items if item.name not in normal_names]
     for item in items:
-        vertices,faces=mesh(item.shape)
+        vertices,faces=mesh_provider(item.shape)
         # Preserve exact tessellated facets without repeating every position
         # and normal in JSON. The viewer expands flat normals once for the GPU.
         meshes.append({"name":item.name,"group":item.group,"color":COLORS[item.color],
@@ -177,13 +188,9 @@ def viewer():
              "connections":inspect_data.connection_data(names) +
                            [edge for edge in harness.CONNECTIONS if edge["from"] in names and edge["to"] in names],
              "sources":inspect_data.source_evidence()}
-    OUT.mkdir(parents=True,exist_ok=True)
     payload["twinManifest"] = build_manifest(PARAMS, mechanism, payload["effects"], names,
                                            geometry_digest=geometry_digest(meshes))
-    (OUT/"twin.manifest.json").write_text(json.dumps(payload["twinManifest"],ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    write_model_bundle(payload, OUT / "model-release", source_revision=source_revision())
-    write_generation_receipt(OUT / "model-release", ROOT, OUT / "model-generation.json")
-    (OUT/"viewer.html").write_text(render_document(payload),encoding="utf-8")
+    return payload
 
 
 def main():

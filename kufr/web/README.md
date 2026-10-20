@@ -42,8 +42,10 @@ navíc `noindex` a `no-referrer`. Fingerprintované `/assets/` a neměnné model
 balíčky mají oddělenou cache. Aktivační reference modelu zůstává `no-store`.
 
 CI projekt `site` sestavuje aplikaci a testuje viewer fixtures bez CAD toolchainu.
-Samostatná gate `cad` ověřuje skutečné výrobní vstupy; neznámý mechanický soubor
-zůstává konzervativně výrobním vstupem. Ruční `project=site` nespouští CAD;
+CAD nemá povinnou ani automatickou CI gate. Rychlý lokální build/publish a ruční
+generation-only fallback popisuje [CAD workflow](../mechanika/final/CAD-WORKFLOW.md).
+Neznámý mechanický soubor zůstává konzervativně výrobním vstupem pro výslovnou
+lokální výrobní validaci. Ruční `project=site` nespouští CAD;
 `project=all` vybere obě nezávislé gate. Přímý ruční build `main` bez PR vstupu
 zachovává kompatibilní název artefaktu `arcane-site`. Public workflow neobsahuje
 produkční credentials ani produkční publisher.

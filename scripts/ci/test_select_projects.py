@@ -32,7 +32,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/production/main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
-            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"site"}),
+            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"repository"}),
             (["kufr/design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
             (["kufr/web/build-site.py"], {"site"}),
         ]:
@@ -64,7 +64,7 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
         self.assertEqual(self.selected("scripts/ci/select_projects.py"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-site.yml"), {"repository", "site"})
-        self.assertEqual(self.selected(".github/workflows/kufr-cad.yml"), {"repository"})
+        self.assertEqual(self.selected(".github/workflows/kufr-cad-generate.yml"), {"repository"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios.yml"), {"repository", "ios"})
         self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
 
@@ -74,8 +74,7 @@ class ProjectSelectionTests(unittest.TestCase):
                      "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
                      "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
                      "scripts/ci/install-cad-slicer.sh",
-                     "scripts/ci/cad_cache.py",
-                     ".github/actions/verified-cad/action.yml"]:
+                     "scripts/cad.py", "scripts/cad.ps1"]:
             with self.subTest(path=path):
                 self.assertNotIn("cad", self.selected(path))
         for path in ["kufr/mobilni-aplikace/src/main.ts", "kufr/mobilni-aplikace/.nvmrc", "kufr/web/build-site.py",
@@ -90,7 +89,7 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected("kufr/design-system/tokens.json"),
                          {"repository", "backend", "web", "ios", "site"})
         self.assertEqual(self.selected("kufr/mechanika/final/viewer.js"), {"site"})
-        self.assertEqual(self.selected("kufr/mechanika/final/new-mechanism.py"), {"site"})
+        self.assertEqual(self.selected("kufr/mechanika/final/new-mechanism.py"), {"repository"})
         self.assertEqual(self.selected("kufr/simulator/dashboard-ui.js"), {"site"})
         self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/panel.css"), {"site"})
         self.assertEqual(self.selected("kufr/firmware/src/diagnostics/servo-bench/main.cpp"), {"firmware"})

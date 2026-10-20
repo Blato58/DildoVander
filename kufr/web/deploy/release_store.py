@@ -11,8 +11,9 @@ import subprocess
 import tempfile
 import uuid
 
-REPO = Path(__file__).resolve().parents[3]
-
+# Repository-only Node validation uses this path. Portable publishers inject
+# their transport validator and may import this file from a shallow /tmp path.
+REPO = Path(__file__).resolve().parent.parent.parent.parent
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -120,17 +121,18 @@ def validate_model(bundle):
     return manifest
 
 
-def publish_model(bundle, root):
+def publish_model(bundle, root, *, validator=None, check=None):
+    validator = validator or validate_model
     with publication_lock(root):
         before = inventory(bundle)
-        manifest = validate_model(bundle)
+        manifest = validator(bundle)
         model_hash = manifest['bundleHash']
         if not re.fullmatch('[0-9a-f]{64}', model_hash):
             raise ValueError('Invalid immutable model identifier')
         checked_directory(root, Path('bundles'))
         target = root / 'bundles' / model_hash
         store_immutable(bundle, target)
-        validate_model(target)
+        validator(target)
         if inventory(target) != before:
             raise ValueError('Validated model changed during publication')
         pointer = {'schemaVersion': 1, 'modelId': manifest['modelId'], 'bundleHash': model_hash,
@@ -138,24 +140,56 @@ def publish_model(bundle, root):
         with model_activation_lock(root):
             active = root / 'active.json'
             previous = json.loads(active.read_text()) if active.exists() else None
-            if previous and previous != pointer:
-                atomic_json(root / 'previous.json', previous)
-            atomic_json(active, pointer)
+            if previous == pointer:
+                if check:
+                    check(pointer)
+                return pointer
+            switch_model(root, pointer, previous, check)
         return pointer
 
 
-def rollback_model(root):
+def switch_model(root, pointer, current, check):
+    """Caller holds both locks. Save rollback before switching, recover both files."""
+    active, prior = root / 'active.json', root / 'previous.json'
+    old_prior = json.loads(prior.read_text()) if prior.exists() else None
+    # A crash after pointer activation must retain the immediately prior model.
+    if current:
+        atomic_json(prior, current)
+    try:
+        atomic_json(active, pointer)
+        if check:
+            check(pointer)
+    except Exception:
+        if current is None:
+            active.unlink(missing_ok=True)
+        else:
+            atomic_json(active, current)
+        if old_prior is None:
+            prior.unlink(missing_ok=True)
+        else:
+            atomic_json(prior, old_prior)
+        raise
+
+
+def rollback_model(root, *, validator=None, check=None):
+    validator = validator or validate_model
     with publication_lock(root):
-        previous = json.loads((root / 'previous.json').read_text())
-        model_hash = previous.get('bundleHash', '')
-        if (previous.get('schemaVersion') != 1 or not re.fullmatch('[0-9a-f]{64}', model_hash)
-                or previous.get('manifestPath') != f'bundles/{model_hash}/model-bundle.json'):
-            raise ValueError('Invalid rollback reference')
-        manifest = validate_model(root / 'bundles' / model_hash)
-        if manifest['modelId'] != previous['modelId'] or manifest['bundleHash'] != model_hash:
-            raise ValueError('Rollback reference identity differs')
         with model_activation_lock(root):
-            atomic_json(root / 'active.json', previous)
+            # Backend selectors share this lock, not the CLI publication lock.
+            previous = json.loads((root / 'previous.json').read_text())
+            model_hash = previous.get('bundleHash', '')
+            if (previous.get('schemaVersion') != 1 or not re.fullmatch('[0-9a-f]{64}', model_hash)
+                    or previous.get('manifestPath') != f'bundles/{model_hash}/model-bundle.json'):
+                raise ValueError('Invalid rollback reference')
+            manifest = validator(root / 'bundles' / model_hash)
+            if manifest['modelId'] != previous['modelId'] or manifest['bundleHash'] != model_hash:
+                raise ValueError('Rollback reference identity differs')
+            active = root / 'active.json'
+            current = json.loads(active.read_text()) if active.exists() else None
+            if previous != current:
+                switch_model(root, previous, current, check)
+            elif check:
+                check(previous)
         return previous
 
 

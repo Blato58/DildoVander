@@ -9,8 +9,10 @@ Read-only audit on 2026-10-19 inspected private repository
 - `scripts/ci/verify-build.cjs`
 - `scripts/ci/package.py`
 
-No secret values, server configuration or production data were read. No private
-files were changed and no workflow was dispatched.
+During that audit no secret values, server configuration or production data were
+read, no private files were changed and no workflow was dispatched. The current
+template uses independently maintained operational helpers from the reviewed
+private dispatch commit, rather than checking out application helper code at runtime.
 
 ## Verified compatibility
 
@@ -21,7 +23,7 @@ artifact ID and GitHub SHA-256 digest, current main commit/tree, outer
 contracts remain unchanged. The public artifact name remains `arcane-site`.
 They are compatible with the new **inner** `site-manifest.json` schema 2.
 
-The existing site workflow is incompatible after extraction. It calls
+The audited legacy site workflow is incompatible after extraction. It calls
 `publish-site.py` and `verify-site.py`, which require the old schema-1 multi-page
 release and full manufacturing ZIP, uses an IPv4 origin, deletes legacy iOS CAD
 files, and prunes old site releases. It does not publish durable model/download
@@ -34,14 +36,17 @@ After reviewing the diff against the audited private commit, copy
 `.github/workflows/kufr-site-deploy.yml`. No change is needed to the audited
 reusable build, artifact downloader, outer package or provenance verifier.
 Review again if private main changed since the audit; do not overwrite unrelated
-private edits. This is a local template, not an installed workflow.
+private edits. Import and review `release_store.py` and
+`private-pipeline/verify-application.py` under the same private `kufr/web/deploy/`
+paths, recording their candidate hashes separately from older import provenance.
+This is a local template, not evidence of a dispatched workflow.
 
 The replacement retains the existing private-repository/main/dispatch guards,
 `backend-production` environment, serialized production group, immutable
 artifact download, safe extraction and immediate current-main recheck. It
-checks out only deployment helpers from the verified public `source_sha`, so
-the private repository does not maintain a drifting copy of the publisher.
-Both trust gates and checkout remain pinned to reviewed action revisions.
+executes operational helpers maintained alongside the private workflow at its
+reviewed dispatch SHA. No application checkout executes as a production helper.
+Trust gates and checkout remain pinned to reviewed action revisions.
 
 The replacement validates clean schema-2 app provenance and its exact expected
 source SHA, requires a compatible existing rollback release, and activates only
