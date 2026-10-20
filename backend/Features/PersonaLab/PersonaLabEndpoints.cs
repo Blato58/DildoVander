@@ -179,7 +179,8 @@ internal static class PersonaLabEndpoints
             try
             {
                 await runtime.VoiceAsync(admission.Owner, id, socket,
-                    token => AuthorizedAsync(http.RequestServices, admission, token), http.RequestAborted, admission.Recovery);
+                    token => AuthorizedAsync(http.RequestServices, admission, token), http.RequestAborted, admission.Recovery,
+                    acknowledgedPlayback: http.Request.Query["playback"] == "1");
                 await sender.JsonAsync(new { type = "session", session = runtime.Detail(admission.Owner, id) }, http.RequestAborted);
                 await sender.JsonAsync(new { type = "ended" }, http.RequestAborted);
             }

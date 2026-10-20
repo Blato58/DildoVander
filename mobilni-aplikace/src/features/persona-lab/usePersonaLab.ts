@@ -35,7 +35,7 @@ export function usePersonaLab() {
   let ageTimer: ReturnType<typeof setInterval> | null = null;
   let recoveryDelay: { timer: ReturnType<typeof setTimeout>; finish: (value: boolean) => void } | null = null;
   const admin = computed(() => hasRole('Administrator'));
-  const voiceActive = computed(() => ['connecting', 'listening', 'speaking'].includes(voicePhase.value));
+  const voiceActive = computed(() => ['connecting', 'waiting', 'listening', 'speaking'].includes(voicePhase.value));
   const sessionAgeSeconds = computed(() => selected.value ? Math.max(0, Math.floor(((selected.value.endedAt ? Date.parse(selected.value.endedAt) : now.value) - Date.parse(selected.value.createdAt)) / 1000)) : null);
   const configRevision = computed(() => catalog.value?.versions.find(item => item.id === configRevisionId.value) ?? null);
   const validEvaluation = computed(() => (Object.keys(metricLabels) as Metric[]).every(key =>

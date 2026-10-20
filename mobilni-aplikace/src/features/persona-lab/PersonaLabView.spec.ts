@@ -177,6 +177,16 @@ describe('Persona Lab user journeys', () => {
     api.voiceObserver!.phase('speaking'); await flushPromises();
     expect(wrapper.text()).toContain('Mikrofon je zapnutý.');
     expect(wrapper.text()).not.toContain('odesílá zvuk do testovacího modelu');
+    api.voiceObserver!.phase('waiting'); await flushPromises();
+    expect(wrapper.text()).toContain('Čekám na připravenost modelu');
+    expect(wrapper.text()).toContain('Připravenost modelu k dalšímu vstupu zatím není potvrzená.');
+    expect(wrapper.text()).not.toContain('Mikrofon aktivní · naslouchám');
+    expect(wrapper.get('#lab-existing').attributes('disabled')).toBeDefined();
+    expect(wrapper.findAll('button').some(button => button.text() === 'Spustit hlas')).toBe(false);
+    expect(wrapper.findAll('button').some(button => button.text() === 'Vypnout hlas')).toBe(true);
+    expect(wrapper.get('.lab-composer textarea').attributes('disabled')).toBeDefined();
+    await wrapper.get('.lab-composer').trigger('submit');
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/turns'))).toBe(false);
   });
   it('cancels an explicit recovery backoff before any new provider connection', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); vi.spyOn(Math, 'random').mockReturnValue(0);

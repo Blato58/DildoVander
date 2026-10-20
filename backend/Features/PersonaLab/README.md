@@ -88,12 +88,48 @@ disposing its enumerator. Retired audio generations cannot affect a new input
 observer, and teardown releases pending upload readiness waiters.
 
 Lab Realtime closes microphone upload admission at provider speech-stop and drains
-in-flight sends before the provider input buffer is retired. PCM received while a
-response finishes is discarded. An explicit interruption can retain at most
+in-flight sends before the provider input buffer is retired. PCM received during
+an undisposed response is discarded. An explicit interruption can retain at most
 96,000 bytes (two seconds of 24 kHz mono PCM16); it is uploaded at most once, in order,
 only after the next provider listening phase. A late cancel cannot retire that
 new input. Overflow ends voice with a specific diagnostic rather than silently
 losing the start of the next utterance. Stop/end clears this volatile prefix.
+
+The Lab browser negotiates acknowledged Realtime playback with `playback=1` on
+the existing authenticated voice socket. `ready.playbackMode` is `acknowledged`
+for Realtime and `stream` for Live. A missing or unknown mode stops the new client;
+it cannot silently assume that the server tracks heard audio. The query-absent
+Lab path remains only for the backend-before-web deployment window. Production
+guest/device callers retain the shared adapter's default behavior.
+
+Each Realtime audio response has an opaque playback ID. The server sends
+`playback_started` before its PCM and `playback_end` with the forwarded sample
+count and final/intermediate classification after generation. The browser sends
+`playback_done` only after every sample has drained from its queue and audio
+nodes. The server retains the provider response until this acknowledgement or
+an ID-correlated interruption. A completed provider response can still be
+truncated to the heard duration without sending another `response.cancel`.
+Interrupted output is not saved as a fully heard assistant turn. Intermediate
+audio from a tool response drains before the next response; only a final drain
+prepares the next input prefix, and actual provider listening rearms upload.
+The control reader stays available for Stop and cancellation during these waits.
+
+Provider audio can arrive faster than it plays. A large playback lead alone is
+not an audio-device failure; see the official
+[Realtime truncation contract](https://developers.openai.com/api/reference/resources/realtime/client-events#conversation.item.truncate).
+The browser bounds raw PCM separately from its short
+native scheduling horizon: Realtime permits at most 720,000 samples (30 seconds)
+per turn; Live retains the existing 190-second output envelope. At most four
+250-millisecond native buffers are scheduled, with no more than a second of audio
+ahead. A five-second lack of audio-clock progress is a stall, independently of
+queue depth. Queue overflow, a stalled clock and an interrupted audio context
+have distinct fixed diagnostics. Best-effort playback-failure reports are
+authenticated client claims, not server verification of an audio-device fault.
+Consumed or discarded PCM is cleared on interruption/end. Live uses the bounded
+playback queue, but its stream mode does not claim the Realtime heard-history
+acknowledgement guarantee. Generation timings exclude Realtime playback waiting.
+The existing session deadline bounds drain waits; ending the test, disconnecting
+or losing authorization cancels them without publishing unheard assistant output.
 
 Protocol failures use fixed, application-owned reason codes in the timeline.
 Unknown exceptions remain generic; provider error bodies, arbitrary exception
