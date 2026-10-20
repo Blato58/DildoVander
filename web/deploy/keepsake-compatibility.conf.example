@@ -2231,6 +2231,48 @@ location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/commands$" {
     add_header Cache-Control "no-store" always;
     add_header Referrer-Policy "no-referrer" always;
 }
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/ambient\-previews$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:POST)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/ambient\-previews/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" {
+    if ($request_uri ~ "^[^?]*%") { return 404; }
+    if ($request_method !~ "^(?:GET)$") { return 405; }
+    client_max_body_size 4m;
+    access_log off;
+    proxy_pass http://127.0.0.1:5080;
+    proxy_http_version 1.1;
+    proxy_set_header Host keepsake.example.invalid;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Host '';
+    proxy_set_header Forwarded '';
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $keepsake_connection_upgrade;
+    proxy_cache off;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 65s;
+    proxy_send_timeout 65s;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
 location ~ "^/v1/show/devices/[A-Za-z0-9_-]{1,128}/identities$" {
     if ($request_uri ~ "^[^?]*%") { return 404; }
     if ($request_method !~ "^(?:GET)$") { return 405; }
