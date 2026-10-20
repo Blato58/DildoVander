@@ -11,6 +11,7 @@ are separate evidence. [Theme architecture and restoration](THEMES.md).
 | `python scripts/generate_design_tokens.py --check` | Generated CSS, registry/runtime/types, native launch and installer current |
 | `npm test --prefix design-system` | 14 Node tests and 9 Python tests pass; includes palette preservation, fallback, blocked storage, persistence, cross-tab updates and text contrast |
 | `python scripts/check_design_system.py` | Token references, shared imports, legacy palettes and export boundary pass |
+| `python -m unittest discover -s scripts -p test_design_system.py` | 10 isolated integrity tests pass; fixture includes the generator's authored theme runtime dependency |
 | `npm test --prefix mobilni-aplikace` | 126 Node tests and 213 Vitest tests pass |
 | `npm run build --prefix mobilni-aplikace` | Contract check, Vue typecheck and Vite build pass |
 | `npm run test:browser --prefix mobilni-aplikace` with `PLAYWRIGHT_CHANNEL=msedge` | Both identities, all 14 route views, synthetic owner settings/admin, draft retention, persistence, cross-tab synchronization, keyboard navigation, claim isolation and CSP pass |

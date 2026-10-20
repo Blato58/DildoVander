@@ -14,8 +14,10 @@ class IntegrityTests(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.palette = self.root / "design-system/tokens/palette.css"
         self.palette.parent.mkdir(parents=True)
-        self.tokens = json.loads((Path(__file__).resolve().parents[1]
-                                  / "design-system/tokens.json").read_text(encoding="utf-8"))
+        design_source = Path(__file__).resolve().parents[1] / "design-system"
+        self.tokens = json.loads((design_source / "tokens.json").read_text(encoding="utf-8"))
+        (self.palette.parent.parent / "theme-runtime.js").write_text(
+            (design_source / "theme-runtime.js").read_text(encoding="utf-8"), encoding="utf-8")
         (self.palette.parent.parent / "tokens.json").write_text(json.dumps(self.tokens), encoding="utf-8")
         for path, content in outputs(self.tokens, root=self.root).items():
             path.parent.mkdir(parents=True, exist_ok=True)
