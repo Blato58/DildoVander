@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "platformio.platformio-ide",
+    "ms-vscode.cpptools",
+    "ms-python.python",
+    "ms-vscode.powershell"
+  ],
+  "unwantedRecommendations": [
+    "pioarduino.pioarduino-ide",
+    "ms-vscode.cpptools-extension-pack"
+  ]
+}

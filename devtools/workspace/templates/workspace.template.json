@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "DildoVander",
+      "path": "."
+    },
+    {
+      "name": "Firmware",
+      "path": "@@FIRMWARE_PATH@@"
+    }
+  ]
+}

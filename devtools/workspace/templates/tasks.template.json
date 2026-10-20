@@ -1,0 +1,268 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "diagnosticEnvironment",
+      "type": "pickString",
+      "description": "Select the diagnostic firmware to upload",
+      "options": [
+        "diag-board-memory",
+        "diag-hardware-service",
+        "diag-network-service",
+        "diag-pca9685-logic",
+        "diag-servo-bench"
+      ]
+    },
+    {
+      "id": "monitorEnvironment",
+      "type": "pickString",
+      "description": "Select the firmware environment to monitor",
+      "options": [
+        "production",
+        "diag-board-memory",
+        "diag-hardware-service",
+        "diag-network-service",
+        "diag-pca9685-logic",
+        "diag-servo-bench"
+      ],
+      "default": "production"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "Firmware: Build Production",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "production"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "group": {"kind": "build", "isDefault": true},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Build Board Memory",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "diag-board-memory"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Build Hardware Service",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "diag-hardware-service"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Build Network Service",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "diag-network-service"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Build PCA9685 Logic",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "diag-pca9685-logic"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Build Servo Bench",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "diag-servo-bench"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Build All",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "dependsOn": [
+        "Firmware: Build Production",
+        "Firmware: Build Board Memory",
+        "Firmware: Build Hardware Service",
+        "Firmware: Build Network Service",
+        "Firmware: Build PCA9685 Logic",
+        "Firmware: Build Servo Bench"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Upload Production",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "production", "-t", "upload"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Upload Diagnostic",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["run", "-d", "@@FIRMWARE_PATH@@", "-e", "${input:diagnosticEnvironment}", "-t", "upload"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Monitor",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": ["device", "monitor", "-d", "@@FIRMWARE_PATH@@", "-e", "${input:monitorEnvironment}"],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Clean",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "pio",
+      "args": [
+        "run",
+        "-d", "@@FIRMWARE_PATH@@",
+        "-e", "production",
+        "-e", "diag-board-memory",
+        "-e", "diag-hardware-service",
+        "-e", "diag-network-service",
+        "-e", "diag-pca9685-logic",
+        "-e", "diag-servo-bench",
+        "-t", "clean"
+      ],
+      "options": {"cwd": "@@WORKSPACE_CWD@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Run Tests",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "dependsOn": [
+        "Firmware Tests: Native C++",
+        "Firmware Tests: Offline Bank",
+        "Firmware Tests: CI Python",
+        "Firmware Tests: Tools Python",
+        "Firmware Tests: Hardware Service",
+        "Firmware Tests: Network Service",
+        "Firmware Tests: Servo Bench C++",
+        "Firmware Tests: Servo Bench Python",
+        "Firmware Tests: Servo Bench Web"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Native C++",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["tests/run_show_tests.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Offline Bank",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: CI Python",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "unittest", "discover", "-s", "ci", "-p", "test_*.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Tools Python",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Hardware Service",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "unittest", "discover", "-s", "diagnostics/hardware-service", "-p", "test_*.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Network Service",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "unittest", "discover", "-s", "diagnostics/network-service", "-p", "test_*.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Servo Bench C++",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["diagnostics/servo-bench/tests/run_tests.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Servo Bench Python",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "unittest", "discover", "-s", "diagnostics/servo-bench/web/tests", "-p", "test_*.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware Tests: Servo Bench Web",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "node",
+      "args": [
+        "--test",
+        "diagnostics/servo-bench/web/tests/auto-calibration.test.mjs",
+        "diagnostics/servo-bench/web/tests/controller.test.mjs",
+        "diagnostics/servo-bench/web/tests/profiles.test.mjs",
+        "diagnostics/servo-bench/web/tests/panel.test.mjs",
+        "diagnostics/servo-bench/web/tests/mcp.test.mjs"
+      ],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "problemMatcher": []
+    },
+    {
+      "label": "Servo Bench: Start Panel",
+      "detail": "Managed by the DildoVander workspace setup.",
+      "type": "process",
+      "command": "python",
+      "args": ["diagnostics/servo-bench/tools/serve_panel.py"],
+      "options": {"cwd": "@@FIRMWARE_PATH@@"},
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

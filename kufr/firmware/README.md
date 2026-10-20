@@ -3,10 +3,12 @@
 ## Jeden PlatformIO projekt
 
 Production i pět samostatně flashovatelných diagnostik sdílí tento projekt
-ESP-IDF 6.1 / PlatformIO 7.1.3. Spouštěj příkazy z `kufr/firmware`; každý
-environment má vlastní `src/` entry point, SDK konfiguraci a výstup
-`.pio/build/<environment>/`. `pio run` sestaví pouze výchozí `production`.
-Diagnostiky nejsou automatickým vstupem OTA/release obrazu.
+ESP-IDF 6.1 / PlatformIO 7.1.3 v `kufr/firmware`. Z kořene repozitáře lze
+spustit `pio run -d kufr/firmware`; ze společného workspace
+`pio run -d DildoVander-app/kufr/firmware`. Každé environment má vlastní
+`src/` entry point, SDK konfiguraci a výstup `.pio/build/<environment>/`.
+`pio run` sestaví pouze výchozí `production`. Diagnostiky nejsou automatickým
+vstupem OTA/release obrazu.
 
 ```sh
 # Build production
@@ -29,6 +31,12 @@ pio run -e production -t upload
 
 # Monitor one environment
 pio device monitor -e diag-servo-bench
+
+# From the common DildoVander workspace
+pio run -d DildoVander-app/kufr/firmware
+pio run -d DildoVander-app/kufr/firmware -e diag-servo-bench
+pio run -d DildoVander-app/kufr/firmware -e diag-servo-bench -t upload
+pio device monitor -d DildoVander-app/kufr/firmware -e diag-servo-bench
 ```
 
 V PowerShellu nahraď zpětná lomítka pro pokračování řádku zpětným apostrofem:
@@ -43,14 +51,18 @@ pio run -e production `
 ```
 
 Pro novou diagnostiku přidej jediný `main.cpp`/`main.c` do
-`src/diagnostics/<name>/`, samostatný environment s jeho filtrem do
-`platformio.ini`, SDK defaults do `diagnostics/<name>/sdkconfig.defaults`
-a přesný seznam zdrojů/dependencies do environment větve `src/CMakeLists.txt`.
+`src/diagnostics/<name>/`, samostatný environment do `platformio.ini`, SDK
+defaults do `diagnostics/<name>/sdkconfig.defaults` a přesný seznam
+zdrojů/dependencies do environment větve `src/CMakeLists.txt`. Podpůrné
+README, generátory konfigurace, provisioning, web panel a testy patří do
+`diagnostics/<name>/`; nejsou součástí `src/` ani PlatformIO build výstupu.
 PlatformIO 7.1.3 hlásí, že ESP-IDF sestavení `build_src_filter` nepoužívá;
-skutečný výběr a izolaci entry pointu proto vynucuje CMake. Sdílené ESP-IDF
-komponenty patří do `lib/`; produkční zdroje ani jiné diagnostiky nepřidávej
-jako dependencies. Hostitelské automatické testy zůstávají v `tests/` a
-diagnostické obrazy zůstávají v `src/diagnostics/`.
+skutečný výběr entry pointu, zdrojů a komponent proto vynucuje CMake podle
+environment-specific `SDKCONFIG`. Každý environment používá oddělený
+`.pio/build/<environment>` a generovaný `compile_commands.json`. Sdílené
+ESP-IDF komponenty patří do `lib/`; produkční zdroje ani jiné diagnostiky
+nepřidávej jako dependencies. Hostitelské automatické testy zůstávají v
+`tests/` a diagnostické obrazy v `src/diagnostics/`.
 
 ## Kontrakt rozhovoru po GPT-OVERHAUL
 

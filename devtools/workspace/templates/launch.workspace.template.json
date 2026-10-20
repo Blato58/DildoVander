@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "platformio-debug",
+      "request": "launch",
+      "name": "PIO Debug (Multi-root)",
+      "executable": "${workspaceFolder:Firmware}/.pio/build/production/firmware.elf",
+      "projectEnvName": "production",
+      "toolchainBinDir": "${env:USERPROFILE}/.platformio/packages/toolchain-xtensa-esp-elf/bin",
+      "internalConsoleOptions": "openOnSessionStart",
+      "preLaunchTask": {
+        "type": "PlatformIO",
+        "task": "Pre-Debug"
+      }
+    },
+    {
+      "type": "platformio-debug",
+      "request": "launch",
+      "name": "PIO Debug (Multi-root, skip Pre-Debug)",
+      "executable": "${workspaceFolder:Firmware}/.pio/build/production/firmware.elf",
+      "projectEnvName": "production",
+      "toolchainBinDir": "${env:USERPROFILE}/.platformio/packages/toolchain-xtensa-esp-elf/bin",
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "type": "platformio-debug",
+      "request": "launch",
+      "name": "PIO Debug (Multi-root, without uploading)",
+      "executable": "${workspaceFolder:Firmware}/.pio/build/production/firmware.elf",
+      "projectEnvName": "production",
+      "toolchainBinDir": "${env:USERPROFILE}/.platformio/packages/toolchain-xtensa-esp-elf/bin",
+      "internalConsoleOptions": "openOnSessionStart",
+      "loadMode": "manual"
+    }
+  ]
+}
