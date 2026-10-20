@@ -1,6 +1,7 @@
 #include "AsyncCommandJournal.h"
 
 #include <algorithm>
+#include <limits>
 
 AsyncCommandJournal::AsyncCommandJournal(JournalStorageOwner& owner, JournalTransactionArbiter& arbiter)
     : owner_(owner), arbiter_(arbiter), recoveryCancellation_(arbiter.Cancellation()) {
@@ -31,6 +32,7 @@ void AsyncCommandJournal::PollStorage() {
 }
 
 bool AsyncCommandJournal::Apply(const Request& request, Purpose purpose) {
+  lastSubmission_ = JournalStorageOwner::Submission::Rejected;
   PollStorage();
   if (token_.id) {
     if (abandoned_ || !Same(request, request_) || purpose != token_.purpose) {
@@ -54,7 +56,11 @@ bool AsyncCommandJournal::Apply(const Request& request, Purpose purpose) {
       recoveryCancellation_ = completion.token.cancellation;
     return lastState_ == StorageState::Committed;
   }
-  if (!owner_.TrySubmit(request, purpose, token_)) { lastState_ = StorageState::Rejected; return false; }
+  lastSubmission_ = owner_.TrySubmitTyped(request, purpose, token_);
+  if (lastSubmission_ != JournalStorageOwner::Submission::Accepted) {
+    lastState_ = StorageState::Rejected;
+    return false;
+  }
   request_ = request;
   lastState_ = StorageState::Pending;
   return false;
@@ -93,19 +99,58 @@ void AsyncCommandJournal::CancelPresentationReservation() {
 }
 void AsyncCommandJournal::CancelStorageAdmissions() {
   owner_.CancelAdmissions();
+  recoveryArmed_ = false;
   abandoned_ = token_.id != 0;
   snapshot_.reservation = {};
   PollStorage();
 }
 bool AsyncCommandJournal::ResumeStorageAfterRecovery() {
+  return AdvanceStorageRecovery() == InspectedRecoveryProgress::Succeeded;
+}
+InspectedRecoveryProgress AsyncCommandJournal::CheckRecoveryFence() {
+  if (!recoveryArmed_ || recoveryCancellation_ != arbiter_.Cancellation()
+      || recoveryCancellation_ == std::numeric_limits<uint32_t>::max()) {
+    recoveryArmed_ = false;
+    if (token_.id && token_.purpose == Purpose::Recovery) abandoned_ = true;
+    PollStorage();
+    return InspectedRecoveryProgress::Cancelled;
+  }
+  return owner_.HasStorageFault() ? InspectedRecoveryProgress::Unknown : InspectedRecoveryProgress::Succeeded;
+}
+InspectedRecoveryProgress AsyncCommandJournal::ResolveStorageRecovery(uint8_t readyMask) {
+  const auto fence = CheckRecoveryFence();
+  if (fence != InspectedRecoveryProgress::Succeeded) return fence;
   PollStorage();
-  if (token_.id) return false;
-  if (!owner_.ReconcileBeforeResume(recoveryCancellation_)) return false;
-  return arbiter_.ResumeAfterRecovery(recoveryCancellation_);
+  if (token_.id && abandoned_) return InspectedRecoveryProgress::Pending;
+  Request request;
+  request.operation = JournalStorageOwner::Operation::Resolve; request.readyMask = readyMask;
+  if (Apply(request, Purpose::Recovery)) return InspectedRecoveryProgress::Succeeded;
+  if (lastState_ == StorageState::Pending || lastSubmission_ == JournalStorageOwner::Submission::Busy)
+    return InspectedRecoveryProgress::Pending;
+  if (lastState_ == StorageState::Unknown || lastSubmission_ == JournalStorageOwner::Submission::Unknown)
+    return InspectedRecoveryProgress::Unknown;
+  return lastState_ == StorageState::Superseded ? InspectedRecoveryProgress::Cancelled : InspectedRecoveryProgress::Rejected;
+}
+InspectedRecoveryProgress AsyncCommandJournal::AdvanceStorageRecovery() {
+  const auto fence = CheckRecoveryFence();
+  if (fence != InspectedRecoveryProgress::Succeeded) return fence;
+  PollStorage();
+  if (token_.id) return InspectedRecoveryProgress::Pending;
+  const auto reconciled = owner_.AdvanceRecoveryResume(recoveryCancellation_);
+  if (reconciled != InspectedRecoveryProgress::Succeeded) return reconciled;
+  if (!arbiter_.ResumeAfterRecovery(recoveryCancellation_))
+    return recoveryCancellation_ == arbiter_.Cancellation()
+        ? InspectedRecoveryProgress::Pending : InspectedRecoveryProgress::Cancelled;
+  recoveryArmed_ = false;
+  return InspectedRecoveryProgress::Succeeded;
+}
+void AsyncCommandJournal::CancelStorageRecovery() {
+  CancelStorageAdmissions();
 }
 void AsyncCommandJournal::BeginStorageRecovery() {
   PollStorage();
   recoveryCancellation_ = arbiter_.Cancellation();
+  recoveryArmed_ = true;
 }
 bool AsyncCommandJournal::Resolve(uint8_t readyMask) {
   Request request;

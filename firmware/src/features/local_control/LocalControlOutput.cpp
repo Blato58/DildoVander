@@ -4,7 +4,7 @@
 
 #include "LocalControlTransport.h"
 #include "../conversation/ConversationStartCodec.h"
-#include "../device_control/PersistentCommandJournal.h"
+#include "../device_control/CommandJournal.h"
 #include "../safety/SafetyController.h"
 #include "../../protocol/JsonWriter.h"
 
@@ -90,7 +90,7 @@ const char* ErrorName(ConversationCommandError error) {
 
 LocalControlOutput::LocalControlOutput(
     const std::string& deviceId, const std::string& bootId, DeviceControl& control,
-    PersistentCommandJournal& journal, SafetyController& safety,
+    CommandJournal& journal, SafetyController& safety,
     SelectionSequence& selection, ConversationSession& conversation,
     LocalControlTransport& transport, LocalVoicePort* voice, kufr::dance::LocalDancePort* dance)
     : voice_(voice), dance_(dance), deviceId_(deviceId), bootId_(bootId), control_(control), journal_(journal),
@@ -112,7 +112,7 @@ bool LocalControlOutput::Send(
 }
 
 const char* LocalControlOutput::Phase(bool liveLease) const {
-  if (!journal_.IsHealthy() || safety_.IsFaulted()) {
+  if (journal_.HasStorageFault() || safety_.IsFaulted()) {
     return "fault";
   }
   if (safety_.IsStopped()) {
@@ -185,7 +185,7 @@ bool LocalControlOutput::BuildSnapshot(
     return false;
   }
   const bool liveLease = control_.OwnsLiveManualLease(leaseId, nowMs);
-  const bool recovery = !journal_.IsHealthy() || safety_.NeedsRecovery() ||
+  const bool recovery = journal_.HasStorageFault() || safety_.NeedsRecovery() ||
       (control_.NeedsRecovery() && !control_.HasPendingSelection() &&
        !control_.HasAutonomousPresentation()) ||
       (control_.HasManualControl() && !liveLease) ||
@@ -212,9 +212,9 @@ bool LocalControlOutput::BuildSnapshot(
       "\",\"controlLeaseId\":" + NullableUuid(liveLease ? leaseId : "") +
       ",\"phase\":\"" + Phase(liveLease) +
       "\",\"activeCommandId\":" + NullableUuid(control_.PendingCommandId()) +
-      ",\"readyMask\":" + std::to_string(journal_.IsHealthy() ? control_.ReadyMask() : 0) +
+      ",\"readyMask\":" + std::to_string(!journal_.HasStorageFault() ? control_.ReadyMask() : 0) +
       ",\"calibrationRevision\":" + std::to_string(control_.CalibrationRevision()) +
-      ",\"faults\":" + (journal_.IsHealthy() ? "[]" : "[\"journal_failed\"]") +
+      ",\"faults\":" + (!journal_.HasStorageFault() ? "[]" : "[\"journal_failed\"]") +
       ",\"microphoneState\":\"" + microphone + "\",\"capabilities\":" +
       LocalControlCapabilities::Json +
       ",\"lastResult\":" + lastResult +

@@ -27,6 +27,7 @@ class PersistentCommandJournal final : public CommandJournal {
   PersistentCommandJournal& operator=(PersistentCommandJournal&&) = delete;
 
   bool IsHealthy() const;
+  bool HasStorageFault() const override { return !IsHealthy(); }
   bool IsStorageMissing() const { return healthy_ && storageMissing_; }
   StateOrigin Origin() const;
   const std::string& ScopedDeviceId() const { return state_.deviceId; }

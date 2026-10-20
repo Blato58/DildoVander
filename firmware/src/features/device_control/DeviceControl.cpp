@@ -135,14 +135,42 @@ CommandReceipt DeviceControl::RejectDeferred(CommandError error) {
 }
 
 bool DeviceControl::RecoverAfterInspection() {
-  if (selection_.IsBusy() || HasPendingSelection() || HasAutonomousPresentation()) return false;
-  if (!recoveryInProgress_) {
-    CancelDeferredCommand();
-    CancelAutonomousReservation();
-    journal_.BeginStorageRecovery();
-    recoveryInProgress_ = true;
+  return (recoveryInProgress_ ? PollInspectedRecovery() : BeginInspectedRecovery()) == RecoveryProgress::Succeeded;
+}
+DeviceControl::RecoveryProgress DeviceControl::BeginInspectedRecovery() {
+  if (recoveryInProgress_) return PollInspectedRecovery();
+  if (selection_.IsBusy() || HasPendingSelection() || HasAutonomousPresentation()) return RecoveryProgress::Rejected;
+  CancelDeferredCommand();
+  CancelAutonomousReservation();
+  journal_.BeginStorageRecovery();
+  recoveryInProgress_ = true;
+  recoveryResolvePending_ = false;
+  recoveryProgress_ = RecoveryProgress::Pending;
+  return PollInspectedRecovery();
+}
+DeviceControl::RecoveryProgress DeviceControl::FinishRecovery(RecoveryProgress progress) {
+  if (progress != RecoveryProgress::Succeeded) {
+    journal_.CancelStorageRecovery();
+    SelectionStep ignored;
+    selection_.ReportFault(ignored);
   }
+  recoveryInProgress_ = recoveryResolvePending_ = false;
+  recoveryProgress_ = progress;
+  return progress;
+}
+void DeviceControl::CancelInspectedRecovery() {
+  if (recoveryInProgress_ || journal_.HasRecoveryStorageWork()) {
+    journal_.CancelStorageRecovery();
+    SelectionStep ignored;
+    selection_.ReportFault(ignored);
+  }
+  recoveryInProgress_ = recoveryResolvePending_ = false;
+  recoveryProgress_ = RecoveryProgress::Cancelled;
+}
+DeviceControl::RecoveryProgress DeviceControl::PollInspectedRecovery() {
+  if (!recoveryInProgress_) return recoveryProgress_;
   PollStorage();
+  if (journal_.HasStorageFault()) return FinishRecovery(RecoveryProgress::Unknown);
   // Consume the exact recovery write even if polling already adopted its closed snapshot.
   if (recoveryResolvePending_ || journal_.HasPending()) {
     if (!recoveryResolvePending_) {
@@ -151,18 +179,22 @@ bool DeviceControl::RecoverAfterInspection() {
           ? static_cast<uint8_t>(journal_.ReadyMask() & ~(1u << (compartment - 1)))
           : journal_.ReadyMask();
     }
-    if (!journal_.Resolve(recoveryReadyMask_)) {
-      recoveryResolvePending_ = journal_.LastStorageState() == CommandJournal::StorageState::Pending;
-      return false;
-    }
+    recoveryResolvePending_ = true;
+    const auto resolved = journal_.ResolveStorageRecovery(recoveryReadyMask_);
+    if (resolved == RecoveryProgress::Pending) return resolved;
+    if (resolved != RecoveryProgress::Succeeded) return FinishRecovery(resolved);
     recoveryResolvePending_ = false;
   }
-  if (journal_.HasPendingStorage() || !journal_.ResumeStorageAfterRecovery()) return false;
-  if (!selection_.RecoverAfterInspection()) return false;
+  // A cancelled admission may still be waiting for its original durable result.
+  // Even legacy ports must drain it before inspection can resume admission.
+  if (journal_.HasPendingStorage()) return RecoveryProgress::Pending;
+  const auto resumed = journal_.AdvanceStorageRecovery();
+  if (resumed == RecoveryProgress::Pending) return resumed;
+  if (resumed != RecoveryProgress::Succeeded) return FinishRecovery(resumed);
+  if (!selection_.RecoverAfterInspection()) return FinishRecovery(RecoveryProgress::Rejected);
   readyMask_ = journal_.ReadyMask();
-  recoveryInProgress_ = false;
   ++revision_;
-  return true;
+  return FinishRecovery(RecoveryProgress::Succeeded);
 }
 
 bool DeviceControl::AcquireManualControl(const std::string& leaseId,
@@ -684,6 +716,7 @@ bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
     CancelDeferredAutonomousAdmission(false);
     recoveryInProgress_ = false;
     recoveryResolvePending_ = false;
+    recoveryProgress_ = RecoveryProgress::Cancelled;
     FinishCurrent(CommandOutcome::OutcomeUnknown);
     return true;
   }
@@ -721,6 +754,7 @@ bool DeviceControl::Stop(SelectionStep& step) {
   CancelDeferredAutonomousAdmission(false);
   recoveryInProgress_ = false;
   recoveryResolvePending_ = false;
+  recoveryProgress_ = RecoveryProgress::Cancelled;
   lastCompletedAutonomousCompartment_ = 0;
   CancelAutonomousReservation();
   const uint64_t previousRevision = revision_;
@@ -893,6 +927,7 @@ bool DeviceControl::LoseManualControl(SelectionStep& step) {
   CancelDeferredCommand();
   recoveryInProgress_ = false;
   recoveryResolvePending_ = false;
+  recoveryProgress_ = RecoveryProgress::Cancelled;
   const bool newlyStopped = selection_.Stop(step);
   if (HasPendingSelection()) {
     FinishCurrent(CommandOutcome::OutcomeUnknown);

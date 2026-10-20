@@ -4,6 +4,20 @@
 #include "OfflineCommittedInventory.h"
 
 namespace kufr { namespace offline {
+// Raw committed bytes for the single production storage worker. Constructing
+// this adapter never creates a valid empty inventory or establishes a binding.
+class EspIdfOfflineBlobStorage final : public JournalStorage {
+ public:
+  explicit EspIdfOfflineBlobStorage(bool initialized);
+  ~EspIdfOfflineBlobStorage() override;
+  bool Reopen();
+  JournalReadResult Read(uint8_t* bytes, size_t capacity, size_t& length) override;
+  bool Write(const uint8_t* bytes, size_t length) override;
+ private:
+  nvs_handle_t handle_ = 0;
+  bool initialized_ = false, opened_ = false, usable_ = false;
+};
+
 class EspIdfOutboxStorage final : public StoragePort, public JournalServiceInventory {
  public:
   explicit EspIdfOutboxStorage(bool initialized);
@@ -14,18 +28,7 @@ class EspIdfOutboxStorage final : public StoragePort, public JournalServiceInven
   bool EstablishBinding(const std::string& deviceId, bool serviceAuthorized) override;
   bool Reopen();
  private:
-  class BlobStorage final : public JournalStorage {
-   public:
-    explicit BlobStorage(bool initialized);
-    ~BlobStorage() override;
-    bool Reopen();
-    JournalReadResult Read(uint8_t* bytes, size_t capacity, size_t& length) override;
-    bool Write(const uint8_t* bytes, size_t length) override;
-   private:
-    nvs_handle_t handle_ = 0;
-    bool initialized_ = false, opened_ = false, usable_ = false;
-  };
-  BlobStorage bytes_;
+  EspIdfOfflineBlobStorage bytes_;
   OfflineCommittedInventory inventory_;
 };
 

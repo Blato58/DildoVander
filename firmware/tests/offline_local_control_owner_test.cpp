@@ -130,8 +130,9 @@ class Output final : public LocalControlOutputPort {
     bool accepted;
     std::string error, records;
   };
-  bool ControlAck(const LocalSocketAdmission::Handle&, const LocalControlMessage&, LocalControlError error) override {
-    lastControlError = error; return true;
+  struct ControlReceipt { LocalSocketAdmission::Handle handle; LocalControlMessage message; LocalControlError error; };
+  bool ControlAck(const LocalSocketAdmission::Handle& handle, const LocalControlMessage& message, LocalControlError error) override {
+    lastControlError = error; controls.push_back({handle, message, error}); return true;
   }
   bool OfflineAck(const LocalSocketAdmission::Handle& handle, const LocalControlMessage& message,
       bool accepted, const std::string& error, const std::string&, const std::string& records) override {
@@ -153,6 +154,13 @@ class Output final : public LocalControlOutputPort {
     return count;
   }
   std::vector<Ack> acks;
+  std::vector<ControlReceipt> controls;
+  size_t ControlCount(const LocalControlMessage& request, LocalControlError error) const {
+    size_t count = 0;
+    for (const auto& receipt : controls)
+      count += receipt.message.kind == request.kind && receipt.message.messageId == request.messageId && receipt.error == error;
+    return count;
+  }
   std::string lastLease;
   LocalControlError lastControlError = LocalControlError::None;
   unsigned welcomes = 0;
@@ -163,7 +171,9 @@ class Ids final : public LocalControlIdPort {
 };
 class Recovery final : public LocalControlRecoveryGate {
  public:
-  bool InspectionAllowsRecovery() const override { return true; }
+  bool InspectionAllowsRecovery() const override { ++inspections; return allow; }
+  mutable unsigned inspections = 0;
+  bool allow = true;
 };
 class Steps final : public LocalControlStepPort {
  public:
@@ -416,6 +426,88 @@ void ServerMailboxRetainsLatestSettingsUntilDurablePublication() {
   mailbox.PollState(applied, generation, revision);
   assert(applied.revision == 4 && applied.stopRevision == 3 && applied.quiet && !applied.ambient);
 }
+
+void PreparePendingInspectedSelection(Fixture& fixture) {
+  fixture.Connect(); fixture.Acquire();
+  auto selection = fixture.Message(LocalControlMessageKind::Selection, 700);
+  selection.sequence = 1;
+  fixture.Send(selection);
+  fixture.Work();
+  fixture.owner.Tick();
+  assert(fixture.storage->ControlJournal().HasPending());
+  fixture.Send(fixture.Message(LocalControlMessageKind::Stop, 701));
+  assert(fixture.control.NeedsRecovery() && fixture.control.HasManualControl());
+  assert(fixture.effects.RecoverAfterInspection());
+}
+
+void ResetRetainsOneInspectionAndDefersItsAcknowledgement() {
+  Fixture fixture;
+  PreparePendingInspectedSelection(fixture);
+  fixture.owner.SetMaintenance(true);
+  fixture.owner.SetRecoveryAdmission(true);
+  const auto reset = fixture.Message(LocalControlMessageKind::Reset, 710);
+  const uint64_t revision = fixture.control.Revision();
+  fixture.Send(reset);
+  assert(fixture.recovery.inspections == 1 && fixture.runtime.HasRecoveryWork());
+  for (unsigned tick = 0; tick != 4; ++tick) fixture.Tick(false);
+  fixture.Send(reset);
+  auto changed = reset; changed.messageId = Id(711);
+  fixture.Send(changed);
+  assert(fixture.output.ControlCount(changed, LocalControlError::Busy) == 1);
+  fixture.Send(fixture.Message(LocalControlMessageKind::StateGet, 712));
+  fixture.Send(fixture.Message(LocalControlMessageKind::OfflineOutbox, 713));
+  const auto quiet = fixture.Message(LocalControlMessageKind::Quiet, 714);
+  fixture.Send(quiet);
+  assert(fixture.output.Count(quiet, false) == 1 && fixture.transport.closes == 0);
+  assert(fixture.output.ControlCount(reset, LocalControlError::None) == 0 && fixture.recovery.inspections == 1);
+  for (unsigned tick = 0; tick != 40 && !fixture.output.ControlCount(reset, LocalControlError::None); ++tick) fixture.Tick();
+  assert(fixture.output.ControlCount(reset, LocalControlError::None) == 1);
+  assert(fixture.recovery.inspections == 1 && !fixture.runtime.HasRecoveryWork());
+  assert(!fixture.control.NeedsRecovery() && fixture.control.Revision() == revision + 1);
+  assert((fixture.control.ReadyMask() & (1u << (reset.compartment - 1))) == 0);
+  for (unsigned tick = 0; tick != 4; ++tick) fixture.Tick();
+  assert(fixture.output.ControlCount(reset, LocalControlError::None) == 1);
+}
+
+void StopAndDisconnectCannotDeliverAnOldResetReceipt() {
+  for (unsigned committed = 0; committed != 2; ++committed) {
+    Fixture fixture;
+    PreparePendingInspectedSelection(fixture);
+    const auto reset = fixture.Message(LocalControlMessageKind::Reset, 720);
+    fixture.Send(reset);
+    if (committed) fixture.Work();
+    fixture.Send(fixture.Message(LocalControlMessageKind::Stop, 721));
+    for (unsigned tick = 0; tick != 12; ++tick) fixture.Tick();
+    assert(fixture.output.ControlCount(reset, LocalControlError::None) == 0);
+    assert(fixture.control.NeedsRecovery() && fixture.recovery.inspections == 1);
+  }
+  Fixture fixture;
+  PreparePendingInspectedSelection(fixture);
+  const auto reset = fixture.Message(LocalControlMessageKind::Reset, 730);
+  fixture.Send(reset);
+  fixture.inbox.Disconnect(fixture.handle); fixture.owner.Poll();
+  fixture.Connect({7, 2});
+  for (unsigned tick = 0; tick != 12; ++tick) fixture.Tick();
+  assert(fixture.output.ControlCount(reset, LocalControlError::None) == 0);
+  assert(fixture.control.NeedsRecovery());
+}
+
+void LeaseExpiryAndMaintenanceCannotRenewInspection() {
+  Fixture fixture;
+  PreparePendingInspectedSelection(fixture);
+  const auto reset = fixture.Message(LocalControlMessageKind::Reset, 740);
+  fixture.owner.SetMaintenance(true);
+  fixture.Send(reset);
+  assert(fixture.output.ControlCount(reset, LocalControlError::Busy) == 1 && fixture.recovery.inspections == 0);
+  fixture.owner.SetRecoveryAdmission(true);
+  fixture.Send(reset);
+  assert(fixture.recovery.inspections == 1);
+  fixture.clock.now += DeviceControl::ManualLeaseDurationMs + 1;
+  fixture.owner.Tick();
+  for (unsigned tick = 0; tick != 12; ++tick) fixture.Tick();
+  assert(fixture.output.ControlCount(reset, LocalControlError::None) == 0 && fixture.transport.closes != 0);
+  assert(fixture.control.NeedsRecovery() && fixture.recovery.inspections == 1);
+}
 }
 
 int main() {
@@ -425,5 +517,8 @@ int main() {
   StopBeforeStartReserveAckCannotStartMotion();
   DisconnectOnlyAbandonsOldSocketReply();
   ServerMailboxRetainsLatestSettingsUntilDurablePublication();
+  ResetRetainsOneInspectionAndDefersItsAcknowledgement();
+  StopAndDisconnectCannotDeliverAnOldResetReceipt();
+  LeaseExpiryAndMaintenanceCannotRenewInspection();
   std::cout << "offline local control owner checks passed\n";
 }

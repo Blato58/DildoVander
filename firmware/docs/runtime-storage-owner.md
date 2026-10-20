@@ -1,10 +1,9 @@
 # Runtime storage ownership
 
-The asynchronous journal port separates durable work from manual control. It is
-compiled into the production image but is not instantiated there yet. Production
-continues to use the legacy journal and the establishment maintenance hold.
-Scoped activation, automatic compaction and removal of the 32-operation limit
-still require the complete producer, inventory and boot composition described in
+The production entry point instantiates one asynchronous storage worker and shares
+its journal and evidence ports with manual, autonomous and offline producers.
+Scoped motion activation and automatic compaction remain disabled. Removal of the
+32-operation limit still requires the remaining acceptance described in
 [journal establishment](journal-establishment.md).
 
 `JournalStorageOwner` has one preallocated request and completion slot. A worker
@@ -17,8 +16,8 @@ Snapshots carry no usable reservation capability.
 `JournalTransactionArbiter` prevents exclusive reconciliation while a producer,
 job or unconsumed result holds a token. Its mutex protects short RAM bookkeeping;
 neither a logical transaction nor the mailbox mutex is held across storage I/O.
-All other producers, committed inventories and persisted-journal readers must
-join this same arbiter before it can protect production compaction.
+The composed producers, committed inventories and persisted-journal readers use
+this same arbiter. Control never obtains a mutable persisted-journal instance.
 
 Stop advances a cancellation fence even when the device is idle or only a
 storage request is pending. It does not wait for a write. An admission cancelled
@@ -55,9 +54,9 @@ checks are `journal_snapshot_test`, `journal_transaction_arbiter_test`,
 `journal_storage_owner_test`, `async_command_journal_test`, `device_control_test`
 and `local_control_owner_test`, selected with repeatable `--only NAME` arguments.
 Shared autonomous/offline producers now use the asynchronous ports described
-below. The production entry point still selects the legacy constructors; worker
-task/stack composition and complete boot reconciliation remain necessary before
-production activation.
+below. Their production constructors use the shared runtime after the boot handoff.
+An unavailable runtime supplies a blocked journal and no backend-network startup;
+there is no synchronous legacy storage fallback.
 
 ## Committed evidence and startup authority
 
@@ -95,16 +94,47 @@ pruning even when the new journal epoch was committed before a source ACK was
 lost. A failed source or journal ACK requires a fresh authoritative runtime;
 ordinary control polls never reopen it as healthy.
 
-The `BoundedCompaction` policy is exercised by host integration fixtures. The
-production entry point has not selected this runtime, and its scoped activation
-and maintenance hold remain unchanged. The fixture runs 1,152 actual manual
+The `BoundedCompaction` policy is exercised by host integration fixtures. Production
+selects `ReconcileOnly` and keeps its separate scoped-motion admission guard off.
+The fixture runs 1,152 actual manual
 producer/control/selection/storage cycles through 37 compactions and restarts,
 retaining an untimed prepared reference and rejecting old boot/epoch replays.
 The actuator port is a timed simulation. The 8,190,720 ms of simulated workload
 is not the required four-hour media/session soak or hardware evidence. Separate
 fixtures cover source/close ACK loss, missing stores, source-fault Stop and
-reserved result draining. The actual worker task, stack/latency measurements and
-production orchestration remain open.
+reserved result draining. Actual board stack, dynamic heap and latency measurements
+remain unrun.
+
+## Production boot and inspected recovery
+
+`DeviceStorageStartup` probes the actual journal and establishment marker on the
+storage worker before constructing any mutable runtime. Normal boot cannot invoke
+service establishment, credential mutation or identity rebinding. An established
+identity still requires both committed inventories and complete reconciliation.
+Actual missing or corrupt storage fails closed. A found unscoped legacy journal
+retains its original bytes and requires explicit USB service; its valid passive
+image-health evidence is independent of motion admission. The persisted legacy
+`OriginMissing` field is not proof that the current store is absent.
+
+`EspIdfDeviceStorageWorker` uses one 32,768-byte FreeRTOS task at priority 2. Control
+receives the facade only after the startup semaphore publishes the reconciled
+epoch and ready mask. Failed task/semaphore allocation never falls back to control
+I/O. Work runs one bounded request at a time, followed by at least one scheduler
+tick, including a 100 Hz scheduler where a two-millisecond conversion is zero.
+The worker records its maximum observed operation duration and stack watermark;
+these counters require execution on the board before they provide hardware
+acceptance evidence. Boot-lifetime objects and placement workspaces exclude these
+dynamic task and request peaks from static RAM figures.
+
+Inspected recovery retains a noncopyable runtime-bound handle with its original
+generation and revision. Local Reset performs physical inspection once, retains
+the original socket and lease, and waits for both durable resolution and complete
+source reconciliation before acknowledging success. Exact retries coalesce;
+changed mutations receive Busy. Stop, expired lease and disconnect invalidate the
+attempt without restoring authority from a late write. The physical long-press
+path uses the same typed handle. Read-only state, Stop and passive OTA health stay
+available during the recovery wait. Source/service and OTA gates remain separate
+from this narrow recovery admission.
 
 ## Autonomous completion acknowledgements
 
@@ -171,8 +201,8 @@ retained original proof. It polls real reserve, prepare, Begin, close, proof and
 source outcomes at 10 ms simulated cadence. Its 8,835,840 ms workload, calibrated
 elapsed travel and direct test producer are not backend/offline end-to-end,
 physical position feedback or the required four-hour media/session soak.
-Production worker/task activation, all producer migrations and measured runtime
-acceptance still remain open; scoped activation and compaction remain disabled.
+Production composes the shared worker and producers; measured runtime acceptance,
+scoped motion activation and compaction remain open.
 
 ## Shared online evidence producer
 
@@ -215,8 +245,8 @@ retries normalize that exact source without changing its terminal reason. Tests
 also check eight-slot backpressure, stale handle rejection, zero allocations and
 no storage calls on measured control paths, Stop/write races and proof-winning
 retirement. They do not execute the ESP HTTP task or establish end-to-end
-backend/hardware acceptance. Shared constructors are available, but production
-composition still selects the legacy path.
+backend/hardware acceptance. Production uses the shared constructor after its
+established-runtime startup handoff.
 
 ## Shared offline producer and local acknowledgements
 
@@ -251,7 +281,8 @@ audio and storage ports. The offline workload executes 1,008 cycles through 126
 boots and 33 compactions, retaining old evidence and rejecting replay. Its
 7,844,740 simulated milliseconds do not establish the four-hour media/session
 soak, ESP task scheduling, physical power-cut behavior or hardware acceptance.
-The production worker, admission composition and scoped activation remain open.
+Production uses the shared offline constructor after startup. Scoped activation
+and measured scheduling/stack/latency acceptance remain open.
 
 ## Maintenance does not own the control pass
 
@@ -273,6 +304,6 @@ owner defers credential-dependent server startup while maintenance owns admissio
 Concurrent host checks stall a real credential write while querying these gates,
 exercise normal-authentication-first races, and race maintenance acquisition with
 control-pass admission. These establish ownership and progress at the tested
-boundaries. Legacy control storage and OTA metadata confirmation still need their
-worker migration; this change alone does not establish the complete Stop latency
-target or eliminate every control-path flash operation.
+boundaries. OTA metadata confirmation still needs its worker migration; this
+change alone does not establish the complete Stop latency target or eliminate
+every control-path flash operation.

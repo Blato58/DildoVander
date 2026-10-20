@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <new>
 #include <string>
 
 #include "bootloader_random.h"
@@ -18,6 +19,7 @@
 #include "features/device_control/DeviceControl.h"
 #include "features/device_control/DeviceControlRuntime.h"
 #include "features/device_control/ControlMaintenanceGate.h"
+#include "features/device_control/EspIdfDeviceStorageWorker.h"
 #include "features/device_control/PersistentCommandJournal.h"
 #include "features/show_diagnostics/ShowTraceMailbox.h"
 #include "features/twin_telemetry/EspIdfTwinTelemetry.h"
@@ -50,6 +52,8 @@
 #include "features/firmware_update/EspIdfFirmwareUpdate.h"
 #include "features/sd_assets/EspIdfSdAssets.h"
 #include "features/offline_show/EspIdfOfflineShow.h"
+#include "features/offline_show/OfflineEvidenceBridge.h"
+#include "features/keepsake/EspIdfKeepsakeInventoryStorage.h"
 #include "features/show_cues/DeviceShowRuntime.h"
 
 namespace {
@@ -57,6 +61,15 @@ namespace {
 constexpr char LogTag[] = "kufr";
 constexpr uint32_t ControlLoopPeriodMs = 10;
 constexpr char CatalogVersion[] = "ollivander-private-party-v1";
+// All physical admission remains held until complete production-consumer crash
+// acceptance. The real storage worker and boot reconciliation are composed now.
+constexpr bool ScopedRuntimeAdmissionEnabled = false;
+
+class UnavailableOfflineStorage final : public kufr::offline::StoragePort {
+ public:
+  bool Read(kufr::offline::Outbox&) override { return false; }
+  bool Write(const kufr::offline::Outbox&) override { return false; }
+};
 
 struct InitialTlsSetup {
   LocalTlsIdentity& identity;
@@ -348,23 +361,16 @@ extern "C" void app_main() {
                           effects.Configure(calibration, calibrationRevision);
   if (!calibrated) ESP_LOGW(LogTag, "Hardware wiring/calibration unverified; motion stays disabled");
   static EspIdfJournalStorage journalStorage(nvsStatus == ESP_OK);
-  static PersistentCommandJournal journal(journalStorage);
-  // Service can now establish scoped bytes, but production has not composed
-  // the common barrier, complete boot reconciliation and asynchronous storage
-  // ownership. Keep every interaction behind the existing maintenance gates.
-  // This does not change journal health or passive OTA boot verification.
-  static EspIdfJournalIdentityStorage markerStorage(nvsStatus == ESP_OK);
-  static std::array<uint8_t, JournalIdentityOwner::MaximumRecordSize> markerBytes{};
-  size_t markerLength = 0;
-  const auto markerRead = markerStorage.Read(markerBytes.data(), markerBytes.size(), markerLength);
-  // Presence alone is enough to refuse, including a PreparingLegacy witness
-  // before the journal's scoped commit. This is not validation or recovery.
-  const bool journalEstablishmentHeld = markerRead != JournalReadResult::Missing ||
-      journal.Origin() == PersistentCommandJournal::StateOrigin::Scoped;
-  if (journalEstablishmentHeld)
-    ESP_LOGW(LogTag, "Journal service state retained; production admission integration is not activated");
   static EspIdfProvisioningStorage identityStorage(nvsStatus == ESP_OK);
   static DeviceIdentity identity(identityStorage);
+  static EspIdfJournalIdentityStorage markerStorage(nvsStatus == ESP_OK);
+  static EspIdfKeepsakeInventoryStorage onlineStorage(nvsStatus == ESP_OK);
+  static kufr::offline::EspIdfOfflineBlobStorage offlineStorage(nvsStatus == ESP_OK);
+  static DeviceStorageStartup storageStartup(journalStorage, markerStorage, onlineStorage, offlineStorage,
+      {identity.IsHealthy(), identity.IsProvisioned(), identity.DeviceId()});
+  static EspIdfDeviceStorageWorker storageWorker(storageStartup);
+  const bool storageStarted = storageWorker.Start();
+  CommandJournal& journal = storageStartup.ControlJournal();
   // PSA may seed its random generator during parsing or hasher construction.
   // Enable hardware entropy before the first PSA initialization, not just keygen.
   bootloader_random_enable();
@@ -385,10 +391,12 @@ extern "C" void app_main() {
       !localHostname.empty() && tlsSetup.Initialize();
   bootloader_random_disable();
   if (!localTlsReady) { ESP_LOGW(LogTag, "Local TLS identity unavailable; service recovery required"); }
-  if (!journal.IsHealthy()) {
+  if (!storageStarted || !storageStartup.ImageStorageHealthy()) {
     safetyController.ReportFault();
     ESP_LOGE(LogTag, "Journal unavailable; control remains faulted (%d)",
              static_cast<int>(nvsStatus));
+  } else if (storageStartup.RequiresService()) {
+    ESP_LOGW(LogTag, "Journal migration requires explicit USB service; original bytes retained");
   } else if (journal.HasPending()) {
     ESP_LOGW(LogTag, "Pending selection requires inspection before recovery");
   }
@@ -417,12 +425,17 @@ extern "C" void app_main() {
   static TwinTelemetryMailbox twinMailbox;
   static EspIdfTwinTelemetry twinNetwork(twinMailbox, identity, station, bootId);
   if (stationStarted) twinNetwork.Start();
-  static EspIdfBackendNetwork backendNetwork(identity, runtimeState, bootId, station, journal, journalStorage);
+  alignas(EspIdfBackendNetwork) static std::array<uint8_t, sizeof(EspIdfBackendNetwork)> backendWorkspace{};
+  auto* sharedStorage = storageStartup.Runtime();
+  auto* backend = sharedStorage
+      ? new (backendWorkspace.data()) EspIdfBackendNetwork(identity, runtimeState, bootId, station, *sharedStorage)
+      : new (backendWorkspace.data()) EspIdfBackendNetwork(identity, runtimeState, bootId, station, journal, journalStorage);
+  auto& backendNetwork = *backend;
   backendNetwork.InitializeVoice(nvsStatus == ESP_OK, hardware.ProfileSelected() ? &hardware : nullptr);
   static TwinObservedAudio observedAudio(backendNetwork.PresentationAudio());
   presentationPort.BindAudio(observedAudio);
   backendNetwork.InitializeCamera(nvsStatus == ESP_OK, hardware.Available());
-  if (!stationStarted || !backendNetwork.Start(nvsStatus == ESP_OK)) {
+  if (!stationStarted || !sharedStorage || !backendNetwork.Start(nvsStatus == ESP_OK)) {
     ESP_LOGW(LogTag, "Backend network not configured; stays offline");
   }
   static kufr::ota::EspIdfFirmwareUpdate firmwareUpdate;
@@ -460,12 +473,19 @@ extern "C" void app_main() {
   static LocalControlOwner owner(
       identity.DeviceId(), bootId, controlRuntime, runtimeState, conversation,
       backendNetwork, inbox, server, output, leaseIds, inspection, steps, clock, &backendNetwork, &dance);
-  static kufr::offline::EspIdfOutboxStorage offlineStorage(nvsStatus == ESP_OK);
   static kufr::offline::EspIdfOfflineAudio offlineAudio(backendNetwork.DanceAudio());
   offlineAudio.Begin();
-  static kufr::offline::OfflineShow offline(controlRuntime, runtimeState, deviceControl,
-      presentation, presentationPort, offlineAudio, offlineStorage, identity.DeviceId(),
-      bootId, bootId);
+  alignas(kufr::offline::OfflineEvidenceBridge) static std::array<uint8_t, sizeof(kufr::offline::OfflineEvidenceBridge)> bridgeWorkspace{};
+  auto* offlineBridge = sharedStorage ? new (bridgeWorkspace.data()) kufr::offline::OfflineEvidenceBridge(
+      sharedStorage->EvidenceRequests(), *sharedStorage) : nullptr;
+  static UnavailableOfflineStorage unavailableOffline;
+  alignas(kufr::offline::OfflineShow) static std::array<uint8_t, sizeof(kufr::offline::OfflineShow)> offlineWorkspace{};
+  auto* offlineProducer = offlineBridge
+      ? new (offlineWorkspace.data()) kufr::offline::OfflineShow(controlRuntime, runtimeState, deviceControl,
+          presentation, presentationPort, offlineAudio, *offlineBridge, identity.DeviceId(), bootId, bootId)
+      : new (offlineWorkspace.data()) kufr::offline::OfflineShow(controlRuntime, runtimeState, deviceControl,
+          presentation, presentationPort, offlineAudio, unavailableOffline, identity.DeviceId(), bootId, bootId);
+  auto& offline = *offlineProducer;
   owner.BindOffline(offline);
   static DeviceShowRuntime deviceShow(controlRuntime, runtimeState, presentationPort,
       offline, offlineAudio, backendNetwork.ShowCues(), bootId);
@@ -479,6 +499,7 @@ extern "C" void app_main() {
   uint8_t pendingButtonAction = 0; // 1: prepared offline scene; 2: explicit online voice.
   uint64_t buttonChangedAt = 0, buttonPressedAt = 0;
   bool lastTraceWasDance = false;
+  static DeviceControlRuntime::RecoveryHandle physicalRecovery;
   PresentationIdentity<97> observedPresentationId;
   uint32_t observedPresentationSequence = 0;
   ESP_LOGI(LogTag, "ESP-IDF control loop started; physical outputs require verified service configuration");
@@ -487,6 +508,8 @@ extern "C" void app_main() {
   ESP_LOGI(LogTag, "Main task stack: configured %u bytes, minimum remaining %u bytes",
            static_cast<unsigned>(CONFIG_ESP_MAIN_TASK_STACK_SIZE),
            static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+  // Control preempts the storage/network owners; no source I/O runs here.
+  vTaskPrioritySet(nullptr, 6);
 
   while (true) {
     ControlMaintenanceGate::Ticket controlPass;
@@ -495,16 +518,17 @@ extern "C" void app_main() {
     const bool otaHeld = maintenanceOwner == ControlMaintenanceGate::Owner::Ota;
     const uint64_t nowMs = clock.NowMs();
     TurnProposal pendingProposal;
-    const bool safeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
+    const bool safeIdle = !deviceControl.HasManualControl() && !deviceControl.HasPendingSelection() &&
+        !controlRuntime.HasStorageWork() && !storageStartup.HasWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
+        !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
     // The whole-cycle deadline precedes physical output processing, even when
     // per-phase calibration timeouts would still allow the sequence to run.
     presentation.CheckDeadline(nowMs);
     effects.Tick(nowMs);
     const bool selfTestReady = kufr::ota::BootSelfTestReady(
-        nvsStatus == ESP_OK && journal.IsHealthy() && stationStarted &&
+        nvsStatus == ESP_OK && storageStarted && storageStartup.ImageStorageHealthy() && stationStarted &&
             (!kufr::offline::CompiledBank().complete || offlineAudio.Available()),
         hardware.ProfileSelected(), calibrated, effects);
     firmwareUpdate.Tick(nowMs, station.HasIp(), selfTestReady,
@@ -514,9 +538,12 @@ extern "C" void app_main() {
     // Boot verification freezes new interactions while permitting STA recovery.
     const bool needsOtaReservation = sdAssets.Reserved() ||
         (firmwareUpdate.Reserved() && otaStatus.state != "verifying-boot");
-    const bool maintaining = journalEstablishmentHeld || !ownsControlPass ||
+    const bool maintaining = !ScopedRuntimeAdmissionEnabled || !storageStarted || storageStartup.RequiresService() || !ownsControlPass ||
         firmwareUpdate.Reserved() || sdAssets.Reserved();
+    const bool recoveryAdmission = ownsControlPass && storageStarted && !storageStartup.RequiresService() &&
+        !firmwareUpdate.Reserved() && !sdAssets.Reserved();
     owner.SetMaintenance(maintaining);
+    owner.SetRecoveryAdmission(recoveryAdmission);
     owner.SetDanceAdmission(safeIdle && !maintaining);
     provisioning.Tick(nowMs, station.HasIp());
     if (!serverStarted && ownsControlPass &&
@@ -556,7 +583,8 @@ extern "C" void app_main() {
         gestureConsumed = false;
         const bool ambientWasActive = offline.AmbientActive();
         if (ambientWasActive) offline.PrepareInteraction();
-        if (!ambientWasActive && (offline.Active() || controlRuntime.HasAutonomousPresentation() || controlRuntime.HasDecoration() || selectionSequence.IsBusy() || dance.Reserved())) {
+        if (!ambientWasActive && (offline.Active() || controlRuntime.HasStorageWork() ||
+            controlRuntime.HasAutonomousPresentation() || controlRuntime.HasDecoration() || selectionSequence.IsBusy() || dance.Reserved())) {
           pendingButtonAction = 0;
           SelectionStep stopped;
           dance.StopDance();
@@ -588,10 +616,15 @@ extern "C" void app_main() {
         }
       }
     }
-    if (!maintaining && button && !gestureConsumed && nowMs - buttonPressedAt >= 2000) {
+    if (recoveryAdmission && button && !gestureConsumed && nowMs - buttonPressedAt >= 2000) {
       gestureConsumed = true;
       if (!selectionSequence.IsBusy() && !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !dance.Reserved() &&
-          effects.RecoverAfterInspection()) controlRuntime.RecoverAfterInspection();
+          effects.RecoverAfterInspection()) controlRuntime.BeginInspectedRecovery(physicalRecovery);
+    }
+    if (physicalRecovery.IsBound()) {
+      const auto progress = controlRuntime.PollInspectedRecovery(physicalRecovery);
+      if (progress != DeviceControlRuntime::RecoveryProgress::Pending)
+        controlRuntime.FinishInspectedRecovery(physicalRecovery);
     }
     server.Pump();
     owner.Tick();
@@ -671,9 +704,12 @@ extern "C" void app_main() {
       twinMailbox.Publish(twinSnapshot);
     }
     // Publish idle only after all admissions in this iteration have completed.
-    const bool completedSafeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
+    // An old pending journal record still requires inspection; it is not an
+    // active actuator and must not prevent offline-safe network/OTA recovery.
+    const bool completedSafeIdle = !deviceControl.HasManualControl() && !deviceControl.HasPendingSelection() &&
+        !controlRuntime.HasStorageWork() && !storageStartup.HasWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
+        !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());
     if (ownsControlPass) {
       if (needsOtaReservation) {

@@ -44,14 +44,21 @@ bool JournalStorageOwner::ValidRequest(const Request& request, Purpose purpose) 
 }
 
 bool JournalStorageOwner::TrySubmit(const Request& request, Purpose purpose, Token& token) {
+  return TrySubmitTyped(request, purpose, token) == Submission::Accepted;
+}
+JournalStorageOwner::Submission JournalStorageOwner::TrySubmitTyped(const Request& request, Purpose purpose, Token& token) {
   token = {};
-  if (!ValidRequest(request, purpose)) return false;
+  if (!ValidRequest(request, purpose)) return Submission::Rejected;
   if (admission_ && !(purpose == Purpose::Admission
-      ? admission_->AllowsAdmission() : admission_->AllowsRecovery())) return false;
+      ? admission_->AllowsAdmission() : admission_->AllowsRecovery()))
+    return purpose == Purpose::Recovery ? Submission::Unknown : Submission::Rejected;
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
-  if (!lock || phase_ != Phase::Idle || !published_.healthy) return false;
+  if (!lock || phase_ != Phase::Idle) return Submission::Busy;
+  if (!published_.healthy) return Submission::Unknown;
   Token accepted;
-  if (!arbiter_.TryBegin(purpose, accepted)) return false;
+  const auto reservation = arbiter_.TryBeginDetailed(purpose, accepted);
+  if (reservation == JournalTransactionArbiter::Result::Busy) return Submission::Busy;
+  if (reservation != JournalTransactionArbiter::Result::Accepted) return Submission::Rejected;
   // Both request and completion storage already exist. Publication can never
   // need queue space or a heap allocation after a flash commit.
   request_ = request;
@@ -59,7 +66,7 @@ bool JournalStorageOwner::TrySubmit(const Request& request, Purpose purpose, Tok
   result_.token = accepted;
   token = accepted;
   phase_ = Phase::Queued;
-  return true;
+  return Submission::Accepted;
 }
 
 bool JournalStorageOwner::Execute(const Request& request) {

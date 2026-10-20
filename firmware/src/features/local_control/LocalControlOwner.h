@@ -7,6 +7,7 @@
 #include "LocalControlSession.h"
 #include "LocalConversationGateway.h"
 #include "../dance/DancePlayerPort.h"
+#include "../device_control/DeviceControlRuntime.h"
 
 class LocalVoicePort;
 class LocalControlTransport;
@@ -37,6 +38,7 @@ class LocalControlOwner final {
   void Poll();
   void Tick();
   void SetMaintenance(bool active) { maintenance_ = active; }
+  void SetRecoveryAdmission(bool allowed) { recoveryAdmission_ = allowed; }
   void SetDanceAdmission(bool allowed) { danceAdmission_ = allowed; }
   void BindOffline(kufr::offline::OfflineShow& offline) { offline_ = &offline; }
   void PumpReply(LocalConversationReplyPort& replies);
@@ -58,6 +60,9 @@ class LocalControlOwner final {
   bool AcceptOfflineCommand(const LocalControlMessage& message, bool retry);
   void FinishOfflineCommand(const LocalControlMessage& message, bool result, uint64_t nowMs);
   void ClearPendingOffline();
+  void Reset(const LocalControlMessage& message, uint64_t nowMs);
+  void FinishReset(const LocalControlMessage& message, DeviceControlRuntime::RecoveryProgress progress, uint64_t nowMs);
+  void ClearPendingRecovery();
   bool ControlAck(const LocalControlMessage& message, LocalControlError error);
   bool RefuseBusy(const LocalControlMessage& message);
   void Snapshot(uint64_t nowMs);
@@ -92,6 +97,11 @@ class LocalControlOwner final {
   LocalControlSession* pendingOfflineSession_ = nullptr;
   uint64_t offlineArmGeneration_ = 0, offlineArmRevision_ = 0;
   bool offlinePending_ = false, offlineArmHandoff_ = false, offlineCallPending_ = false;
+  DeviceControlRuntime::RecoveryHandle recoveryHandle_;
+  LocalControlMessage pendingRecovery_;
+  LocalSocketAdmission::Handle pendingRecoveryHandle_;
+  LocalControlSession* pendingRecoverySession_ = nullptr;
+  bool recoveryPending_ = false, recoveryAdmission_ = false;
   bool hello_ = false;
   bool includeOperationEpoch_ = false;
   bool maintenance_ = false;

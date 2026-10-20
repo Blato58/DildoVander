@@ -1,6 +1,7 @@
 #include "DeviceControlRuntime.h"
 
 #include "../wand_presentation/WandPresentation.h"
+#include <limits>
 
 DeviceControlRuntime::DeviceControlRuntime(
     DeviceControl& control, SelectionSequence& selection,
@@ -21,22 +22,77 @@ bool DeviceControlRuntime::BindPresentation(
 }
 
 bool DeviceControlRuntime::RecoverAfterInspection() {
-  if (externalActivity_ || decorationActive_) return false;
+  // This compatibility entry point is an explicit inspection call. A previous
+  // terminal attempt cannot consume that new call; typed handles keep their
+  // terminal result until their actual owner explicitly finishes them.
+  if (legacyRecovery_.IsBound() && recovery_.progress != RecoveryProgress::Pending)
+    FinishInspectedRecovery(legacyRecovery_);
+  const auto progress = legacyRecovery_.IsBound() ? PollInspectedRecovery(legacyRecovery_)
+      : BeginInspectedRecovery(legacyRecovery_);
+  if (progress != RecoveryProgress::Pending) FinishInspectedRecovery(legacyRecovery_);
+  return progress == RecoveryProgress::Succeeded;
+}
+bool DeviceControlRuntime::OwnsRecovery(const RecoveryHandle& handle) const {
+  return handle.owner_ == this && handle.serial_ && recovery_.owner == &handle && recovery_.serial == handle.serial_;
+}
+DeviceControlRuntime::RecoveryProgress DeviceControlRuntime::BeginInspectedRecovery(RecoveryHandle& handle) {
+  if (handle.IsBound()) return OwnsRecovery(handle) ? PollInspectedRecovery(handle) : RecoveryProgress::Rejected;
+  if (recovery_.owner || control_.HasRecoveryWork() || externalActivity_ || decorationActive_ || offlinePreparation_.active
+      || nextRecoverySerial_ == std::numeric_limits<uint64_t>::max()) return RecoveryProgress::Rejected;
   if (presentation_ != nullptr &&
       presentation_->State() != WandPresentationState::Idle &&
-      presentation_->State() != WandPresentationState::Fault) {
-    return false;
-  }
-  const bool recovered = control_.RecoverAfterInspection();
-  if (recovered) completion_ = AutonomousCompletion();
-  if (recovered && presentation_ != nullptr &&
+      presentation_->State() != WandPresentationState::Fault) return RecoveryProgress::Rejected;
+  handle.owner_ = this; handle.serial_ = ++nextRecoverySerial_;
+  recovery_.owner = &handle; recovery_.serial = handle.serial_;
+  recovery_.generation = generation_; recovery_.originalRevision = control_.Revision();
+  recovery_.progress = RecoveryProgress::Pending;
+  const auto progress = control_.BeginInspectedRecovery();
+  // Initial cancellation of an older deferred command belongs to this attempt;
+  // an external revision change after Begin revokes the retained capability.
+  recovery_.revision = control_.Revision();
+  return AdoptRecoveryProgress(progress);
+}
+DeviceControlRuntime::RecoveryProgress DeviceControlRuntime::AdoptRecoveryProgress(RecoveryProgress progress) {
+  if (progress == RecoveryProgress::Succeeded) completion_ = AutonomousCompletion();
+  if (progress == RecoveryProgress::Succeeded && presentation_ != nullptr &&
       presentation_->State() == WandPresentationState::Fault &&
       !presentation_->RecoverAfterInspection(true)) {
-    PublishCurrent();
-    return false;
+    SelectionStep ignored;
+    Stop(ignored);
+    progress = RecoveryProgress::Rejected;
   }
+  recovery_.progress = progress;
   PublishCurrent();
-  return recovered;
+  return progress;
+}
+DeviceControlRuntime::RecoveryProgress DeviceControlRuntime::PollInspectedRecovery(RecoveryHandle& handle) {
+  if (!OwnsRecovery(handle)) return RecoveryProgress::Rejected;
+  if (recovery_.progress != RecoveryProgress::Pending) return recovery_.progress;
+  if (generation_ != recovery_.generation || control_.Revision() != recovery_.revision
+      || externalActivity_ || decorationActive_) {
+    CancelInspectedRecovery(handle);
+    return recovery_.progress;
+  }
+  return AdoptRecoveryProgress(control_.PollInspectedRecovery());
+}
+void DeviceControlRuntime::CancelInspectedRecovery(RecoveryHandle& handle) {
+  if (!OwnsRecovery(handle)) return;
+  if (recovery_.progress != RecoveryProgress::Pending && recovery_.progress != RecoveryProgress::Succeeded) return;
+  if (recovery_.generation == generation_) {
+    SelectionStep ignored;
+    Stop(ignored);
+  } else control_.CancelInspectedRecovery();
+  recovery_.progress = RecoveryProgress::Cancelled;
+  PublishCurrent();
+}
+bool DeviceControlRuntime::FinishInspectedRecovery(RecoveryHandle& handle) {
+  if (!OwnsRecovery(handle) || recovery_.progress == RecoveryProgress::Pending) return false;
+  handle.owner_ = nullptr; handle.serial_ = 0;
+  recovery_ = RecoveryIntent();
+  return true;
+}
+bool DeviceControlRuntime::HasRecoveryWork() const {
+  return (recovery_.owner && recovery_.progress == RecoveryProgress::Pending) || control_.HasRecoveryWork();
 }
 
 bool DeviceControlRuntime::AcquireManualControl(const std::string& leaseId,
@@ -361,6 +417,8 @@ bool DeviceControlRuntime::Tick(uint64_t nowMs, SelectionStep& step) {
       hadManualControl && !control_.HasManualControl();
   if (lostManualControl ||
       (producedStep && step.effect == SelectionEffect::Stopped)) {
+    if (recovery_.owner && (recovery_.progress == RecoveryProgress::Pending || recovery_.progress == RecoveryProgress::Succeeded))
+      recovery_.progress = RecoveryProgress::Cancelled;
     ++generation_;
   }
   PublishCurrent();
@@ -368,6 +426,8 @@ bool DeviceControlRuntime::Tick(uint64_t nowMs, SelectionStep& step) {
 }
 
 bool DeviceControlRuntime::Stop(SelectionStep& step) {
+  if (recovery_.owner && (recovery_.progress == RecoveryProgress::Pending || recovery_.progress == RecoveryProgress::Succeeded))
+    recovery_.progress = RecoveryProgress::Cancelled;
   admission_ = OwnedAdmission();
   offlinePreparation_ = OfflinePreparation();
   completion_ = AutonomousCompletion();
@@ -547,6 +607,8 @@ bool DeviceControlRuntime::HandoffToOffline(const std::string& leaseId, uint64_t
 
 void DeviceControlRuntime::RecordLeaseLoss(bool hadManualControl) {
   if (hadManualControl && !control_.HasManualControl()) {
+    if (recovery_.owner && (recovery_.progress == RecoveryProgress::Pending || recovery_.progress == RecoveryProgress::Succeeded))
+      recovery_.progress = RecoveryProgress::Cancelled;
     ++generation_;
   }
 }

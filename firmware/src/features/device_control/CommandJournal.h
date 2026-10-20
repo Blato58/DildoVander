@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include <string>
+#include "JournalAdmissionGate.h"
 
 // The device adapter must persist Begin before any physical output is allowed.
 class CommandJournal {
@@ -19,6 +20,21 @@ class CommandJournal {
   virtual void CancelStorageAdmissions() { CancelPresentationReservation(); }
   virtual void BeginStorageRecovery() {}
   virtual bool ResumeStorageAfterRecovery() { return true; }
+  virtual InspectedRecoveryProgress ResolveStorageRecovery(uint8_t readyMask) {
+    if (Resolve(readyMask)) return InspectedRecoveryProgress::Succeeded;
+    switch (LastStorageState()) {
+      case StorageState::Pending: return InspectedRecoveryProgress::Pending;
+      case StorageState::Unknown: return InspectedRecoveryProgress::Unknown;
+      case StorageState::Superseded: return InspectedRecoveryProgress::Cancelled;
+      default: return InspectedRecoveryProgress::Rejected;
+    }
+  }
+  virtual InspectedRecoveryProgress AdvanceStorageRecovery() {
+    if (ResumeStorageAfterRecovery()) return InspectedRecoveryProgress::Succeeded;
+    return HasPendingStorage() ? InspectedRecoveryProgress::Pending : InspectedRecoveryProgress::Rejected;
+  }
+  virtual void CancelStorageRecovery() { CancelStorageAdmissions(); }
+  virtual bool HasRecoveryStorageWork() const { return false; }
 
   virtual bool HasPending() const = 0;
   virtual bool CanBeginOperation() const { return !HasPending(); }

@@ -109,6 +109,11 @@ class DeviceControl {
                 uint64_t calibrationRevision);
 
   bool RecoverAfterInspection();
+  using RecoveryProgress = InspectedRecoveryProgress;
+  RecoveryProgress BeginInspectedRecovery();
+  RecoveryProgress PollInspectedRecovery();
+  void CancelInspectedRecovery();
+  bool HasRecoveryWork() const { return recoveryInProgress_ || journal_.HasRecoveryStorageWork(); }
   bool AcquireManualControl(const std::string& leaseId, uint64_t nowMs);
   bool RenewManualLease(const std::string& leaseId, uint64_t nowMs);
   bool DisconnectManualControl(SelectionStep& step);
@@ -220,6 +225,8 @@ class DeviceControl {
   bool closingSelection_ = false;
   bool recoveryInProgress_ = false;
   bool recoveryResolvePending_ = false;
+  RecoveryProgress recoveryProgress_ = RecoveryProgress::Rejected;
+  RecoveryProgress FinishRecovery(RecoveryProgress progress);
   uint8_t recoveryReadyMask_ = 0;
 
   std::string deviceId_;

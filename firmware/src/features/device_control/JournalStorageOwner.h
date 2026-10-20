@@ -20,6 +20,7 @@ class JournalStorageOwner final {
   enum class Operation : uint8_t { Begin, Reserve, BeginReserved, Resolve,
     ResolveRestored, ConfirmTimed, Reload };
   enum class Status : uint8_t { Succeeded, Refused, Unknown, CancelledBeforeWrite };
+  enum class Submission : uint8_t { Accepted, Busy, Rejected, Unknown };
   struct Request {
     Operation operation = Operation::Begin;
     uint64_t epoch = 0;
@@ -41,6 +42,7 @@ class JournalStorageOwner final {
   JournalStorageOwner(const JournalStorageOwner&) = delete;
   JournalStorageOwner& operator=(const JournalStorageOwner&) = delete;
   bool TrySubmit(const Request& request, Purpose purpose, Token& token);
+  Submission TrySubmitTyped(const Request& request, Purpose purpose, Token& token);
   // Call only from the single storage worker. No callback actuates hardware.
   bool RunOne();
   bool TryReadCompletion(const Token& token, Completion& completion) const;
@@ -55,6 +57,9 @@ class JournalStorageOwner final {
   bool RefreshPublication();
   bool ReconcileBeforeResume(uint32_t cancellation) {
     return !admission_ || admission_->ReconcileBeforeResume(cancellation);
+  }
+  InspectedRecoveryProgress AdvanceRecoveryResume(uint32_t cancellation) {
+    return admission_ ? admission_->AdvanceRecoveryResume(cancellation) : InspectedRecoveryProgress::Succeeded;
   }
 
  private:

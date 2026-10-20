@@ -28,10 +28,15 @@ bool DeviceStorageRuntime::AllowsAdmission() const {
 }
 
 bool DeviceStorageRuntime::ReconcileBeforeResume(uint32_t cancellation) {
-  if (!AllowsRecovery() || cancellation != arbiter_.Cancellation()) return false;
-  if (reconciled_.load() && reconciledCancellation_.load() == cancellation) return true;
+  return AdvanceRecoveryResume(cancellation) == InspectedRecoveryProgress::Succeeded;
+}
+InspectedRecoveryProgress DeviceStorageRuntime::AdvanceRecoveryResume(uint32_t cancellation) {
+  if (cancellation != arbiter_.Cancellation()) return InspectedRecoveryProgress::Cancelled;
+  if (!AllowsRecovery()) return InspectedRecoveryProgress::Unknown;
+  if (state_.load() == State::ReconciliationFailed) return InspectedRecoveryProgress::Rejected;
+  if (reconciled_.load() && reconciledCancellation_.load() == cancellation) return InspectedRecoveryProgress::Succeeded;
   requestedCancellation_.store(cancellation);
-  return false;
+  return InspectedRecoveryProgress::Pending;
 }
 
 bool DeviceStorageRuntime::ReadSourceAuthority() {

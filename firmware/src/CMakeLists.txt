@@ -90,6 +90,8 @@ idf_component_register(
         "features/device_control/AsyncCommandJournal.cpp"
         "features/device_control/EvidenceStorageOwner.cpp"
         "features/device_control/DeviceStorageRuntime.cpp"
+        "features/device_control/DeviceStorageStartup.cpp"
+        "features/device_control/EspIdfDeviceStorageWorker.cpp"
         "features/local_control/LocalControlSession.cpp"
         "features/local_control/LocalControlCodec.cpp"
         "features/local_control/LocalControlInbox.cpp"

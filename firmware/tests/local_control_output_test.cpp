@@ -187,6 +187,15 @@ void TestCurrentStateAndBounds() {
   assert(fault.Snapshot());
   assert(fault.transport.messages.back().find("\"faults\":[\"journal_failed\"]") !=
          std::string::npos);
+  Fixture failedWrite;
+  failedWrite.Ready();
+  failedWrite.storage.fail = true;
+  assert(!failedWrite.journal.PersistReadyMask(62));
+  assert(failedWrite.journal.HasStorageFault() && failedWrite.Snapshot());
+  const auto& failedSnapshot = failedWrite.transport.messages.back();
+  assert(failedSnapshot.find("\"phase\":\"fault\"") != std::string::npos);
+  assert(failedSnapshot.find("\"readyMask\":0") != std::string::npos);
+  assert(failedSnapshot.find("\"faults\":[\"journal_failed\"]") != std::string::npos);
   Fixture autonomous;
   autonomous.Ready();
   assert(autonomous.control.BeginAutonomousPresentation(Command, 2,

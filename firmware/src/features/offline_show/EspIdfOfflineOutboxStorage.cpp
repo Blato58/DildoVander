@@ -2,18 +2,18 @@
 
 namespace kufr { namespace offline {
 
-EspIdfOutboxStorage::BlobStorage::BlobStorage(bool initialized) : initialized_(initialized) { Reopen(); }
-EspIdfOutboxStorage::BlobStorage::~BlobStorage() {
+EspIdfOfflineBlobStorage::EspIdfOfflineBlobStorage(bool initialized) : initialized_(initialized) { Reopen(); }
+EspIdfOfflineBlobStorage::~EspIdfOfflineBlobStorage() {
   if (opened_) nvs_close(handle_);
 }
-bool EspIdfOutboxStorage::BlobStorage::Reopen() {
+bool EspIdfOfflineBlobStorage::Reopen() {
   if (opened_) nvs_close(handle_);
   handle_ = 0; opened_ = false; usable_ = false;
   opened_ = initialized_ && nvs_open("offline_show", NVS_READWRITE, &handle_) == ESP_OK;
   usable_ = opened_;
   return usable_;
 }
-JournalReadResult EspIdfOutboxStorage::BlobStorage::Read(uint8_t* bytes, size_t capacity, size_t& length) {
+JournalReadResult EspIdfOfflineBlobStorage::Read(uint8_t* bytes, size_t capacity, size_t& length) {
   length = 0;
   if (!usable_ || !bytes) return JournalReadResult::Failed;
   size_t storedLength = 0;
@@ -31,7 +31,7 @@ JournalReadResult EspIdfOutboxStorage::BlobStorage::Read(uint8_t* bytes, size_t 
   }
   return JournalReadResult::Found;
 }
-bool EspIdfOutboxStorage::BlobStorage::Write(const uint8_t* bytes, size_t length) {
+bool EspIdfOfflineBlobStorage::Write(const uint8_t* bytes, size_t length) {
   if (!usable_ || !bytes || length == 0 || length > OfflineCommittedInventory::MaximumRecordSize) return false;
   if (nvs_set_blob(handle_, "outbox", bytes, length) != ESP_OK || nvs_commit(handle_) != ESP_OK) {
     // A failed ACK may hide a commit or leave a handle-local pending blob. No

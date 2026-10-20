@@ -14,6 +14,12 @@ class AsyncCommandJournal final : public CommandJournal {
   void CancelStorageAdmissions() override;
   void BeginStorageRecovery() override;
   bool ResumeStorageAfterRecovery() override;
+  InspectedRecoveryProgress ResolveStorageRecovery(uint8_t readyMask) override;
+  InspectedRecoveryProgress AdvanceStorageRecovery() override;
+  void CancelStorageRecovery() override;
+  bool HasRecoveryStorageWork() const override {
+    return recoveryArmed_ || (token_.id && token_.purpose == Purpose::Recovery);
+  }
   bool HasPending() const override { return View().HasPending(); }
   bool CanBeginOperation() const override { return !token_.id && !arbiter_.AdmissionsStopped() && View().CanBeginOperation(); }
   uint8_t PendingCompartment() const override { return View().PendingCompartment(); }
@@ -73,6 +79,7 @@ class AsyncCommandJournal final : public CommandJournal {
   static bool Same(const Request& left, const Request& right);
   JournalSnapshotView View() const { return JournalSnapshotView(snapshot_); }
   void Adopt(const JournalStorageOwner::Completion& completion);
+  InspectedRecoveryProgress CheckRecoveryFence();
 
   JournalStorageOwner& owner_;
   JournalTransactionArbiter& arbiter_;
@@ -81,6 +88,8 @@ class AsyncCommandJournal final : public CommandJournal {
   JournalStorageOwner::Token token_;
   StorageState lastState_ = StorageState::Rejected;
   bool abandoned_ = false;
+  bool recoveryArmed_ = false;
+  JournalStorageOwner::Submission lastSubmission_ = JournalStorageOwner::Submission::Rejected;
   uint32_t recoveryCancellation_ = 0;
   uint32_t snapshotCancellation_ = 0;
 };

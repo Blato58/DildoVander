@@ -49,6 +49,18 @@ bool SameOfflineEnvelope(const LocalControlMessage& left, const LocalControlMess
       && left.commandId == right.commandId && left.enabled == right.enabled;
 }
 
+bool SameRecoveryEnvelope(const LocalControlMessage& left, const LocalControlMessage& right) {
+  return left.kind == right.kind && left.messageId == right.messageId && left.deviceId == right.deviceId &&
+      left.bootId == right.bootId && left.controlLeaseId == right.controlLeaseId;
+}
+
+bool RecoveryMutation(LocalControlMessageKind kind) {
+  return OfflineMutation(kind) || kind == LocalControlMessageKind::Acquire || kind == LocalControlMessageKind::Reset ||
+      kind == LocalControlMessageKind::Selection || kind == LocalControlMessageKind::Reload ||
+      kind == LocalControlMessageKind::VoiceStart || kind == LocalControlMessageKind::VoiceConfigure ||
+      kind == LocalControlMessageKind::DanceStart;
+}
+
 }  // namespace
 
 LocalControlOwner::LocalControlOwner(
@@ -87,6 +99,7 @@ void LocalControlOwner::Poll() {
           if (voice_) voice_->StopVoice();
           if (offline_) offline_->Stop();
           runtime_.Stop(step);
+          ClearPendingRecovery();
           steps_.OnStep(step);
           if (gateway_) {
             gateway_->OnControlTransition();
@@ -166,6 +179,24 @@ void LocalControlOwner::Tick() {
     offlineReady = true;
   });
   if (offlineReady) FinishOfflineCommand(offlineCompleted, offlineResult, clock_.NowMs());
+  LocalControlMessage resetCompleted;
+  auto recoveryProgress = DeviceControlRuntime::RecoveryProgress::Pending;
+  bool resetReady = false;
+  inbox_.RunIfNoUrgent([&]() {
+    if (!recoveryPending_) return;
+    if (!session_ || pendingRecoverySession_ != session_.get() || !SameHandle(pendingRecoveryHandle_) ||
+        !session_->OwnsLiveLease(bootId_, pendingRecovery_.controlLeaseId, clock_.NowMs())) {
+      ClearPendingRecovery();
+      return;
+    }
+    recoveryProgress = runtime_.PollInspectedRecovery(recoveryHandle_);
+    if (recoveryProgress == DeviceControlRuntime::RecoveryProgress::Pending) return;
+    resetCompleted = pendingRecovery_;
+    runtime_.FinishInspectedRecovery(recoveryHandle_);
+    ClearPendingRecovery();
+    resetReady = true;
+  });
+  if (resetReady) FinishReset(resetCompleted, recoveryProgress, clock_.NowMs());
   bool produced = false;
   inbox_.RunIfNoUrgent([this, &produced]() {
     SelectionStep step;
@@ -208,6 +239,7 @@ void LocalControlOwner::Disconnect() {
       gateway_->OnControlTransition();
     }
   }
+  ClearPendingRecovery();
   gateway_.reset();
   session_.reset();
   handle_ = {};
@@ -290,6 +322,12 @@ void LocalControlOwner::Handle(
   // Stop/cancel/status remain available while network/OTA owns the idle
   // reservation. A queued controller command cannot start new work then.
   const bool dancing = dance_ && kufr::dance::IsDanceActive(dance_->DanceState());
+  if (recoveryPending_ && RecoveryMutation(message.kind)) {
+    if (SameRecoveryEnvelope(message, pendingRecovery_)) return;
+    if (!RefuseBusy(message)) Close();
+    else Snapshot(nowMs);
+    return;
+  }
   if (offlinePending_ && OfflineMutation(message.kind)) {
     if (SameOfflineEnvelope(message, pendingOffline_)) return;
     if (!output_.OfflineAck(handle_, message, false, "busy_or_stale", offline_->StatusJson(), "")) Close();
@@ -306,7 +344,7 @@ void LocalControlOwner::Handle(
       message.kind == LocalControlMessageKind::VoiceStart ||
       message.kind == LocalControlMessageKind::Selection ||
       message.kind == LocalControlMessageKind::Reload ||
-      message.kind == LocalControlMessageKind::Reset)) {
+      (message.kind == LocalControlMessageKind::Reset && !(recoveryAdmission_ && !dancing)))) {
     if (!RefuseBusy(message)) {
       Close();
     } else {
@@ -422,19 +460,8 @@ void LocalControlOwner::Handle(
       break;
     }
     case LocalControlMessageKind::Reset: {
-      if (!session_->OwnsLiveLease(bootId_, message.controlLeaseId, nowMs)) {
-        Close();
-        return;
-      }
-      bool recovered = false;
-      const bool current = inbox_.RunIfCurrent(handle_, [&]() {
-        recovered = session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) &&
-                    recovery_.InspectionAllowsRecovery() && runtime_.RecoverAfterInspection();
-      });
-      if (!current) return;
-      accepted = ControlAck(message, recovered ? LocalControlError::None
-                                               : LocalControlError::RecoveryRequired);
-      break;
+      Reset(message, nowMs);
+      return;
     }
     case LocalControlMessageKind::Selection:
       Selection(message, nowMs);
@@ -464,6 +491,48 @@ void LocalControlOwner::ClearPendingOffline() {
   pendingOfflineSession_ = nullptr;
   offlinePending_ = offlineArmHandoff_ = offlineCallPending_ = false;
   offlineArmGeneration_ = offlineArmRevision_ = 0;
+}
+
+void LocalControlOwner::ClearPendingRecovery() {
+  if (recoveryHandle_.IsBound()) {
+    runtime_.CancelInspectedRecovery(recoveryHandle_);
+    runtime_.FinishInspectedRecovery(recoveryHandle_);
+  }
+  pendingRecovery_ = {};
+  pendingRecoveryHandle_ = {};
+  pendingRecoverySession_ = nullptr;
+  recoveryPending_ = false;
+}
+
+void LocalControlOwner::Reset(const LocalControlMessage& message, uint64_t nowMs) {
+  if (manualPending_ || offlinePending_) {
+    if (!RefuseBusy(message)) Close();
+    return;
+  }
+  auto progress = DeviceControlRuntime::RecoveryProgress::Rejected;
+  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
+    if (!session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) ||
+        !recovery_.InspectionAllowsRecovery()) return;
+    progress = runtime_.BeginInspectedRecovery(recoveryHandle_);
+    if (progress != DeviceControlRuntime::RecoveryProgress::Pending) return;
+    pendingRecovery_ = message;
+    pendingRecoveryHandle_ = handle_;
+    pendingRecoverySession_ = session_.get();
+    recoveryPending_ = true;
+  });
+  if (!current || progress == DeviceControlRuntime::RecoveryProgress::Pending) return;
+  runtime_.FinishInspectedRecovery(recoveryHandle_);
+  FinishReset(message, progress, nowMs);
+}
+
+void LocalControlOwner::FinishReset(const LocalControlMessage& message,
+    DeviceControlRuntime::RecoveryProgress progress, uint64_t nowMs) {
+  if (!ControlAck(message, progress == DeviceControlRuntime::RecoveryProgress::Succeeded
+      ? LocalControlError::None : LocalControlError::RecoveryRequired)) Close();
+  else if (session_) {
+    gateway_->OnControlTransition();
+    Snapshot(nowMs);
+  }
 }
 
 void LocalControlOwner::OfflineCommand(const LocalControlMessage& message, uint64_t nowMs) {
@@ -545,7 +614,17 @@ bool LocalControlOwner::RefuseBusy(const LocalControlMessage& message) {
     case LocalControlMessageKind::Reset:
       return ControlAck(message, LocalControlError::Busy);
     case LocalControlMessageKind::VoiceStart:
+    case LocalControlMessageKind::VoiceConfigure:
       return output_.VoiceAck(handle_, message, false);
+    case LocalControlMessageKind::DanceStart:
+      return output_.DanceAck(handle_, message, false);
+    case LocalControlMessageKind::OfflineArm:
+    case LocalControlMessageKind::OfflineStart:
+    case LocalControlMessageKind::Quiet:
+    case LocalControlMessageKind::OfflineAmbient:
+    case LocalControlMessageKind::OfflineSyncAck:
+      return output_.OfflineAck(handle_, message, false, "busy_or_stale",
+          offline_ ? offline_->StatusJson() : "null", "");
     case LocalControlMessageKind::Selection:
     case LocalControlMessageKind::Reload:
       return output_.CommandAck(handle_, message,

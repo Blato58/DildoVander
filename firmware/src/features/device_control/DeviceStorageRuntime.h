@@ -40,6 +40,7 @@ class DeviceStorageRuntime final : public JournalAdmissionGate {
   bool AllowsAdmission() const override;
   bool AllowsRecovery() const override;
   bool ReconcileBeforeResume(uint32_t cancellation) override;
+  InspectedRecoveryProgress AdvanceRecoveryResume(uint32_t cancellation) override;
 
  private:
   bool ReadSourceAuthority();

@@ -14,6 +14,26 @@ CJSON_HASHES = {
     "cJSON.h": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee",
 }
 CHECKS = {
+    "device_storage_worker_test": ["device_control/PersistentCommandJournal",
+        "device_control/JournalIdentityOwner", "device_control/JournalReconciliation",
+        "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal",
+        "device_control/EvidenceStorageOwner", "device_control/DeviceStorageRuntime",
+        "device_control/DeviceStorageStartup", "device_control/EspIdfDeviceStorageWorker",
+        "conversation/ConversationStartCodec", "keepsake/KeepsakeCommittedInventory",
+        "offline_show/OfflineCommittedInventory", "offline_show/OfflineOutboxCodec"],
+    "inspected_recovery_storage_test": CORE + ["device_control/PersistentCommandJournal",
+        "device_control/JournalIdentityOwner", "device_control/JournalReconciliation",
+        "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal",
+        "device_control/EvidenceStorageOwner", "device_control/DeviceStorageRuntime",
+        "conversation/ConversationStartCodec", "keepsake/KeepsakeCommittedInventory",
+        "offline_show/OfflineCommittedInventory"],
+    "device_storage_startup_test": ["device_control/PersistentCommandJournal",
+        "device_control/JournalIdentityOwner", "device_control/JournalReconciliation",
+        "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal",
+        "device_control/EvidenceStorageOwner", "device_control/DeviceStorageRuntime",
+        "device_control/DeviceStorageStartup", "conversation/ConversationStartCodec",
+        "keepsake/KeepsakeCommittedInventory", "offline_show/OfflineCommittedInventory",
+        "offline_show/OfflineOutboxCodec"],
     "offline_local_control_owner_test": CORE + ["device_control/PersistentCommandJournal",
         "device_control/JournalIdentityOwner", "device_control/JournalReconciliation",
         "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal",
@@ -115,6 +135,9 @@ def main():
                 flags = ["-std=c++14", "-Wall", "-Wextra", "-Werror", "-pthread", "-I", str(cjson), "-o", str(executable)]
             if name == "keepsake_inventory_storage_test":
                 stub = str(ROOT / "tests/journal_storage_stubs")
+                flags += ["/I" + stub] if msvc else ["-I", stub]
+            if name == "device_storage_worker_test":
+                stub = str(ROOT / "tests/storage_worker_stubs")
                 flags += ["/I" + stub] if msvc else ["-I", stub]
             if name == "journal_service_establishment_test":
                 include = str(ROOT / "lib/device_configuration/include")

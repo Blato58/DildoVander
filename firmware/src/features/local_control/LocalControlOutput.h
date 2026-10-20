@@ -5,7 +5,7 @@
 
 class LocalVoicePort;
 class DeviceControl;
-class PersistentCommandJournal;
+class CommandJournal;
 class SafetyController;
 class SelectionSequence;
 class LocalControlTransport;
@@ -14,7 +14,7 @@ class LocalControlTransport;
 class LocalControlOutput final : public LocalControlOutputPort {
  public:
   LocalControlOutput(const std::string& deviceId, const std::string& bootId,
-                     DeviceControl& control, PersistentCommandJournal& journal,
+                     DeviceControl& control, CommandJournal& journal,
                      SafetyController& safety, SelectionSequence& selection,
                      ConversationSession& conversation,
                      LocalControlTransport& transport, LocalVoicePort* voice = nullptr,
@@ -63,7 +63,7 @@ class LocalControlOutput final : public LocalControlOutputPort {
   std::string deviceId_;
   std::string bootId_;
   DeviceControl& control_;
-  PersistentCommandJournal& journal_;
+  CommandJournal& journal_;
   SafetyController& safety_;
   SelectionSequence& selection_;
   ConversationSession& conversation_;

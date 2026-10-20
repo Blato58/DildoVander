@@ -14,6 +14,7 @@ class JournalTransactionArbiter final : public JournalReconciliationBarrier {
  public:
   static constexpr size_t Capacity = 16;
   enum class Purpose : uint8_t { Admission, Evidence, Recovery };
+  enum class Result : uint8_t { Accepted, Busy, Rejected, Exhausted };
   struct Token {
     uint64_t id = 0;
     uint32_t cancellation = 0;
@@ -24,18 +25,27 @@ class JournalTransactionArbiter final : public JournalReconciliationBarrier {
   JournalTransactionArbiter& operator=(const JournalTransactionArbiter&) = delete;
 
   bool TryBegin(Purpose purpose, Token& token) {
+    return TryBeginDetailed(purpose, token) == Result::Accepted;
+  }
+  Result TryBeginDetailed(Purpose purpose, Token& token) {
     token = {};
-    if (purpose != Purpose::Admission && purpose != Purpose::Evidence && purpose != Purpose::Recovery) return false;
+    if (purpose != Purpose::Admission && purpose != Purpose::Evidence && purpose != Purpose::Recovery) return Result::Rejected;
     std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
-    if (!lock || exclusive_ || nextId_ == std::numeric_limits<uint64_t>::max()) return false;
-    if (purpose == Purpose::Admission && (stopped_.load() || CancellationExhausted())) return false;
+    if (!lock) return Result::Busy;
+    // Capture the fence once: a concurrent Stop may revoke this token, but must
+    // never cause a second load to stamp a newly exhausted fence onto it.
+    const uint32_t cancellation = cancellation_.load();
+    if (nextId_ == std::numeric_limits<uint64_t>::max() ||
+        cancellation == std::numeric_limits<uint32_t>::max()) return Result::Exhausted;
+    if (purpose == Purpose::Admission && stopped_.load()) return Result::Rejected;
+    if (exclusive_) return Result::Busy;
     for (auto& slot : active_) {
       if (slot.id) continue;
-      slot = {++nextId_, cancellation_.load(), purpose};
+      slot = {++nextId_, cancellation, purpose};
       token = slot;
-      return true;
+      return Result::Accepted;
     }
-    return false;
+    return Result::Busy;
   }
   bool Release(const Token& token) {
     std::lock_guard<std::mutex> lock(mutex_);

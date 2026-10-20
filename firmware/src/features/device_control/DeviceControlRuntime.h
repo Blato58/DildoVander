@@ -17,6 +17,20 @@ class PendingProposal;
 class DeviceControlRuntime final {
  public:
   enum class PresentationProgress { Pending, Succeeded, Rejected };
+  using RecoveryProgress = InspectedRecoveryProgress;
+  class RecoveryHandle final {
+   public:
+    RecoveryHandle() = default;
+    RecoveryHandle(const RecoveryHandle&) = delete;
+    RecoveryHandle& operator=(const RecoveryHandle&) = delete;
+    RecoveryHandle(RecoveryHandle&&) = delete;
+    RecoveryHandle& operator=(RecoveryHandle&&) = delete;
+    bool IsBound() const { return owner_ != nullptr; }
+   private:
+    friend class DeviceControlRuntime;
+    const DeviceControlRuntime* owner_ = nullptr;
+    uint64_t serial_ = 0;
+  };
   DeviceControlRuntime(DeviceControl& control, SelectionSequence& selection,
                        ConversationRuntimeState& runtime,
                        const std::string& catalogVersion);
@@ -24,6 +38,13 @@ class DeviceControlRuntime final {
   bool BindPresentation(WandPresentation& presentation);
 
   bool RecoverAfterInspection();
+  // The trusted control caller performs inspection once before Begin. A handle
+  // must outlive its attempt; polling cannot renew its owner or recovery fence.
+  RecoveryProgress BeginInspectedRecovery(RecoveryHandle& handle);
+  RecoveryProgress PollInspectedRecovery(RecoveryHandle& handle);
+  void CancelInspectedRecovery(RecoveryHandle& handle);
+  bool FinishInspectedRecovery(RecoveryHandle& handle);
+  bool HasRecoveryWork() const;
   bool AcquireManualControl(const std::string& leaseId, uint64_t nowMs);
   bool RenewManualLease(const std::string& leaseId, uint64_t nowMs);
   bool DisconnectManualControl(SelectionStep& step);
@@ -68,7 +89,7 @@ class DeviceControlRuntime final {
   bool PublishCurrent();
   void SetExternalActivity(bool active);
   bool HasStorageWork() const {
-    return admission_.owner != nullptr || offlinePreparation_.active || control_.HasStorageWork();
+    return admission_.owner != nullptr || offlinePreparation_.active || HasRecoveryWork() || control_.HasStorageWork();
   }
   uint64_t Generation() const;
   uint64_t CurrentRevision() const { return control_.Revision(); }
@@ -103,6 +124,15 @@ class DeviceControlRuntime final {
 
  private:
   void RecordLeaseLoss(bool hadManualControl);
+  bool OwnsRecovery(const RecoveryHandle& handle) const;
+  RecoveryProgress AdoptRecoveryProgress(RecoveryProgress progress);
+  struct RecoveryIntent {
+    RecoveryHandle* owner = nullptr;
+    uint64_t serial = 0, generation = 0, revision = 0, originalRevision = 0;
+    RecoveryProgress progress = RecoveryProgress::Rejected;
+  } recovery_;
+  RecoveryHandle legacyRecovery_;
+  uint64_t nextRecoverySerial_ = 0;
   struct OwnedAdmission {
     const PendingProposal::ClaimedProposal* owner = nullptr;
     std::string proposalId;
