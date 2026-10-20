@@ -138,6 +138,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   std::mutex presentationMutex_;
   bool terminalProposalOutstanding_ = false;
   bool presentationActive_ = false;
+  // Protected by presentationMutex_. The original proposal is now owned by
+  // Wand, so network expiry must not reread the consumed PendingProposal.
+  bool presentationClaimed_ = false;
   std::mutex openingMutex_;
   bool openingPending_ = false;
   std::string openingConversationId_;
@@ -148,6 +151,7 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   std::atomic<bool> online_{false};
   EspIdfKeepsakeNotifier keepsake_;
   KeepsakeOutcome keepsakeCandidate_;
+  bool keepsakeCandidatePrepared_ = false;
   std::atomic<bool> cancelRequested_{false};
   std::string bootId_;
   // Only the network task mutates this binding. Local and backend IDs differ.

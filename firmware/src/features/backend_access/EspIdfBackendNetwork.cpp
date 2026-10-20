@@ -165,9 +165,11 @@ void EspIdfBackendNetwork::QueueCancel() {
 }
 
 void EspIdfBackendNetwork::RetireCandidateLocked(const char* reason) {
+  presentationClaimed_ = false;
   if (keepsakeCandidate_.outcomeId.empty()) return;
   keepsake_.Retire(keepsakeCandidate_, reason);
   keepsakeCandidate_ = {};
+  keepsakeCandidatePrepared_ = false;
 }
 
 void EspIdfBackendNetwork::QueueCancelLocked() {
@@ -252,13 +254,22 @@ bool EspIdfBackendNetwork::ReadPendingProposal(
 bool EspIdfBackendNetwork::BeginPendingPresentation(
     WandPresentation& presentation, uint64_t nowMs) {
   std::lock_guard<std::mutex> lock(presentationMutex_);
+  if ((!terminalProposalOutstanding_ || cancelRequested_.load()) &&
+      presentation.State() == WandPresentationState::AwaitingAdmission) {
+    presentation.CancelPendingReservation();
+    RetireCandidateLocked("proposal_cancelled");
+    pendingProposal_.Clear();
+    terminalProposalOutstanding_ = false;
+    return false;
+  }
   if (!terminalProposalOutstanding_ || presentationActive_ ||
       cancelRequested_.load() ||
       replyInbox_.HasPending(runtimeState_)) {
     return false;
   }
   TurnProposal proposal;
-  if (pendingProposal_.Read(proposal, runtimeState_, nowMs) && proposal.operationEpoch != 0) {
+  const bool claimed = presentation.ReadClaimedProposal(proposal);
+  if ((claimed || pendingProposal_.Read(proposal, runtimeState_, nowMs)) && proposal.operationEpoch != 0) {
     // This is the single control owner. The mutex retains the original intent;
     // no variant selection may interleave between fingerprint capture and Start.
     const bool candidateMatches = !keepsakeCandidate_.outcomeId.empty() &&
@@ -266,27 +277,37 @@ bool EspIdfBackendNetwork::BeginPendingPresentation(
         keepsakeCandidate_.physicalOperationId == proposal.proposalId &&
         keepsakeCandidate_.compartment == proposal.compartment;
     if (candidateMatches && keepsakeCandidate_.physicalFingerprint == 0)
-      keepsakeCandidate_.physicalFingerprint = presentation.CurrentOperationFingerprint();
+      keepsakeCandidate_.physicalFingerprint = claimed ? presentation.ClaimedOperationFingerprint()
+          : presentation.CurrentOperationFingerprint();
     const bool reserved = candidateMatches && keepsakeCandidate_.physicalFingerprint != 0 &&
+        (!claimed || keepsakeCandidate_.physicalFingerprint == presentation.ClaimedOperationFingerprint()) &&
         presentation.ReservePendingOperation(pendingProposal_, runtimeState_, nowMs);
-    if (!reserved || !keepsake_.Prepare(keepsakeCandidate_)) {
-      if (reserved) presentation.CancelPendingReservation();
+    presentationClaimed_ = presentation.State() == WandPresentationState::AwaitingAdmission;
+    if (!reserved && presentation.AdmissionIsPending()) return false;
+    if (!reserved || (!keepsakeCandidatePrepared_ && !keepsake_.Prepare(keepsakeCandidate_))) {
+      presentation.CancelPendingReservation();
       RetireCandidateLocked("proposal_start_rejected");
       pendingProposal_.Clear();
       terminalProposalOutstanding_ = false;
       return false;
     }
+    keepsakeCandidatePrepared_ = true;
   }
   // Scoped preparation may persist flash; recheck its original TTL after I/O.
   const uint64_t admissionAtMs = proposal.operationEpoch != 0 ? MonotonicMs() : nowMs;
-  if (cancelRequested_.load() || !presentation.Start(pendingProposal_, runtimeState_, admissionAtMs)) {
-    if (proposal.operationEpoch != 0) presentation.CancelPendingReservation();
+  const bool started = !cancelRequested_.load() &&
+      presentation.StartPolled(pendingProposal_, runtimeState_, admissionAtMs);
+  presentationClaimed_ = presentation.State() == WandPresentationState::AwaitingAdmission;
+  if (!started && !cancelRequested_.load() && presentation.AdmissionIsPending()) return false;
+  if (!started) {
+    presentation.CancelPendingReservation();
     RetireCandidateLocked("proposal_start_rejected");
     pendingProposal_.Clear();
     terminalProposalOutstanding_ = false;
     return false;
   }
   presentationActive_ = true;
+  presentationClaimed_ = false;
   return true;
 }
 
@@ -302,6 +323,7 @@ bool EspIdfBackendNetwork::FinishPresentation(
   terminalProposalOutstanding_ = false;
   const auto completedOutcome = keepsakeCandidate_;
   keepsakeCandidate_ = {};
+  keepsakeCandidatePrepared_ = false;
   // Admission also takes presentationMutex_ first. Keep it closed until
   // cancellation is queued, so a new text turn cannot be cleared here.
   QueueCancelLocked();
@@ -391,7 +413,7 @@ void EspIdfBackendNetwork::Run() {
     {
       std::lock_guard<std::mutex> lock(presentationMutex_);
       TurnProposal candidate;
-      proposalExpired = terminalProposalOutstanding_ && !presentationActive_
+      proposalExpired = terminalProposalOutstanding_ && !presentationActive_ && !presentationClaimed_
           && !pendingProposal_.Read(candidate, runtimeState_, MonotonicMs());
       if (proposalExpired) {
         RetireCandidateLocked("proposal_stale_or_expired");
@@ -794,6 +816,7 @@ void EspIdfBackendNetwork::RunTurn(
           if (stored) {
             terminalProposalOutstanding_ = true;
             keepsakeCandidate_ = scopedCandidate || keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
+            keepsakeCandidatePrepared_ = keepsakePrepared;
           }
         }
         if (stored) {
@@ -1105,6 +1128,7 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
       if (proposalStored) {
         terminalProposalOutstanding_ = true;
         keepsakeCandidate_ = scopedCandidate || keepsakePrepared ? keepsakeCandidate : KeepsakeOutcome{};
+        keepsakeCandidatePrepared_ = keepsakePrepared;
       }
     }
     if (!proposalStored && keepsakePrepared) keepsake_.Retire(keepsakeCandidate, "proposal_store_rejected");

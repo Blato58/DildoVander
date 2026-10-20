@@ -20,6 +20,16 @@ class PhysicalPresentation final : public WandPresentationPort {
   // Capture with a newly created operation; retries retain the saved value.
   static uint64_t OperationFingerprint(bool shortVariant = false);
   uint64_t CurrentOperationFingerprint() const override;
+  uint64_t CurrentCalibrationRevision() const override { return effects_.CalibrationRevision(); }
+  WandAdmissionProgress ReserveClaimedOperation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibrationRevision, uint64_t nowMs) override;
+  WandAdmissionProgress BeginClaimedOperation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibrationRevision, uint64_t acceptedAtMs, uint64_t nowMs) override;
+  bool ValidateClaimedOperation(const PendingProposal::ClaimedProposal& claim,
+      uint64_t fingerprint, uint64_t calibrationRevision, uint64_t nowMs) const override;
+  void CancelClaimedOperation() override;
   bool ReserveOperation(uint8_t compartment, const std::string& proposalId,
       const ConversationRuntimeSnapshot& snapshot) override;
   void CancelOperationReservation() override { runtime_.CancelAutonomousReservation(); }
@@ -68,6 +78,9 @@ class PhysicalPresentation final : public WandPresentationPort {
   bool TickAccent();
   void EndAccent(bool cancelled);
   bool RefreshExecutionClock(uint64_t ioStartedAtMs);
+  bool StartEffects(uint8_t compartment, const std::string& proposalId,
+      const ConversationRuntimeSnapshot& snapshot, uint64_t acceptedAtMs,
+      uint64_t expiresAtMs = UINT64_MAX);
   static bool ValidateCompletionClock(void* context);
   const PresentationScore::Step& CurrentStep() const;
   unsigned StepCount() const;
@@ -93,5 +106,6 @@ class PhysicalPresentation final : public WandPresentationPort {
   void* clockContext_ = nullptr;
   uint64_t completionIoStartedAtMs_ = 0;
   bool completionPending_ = false;
+  bool claimedAdmission_ = false;
   const char* faultReason_ = "recovery-required";
 };

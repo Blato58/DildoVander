@@ -68,6 +68,7 @@ def main():
         ("device_control_runtime_test", CORE, []),
         ("pending_proposal_test", ["conversation/ConversationRuntimeState", "conversation/PendingProposal"], []),
         ("device_control_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl"], []),
+        ("autonomous_admission_control_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl"], []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
         ("keepsake_durability_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/DeviceControlRuntime", "device_control/PersistentCommandJournal", "conversation/ConversationRuntimeState", "conversation/PendingProposal", "wand_presentation/WandPresentation"], []),
         ("journal_epoch_test", ["device_control/PersistentCommandJournal"], []),

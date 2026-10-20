@@ -100,6 +100,7 @@ struct LastSelectionResult {
 
 class DeviceControl {
  public:
+  enum class AutonomousAdmissionProgress { Rejected, Pending, Succeeded };
   static constexpr uint64_t ManualLeaseDurationMs = 6000;
   static constexpr size_t ResultCacheSize = 64;
 
@@ -120,12 +121,17 @@ class DeviceControl {
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
   bool ReserveAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
       uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch);
+  AutonomousAdmissionProgress LastAutonomousAdmissionProgress() const {
+    return autonomousAdmissionProgress_;
+  }
+  bool HasPendingAutonomousAdmission(const std::string& proposalId, uint8_t compartment,
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) const;
   bool HasAutonomousReservation() const { return journal_.HasPresentationReservation(); }
   bool HasAutonomousReservation(const std::string& id, uint8_t slot,
       uint64_t fingerprint, uint64_t epoch) const {
     return journal_.HasPresentationReservation(epoch, id, slot, fingerprint);
   }
-  void CancelAutonomousReservation() { journal_.CancelPresentationReservation(); }
+  void CancelAutonomousReservation();
   bool BeginAutonomousPresentation(const std::string& proposalId,
                                    uint8_t compartment,
                                    uint64_t expectedRevision, uint64_t fingerprint = 0,
@@ -172,7 +178,21 @@ class DeviceControl {
 
  private:
   bool CanAdmitAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
-      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) const;
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch,
+      bool ownContinuation = false) const;
+  enum class AutonomousAdmissionKind { None, Reserve, Begin };
+  struct DeferredAutonomousAdmission {
+    AutonomousAdmissionKind kind = AutonomousAdmissionKind::None;
+    std::string proposalId;
+    uint8_t compartment = 0;
+    uint64_t expectedRevision = 0, fingerprint = 0, operationEpoch = 0;
+    uint64_t calibrationRevision = 0;
+  } deferredAutonomousAdmission_;
+  AutonomousAdmissionProgress autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Rejected;
+  bool AdvanceAutonomousAdmission(AutonomousAdmissionKind kind,
+      const std::string& proposalId, uint8_t compartment, uint64_t expectedRevision,
+      uint64_t fingerprint, uint64_t operationEpoch);
+  void CancelDeferredAutonomousAdmission(bool reportFault = true);
   struct CachedResult {
     bool occupied = false;
     ControlCommandKind kind = ControlCommandKind::Selection;

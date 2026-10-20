@@ -6,6 +6,7 @@
 
 #include "DeviceControl.h"
 #include "../conversation/ConversationRuntimeState.h"
+#include "../conversation/PendingProposal.h"
 
 class WandPresentation;
 class PendingProposal;
@@ -46,6 +47,15 @@ class DeviceControlRuntime final {
   bool BeginAutonomousPresentation(
       const std::string& proposalId, uint8_t compartment,
       const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint = 0);
+  PresentationProgress ReserveClaimedAutonomousPresentation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibrationRevision, uint64_t nowMs);
+  PresentationProgress BeginClaimedAutonomousPresentation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibrationRevision, uint64_t nowMs);
+  bool ValidateClaimedAutonomousPresentation(const PendingProposal::ClaimedProposal& claim,
+      uint64_t fingerprint, uint64_t calibrationRevision, uint64_t nowMs) const;
+  void CancelClaimedAutonomousPresentation();
   bool CompleteAutonomousPresentation(uint8_t compartment,
       bool (*postPersistCheck)(void*) = nullptr, void* context = nullptr);
   PresentationProgress AdvanceAutonomousCompletion(uint8_t compartment,
@@ -57,13 +67,14 @@ class DeviceControlRuntime final {
 
   bool PublishCurrent();
   void SetExternalActivity(bool active);
-  bool HasStorageWork() const { return control_.HasStorageWork(); }
+  bool HasStorageWork() const { return admission_.owner != nullptr || control_.HasStorageWork(); }
   uint64_t Generation() const;
   uint64_t CurrentRevision() const { return control_.Revision(); }
   bool NeedsRecovery() const { return control_.NeedsRecovery(); }
   bool HasAutonomousPresentation() const;
   // Consulted only by the control owner immediately before new admission.
   bool CanCapturePresentationFingerprint() const;
+  bool CanCaptureOwnedPresentationFingerprint() const;
   bool SetOfflineAuthority(bool active);
   bool HandoffToOffline(const std::string& leaseId, uint64_t nowMs);
   bool OfflineAuthority() const { return offlineAuthority_; }
@@ -84,6 +95,16 @@ class DeviceControlRuntime final {
 
  private:
   void RecordLeaseLoss(bool hadManualControl);
+  struct OwnedAdmission {
+    const PendingProposal::ClaimedProposal* owner = nullptr;
+    std::string proposalId;
+    uint64_t fingerprint = 0, calibration = 0, storedAt = 0, deadline = 0;
+    uint64_t generation = 0, revision = 0, epoch = 0, snapshotVersion = 0;
+    uint8_t slot = 0;
+    bool offline = false;
+  } admission_;
+  bool CaptureClaimedAdmission(const PendingProposal::ClaimedProposal& claim,
+      uint64_t fingerprint, uint64_t calibrationRevision, uint64_t nowMs);
   enum class CompletionPhase { None, Closing, Validating, Proof };
   struct AutonomousCompletion {
     CompletionPhase phase = CompletionPhase::None;

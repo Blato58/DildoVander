@@ -125,11 +125,9 @@ permits no proof; Stop after it clears live success authority even if an already
 started proof write becomes durable. A late close alone never supplies timing
 evidence. Existing control-loop watchdogs remain active throughout the wait.
 
-`PendingProposal::Claim` separately provides an atomic move-only handoff of the
-original proposal, snapshot and absolute local expiry. Runtime invalidation
-cannot rewrite that claimed intent or renew its deadline. Admission callers have
-not yet migrated to the claim; it does not bypass the unavailable public snapshot
-or activate asynchronous autonomous admission by itself.
+`PendingProposal::Claim` provides an atomic move-only handoff of the original
+proposal, snapshot and absolute local expiry. Runtime invalidation cannot rewrite
+that claimed intent or renew its deadline.
 
 The default inventory runner includes `autonomous_completion_storage_test`, using
 the actual shared runtime, committed codecs and asynchronous close/proof facade.
@@ -139,3 +137,38 @@ cuts on both close/proof boundaries, late receipt adoption, exact source tuples
 and authoritative reopen. A separate physical-owner fixture retains the first
 close time across repeated polls, accepts a close at 249 ms, refuses it at 250 ms,
 and keeps normal control/watchdog ticks running during delayed proof bookkeeping.
+
+## Claimed autonomous admission
+
+Wand now claims once before reservation and retains the exact proposal, deadline,
+fingerprint and calibration through reservation, producer preparation and Begin.
+The public conversation snapshot remains unavailable during storage work. Runtime
+captures this exact claim owner and original generation/revision/catalog/epoch,
+ready bit, calibration and online/offline authority. Only its identified pending
+Reserve/Begin may continue; another claim with identical contents cannot consume
+its ACK. Early publication of an already-committed Begin cannot advance the
+control revision before the original caller consumes that acknowledgement.
+
+Reserve acknowledgement alone supplies no motion authority. Begin retains its
+first attempt timestamp across retries; the physical port checks the original
+claim expiry again after ACK and after its fresh clock sample before any effect.
+Stop, stale guards and uncertain acknowledgements never resume the intent.
+First-reservation refusal before any accepted asynchronous request remains a
+plain refusal; a previously pending request's failed result requires inspection.
+
+The backend producer uses `StartPolled`: Tick cannot consume Begin before that
+producer rechecks its cancellation and preparation gates. Its held claim also
+prevents the network expiry task from treating the consumed proposal mailbox as
+expired. Preparation is tracked once for the exact retained candidate. This does
+not yet migrate notifier persistence onto the shared evidence channel: its legacy
+preparation path and offline outbox/settings writes remain synchronous.
+
+The no-bridge `autonomous_claimed_storage_test` exercises actual shared storage,
+Wand, control and physical score owners with simulated I/O: 1,152 completed
+cycles, 144 cycling boots, 37 compactions, 1,151 delivery acknowledgements and one
+retained original proof. It polls real reserve, prepare, Begin, close, proof and
+source outcomes at 10 ms simulated cadence. Its 8,835,840 ms workload, calibrated
+elapsed travel and direct test producer are not backend/offline end-to-end,
+physical position feedback or the required four-hour media/session soak.
+Production worker/task activation, all producer migrations and measured runtime
+acceptance still remain open; scoped activation and compaction remain disabled.

@@ -154,6 +154,110 @@ bool DeviceControlRuntime::CompleteAutonomousPresentation(
       PresentationProgress::Succeeded;
 }
 
+bool DeviceControlRuntime::ValidateClaimedAutonomousPresentation(
+    const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+    uint64_t calibrationRevision, uint64_t nowMs) const {
+  const auto& proposal = claim.Proposal();
+  const auto& snapshot = claim.Snapshot();
+  const bool owned = admission_.owner != nullptr;
+  if (!claim.IsLive(nowMs) || proposal.proposalId.empty() || proposal.proposalId.size() > 96 ||
+      proposal.compartment < 1 || proposal.compartment > 6 ||
+      proposal.generation != snapshot.generation || proposal.deviceRevision != snapshot.deviceRevision ||
+      proposal.operationEpoch != snapshot.operationEpoch || proposal.catalogVersion != snapshot.catalogVersion ||
+      snapshot.catalogVersion != catalogVersion_ || snapshot.generation != generation_ ||
+      snapshot.deviceRevision != control_.Revision() || snapshot.operationEpoch != control_.OperationEpoch() ||
+      calibrationRevision == 0 || calibrationRevision != control_.CalibrationRevision() ||
+      (snapshot.operationEpoch != 0 && fingerprint == 0) ||
+      (snapshot.readyMask & (1u << (proposal.compartment - 1))) == 0 ||
+      (control_.ReadyMask() & (1u << (proposal.compartment - 1))) == 0 ||
+      externalActivity_ || decorationActive_ || control_.HasManualControl() ||
+      control_.HasPendingSelection() || control_.HasAutonomousPresentation() ||
+      control_.HasAutonomousCompletionFault() || selection_.IsBusy() || presentation_ == nullptr ||
+      (presentation_->State() != WandPresentationState::Idle &&
+       presentation_->State() != WandPresentationState::AwaitingAdmission)) return false;
+  if (owned) {
+    if (admission_.owner != &claim || admission_.proposalId != proposal.proposalId ||
+        admission_.slot != proposal.compartment || admission_.fingerprint != fingerprint ||
+        admission_.calibration != calibrationRevision || admission_.storedAt != claim.StoredAtMs() ||
+        admission_.deadline != claim.DeadlineMs() || admission_.generation != snapshot.generation ||
+        admission_.revision != snapshot.deviceRevision || admission_.epoch != snapshot.operationEpoch ||
+        admission_.snapshotVersion != snapshot.version || admission_.offline != offlineAuthority_) return false;
+  } else if ((offlineAuthority_ && !offlineAdmission_) || !runtime_.Matches(snapshot)) {
+    return false;
+  }
+  // Only this exact retained admission may consume its own queued Begin/Reserve
+  // after publication is invalidated or its committed snapshot arrives early.
+  const bool ownStorage = owned && control_.HasPendingAutonomousAdmission(proposal.proposalId,
+      proposal.compartment, snapshot.deviceRevision, fingerprint, snapshot.operationEpoch);
+  return ownStorage || (!control_.HasStorageWork() && !control_.NeedsRecovery());
+}
+
+bool DeviceControlRuntime::CaptureClaimedAdmission(const PendingProposal::ClaimedProposal& claim,
+    uint64_t fingerprint, uint64_t calibrationRevision, uint64_t nowMs) {
+  if (!ValidateClaimedAutonomousPresentation(claim, fingerprint, calibrationRevision, nowMs)) return false;
+  if (admission_.owner != nullptr) return true;
+  const auto& proposal = claim.Proposal();
+  const auto& snapshot = claim.Snapshot();
+  admission_.owner = &claim;
+  admission_.proposalId = proposal.proposalId;
+  admission_.slot = proposal.compartment;
+  admission_.fingerprint = fingerprint;
+  admission_.calibration = calibrationRevision;
+  admission_.storedAt = claim.StoredAtMs();
+  admission_.deadline = claim.DeadlineMs();
+  admission_.generation = snapshot.generation;
+  admission_.revision = snapshot.deviceRevision;
+  admission_.epoch = snapshot.operationEpoch;
+  admission_.snapshotVersion = snapshot.version;
+  admission_.offline = offlineAuthority_;
+  return true;
+}
+
+DeviceControlRuntime::PresentationProgress DeviceControlRuntime::ReserveClaimedAutonomousPresentation(
+    const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+    uint64_t calibrationRevision, uint64_t nowMs) {
+  if (claim.Snapshot().operationEpoch == 0 ||
+      !CaptureClaimedAdmission(claim, fingerprint, calibrationRevision, nowMs))
+    return PresentationProgress::Rejected;
+  const auto& proposal = claim.Proposal();
+  const bool waitingForAck = control_.HasPendingAutonomousAdmission(proposal.proposalId,
+      proposal.compartment, proposal.deviceRevision, fingerprint, proposal.operationEpoch);
+  const bool reserved = (!waitingForAck && control_.HasAutonomousReservation(proposal.proposalId,
+      proposal.compartment, fingerprint, proposal.operationEpoch)) || control_.ReserveAutonomousPresentation(proposal.proposalId,
+          proposal.compartment, proposal.deviceRevision, fingerprint, proposal.operationEpoch);
+  PublishCurrent();
+  if (reserved) return PresentationProgress::Succeeded;
+  if (control_.LastAutonomousAdmissionProgress() == DeviceControl::AutonomousAdmissionProgress::Pending)
+    return PresentationProgress::Pending;
+  CancelClaimedAutonomousPresentation();
+  return PresentationProgress::Rejected;
+}
+
+DeviceControlRuntime::PresentationProgress DeviceControlRuntime::BeginClaimedAutonomousPresentation(
+    const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+    uint64_t calibrationRevision, uint64_t nowMs) {
+  if (!CaptureClaimedAdmission(claim, fingerprint, calibrationRevision, nowMs))
+    return PresentationProgress::Rejected;
+  const auto& proposal = claim.Proposal();
+  const bool started = control_.BeginAutonomousPresentation(proposal.proposalId, proposal.compartment,
+      proposal.deviceRevision, fingerprint, proposal.operationEpoch);
+  PublishCurrent();
+  if (started) {
+    admission_ = OwnedAdmission();
+    return PresentationProgress::Succeeded;
+  }
+  if (control_.LastAutonomousAdmissionProgress() == DeviceControl::AutonomousAdmissionProgress::Pending)
+    return PresentationProgress::Pending;
+  CancelClaimedAutonomousPresentation();
+  return PresentationProgress::Rejected;
+}
+
+void DeviceControlRuntime::CancelClaimedAutonomousPresentation() {
+  admission_ = OwnedAdmission();
+  control_.CancelAutonomousReservation();
+  PublishCurrent();
+}
+
 bool DeviceControlRuntime::HasValidatedAutonomousCompletion() const {
   return completion_.phase == CompletionPhase::Proof &&
       completion_.generation == generation_ && !control_.HasAutonomousCompletionFault();
@@ -226,6 +330,7 @@ DeviceControlRuntime::AdvanceAutonomousCompletion(
 }
 
 void DeviceControlRuntime::FaultAutonomousPresentation() {
+  admission_ = OwnedAdmission();
   completion_ = AutonomousCompletion();
   control_.FaultAutonomousPresentation();
   PublishCurrent();
@@ -263,6 +368,7 @@ bool DeviceControlRuntime::Tick(uint64_t nowMs, SelectionStep& step) {
 }
 
 bool DeviceControlRuntime::Stop(SelectionStep& step) {
+  admission_ = OwnedAdmission();
   completion_ = AutonomousCompletion();
   const bool hadActivePresentation =
       presentation_ != nullptr &&
@@ -330,6 +436,18 @@ bool DeviceControlRuntime::CanCapturePresentationFingerprint() const {
       !control_.HasAutonomousReservation() &&
       !control_.NeedsRecovery() && !control_.HasManualControl() &&
       !control_.HasStorageWork() && !control_.HasPendingSelection() && !control_.HasAutonomousPresentation() &&
+      !selection_.IsBusy() && presentation_ != nullptr &&
+      presentation_->State() == WandPresentationState::Idle;
+}
+
+bool DeviceControlRuntime::CanCaptureOwnedPresentationFingerprint() const {
+  if (CanCapturePresentationFingerprint()) return true;
+  // Only StartOfflinePresentation opens this control-owner scope. Capturing a
+  // score hash supplies no journal/admission authority, including when the
+  // offline producer already reserved its exact original operation.
+  return offlineAuthority_ && offlineAdmission_ && !externalActivity_ && !decorationActive_ &&
+      !control_.NeedsRecovery() && !control_.HasManualControl() && !control_.HasStorageWork() &&
+      !control_.HasPendingSelection() && !control_.HasAutonomousPresentation() &&
       !selection_.IsBusy() && presentation_ != nullptr &&
       presentation_->State() == WandPresentationState::Idle;
 }

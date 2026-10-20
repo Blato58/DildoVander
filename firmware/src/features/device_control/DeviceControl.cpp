@@ -71,7 +71,8 @@ void DeviceControl::PollStorage() {
   journal_.PollStorage();
   uint8_t durableMask = journal_.ReadyMask();
   if (journal_.HasPending() && !HasPendingSelection() && !HasAutonomousPresentation() &&
-      deferredKind_ != DeferredKind::Selection) {
+      deferredKind_ != DeferredKind::Selection &&
+      deferredAutonomousAdmission_.kind != AutonomousAdmissionKind::Begin) {
     const uint8_t compartment = journal_.PendingCompartment();
     if (compartment >= 1 && compartment <= SelectionSequence::CompartmentCount)
       durableMask &= static_cast<uint8_t>(~(1u << (compartment - 1)));
@@ -95,6 +96,34 @@ void DeviceControl::CancelDeferredCommand() {
   deferredSelection_ = SelectionCommand();
   deferredReload_ = InventoryReloadCommand();
   deferredReadyMask_ = 0;
+}
+
+bool DeviceControl::HasPendingAutonomousAdmission(const std::string& proposalId,
+    uint8_t compartment, uint64_t expectedRevision, uint64_t fingerprint,
+    uint64_t operationEpoch) const {
+  const auto& deferred = deferredAutonomousAdmission_;
+  return deferred.kind != AutonomousAdmissionKind::None &&
+      deferred.proposalId == proposalId && deferred.compartment == compartment &&
+      deferred.expectedRevision == expectedRevision && deferred.fingerprint == fingerprint &&
+      deferred.operationEpoch == operationEpoch;
+}
+
+void DeviceControl::CancelDeferredAutonomousAdmission(bool reportFault) {
+  if (deferredAutonomousAdmission_.kind == AutonomousAdmissionKind::None) return;
+  journal_.CancelStorageAdmissions();
+  deferredAutonomousAdmission_ = DeferredAutonomousAdmission();
+  autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Rejected;
+  if (reportFault) {
+    SelectionStep step;
+    selection_.ReportFault(step);
+    ++revision_;
+  }
+}
+
+void DeviceControl::CancelAutonomousReservation() {
+  CancelDeferredAutonomousAdmission();
+  journal_.CancelPresentationReservation();
+  autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Rejected;
 }
 
 CommandReceipt DeviceControl::RejectDeferred(CommandError error) {
@@ -477,41 +506,91 @@ bool DeviceControl::BeginAcceptedSelection(uint64_t nowMs,
 
 bool DeviceControl::CanAdmitAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
-    uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) const {
+    uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch,
+    bool ownContinuation) const {
+  const bool adoptedOwnBegin = ownContinuation &&
+      deferredAutonomousAdmission_.kind == AutonomousAdmissionKind::Begin &&
+      journal_.PendingCompartment() == compartment &&
+      FindOperation(proposalId, compartment, fingerprint, operationEpoch) == CommandJournal::Lookup::Same;
   return operationEpoch == OperationEpoch() && (operationEpoch == 0 || fingerprint != 0) &&
       !proposalId.empty() && compartment >= 1 && compartment <= SelectionSequence::CompartmentCount &&
       expectedRevision == revision_ && calibrationRevision_ != 0 &&
+      (!ownContinuation || deferredAutonomousAdmission_.calibrationRevision == calibrationRevision_) &&
       !HasManualControl() && !HasPendingSelection() && !HasAutonomousPresentation() &&
-      !selection_.IsBusy() && !selection_.NeedsRecovery() && !journal_.HasPending() && !HasStorageWork() &&
+      !selection_.IsBusy() && !selection_.NeedsRecovery() && !journal_.HasStorageFault() &&
+      deferredKind_ == DeferredKind::None && !closingSelection_ && !recoveryInProgress_ &&
+      (!journal_.HasPending() || adoptedOwnBegin) &&
+      (ownContinuation || !HasStorageWork()) &&
       (readyMask_ & (1u << (compartment - 1))) != 0;
 }
 
 bool DeviceControl::ReserveAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
     uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) {
-  return operationEpoch != 0 && CanAdmitAutonomousPresentation(proposalId, compartment,
-      expectedRevision, fingerprint, operationEpoch) &&
-      journal_.ReservePresentation(operationEpoch, proposalId, compartment, fingerprint);
+  return AdvanceAutonomousAdmission(AutonomousAdmissionKind::Reserve, proposalId,
+      compartment, expectedRevision, fingerprint, operationEpoch);
 }
 
 bool DeviceControl::BeginAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
     uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) {
-  if (!CanAdmitAutonomousPresentation(proposalId, compartment,
-      expectedRevision, fingerprint, operationEpoch)) return false;
+  return AdvanceAutonomousAdmission(AutonomousAdmissionKind::Begin, proposalId,
+      compartment, expectedRevision, fingerprint, operationEpoch);
+}
 
-  // The durable record must exist before a servo port may request motion.
-  if (operationEpoch != 0 &&
-      !HasAutonomousReservation(proposalId, compartment, fingerprint, operationEpoch)) return false;
-  const bool recorded = operationEpoch == 0
-      ? journal_.BeginWithIdentity(proposalId, compartment, fingerprint)
-      : journal_.BeginReservedPresentation(operationEpoch, proposalId, compartment, fingerprint);
-  if (!recorded) {
-    journal_.CancelStorageAdmissions();
-    SelectionStep step;
-    selection_.ReportFault(step);
+bool DeviceControl::AdvanceAutonomousAdmission(AutonomousAdmissionKind kind,
+    const std::string& proposalId, uint8_t compartment, uint64_t expectedRevision,
+    uint64_t fingerprint, uint64_t operationEpoch) {
+  autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Rejected;
+  const bool retry = deferredAutonomousAdmission_.kind != AutonomousAdmissionKind::None;
+  if (retry && (deferredAutonomousAdmission_.kind != kind ||
+      !HasPendingAutonomousAdmission(proposalId, compartment, expectedRevision,
+          fingerprint, operationEpoch))) return false;
+  PollStorage();
+  if ((kind == AutonomousAdmissionKind::Reserve && operationEpoch == 0) ||
+      !CanAdmitAutonomousPresentation(proposalId, compartment, expectedRevision,
+          fingerprint, operationEpoch, retry)) {
+    if (retry) CancelDeferredAutonomousAdmission();
     return false;
   }
+  // Reservation is a one-use capability. The first Begin requires it; retries
+  // may instead observe their own already-persisted pending operation.
+  if (!retry && kind == AutonomousAdmissionKind::Begin && operationEpoch != 0 &&
+      !HasAutonomousReservation(proposalId, compartment, fingerprint, operationEpoch)) return false;
+  if (!retry) {
+    auto& deferred = deferredAutonomousAdmission_;
+    deferred.kind = kind;
+    deferred.proposalId = proposalId;
+    deferred.compartment = compartment;
+    deferred.expectedRevision = expectedRevision;
+    deferred.fingerprint = fingerprint;
+    deferred.operationEpoch = operationEpoch;
+    deferred.calibrationRevision = calibrationRevision_;
+  }
+  const bool recorded = kind == AutonomousAdmissionKind::Reserve
+      ? journal_.ReservePresentation(operationEpoch, proposalId, compartment, fingerprint)
+      : operationEpoch == 0
+          ? journal_.BeginWithIdentity(proposalId, compartment, fingerprint)
+          : journal_.BeginReservedPresentation(operationEpoch, proposalId, compartment, fingerprint);
+  if (!recorded) {
+    if (journal_.LastStorageState() == CommandJournal::StorageState::Pending) {
+      autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Pending;
+      return false;
+    }
+    // A first Reserve may be refused before a job is accepted (for example,
+    // while reconciliation owns the barrier). Preserve that plain refusal;
+    // a previously pending request or uncertain write still requires inspection.
+    if (!retry && kind == AutonomousAdmissionKind::Reserve &&
+        journal_.LastStorageState() == CommandJournal::StorageState::Rejected) {
+      deferredAutonomousAdmission_ = DeferredAutonomousAdmission();
+      return false;
+    }
+    CancelDeferredAutonomousAdmission();
+    return false;
+  }
+  deferredAutonomousAdmission_ = DeferredAutonomousAdmission();
+  autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Succeeded;
+  if (kind == AutonomousAdmissionKind::Reserve) return true;
   autonomousCompartment_ = compartment;
   autonomousOperationId_ = proposalId;
   autonomousFingerprint_ = fingerprint;
@@ -583,6 +662,7 @@ void DeviceControl::FaultAutonomousPresentation() {
 bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
   PollStorage();
   if (journal_.HasStorageFault() && !selection_.NeedsRecovery()) return Stop(step);
+  if (selection_.NeedsRecovery()) CancelDeferredAutonomousAdmission();
   if (deferredKind_ != DeferredKind::None) {
     const uint64_t issuedAt = deferredKind_ == DeferredKind::Selection
         ? deferredSelection_.issuedAtDeviceMs : deferredReload_.issuedAtDeviceMs;
@@ -601,6 +681,7 @@ bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
   if (selection_.ObserveControlLoopPass(sequenceTimeMs, step)) {
     journal_.CancelStorageAdmissions();
     CancelDeferredCommand();
+    CancelDeferredAutonomousAdmission(false);
     recoveryInProgress_ = false;
     recoveryResolvePending_ = false;
     FinishCurrent(CommandOutcome::OutcomeUnknown);
@@ -637,6 +718,7 @@ bool DeviceControl::Stop(SelectionStep& step) {
   // Stop invalidates even idle or storage-only admissions without waiting for NVS.
   journal_.CancelStorageAdmissions();
   CancelDeferredCommand();
+  CancelDeferredAutonomousAdmission(false);
   recoveryInProgress_ = false;
   recoveryResolvePending_ = false;
   lastCompletedAutonomousCompartment_ = 0;
@@ -690,6 +772,7 @@ bool DeviceControl::NeedsRecovery() const {
 
 bool DeviceControl::HasStorageWork() const {
   return deferredKind_ != DeferredKind::None || closingSelection_ ||
+      deferredAutonomousAdmission_.kind != AutonomousAdmissionKind::None ||
       recoveryInProgress_ || journal_.HasPendingStorage();
 }
 

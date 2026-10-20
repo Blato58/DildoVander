@@ -37,8 +37,19 @@ class FakeIo final : public PhysicalIo {
   bool ReadInputs(PhysicalInputs& value) override { value = inputs; return !fail; }
 };
 
+// The parity runner compiles this same fixture against the historical core.
+// Optional async test hooks must retain that base's original surface too.
+template <typename Base, typename = void> struct JournalStorageStateType {
+  enum class Type { Rejected, Pending, Committed };
+};
+template <typename Base> struct JournalStorageStateType<Base,
+    decltype(void(sizeof(typename Base::StorageState)))> {
+  using Type = typename Base::StorageState;
+};
+
 class Journal final : public CommandJournal {
  public:
+  using StorageState = typename JournalStorageStateType<CommandJournal>::Type;
   bool pending = false, fail = false;
   uint8_t selected = 0, mask = 63;
   int begins = 0, restores = 0;
@@ -47,8 +58,8 @@ class Journal final : public CommandJournal {
   bool holdClose = false, holdProof = false;
   bool closeOutstanding = false, proofOutstanding = false;
   StorageState storageState = StorageState::Rejected;
-  StorageState LastStorageState() const override { return storageState; }
-  bool HasPendingStorage() const override { return closeOutstanding || proofOutstanding; }
+  StorageState LastStorageState() const { return storageState; }
+  bool HasPendingStorage() const { return closeOutstanding || proofOutstanding; }
   bool HasPending() const override { return pending; }
   uint8_t PendingCompartment() const override { return selected; }
   uint8_t ReadyMask() const override { return mask; }

@@ -6,6 +6,8 @@
 
 #include "../conversation/PendingProposal.h"
 
+enum class WandAdmissionProgress : uint8_t { Pending, Succeeded, Rejected };
+
 // Readiness gates calibration and locally inspected/commanded position.
 // PhysicalPresentation uses timed calibrated moves, not measured feedback.
 // Journal admission precedes Raise; completion persists restored availability.
@@ -16,9 +18,28 @@ class WandPresentationPort {
   virtual bool AdmissionWasDuplicateOrConflict() const { return false; }
   // Control owner only: capture with a new intent immediately before admission.
   virtual uint64_t CurrentOperationFingerprint() const { return 0; }
+  virtual uint64_t CurrentCalibrationRevision() const { return 0; }
   virtual bool ReserveOperation(uint8_t, const std::string&,
                                 const ConversationRuntimeSnapshot&) { return false; }
   virtual void CancelOperationReservation() {}
+  virtual WandAdmissionProgress ReserveClaimedOperation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t, uint64_t,
+      uint64_t) {
+    return ReserveOperation(claim.Proposal().compartment,
+        claim.Proposal().proposalId, claim.Snapshot())
+        ? WandAdmissionProgress::Succeeded : WandAdmissionProgress::Rejected;
+  }
+  virtual WandAdmissionProgress BeginClaimedOperation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t, uint64_t,
+      uint64_t, uint64_t nowMs) {
+    ObserveOwnerTime(nowMs);
+    return Raise(claim.Proposal().compartment, claim.Proposal().proposalId,
+        claim.Snapshot()) ? WandAdmissionProgress::Succeeded
+                         : WandAdmissionProgress::Rejected;
+  }
+  virtual bool ValidateClaimedOperation(const PendingProposal::ClaimedProposal&,
+      uint64_t, uint64_t, uint64_t) const { return true; }
+  virtual void CancelClaimedOperation() { CancelOperationReservation(); }
   virtual bool IsReady(uint8_t compartment) const = 0;
   virtual bool IsSafeToContinue() const = 0;
   virtual uint64_t RaiseTimeoutMs(uint8_t) const { return 3000; }
@@ -38,6 +59,7 @@ class WandPresentationPort {
 
 enum class WandPresentationState : uint8_t {
   Idle,
+  AwaitingAdmission,
   Raising,
   Showing,
   Lowering,
@@ -55,11 +77,19 @@ class WandPresentation final {
   bool Start(PendingProposal& pending,
              const ConversationRuntimeState& runtime,
              uint64_t nowMs);
+  // A producer with independent cancellation/source gates polls Begin itself.
+  // Tick cannot consume its admission ACK before those gates are checked again.
+  bool StartPolled(PendingProposal& pending,
+      const ConversationRuntimeState& runtime, uint64_t nowMs);
   // Control owner only. Pin the exact scoped operation before its producer
-  // commits evidence. This reserves no physical motion and consumes no proposal.
+  // commits evidence. This claims the original proposal without physical motion.
   bool ReservePendingOperation(PendingProposal& pending,
       const ConversationRuntimeState& runtime, uint64_t nowMs);
-  void CancelPendingReservation() { port_.CancelOperationReservation(); }
+  void CancelPendingReservation();
+  bool AdmissionIsPending() const { return admissionPending_; }
+  bool ReadClaimedProposal(TurnProposal& proposal) const;
+  uint64_t ClaimedOperationFingerprint() const { return claimedFingerprint_; }
+  uint64_t ClaimedCalibrationRevision() const { return claimedCalibrationRevision_; }
   void Tick(uint64_t nowMs);
   // Fault-only guard for the control loop before physical outputs are serviced.
   void CheckDeadline(uint64_t nowMs);
@@ -71,6 +101,13 @@ class WandPresentation final {
   uint8_t Compartment() const;
 
  private:
+  bool CaptureClaim(PendingProposal& pending,
+      const ConversationRuntimeState& runtime, uint64_t nowMs);
+  bool AdvanceReservation(uint64_t nowMs);
+  bool AdvanceBegin(uint64_t nowMs);
+  bool RequestBegin(PendingProposal& pending, const ConversationRuntimeState& runtime,
+      uint64_t nowMs, bool automaticContinuation);
+  void ClearAdmission();
   void Fault();
 
   WandPresentationPort& port_;
@@ -82,4 +119,12 @@ class WandPresentation final {
   uint64_t lastObservedAtMs_ = 0;
   std::string lastProposalId_;
   uint64_t lastProposalEpoch_ = 0;
+  PendingProposal::ClaimedProposal claimed_;
+  uint64_t claimedFingerprint_ = 0;
+  uint64_t claimedCalibrationRevision_ = 0;
+  bool admissionPending_ = false;
+  bool reservationReady_ = false;
+  bool beginRequested_ = false;
+  bool beginAttempted_ = false;
+  bool automaticContinuation_ = true;
 };

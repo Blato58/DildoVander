@@ -480,7 +480,7 @@ extern "C" void app_main() {
     std::unique_lock<std::mutex> maintenanceLock(maintenance.mutex);
     const uint64_t nowMs = clock.NowMs();
     TurnProposal pendingProposal;
-    maintenance.safeIdle = !deviceControl.HasManualControl() && !deviceControl.HasStorageWork() && !selectionSequence.IsBusy() &&
+    maintenance.safeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
@@ -640,6 +640,7 @@ extern "C" void app_main() {
         case WandPresentationState::Showing: twinSnapshot.state = "showing"; break;
         case WandPresentationState::Lowering: twinSnapshot.state = "lowering"; break;
         case WandPresentationState::Completing: twinSnapshot.state = "lowering"; break;
+        case WandPresentationState::AwaitingAdmission: twinSnapshot.state = "idle"; break;
         case WandPresentationState::Fault: twinSnapshot.state = "fault"; break;
       }
       twinSnapshot.pulse = observedHardware.pulse_;
@@ -655,7 +656,7 @@ extern "C" void app_main() {
       twinMailbox.Publish(twinSnapshot);
     }
     // Publish idle only after all admissions in this iteration have completed.
-    maintenance.safeIdle = !deviceControl.HasManualControl() && !deviceControl.HasStorageWork() && !selectionSequence.IsBusy() &&
+    maintenance.safeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
         !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());

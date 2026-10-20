@@ -77,6 +77,21 @@ class FakePresentationPort final : public WandPresentationPort {
   bool IsSafeToContinue() const override {
     return !selection.NeedsRecovery();
   }
+  uint64_t CurrentCalibrationRevision() const override { return control.CalibrationRevision(); }
+  bool ValidateClaimedOperation(const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibration, uint64_t nowMs) const override {
+    return runtime.ValidateClaimedAutonomousPresentation(claim, fingerprint, calibration, nowMs);
+  }
+  WandAdmissionProgress BeginClaimedOperation(const PendingProposal::ClaimedProposal& claim,
+      uint64_t fingerprint, uint64_t calibration, uint64_t, uint64_t nowMs) override {
+    const auto progress = runtime.BeginClaimedAutonomousPresentation(claim, fingerprint, calibration, nowMs);
+    if (progress == DeviceControlRuntime::PresentationProgress::Pending) return WandAdmissionProgress::Pending;
+    if (progress == DeviceControlRuntime::PresentationProgress::Rejected) return WandAdmissionProgress::Rejected;
+    ++raises;
+    resting = false;
+    return WandAdmissionProgress::Succeeded;
+  }
+  void CancelClaimedOperation() override { runtime.CancelClaimedAutonomousPresentation(); }
   bool IsRaised(uint8_t) const override { return raised; }
   bool IsResting(uint8_t) const override { return resting; }
   bool Raise(uint8_t compartment, const std::string& proposalId,
