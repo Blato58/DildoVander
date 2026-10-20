@@ -69,10 +69,10 @@ enum AccountTransportPolicy {
                 return !evening.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && evening.count <= 240
                     && !evening.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
             }
-            return query.isEmpty && (suffix.isEmpty || (suffix.count == 2 && suffix[0] == "duels" && UUID(uuidString: suffix[1]) != nil))
+            return query.isEmpty && (suffix.isEmpty || (suffix.count == 2 && ["duels", "ambient-previews"].contains(suffix[0]) && UUID(uuidString: suffix[1]) != nil))
         }
         guard method == "POST", query.isEmpty else { return false }
-        if suffix.count == 1 { return ["commands", "end-evening", "offline-outcomes", "duels"].contains(suffix[0]) }
+        if suffix.count == 1 { return ["commands", "end-evening", "offline-outcomes", "duels", "ambient-previews"].contains(suffix[0]) }
         if suffix.count == 3, suffix[0] == "prophecies", suffix[2] == "reveal" {
             return !suffix[1].isEmpty && suffix[1].count <= 128 && suffix[1].allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
         }

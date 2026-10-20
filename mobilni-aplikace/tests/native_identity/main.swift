@@ -1,5 +1,14 @@
 import Foundation
 
+let ambientPreviewId = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+let ambientPreviewRoot = "/v1/show/devices/case.s3/ambient-previews"
+require(AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", query: []), "ambient preview creation unavailable")
+require(AccountTransportPolicy.show(path: "\(ambientPreviewRoot)/\(ambientPreviewId)", method: "GET", query: []), "ambient preview read unavailable")
+require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "GET", query: []), "ambient preview list exposed")
+require(!AccountTransportPolicy.show(path: "\(ambientPreviewRoot)/invalid", method: "GET", query: []), "invalid preview ID accepted")
+require(!AccountTransportPolicy.show(path: "\(ambientPreviewRoot)/\(ambientPreviewId)", method: "POST", query: []), "preview read became mutable")
+require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", query: [URLQueryItem(name: "device", value: "other")]), "preview query scope broadened")
+
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
 let publicHash = String(repeating: "a", count: 64)

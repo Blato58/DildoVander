@@ -11,6 +11,16 @@ ID = "12345678-1234-1234-1234-123456789abc"
 
 
 class ProxyTests(unittest.TestCase):
+    def test_phone_ambient_preview_has_exact_operator_routes(self):
+        root = "/v1/show/devices/device-a/ambient-previews"
+        for method, route in [("POST", root), ("GET", root + "/" + ID)]:
+            self.assertTrue(proxy.allowed_backend(method, route))
+            self.assertFalse(proxy.allowed(method, route), "preview is not a guest capability")
+        for method, route in [("GET", root), ("POST", root + "/" + ID),
+                              ("DELETE", root), ("GET", root + "/invalid"),
+                              ("GET", root + "/" + ID + "/audio")]:
+            self.assertFalse(proxy.allowed_backend(method, route), (method, route))
+
     def test_show_guest_capabilities_have_exact_routes_and_methods(self):
         for method, path in [
             ('GET', '/guest/v1/chronicle'),
@@ -82,7 +92,7 @@ class ProxyTests(unittest.TestCase):
 
     def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
         twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
-        self.assertEqual(78, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(80, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(9, sum(source == "Features/DigitalTwin/TwinMediaEndpoints.cs" for method, route, source in proxy.CONTRACT["routes"]))
         paths = [

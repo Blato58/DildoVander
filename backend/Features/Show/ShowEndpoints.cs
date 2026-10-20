@@ -34,6 +34,6 @@ internal static class ShowEndpoints
                 : result.Code.StartsWith("invalid_", StringComparison.Ordinal) ? 400 : 409;
             return Results.Json(result, statusCode: status);
         });
-        return routes;
+        return routes.MapShowAmbientPreviews();
     }
 }
