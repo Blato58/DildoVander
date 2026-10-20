@@ -305,6 +305,7 @@ function Merge-Workspace {
     param(
         [System.Collections.IDictionary]$Target,
         [System.Collections.IDictionary]$Defaults,
+        [string]$LegacyFirmwarePath,
         [switch]$Refresh
     )
 
@@ -318,8 +319,10 @@ function Merge-Workspace {
         $existingIndex = -1
         for ($index = 0; $index -lt $folders.Count; $index++) {
             if ($folders[$index]["name"] -eq $candidate["name"]) {
+                if ($existingIndex -ge 0) {
+                    throw "Workspace folder '$($candidate["name"])' appears more than once. Resolve the name conflict before synchronizing."
+                }
                 $existingIndex = $index
-                break
             }
         }
         if ($existingIndex -lt 0) {
@@ -329,7 +332,10 @@ function Merge-Workspace {
             $existingPath = $folders[$existingIndex]["path"].Replace("\", "/")
             $expectedPath = $candidate["path"].Replace("\", "/")
             $normalizedExistingPath = $existingPath.Replace("//", "/")
-            if ($normalizedExistingPath -ne $expectedPath) {
+            # Only the former generated Firmware location is a known migration.
+            $isLegacyFirmware = $candidate["name"] -eq "Firmware" -and `
+                $normalizedExistingPath -eq $LegacyFirmwarePath
+            if ($normalizedExistingPath -ne $expectedPath -and -not $isLegacyFirmware) {
                 throw "Workspace folder '$($candidate["name"])' already points elsewhere. Resolve the name conflict before synchronizing."
             }
             $folders[$existingIndex]["path"] = $candidate["path"]
@@ -407,7 +413,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $workspaceRoot $appDirectoryName) -P
 }
 $appRelativePath = $appDirectoryName
 $appRelativeForConfig = $appRelativePath.Replace("\", "/")
-$firmwareRelativePath = "$appRelativeForConfig/kufr/firmware"
+$firmwareRelativePath = "$appRelativeForConfig/firmware"
 $firmwareFolderTaskPath = '${workspaceFolder}/' + $firmwareRelativePath
 $templateRoot = Join-Path $PSScriptRoot "templates"
 $settingsDefaults = Read-JsonTemplate (Join-Path $templateRoot "settings.template.json")
@@ -479,7 +485,8 @@ $workspace = if (Test-Path -LiteralPath $workspacePath -PathType Leaf) {
 else {
     [ordered]@{}
 }
-Merge-Workspace -Target $workspace -Defaults $workspaceDefaults -Refresh:$RefreshManagedTasks
+Merge-Workspace -Target $workspace -Defaults $workspaceDefaults `
+    -LegacyFirmwarePath "$appRelativeForConfig/kufr/firmware" -Refresh:$RefreshManagedTasks
 Write-JsonIfChanged -Path $workspacePath -Value $workspace
 
 Write-Output "Workspace root: $workspaceRoot"

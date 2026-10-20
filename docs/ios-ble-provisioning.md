@@ -49,7 +49,7 @@ NVS, otadata and the partition table were preserved. Normal RTS boot confirmed
 **0.1.168**, control-loop startup and the local TLS server; a PC BLE scan found
 `KUFR_4B6048` with the expected service UUID. The current delivered combination is
 **0.1.168 / 1000.0.23**. D165 **0.1.162 / 1000.0.22** remains historical. Exact receipts remain in
-[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+[implementation status](stav-implementace.md#předání-další-ai).
 The owner answered **“Connection worked”** to the exact test request to update
 to **1000.0.23**, use secured BLE with the saved pairing and connect without
 typing an IP. This confirms automatic D166 connection in that trial. Next:
@@ -88,7 +88,7 @@ The post-flash PC BLE scan found `KUFR_4B6048` with the expected service UUID. T
 and connection still fail. PC Bonjour and unauthenticated TLS remain reachable;
 these checks do not validate the phone's token or pin. LAN/WSS and post-update
 Keychain acceptance remain open in
-[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+[implementation status](stav-implementace.md#předání-další-ai).
 
 The later direct-IP test reached the device service-state UI; source emits that
 only after a valid snapshot, so this is evidence of a direct-IP WSS connection.
@@ -111,7 +111,7 @@ At D164, iOS remained **1.0 / build 1000.0.21**, signed and published by the D16
 it was not signed or published again in D164. The owner confirmed the fresh same-Wi-Fi
 iPhone test: "yes I am connected". This confirms connection through Ovládání;
 long-running WSS and Keychain retention after update remain pending. Exact receipts and public verification are in
-[implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+[implementation status](stav-implementace.md#předání-další-ai).
 
 **Historical D163 handoff.** Development OTA **0.1.160** is
 [published](https://github.com/Blato58/DildoVander/actions/runs/37929155208), with
@@ -124,10 +124,10 @@ offers without negotiating extensions; native errors are sanitized and reconnect
 is bounded. The Apple harness observed extension offers in four actual requests.
 The owner's same-Wi-Fi report still requires physical retesting: scan/pairing
 worked, then Ovládání disconnected repeatedly. Receipts and acceptance
-remain in [implementation status](../kufr/docs/stav-implementace.md#předání-další-ai).
+remain in [implementation status](stav-implementace.md#předání-další-ai).
 
 1. Initially install firmware and run the separate USB
-   [network service](../kufr/firmware/diagnostics/network-service/README.md)
+   [network service](../firmware/diagnostics/network-service/README.md)
    with actuators disconnected. Provision the device's random PoP and identity;
    retain the PoP privately with the device. It is not an advertised MAC/code.
 2. Power the suitcase, open **Síť kufru**, scan and select `KUFR_…`.
@@ -196,7 +196,7 @@ exact confirmed request above; omitted, false, duplicate or extra fields are rej
 The Swift codec projects the existing rich network/update objects.
 
 Build on Windows: `npm ci`, `npm test`, `npm run build` in
-`kufr/mobilni-aplikace` (install `kufr/contracts` dependencies too).
+`mobilni-aplikace` (install `contracts` dependencies too).
 Native source/permissions/package registration live in the existing Xcode
 project. Use the existing `kufr-ios-sign.yml` workflow with a verified web CI run;
 it resolves the pinned Swift package, runs native tests and signs the app.

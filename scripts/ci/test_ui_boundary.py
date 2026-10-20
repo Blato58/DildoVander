@@ -19,7 +19,7 @@ class UiBoundaryTests(unittest.TestCase):
             workflow.write_text('if: inputs.optional\nuses: ./.github/actions/wrapper\n', encoding='utf-8')
             action = root / '.github/actions/wrapper/action.yml'
             action.parent.mkdir(parents=True)
-            action.write_text('run: python kufr/mechanika/final/verify.py', encoding='utf-8')
+            action.write_text('run: python mechanika/final/verify.py', encoding='utf-8')
             with self.assertRaisesRegex(ValueError, 'boundary violated'):
                 validate(root)
             action.write_text('uses: ./.github/actions/verified-cad', encoding='utf-8')

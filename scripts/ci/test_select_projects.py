@@ -14,50 +14,59 @@ class ProjectSelectionTests(unittest.TestCase):
 
     def test_documentation_never_selects_projects(self):
         self.assertEqual(self.selected(
-            "README.md", "AGENTS.md", "docs/diagram.png", "kufr/docs/piny.md",
-            "kufr/firmware/README.md", "kufr/backend/docs/scheme.json",
-            "kufr/mobilni-aplikace/README.MD", "scripts/ci/README.rst",
+            "README.md", "AGENTS.md", "docs/diagram.png", "docs/piny.md",
+            "firmware/README.md", "backend/docs/scheme.json",
+            "mobilni-aplikace/README.MD", "scripts/ci/README.rst",
             ".github/workflows/docs/example.yml",
         ), set())
 
     def test_each_project_and_real_build_inputs(self):
         for paths, expected in [
-            (["kufr/firmware/src/production/main.cpp", "docs/a.md"], {"firmware"}),
-            (["kufr/firmware/src/CMakeLists.txt"], {"firmware"}),
-            (["kufr/backend-tests/Program.cs"], {"backend"}),
-            (["kufr/global.json", "kufr/Directory.Build.props"], {"backend"}),
+            (["firmware/src/production/main.cpp", "docs/a.md"], {"firmware"}),
+            (["firmware/src/CMakeLists.txt"], {"firmware"}),
+            (["backend-tests/Program.cs"], {"backend"}),
+            (["global.json", "Directory.Build.props"], {"backend"}),
             (["NuGet.Config"], {"backend"}),
-            (["kufr/mobilni-aplikace/public/icon.svg"], {"web", "ios", "site"}),
-            (["kufr/mobilni-aplikace/ios/App/App/KufrDebugPlugin.swift"], {"web", "ios", "site"}),
-            (["kufr/mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
-            (["kufr/ai-eval/cases.json"], {"ai-eval"}),
-            (["kufr/firmware/src/production/main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
-            (["kufr/mechanika/final/mechanism.py", "docs/a.md"], {"repository"}),
-            (["kufr/design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
-            (["kufr/web/build-site.py"], {"site"}),
+            (["mobilni-aplikace/public/icon.svg"], {"web", "ios", "site"}),
+            (["mobilni-aplikace/ios/App/App/KufrDebugPlugin.swift"], {"web", "ios", "site"}),
+            (["mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
+            (["ai-eval/cases.json"], {"ai-eval"}),
+            (["firmware/src/production/main.cpp", "backend/Program.cs"], {"firmware", "backend"}),
+            (["mechanika/final/mechanism.py", "docs/a.md"], {"repository"}),
+            (["design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
+            (["web/build-site.py"], {"site"}),
         ]:
             with self.subTest(paths=paths):
                 self.assertEqual(self.selected(*paths), expected)
 
     def test_shared_dependencies_select_their_consumers(self):
-        self.assertEqual(self.selected("kufr/contracts/control-message-v1.schema.json"),
+        self.assertEqual(self.selected("contracts/control-message-v1.schema.json"),
                          {"backend", "firmware", "web", "ios", "site"})
-        self.assertEqual(self.selected("kufr/simulator/bridge.cpp"), {"firmware", "web", "ios"})
+        self.assertEqual(self.selected("firmware/simulator/bridge.cpp"), {"firmware", "web", "ios"})
         self.assertEqual(self.selected("scripts/ci/package.py"), {"repository", "backend", "firmware", "web", "site"})
+
+    def test_nested_simulator_does_not_inherit_the_broad_firmware_filter(self):
+        for name in ("dashboard.html", "dashboard.js", "dashboard-ui.js", "verify-dashboard.mjs"):
+            with self.subTest(name=name):
+                self.assertEqual(self.selected("firmware/simulator/" + name), {"site"})
+        self.assertEqual(self.selected("firmware/simulator/native/host_main.cpp"),
+                         {"firmware", "web", "ios"})
+        self.assertEqual(self.selected("firmware/simulator/dashboard.test.mjs"),
+                         {"firmware", "web", "ios", "site"})
 
     def test_integrated_app_dependency_paths_select_real_consumers_without_cad(self):
         for name in ("controller.mjs", "serial.mjs", "profiles.mjs", "auto-calibration.mjs", "mcp.mjs"):
-            self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/" + name), {"web", "ios", "site"})
+            self.assertEqual(self.selected("firmware/diagnostics/servo-bench/web/" + name), {"web", "ios", "site"})
         for name in ("generate-control-validator.mjs", "control-validator-core.mjs", "generated/control-message-v1.validator.mjs"):
-            self.assertEqual(self.selected("kufr/contracts/" + name), {"backend", "firmware", "web", "ios", "site"})
-        self.assertEqual(self.selected("kufr/backend/Features/ModelReleases/ModelReleaseStore.cs"), {"backend"})
-        self.assertEqual(self.selected("kufr/mobilni-aplikace/src/features/identity/ModelReleasesPanel.vue"), {"backend", "web", "ios", "site"})
+            self.assertEqual(self.selected("contracts/" + name), {"backend", "firmware", "web", "ios", "site"})
+        self.assertEqual(self.selected("backend/Features/ModelReleases/ModelReleaseStore.cs"), {"backend"})
+        self.assertEqual(self.selected("mobilni-aplikace/src/features/identity/ModelReleasesPanel.vue"), {"backend", "web", "ios", "site"})
 
     def test_account_ui_runs_real_https_account_journey_without_cad(self):
         for path in ("src/features/identity/SignInView.vue", "tests/accounts.browser.mjs",
                      "tests/accounts.fixture.browser.mjs"):
-            self.assertEqual(self.selected("kufr/mobilni-aplikace/" + path), {"backend", "web", "ios", "site"})
-        self.assertEqual(self.selected("kufr/mobilni-aplikace/src/application/HomeView.vue"), {"web", "ios", "site"})
+            self.assertEqual(self.selected("mobilni-aplikace/" + path), {"backend", "web", "ios", "site"})
+        self.assertEqual(self.selected("mobilni-aplikace/src/application/HomeView.vue"), {"web", "ios", "site"})
 
     def test_workflow_changes_select_only_the_corresponding_build(self):
         self.assertEqual(self.selected(".github/workflows/kufr-firmware.yml"), {"repository", "firmware"})
@@ -69,36 +78,36 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(".github/workflows/kufr-ios-sign.yml"), {"repository", "ios"})
 
     def test_manufacturing_inputs_do_not_select_cad(self):
-        for path in ["kufr/mechanika/final/SPECIFIKACE.md",
-                     "kufr/mechanika/final/reference/inspect-sources.json",
-                     "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
-                     "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
+        for path in ["mechanika/final/SPECIFIKACE.md",
+                     "mechanika/final/reference/inspect-sources.json",
+                     "docs/zapojeni-potvrzeneho-hardwaru.md",
+                     "mechanika/rozmery-nakoupenych-soucastek.md",
                      "scripts/ci/install-cad-slicer.sh",
                      "scripts/cad.py", "scripts/cad.ps1"]:
             with self.subTest(path=path):
                 self.assertNotIn("cad", self.selected(path))
-        for path in ["kufr/mobilni-aplikace/src/main.ts", "kufr/mobilni-aplikace/.nvmrc", "kufr/web/build-site.py",
-                     "kufr/contracts/package-lock.json", "kufr/backend/Program.cs",
-                     "kufr/design-system/tokens.json", "kufr/design-system/ui.js",
-                     "kufr/mechanika/final/viewer.js", "kufr/mechanika/final/viewer_document.py",
-                     "kufr/mechanika/final/viewer-workshop.css"]:
+        for path in ["mobilni-aplikace/src/main.ts", "mobilni-aplikace/.nvmrc", "web/build-site.py",
+                     "contracts/package-lock.json", "backend/Program.cs",
+                     "design-system/tokens.json", "design-system/ui.js",
+                     "mechanika/final/viewer.js", "mechanika/final/viewer_document.py",
+                     "mechanika/final/viewer-workshop.css"]:
             with self.subTest(path=path):
                 self.assertNotIn("cad", self.selected(path))
 
     def test_ui_inputs_keep_real_consumers_and_unknown_mechanics_conservative(self):
-        self.assertEqual(self.selected("kufr/design-system/tokens.json"),
+        self.assertEqual(self.selected("design-system/tokens.json"),
                          {"repository", "backend", "web", "ios", "site"})
-        self.assertEqual(self.selected("kufr/mechanika/final/viewer.js"), {"site"})
-        self.assertEqual(self.selected("kufr/mechanika/final/new-mechanism.py"), {"repository"})
-        self.assertEqual(self.selected("kufr/simulator/dashboard-ui.js"), {"site"})
-        self.assertEqual(self.selected("kufr/firmware/diagnostics/servo-bench/web/panel.css"), {"site"})
-        self.assertEqual(self.selected("kufr/firmware/src/diagnostics/servo-bench/main.cpp"), {"firmware"})
+        self.assertEqual(self.selected("mechanika/final/viewer.js"), {"site"})
+        self.assertEqual(self.selected("mechanika/final/new-mechanism.py"), {"repository"})
+        self.assertEqual(self.selected("firmware/simulator/dashboard-ui.js"), {"site"})
+        self.assertEqual(self.selected("firmware/diagnostics/servo-bench/web/panel.css"), {"site"})
+        self.assertEqual(self.selected("firmware/src/diagnostics/servo-bench/main.cpp"), {"firmware"})
 
     def test_presentation_policy_matches_the_pr_selector(self):
         from cad_impact import SOURCE_POLICY
         for name in SOURCE_POLICY.PRESENTATION_SOURCES:
             with self.subTest(name=name):
-                self.assertEqual(self.selected("kufr/mechanika/final/" + name), {"site"})
+                self.assertEqual(self.selected("mechanika/final/" + name), {"site"})
 
     def test_recovery_builds_exclude_cad(self):
         self.assertNotIn("cad", PROJECTS)
@@ -117,7 +126,7 @@ class ProjectSelectionTests(unittest.TestCase):
                      "ui_test_runtime.cjs", "preview_ui_fixture.py", "refresh_viewer.py",
                      "README.md", "VIEWER.md"]:
             with self.subTest(path=path):
-                self.assertEqual(self.selected("kufr/mechanika/final/" + path), {"site"})
+                self.assertEqual(self.selected("mechanika/final/" + path), {"site"})
 
     def test_git_diff_includes_both_sides_of_a_rename(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -126,13 +135,13 @@ class ProjectSelectionTests(unittest.TestCase):
             git("init")
             git("config", "user.name", "CI test")
             git("config", "user.email", "ci@example.invalid")
-            source = Path(folder) / "kufr/firmware/source.cpp"
+            source = Path(folder) / "firmware/source.cpp"
             source.parent.mkdir(parents=True)
             source.write_text("source\n")
             git("add", ".")
             git("commit", "-m", "base")
             base = git("rev-parse", "HEAD")
-            target = Path(folder) / "kufr/mobilni-aplikace/source.cpp"
+            target = Path(folder) / "mobilni-aplikace/source.cpp"
             target.parent.mkdir(parents=True)
             source.rename(target)
             git("add", "-A")
@@ -141,7 +150,7 @@ class ProjectSelectionTests(unittest.TestCase):
             original = subprocess.check_output
             with patch("select_projects.subprocess.check_output", side_effect=lambda args: original(args, cwd=folder)):
                 self.assertEqual(set(changed_paths(base, head)),
-                                 {"kufr/firmware/source.cpp", "kufr/mobilni-aplikace/source.cpp"})
+                                 {"firmware/source.cpp", "mobilni-aplikace/source.cpp"})
 
     def test_quality_gate_accepts_only_successful_selected_jobs(self):
         selected = {name: "true" if name == "firmware" else "false" for name in PROJECTS}

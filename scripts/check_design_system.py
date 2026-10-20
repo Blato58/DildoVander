@@ -13,31 +13,31 @@ PALETTE = {
     "steel": "#8A94A6", "periwinkle": "#B8C0FF",
 }
 UI_ROOTS = (
-    "kufr/design-system", "kufr/web", "kufr/mobilni-aplikace/src",
-    "kufr/simulator", "kufr/mechanika/final",
-    "kufr/firmware/diagnostics/servo-bench/web",
+    "design-system", "web", "mobilni-aplikace/src",
+    "firmware/simulator", "mechanika/final",
+    "firmware/diagnostics/servo-bench/web",
 )
 GUIDANCE = (
     "AGENTS.md", "DESIGN.md", ".agents/skills/dildovander-ui/SKILL.md",
     ".agents/skills/dildovander-keepsake-design/SKILL.md",
-    "kufr/design-system/README.md", "kufr/design-system/style-guide.md",
-    "kufr/design-system/components.md", "kufr/design-system/screens.md",
+    "design-system/README.md", "design-system/style-guide.md",
+    "design-system/components.md", "design-system/screens.md",
 )
 IGNORED = {"node_modules", "dist", "exports", "__pycache__", ".pio"}
 OLD_UI_COLORS = re.compile(r"#(?:D9B777|F3ECE0|0D1218)\b", re.I)
 RUNTIME_CONSUMERS = (
-    "kufr/mobilni-aplikace/src/main.ts",
-    "kufr/mobilni-aplikace/src/features/archive/ArchiveDialog.vue",
-    "kufr/simulator/dashboard-ui.js",
-    "kufr/firmware/diagnostics/servo-bench/web/panel-ui.mjs",
-    "kufr/mechanika/final/viewer_ui.js",
+    "mobilni-aplikace/src/main.ts",
+    "mobilni-aplikace/src/features/archive/ArchiveDialog.vue",
+    "firmware/simulator/dashboard-ui.js",
+    "firmware/diagnostics/servo-bench/web/panel-ui.mjs",
+    "mechanika/final/viewer_ui.js",
 )
 
 
 def inspect_runtime_imports(root):
     """Check the actual framework adapters, not arbitrary domain imports."""
     problems = []
-    framework = root / "kufr/design-system/ui.js"
+    framework = root / "design-system/ui.js"
     paths = [root / relative for relative in RUNTIME_CONSUMERS]
     if framework.exists():
         paths.append(framework)
@@ -74,9 +74,9 @@ def inspect_runtime_imports(root):
 def inspect(root):
     root = root.resolve()
     problems = inspect_runtime_imports(root)
-    palette_path = root / "kufr/design-system/tokens/palette.css"
+    palette_path = root / "design-system/tokens/palette.css"
     if not palette_path.exists():
-        return ["Missing canonical palette: kufr/design-system/tokens/palette.css"]
+        return ["Missing canonical palette: design-system/tokens/palette.css"]
     palette = palette_path.read_text(encoding="utf-8")
     for name, color in PALETTE.items():
         if not re.search(rf"--aw-{name}\s*:\s*{color}\s*;", palette, re.I):
@@ -85,7 +85,7 @@ def inspect(root):
         if not re.search(rf"data-theme\s*=\s*[\"']?{theme}", palette):
             problems.append(f"Missing explicit {theme} theme")
     # Offline exports consume generated C# constants, never a copied palette.
-    exports = root / "kufr/backend/Features/Keepsakes/KeepsakeExports.cs"
+    exports = root / "backend/Features/Keepsakes/KeepsakeExports.cs"
     if exports.exists():
         export_source = exports.read_text(encoding="utf-8")
         for name, generated in {"Midnight": "ChromeMidnight", "Mist": "VapourMist",
@@ -93,9 +93,9 @@ def inspect(root):
             if not re.search(rf'Card{name}\s*=\s*DesignTokens\.{generated}\s*;', export_source):
                 problems.append(f"Export Card{name} must consume generated DesignTokens.{generated}")
 
-    token_source = root / "kufr/design-system/tokens.json"
+    token_source = root / "design-system/tokens.json"
     if not token_source.exists():
-        problems.append("Missing machine-readable design tokens: kufr/design-system/tokens.json")
+        problems.append("Missing machine-readable design tokens: design-system/tokens.json")
     else:
         try:
             data = json.loads(token_source.read_text(encoding="utf-8"))

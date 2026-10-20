@@ -10,8 +10,8 @@ updates:
     open-pull-requests-limit: 3
   - package-ecosystem: nuget
     directories:
-      - /kufr/backend
-      - /kufr/backend-tests
+      - /backend
+      - /backend-tests
     schedule:
       interval: weekly
     groups:
@@ -20,9 +20,9 @@ updates:
     open-pull-requests-limit: 3
   - package-ecosystem: npm
     directories:
-      - /kufr/mobilni-aplikace
-      - /kufr/contracts
-      - /kufr/simulator
+      - /mobilni-aplikace
+      - /contracts
+      - /firmware/simulator
     schedule:
       interval: weekly
     groups:

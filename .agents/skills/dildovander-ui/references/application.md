@@ -1,6 +1,6 @@
 # Shared application implementation
 
-Source: `kufr/mobilni-aplikace/src`. `application/App.vue` owns the persistent
+Source: `mobilni-aplikace/src`. `application/App.vue` owns the persistent
 shell and urgent Stop, `router.ts` lazy routes, `preferences.ts` the Pinia theme
 preference. Feature views own data, cancellation and local drafts. Prefer native
 semantic controls and shared `AwButton`, `AwField`, `AwNotice`, `AwDialog` and

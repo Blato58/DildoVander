@@ -11,12 +11,12 @@ import subprocess
 
 OUTPUTS = {
     "backend": (
-        "kufr/backend/packages.lock.json",
-        "kufr/backend-tests/packages.lock.json",
+        "backend/packages.lock.json",
+        "backend-tests/packages.lock.json",
     ),
     "native": (
-        "kufr/mobilni-aplikace/ios/App/CapApp-SPM/Package.swift",
-        "kufr/mobilni-aplikace/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+        "mobilni-aplikace/ios/App/CapApp-SPM/Package.swift",
+        "mobilni-aplikace/ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
     ),
 }
 MAX_CONTENT_BYTES = 512 * 1024
@@ -36,13 +36,13 @@ def regenerate(root, kind):
             "-p:SelfContained=true",
         ]
         # Preserve the projects' complete Linux/Windows RuntimeIdentifiers.
-        command([*arguments, "--force-evaluate"], root / "kufr")
-        command([*arguments, "--locked-mode"], root / "kufr")
+        command([*arguments, "--force-evaluate"], root)
+        command([*arguments, "--locked-mode"], root)
     else:
-        mobile = root / "kufr/mobilni-aplikace"
+        mobile = root / "mobilni-aplikace"
         command(["npm", "ci", "--ignore-scripts"], mobile)
         command(["npm", "ci", "--ignore-scripts", "--prefix", "../contracts"], mobile)
-        command(["npm", "ci", "--ignore-scripts", "--prefix", "../simulator"], mobile)
+        command(["npm", "ci", "--ignore-scripts", "--prefix", "../firmware/simulator"], mobile)
         # Capacitor's SPM update can copy web assets too. Use the complete CI path.
         command(["npm", "run", "build"], mobile)
         command(["npx", "--no-install", "cap", "sync", "ios"], mobile)

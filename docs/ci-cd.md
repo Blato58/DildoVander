@@ -64,8 +64,8 @@ a [bezpecnostnich hranic Actions](https://docs.github.com/en/actions/reference/s
 Nepotrebuje `pull_request_target` ani vyjimku z jeho vychozi event policy.
 
 UI, backend a kontrakty nespousteji CAD regeneraci. Job `site` sestavi jednu
-Vue aplikaci z `kufr/mobilni-aplikace` na korenove ceste a baleni
-`kufr/web/build-site.py` spotrebuje pouze jeji `dist`. Neimportuje CAD Python,
+Vue aplikaci z `mobilni-aplikace` na korenove ceste a baleni
+`web/build-site.py` spotrebuje pouze jeji `dist`. Neimportuje CAD Python,
 neoveruje vyrobni ZIP a nekopiruje stare Companion, simulator, guest ani viewer
 HTML/JS balicky. Viewer fixture testy nepotrebuji CAD toolchain. Guard
 `scripts/ci/ui_boundary.py` kontroluje i volane lokalni actions, web/iOS workflow
@@ -78,12 +78,12 @@ jobs; `project=cad` a `force_cad` nejsou podporovany. `CI required` nadale
 vyzaduje uspech vsech vybranych softwarovych kontrol vcetne macOS pro iOS.
 Lokalni CAD nastroje, kontroly zdroju a provenience zustavaji zachovany;
 mechanickou akceptaci je nutne provest lokalne podle
-[CAD README](../kufr/mechanika/final/README.md#inkrementální-cad-a-ci).
+[CAD README](../mechanika/final/README.md#inkrementální-cad-a-ci).
 Zelene softwarove CI neprokazuje vyrobni overeni.
 
 Aplikace, ModelBundle a offline distribuce maji oddelenou provenienci a
 aktivaci. Pripraveny postup, cache pravidla, persistence identity a rollback
-jsou v [application releases](../kufr/web/deploy/APPLICATION-RELEASES.md).
+jsou v [application releases](../web/deploy/APPLICATION-RELEASES.md).
 
 Secret scan pouziva pripnuty Gitleaks 8.30.1 a kontroluje celou historii `HEAD`:
 u PR oba rodice merge checkoutu, u rucniho buildu historii vybrane vetve.

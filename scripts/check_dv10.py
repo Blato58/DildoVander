@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def check(web_dist=None):
     checked = 0
-    files = [ROOT / "kufr/docs/dv10/README.md", ROOT / "kufr/docs/dv10/VPS_HANDOFF.md",
-             ROOT / "kufr/docs/dv10/FIRMWARE_OUTCOME.md", ROOT / "kufr/docs/dv10/DELIVERY.md", ROOT / "kufr/docs/dv10/STATIC_EVENING.md"]
+    files = [ROOT / "docs/dv10/README.md", ROOT / "docs/dv10/VPS_HANDOFF.md",
+             ROOT / "docs/dv10/FIRMWARE_OUTCOME.md", ROOT / "docs/dv10/DELIVERY.md", ROOT / "docs/dv10/STATIC_EVENING.md"]
     skills = [ROOT / ".agents/skills" / ("dildovander-keepsake-" + name) / "SKILL.md"
               for name in ("design", "eval", "delivery")]
     for path in files + skills:
@@ -27,7 +27,7 @@ def check(web_dist=None):
             if not destination.is_relative_to(ROOT) or not destination.is_file():
                 raise ValueError("Missing/unsafe guidance reference: " + str(path.relative_to(ROOT)) + " -> " + target)
             checked += 1
-    shell = (ROOT / "kufr/mobilni-aplikace/index.html").read_text(encoding="utf-8")
+    shell = (ROOT / "mobilni-aplikace/index.html").read_text(encoding="utf-8")
     capture = re.search(r"<script>(.*?)</script>", shell, re.S)
     first_asset = re.search(r"<(?:link\b[^>]*href|script\b[^>]*src)", shell, re.I)
     if not capture or (first_asset and capture.end() > first_asset.start()):

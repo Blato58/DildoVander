@@ -20,39 +20,39 @@ jobs:
         run: git fetch --no-tags --depth=1 origin 74f215fc371e19780a3521adf0f7b79dcdb068a5
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: kufr/contracts/.nvmrc
+          node-version-file: contracts/.nvmrc
           cache: npm
-          cache-dependency-path: kufr/contracts/package-lock.json
+          cache-dependency-path: contracts/package-lock.json
       - name: Install contract verifier
-        working-directory: kufr/contracts
+        working-directory: contracts
         run: npm ci
       - name: Test compiler cache pruning
-        run: python3 -m unittest discover -s kufr/firmware/ci -p 'test_*.py'
+        run: python3 -m unittest discover -s firmware/ci -p 'test_*.py'
       - name: Test servo bench command safety
-        run: python3 kufr/firmware/diagnostics/servo-bench/tests/run_tests.py
+        run: python3 firmware/diagnostics/servo-bench/tests/run_tests.py
       - name: Test servo bench local panel and serial state
         run: |
-          node --test kufr/firmware/diagnostics/servo-bench/web/tests/*.test.mjs
-          python3 -B -m unittest discover -s kufr/firmware/diagnostics/servo-bench/web/tests -p 'test_*.py' -v
+          node --test firmware/diagnostics/servo-bench/web/tests/*.test.mjs
+          python3 -B -m unittest discover -s firmware/diagnostics/servo-bench/web/tests -p 'test_*.py' -v
       - name: Test automatic firmware versions and OTA packaging
-        run: python3 -m unittest discover -s kufr/firmware/tools -p 'test_*.py'
+        run: python3 -m unittest discover -s firmware/tools -p 'test_*.py'
       - name: SD dance playback, synchronized effects and cancellation
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: bash tests/run_dance_tests.sh
       - name: DV02 compiler, owner replay and bounded diagnostics
         run: |
           python3 scripts/check_dv02.py
-          python3 kufr/mechanika/final/generate_effects.py --check
-          python3 kufr/mechanika/final/test_effects.py
-          python3 kufr/firmware/tests/run_show_tests.py
-          python3 kufr/simulator/native/test_host.py
-          python3 kufr/simulator/native/build_host.py --output "$RUNNER_TEMP/native-media-twin"
-          python3 kufr/simulator/native/test_media.py --executable "$RUNNER_TEMP/native-media-twin"
-          python3 kufr/firmware/tests/compare_legacy_show.py
-          node --test kufr/mechanika/final/test_show_timeline.cjs
+          python3 mechanika/final/generate_effects.py --check
+          python3 mechanika/final/test_effects.py
+          python3 firmware/tests/run_show_tests.py
+          python3 firmware/simulator/native/test_host.py
+          python3 firmware/simulator/native/build_host.py --output "$RUNNER_TEMP/native-media-twin"
+          python3 firmware/simulator/native/test_media.py --executable "$RUNNER_TEMP/native-media-twin"
+          python3 firmware/tests/compare_legacy_show.py
+          node --test mechanika/final/test_show_timeline.cjs
       - name: Bodyless backend token exchange
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -63,14 +63,14 @@ jobs:
             tests/espidf_token_exchange_transport_test.cpp -o "$RUNNER_TEMP/token-transport-test"
           "$RUNNER_TEMP/token-transport-test"
       - name: DV10 bounded outcome mailbox and durable delivery acknowledgement
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
           g++ -std=c++14 -Wall -Wextra -Werror tests/keepsake_outbox_test.cpp -o "$RUNNER_TEMP/keepsake-outbox-test"
           "$RUNNER_TEMP/keepsake-outbox-test"
       - name: DV10 real persistence checkpoint codec
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -89,7 +89,7 @@ jobs:
             -o "$RUNNER_TEMP/keepsake-codec-test"
           "$RUNNER_TEMP/keepsake-codec-test"
       - name: Optional costume photo consent and HTTPS upload
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -113,7 +113,7 @@ jobs:
             tests/espidf_costume_camera_test.cpp -o "$RUNNER_TEMP/costume-camera-test"
           "$RUNNER_TEMP/costume-camera-test"
       - name: Correlated speech audio buffer
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -147,7 +147,7 @@ jobs:
             tests/speech_output_coordinator_test.cpp -o "$RUNNER_TEMP/speech-output-test"
           "$RUNNER_TEMP/speech-output-test"
       - name: Standalone realtime voice and ordered PCM transport
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -173,7 +173,7 @@ jobs:
             -o "$RUNNER_TEMP/voice-audio-test"
           "$RUNNER_TEMP/voice-audio-test"
       - name: Physical effects and calibrated timed presentation
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -191,7 +191,7 @@ jobs:
           "$RUNNER_TEMP/physical-effects-test"
           python3 -m unittest discover -s diagnostics/hardware-service -p 'test_*.py'
       - name: Optional read-only SD assets and adapter
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -205,13 +205,13 @@ jobs:
             tests/espidf_sd_assets_test.cpp -o "$RUNNER_TEMP/sd-assets-adapter-test"
           "$RUNNER_TEMP/sd-assets-adapter-test"
       - name: Physical USB network service validation
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
           python3 -m unittest discover -s diagnostics/network-service -p 'test_*.py'
       - name: Device control tests
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -243,7 +243,7 @@ jobs:
             tests/keepsake_durability_test.cpp -o "$RUNNER_TEMP/keepsake-durability-test"
           "$RUNNER_TEMP/keepsake-durability-test"
       - name: Shared STA network lifecycle
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -256,7 +256,7 @@ jobs:
             -o "$RUNNER_TEMP/station-network-test"
           "$RUNNER_TEMP/station-network-test"
       - name: Secure network profiles and OTA policy/adapters
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -270,7 +270,7 @@ jobs:
           "$RUNNER_TEMP/ota-adapter-test"
           python3 -m unittest discover -s tools -p 'test_*.py'
       - name: Local service discovery lifecycle
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -286,7 +286,7 @@ jobs:
             tests/espidf_local_service_advertisement_test.cpp -o "$RUNNER_TEMP/local-discovery-test"
           "$RUNNER_TEMP/local-discovery-test"
       - name: Local control codec test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -300,7 +300,7 @@ jobs:
             ../contracts/fixtures/valid/{hello,state-get,control-acquire,control-release,heartbeat,safety-stop,safety-reset,conversation-text,conversation-cancel,selection-start,inventory-confirm-reload,voice-configure,voice-start,voice-stop}.json \
             --reject ../contracts/fixtures/invalid/*.json
       - name: Local control inbox test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -310,7 +310,7 @@ jobs:
             -o "$RUNNER_TEMP/local-control-inbox-test"
           "$RUNNER_TEMP/local-control-inbox-test"
       - name: Local WSS server adapter test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -330,7 +330,7 @@ jobs:
             ../contracts/fixtures/valid/hello.json \
             ../contracts/fixtures/valid/safety-stop.json
       - name: Local control output interop test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -347,14 +347,14 @@ jobs:
           "$RUNNER_TEMP/local-control-output-test" > "$RUNNER_TEMP/control-output.jsonl"
           node ../contracts/verify-firmware-output.mjs "$RUNNER_TEMP/control-output.jsonl"
       - name: Local control owner test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
           # Keep the complete offline/scene dependencies in the shared host list.
           python3 tests/run_show_tests.py --only local_control_owner_test
       - name: Local control session test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -375,7 +375,7 @@ jobs:
             -o "$RUNNER_TEMP/local-control-session-test"
           "$RUNNER_TEMP/local-control-session-test"
       - name: Local pairing credential test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -385,7 +385,7 @@ jobs:
             -o "$RUNNER_TEMP/local-pairing-credential-test"
           "$RUNNER_TEMP/local-pairing-credential-test"
       - name: Radio-gated pairing random adapter test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -395,7 +395,7 @@ jobs:
             -o "$RUNNER_TEMP/espidf-pairing-random-test"
           "$RUNNER_TEMP/espidf-pairing-random-test"
       - name: Local TLS identity test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -405,7 +405,7 @@ jobs:
             -o "$RUNNER_TEMP/local-tls-identity-test"
           "$RUNNER_TEMP/local-tls-identity-test"
       - name: Local bearer authorization test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -416,7 +416,7 @@ jobs:
             -o "$RUNNER_TEMP/local-bearer-authorization-test"
           "$RUNNER_TEMP/local-bearer-authorization-test"
       - name: Local socket admission test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -428,7 +428,7 @@ jobs:
             -o "$RUNNER_TEMP/local-socket-admission-test"
           "$RUNNER_TEMP/local-socket-admission-test"
       - name: Snapshot-bound text inbox test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -441,7 +441,7 @@ jobs:
             -o "$RUNNER_TEMP/conversation-text-inbox-test"
           "$RUNNER_TEMP/conversation-text-inbox-test"
       - name: Snapshot-bound reply inbox test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -454,7 +454,7 @@ jobs:
             -o "$RUNNER_TEMP/conversation-reply-inbox-test"
           "$RUNNER_TEMP/conversation-reply-inbox-test"
       - name: Local turn to backend reply correlation test
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -469,7 +469,7 @@ jobs:
             -o "$RUNNER_TEMP/conversation-turn-correlation-test"
           "$RUNNER_TEMP/conversation-turn-correlation-test"
       - name: Conversation proposal and opening tests
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -533,22 +533,22 @@ jobs:
           persist-credentials: false
       - name: Prepare persistent PlatformIO and compiler cache
         shell: bash
-        run: python3 kufr/firmware/ci/prepare_build.py
+        run: python3 firmware/ci/prepare_build.py
       - name: Build ESP-IDF profile
         shell: bash
         run: |
           set -euo pipefail
-          version="$(python3 kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --run-number "$GITHUB_RUN_NUMBER")"
+          version="$(python3 firmware/tools/firmware_version.py --policy firmware/version.txt --run-number "$GITHUB_RUN_NUMBER")"
           echo "Building firmware $version for CI run $GITHUB_RUN_NUMBER"
           # Regenerate PROJECT_VER for a new run on an incremental checkout.
-          rm -f kufr/firmware/.pio/build/production/CMakeCache.txt
-          "$KUFR_PIO" run -d kufr/firmware -e production -s
-          python3 kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/production/firmware.bin --version "$version"
+          rm -f firmware/.pio/build/production/CMakeCache.txt
+          "$KUFR_PIO" run -d firmware -e production -s
+          python3 firmware/tools/ota_release.py check --binary firmware/.pio/build/production/firmware.bin --version "$version"
           mkdir -p "$RUNNER_TEMP/firmware/esp32-s3-idf"
-          cp kufr/firmware/.pio/build/production/*.bin "$RUNNER_TEMP/firmware/esp32-s3-idf/"
-          cp kufr/firmware/.pio/build/production/firmware.elf "$RUNNER_TEMP/firmware/esp32-s3-idf/"
+          cp firmware/.pio/build/production/*.bin "$RUNNER_TEMP/firmware/esp32-s3-idf/"
+          cp firmware/.pio/build/production/firmware.elf "$RUNNER_TEMP/firmware/esp32-s3-idf/"
       - name: Secured BLE adapter with pinned managed cJSON
-        working-directory: kufr/firmware
+        working-directory: firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -568,30 +568,30 @@ jobs:
       - name: Build USB-only board memory diagnostic
         shell: bash
         run: |
-          "$KUFR_PIO" run -d kufr/firmware -e diag-board-memory -s
+          "$KUFR_PIO" run -d firmware -e diag-board-memory -s
       - name: Build PCA9685 logic diagnostic
         shell: bash
         run: |
-          "$KUFR_PIO" run -d kufr/firmware -e diag-pca9685-logic -s
+          "$KUFR_PIO" run -d firmware -e diag-pca9685-logic -s
       - name: Build single servo bench diagnostic
         shell: bash
         run: |
-          "$KUFR_PIO" run -d kufr/firmware -e diag-servo-bench -s
+          "$KUFR_PIO" run -d firmware -e diag-servo-bench -s
       - name: Build hardware service diagnostic with disabled example configuration
         shell: bash
         run: |
           set -euo pipefail
-          cd kufr/firmware
+          cd firmware
           python3 diagnostics/hardware-service/make_config.py diagnostics/hardware-service/service_config.example.json
           "$KUFR_PIO" run -e diag-hardware-service -s
       - name: Build physical USB network service without embedded credentials
         shell: bash
         run: |
           set -euo pipefail
-          "$KUFR_PIO" run -d kufr/firmware -e diag-network-service -s
+          "$KUFR_PIO" run -d firmware -e diag-network-service -s
       - name: Keep compiler cache within 1 GiB per runner
         if: always()
-        run: python3 kufr/firmware/ci/prepare_build.py --prune-only
+        run: python3 firmware/ci/prepare_build.py --prune-only
       - name: Bundle flashable firmware outputs without device credentials
         shell: bash
         run: |

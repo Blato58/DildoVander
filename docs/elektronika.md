@@ -5,15 +5,15 @@
 > Zohledňuje nové potvrzené nákupy, dva zesilovače, kameru, jeden aktivní LED úsek a jeden pohon,
 > kolébkové vypínače, přímé OE a ruční odpojení pohonů. Níže je historický podklad.
 > Rozměry kufru a součástek doplněné majitelem, stav doručení svorek
-> a snadno vyjímatelná powerbanka jsou v [aktuálním přehledu](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
+> a snadno vyjímatelná powerbanka jsou v [aktuálním přehledu](../mechanika/rozmery-nakoupenych-soucastek.md).
 
 Stav návrhu k 28. 9. 2026. Ceny jsou orientační z průzkumu a mohou se změnit; před platbou zkontrolovat variantu, sklad a cenu a odečíst již pořízené díly. Prioritu v rozpočtu 10 000 Kč má **AI kufr**. Powerbanku si majitel pořídí samostatně, proto není v nákupních součtech. Součet není cena celého kostýmu a nezahrnuje dopravu, kufr, hůlky ani mechanické díly. Překročení celkového rozpočtu vyžaduje schválení majitele.
 
 ## AI kufr
 
-**Současný stav:** tabulky níže jsou historický nákupní podklad. Potvrzené nákupy vede [aktuální objednávka](objednavka-doplneni-kufru-2026-10-06.md), montáž a ovládání [aktuální zapojení](../kufr/docs/zapojeni-potvrzeneho-hardwaru.md).
+**Současný stav:** tabulky níže jsou historický nákupní podklad. Potvrzené nákupy vede [aktuální objednávka](objednavka-doplneni-kufru-2026-10-06.md), montáž a ovládání [aktuální zapojení](zapojeni-potvrzeneho-hardwaru.md).
 
-Počítáme se šesti hůlkami, každou s krátkým adresovatelným RGB páskem, vibračním modulem a západkou uvolňovanou servem. Kufr má vlastní mikrofon, reproduktor a tlačítko; mobilní aplikace později zajistí ovládání a záložní vstup. AI služba ani její případné poplatky nejsou v této tabulce. [Nákup rozdělený do dvou obchodů](nakupni-seznam-kufr.md) · [Návrh efektů a napájení](../kufr/docs/efekty-a-napajeni.md).
+Počítáme se šesti hůlkami, každou s krátkým adresovatelným RGB páskem, vibračním modulem a západkou uvolňovanou servem. Kufr má vlastní mikrofon, reproduktor a tlačítko; mobilní aplikace později zajistí ovládání a záložní vstup. AI služba ani její případné poplatky nejsou v této tabulce. [Nákup rozdělený do dvou obchodů](nakupni-seznam-kufr.md) · [Návrh efektů a napájení](efekty-a-napajeni.md).
 
 | Součástka | Počet | Orientačně | Odkaz / poznámka |
 | --- | ---: | ---: | --- |
@@ -37,9 +37,9 @@ Počítáme se šesti hůlkami, každou s krátkým adresovatelným RGB páskem,
 | Vratná pojistka 5 A | 1 | 18 Kč | [Drátek](https://dratek.cz/arduino-platforma/232509-nadproudovy-tepelny-jistic-vratna-pojistka-5a.html) |
 | Elektrolytický kondenzátor 470 µF / 50 V | 4 | 8 Kč | [Drátek](https://dratek.cz/arduino-platforma/7826-kondenzator-470uf-50v.html); vždy dva paralelně k 5V větvi RGB a pohonů |
 
-**Orientační součet kufru k objednání: cca 2 997 Kč včetně šesti vibračních modulů a obou kabelů, bez samostatně kupované powerbanky, montážního materiálu a dopravy.** S montážním materiálem 326 Kč činí košíky dvou obchodů přibližně **3 323 Kč**. Pokud jsou vhodné kabely už doma, odečíst 72 Kč a 185 Kč. První prototyp může použít jeden vibrační modul; zbývajících pět představuje dalších 410 Kč, ale i další zásilku. Serva a RGB napájet mimo 5V pin řídicí desky, omezit jas a spouštět pohony postupně. [Pinová mapa desky](../kufr/docs/pin-mapa-esp32-s3.md) je dodaná, ale zapojení externích prvků zatím není schválené.
+**Orientační součet kufru k objednání: cca 2 997 Kč včetně šesti vibračních modulů a obou kabelů, bez samostatně kupované powerbanky, montážního materiálu a dopravy.** S montážním materiálem 326 Kč činí košíky dvou obchodů přibližně **3 323 Kč**. Pokud jsou vhodné kabely už doma, odečíst 72 Kč a 185 Kč. První prototyp může použít jeden vibrační modul; zbývajících pět představuje dalších 410 Kč, ale i další zásilku. Serva a RGB napájet mimo 5V pin řídicí desky, omezit jas a spouštět pohony postupně. [Pinová mapa desky](pin-mapa-esp32-s3.md) je dodaná, ale zapojení externích prvků zatím není schválené.
 
-**Volitelné budoucí rozšíření:** kamera pro rozpoznání kostýmů/postav. Zvolená deska už má konektor OV5640, ale kamera není v ceně 287 Kč. Alternativně lze místo ní koupit [sadu desky s kamerou OV5640 za cca 479 Kč](https://dratek.cz/arduino-platforma/232702-vyvojova-deska-esp32-s3-s-kameru-ov5640-wifi-bluetooth-nespajeny-s-pinovou-listou-v-baleni.html), tedy asi o 192 Kč více. První pokus může využít kameru telefonu. [Návrh rozšíření](../kufr/docs/kamera.md).
+**Volitelné budoucí rozšíření:** kamera pro rozpoznání kostýmů/postav. Zvolená deska už má konektor OV5640, ale kamera není v ceně 287 Kč. Alternativně lze místo ní koupit [sadu desky s kamerou OV5640 za cca 479 Kč](https://dratek.cz/arduino-platforma/232702-vyvojova-deska-esp32-s3-s-kameru-ov5640-wifi-bluetooth-nespajeny-s-pinovou-listou-v-baleni.html), tedy asi o 192 Kč více. První pokus může využít kameru telefonu. [Návrh rozšíření](kamera.md).
 
 ## Montážní materiál pro kufr
 

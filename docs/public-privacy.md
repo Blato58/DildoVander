@@ -27,7 +27,7 @@ s osobními údaji do issues, PR nebo artefaktů. Požadavek na souhlas v protok
 sám nedokazuje informovaný souhlas člověka. Režimy a doby uchování skutečného
 nasazení se mohou lišit od výchozích hodnot a musí je ověřit provozovatel.
 
-Podrobnosti a API: [backend README](../kufr/backend/README.md),
-[sdílené kontrakty](../kufr/contracts/README.md),
-[diagnostika](../kufr/backend/codex/README.md). Bezpečnostní hlášení vede
+Podrobnosti a API: [backend README](../backend/README.md),
+[sdílené kontrakty](../contracts/README.md),
+[diagnostika](../backend/codex/README.md). Bezpečnostní hlášení vede
 [SECURITY.md](../SECURITY.md).

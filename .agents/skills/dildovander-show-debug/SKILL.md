@@ -3,8 +3,8 @@ name: dildovander-show-debug
 description: Diagnose DildoVander DV02 show traces, gaps, timing, duplicate operations, Stop or replay differences using the existing core and read-only timeline. Excludes authoring new choreography, ordinary voice/persona evaluation, firmware flashing and paid model tests.
 ---
 
-Read [DV02 diagnostics](../../../kufr/docs/dv02.md), then only the affected
-clock/ownership/restart sections of [the spec](../../../kufr/docs/dv02-spec.md).
+Read [DV02 diagnostics](../../../docs/dv02.md), then only the affected
+clock/ownership/restart sections of [the spec](../../../docs/dv02-spec.md).
 Start with the operation/boot identity, scene/bundle/compiler identity, runtime
 profile, calibration revision and terminal evidence. Compare only compatible
 clock domains. Enqueue, DMA transfer and sound are distinct evidence strengths.
@@ -17,13 +17,13 @@ artifacts. An older device may lack this endpoint. Missing trace is unknown.
 For an offline reproduction from the repository root:
 
 ```text
-python kufr/mechanika/final/generate_effects.py --check
-python kufr/firmware/tests/run_show_tests.py
-node --test kufr/mechanika/final/test_show_timeline.cjs
+python mechanika/final/generate_effects.py --check
+python firmware/tests/run_show_tests.py
+node --test mechanika/final/test_show_timeline.cjs
 ```
 
 To retain importable files on Windows, run
-`python kufr/firmware/tests/run_show_tests.py --only show_trace_replay --fixtures "$env:TEMP/dv02-replay"`.
+`python firmware/tests/run_show_tests.py --only show_trace_replay --fixtures "$env:TEMP/dv02-replay"`.
 On other hosts pass a local temporary directory to `--fixtures`. This exports
 synthetic traces from the actual presentation core. Open the
 existing generated Workshop viewer's DV02 panel and import the JSON there. Seek,

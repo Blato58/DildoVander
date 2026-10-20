@@ -43,8 +43,8 @@ class DependencyWorkflowTests(unittest.TestCase):
         source = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
         nuget = source.split("  - package-ecosystem: nuget\n", 1)[1].split("  - package-ecosystem:", 1)[0]
         self.assertIn("directories:", nuget)
-        self.assertIn("- /kufr/backend\n", nuget)
-        self.assertIn("- /kufr/backend-tests\n", nuget)
+        self.assertIn("- /backend\n", nuget)
+        self.assertIn("- /backend-tests\n", nuget)
         self.assertIn("      backend:\n", nuget)
 
 

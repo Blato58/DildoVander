@@ -12,7 +12,7 @@ from cad_impact import (EXTERNAL_CAD_INPUTS, changed_paths, classify_path,
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FINAL = "kufr/mechanika/final/"
+FINAL = "mechanika/final/"
 
 
 class CadImpactTests(unittest.TestCase):
@@ -71,7 +71,7 @@ class CadImpactTests(unittest.TestCase):
     def test_public_cli_simulates_without_importing_cad_or_consulting_git(self):
         result = subprocess.check_output([
             sys.executable, "-I", str(ROOT / "scripts/ci/cad_impact.py"),
-            FINAL + "viewer.js", "kufr/backend/Program.cs",
+            FINAL + "viewer.js", "backend/Program.cs",
         ], cwd=tempfile.gettempdir(), text=True)
         plan = json.loads(result)
         self.assertEqual(plan["mode"], "paths")
@@ -93,10 +93,10 @@ class CadImpactTests(unittest.TestCase):
                 self.assertEqual(classify_path(FINAL + name), "manufacturing")
 
     def test_unrelated_projects_and_generic_documentation_do_not_need_cad(self):
-        paths = ["README.md", "docs/technical-note.md", "kufr/docs/dv01.md",
-                 "kufr/backend/Program.cs", "kufr/firmware/src/production/main.cpp",
-                 "kufr/mobilni-aplikace/src/styles.css", "kufr/web/build-site.py",
-                 "kufr/design-system/tokens/colors.css", FINAL + "viewer.js", FINAL + "refresh_viewer.py"]
+        paths = ["README.md", "docs/technical-note.md", "docs/dv01.md",
+                 "backend/Program.cs", "firmware/src/production/main.cpp",
+                 "mobilni-aplikace/src/styles.css", "web/build-site.py",
+                 "design-system/tokens/colors.css", FINAL + "viewer.js", FINAL + "refresh_viewer.py"]
         self.assertFalse(requires_manufacturing(paths))
         self.assertTrue(requires_manufacturing([*paths, FINAL + "mechanism.py"]))
 
@@ -105,7 +105,7 @@ class CadImpactTests(unittest.TestCase):
                      "ui_test_runtime.cjs", "preview_ui_fixture.py", "refresh_viewer.py"):
             with self.subTest(name=name):
                 self.assertEqual(classify_path(FINAL + name), "viewer")
-        self.assertEqual(classify_path("kufr/design-system/ui.js"), "viewer")
+        self.assertEqual(classify_path("design-system/ui.js"), "viewer")
         self.assertEqual(classify_path(FINAL + "future_runtime_dependency.py"), "manufacturing")
 
     def test_required_software_ci_has_no_path_filter(self):

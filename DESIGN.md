@@ -2,7 +2,7 @@
 
 The owner's October 2026 brief replaces the prior application visual identity.
 The canonical specification and implementation are
-[kufr/design-system/README.md](kufr/design-system/README.md) and its token/component
+[design-system/README.md](design-system/README.md) and its token/component
 sources. Keep detailed guidance there rather than copying it into instructions.
 
 Use Vapour Mist `#EEF1F5`, Chrome Midnight `#1B2430`, Steel Grey `#8A94A6` and

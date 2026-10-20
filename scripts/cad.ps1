@@ -9,7 +9,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not $Python) {
-    $localPython = Join-Path $PSScriptRoot '../kufr/mechanika/final/.venv/Scripts/python.exe'
+    $localPython = Join-Path $PSScriptRoot '../mechanika/final/.venv/Scripts/python.exe'
     if (Test-Path -LiteralPath $localPython) { $Python = $localPython }
     else { $Python = 'python' }
 }

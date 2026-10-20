@@ -51,49 +51,49 @@ class ProtocolTests(TestCase):
         return c.claim(self.client, issue, session, 'branch-' + session, 'worktree-' + session, [scope])
 
     def test_discovery_is_filtered_but_retains_conflicting_claims(self):
-        self.claim(2, 'A', 'kufr/backend')
+        self.claim(2, 'A', 'backend')
         snapshot = c.discover(self.client, 'Firmware')
         self.assertEqual([3], [x['number'] for x in snapshot['tasks']])
         self.assertEqual('A', snapshot['activeClaims'][0]['session'])
 
     def test_independent_scopes_and_resumption(self):
-        self.claim(2, 'A', 'kufr/backend')
-        self.claim(3, 'B', 'kufr/firmware')
-        self.claim(2, 'A', 'kufr/backend')
+        self.claim(2, 'A', 'backend')
+        self.claim(3, 'B', 'firmware')
+        self.claim(2, 'A', 'backend')
         self.assertEqual(2, self.client.writes)
 
     def test_overlapping_task_or_prefix_blocks_before_write(self):
-        self.claim(2, 'A', 'kufr')
+        self.claim(2, 'A', 'firmware')
         with self.assertRaises(c.CoordinationError):
-            self.claim(3, 'B', 'kufr/firmware')
+            self.claim(3, 'B', 'firmware/simulator')
         self.assertEqual(1, self.client.writes)
 
     def test_same_task_blocks_even_with_different_scopes(self):
-        self.claim(2, 'A', 'kufr/backend')
+        self.claim(2, 'A', 'backend')
         with self.assertRaises(c.CoordinationError):
-            self.claim(2, 'B', 'kufr/firmware')
+            self.claim(2, 'B', 'firmware')
 
     def test_concurrent_announcement_is_detected_and_retained(self):
-        event = dict(kind='CLAIM', session='B', branch='b', worktree='w', scopes=['kufr/backend'])
+        event = dict(kind='CLAIM', session='B', branch='b', worktree='w', scopes=['backend'])
         self.client.on_write = lambda: self.client.messages[3].append(
             {'body': c.MARKER + '\n' + json.dumps(event)})
         with self.assertRaisesRegex(c.CoordinationError, 'Concurrent'):
-            self.claim(2, 'A', 'kufr/backend')
+            self.claim(2, 'A', 'backend')
         self.assertEqual(2, len(c.discover(self.client)['activeClaims']))
         with self.assertRaisesRegex(c.CoordinationError, 'Overlapping'):
-            self.claim(2, 'A', 'kufr/backend')
+            self.claim(2, 'A', 'backend')
 
     def test_handoff_allows_separate_session_without_local_state(self):
-        self.claim(2, 'A', 'kufr/backend')
+        self.claim(2, 'A', 'backend')
         self.client.comment(2, c.MARKER + '\n' + json.dumps(dict(kind='HANDOFF', session='A')))
-        self.claim(2, 'B', 'kufr/backend')
+        self.claim(2, 'B', 'backend')
         self.assertEqual(['B'], [x['session'] for x in c.active_claims(self.client.comments(2))])
 
     def test_stale_claim_never_expires_automatically(self):
-        self.claim(2, 'A', 'kufr/backend')
+        self.claim(2, 'A', 'backend')
         self.client.messages[2][0]['body'] = self.client.messages[2][0]['body'].replace('2026-', '2000-')
         with self.assertRaises(c.CoordinationError):
-            self.claim(3, 'B', 'kufr/backend')
+            self.claim(3, 'B', 'backend')
 
     def test_restarted_task_creation_reuses_server_record(self):
         first = c.ensure(self.client, 'stable-key', 'Task', 'Body')
@@ -121,11 +121,11 @@ class ProtocolTests(TestCase):
         for value in ['../outside', 'C:/outside', '/outside', '*']:
             with self.assertRaises(c.CoordinationError):
                 c.normalize_scope(value)
-        self.assertFalse(c.overlaps('kufr/backend', 'kufr/backend-tests'))
-        self.assertTrue(c.overlaps('.', 'kufr'))
+        self.assertFalse(c.overlaps('backend', 'backend-tests'))
+        self.assertTrue(c.overlaps('.', 'firmware'))
 
     def test_completion_requires_real_merge_exact_commit_and_explicit_acceptance(self):
-        self.claim(2, 'A', 'kufr/backend')
+        self.claim(2, 'A', 'backend')
         request = mock.Mock(return_value={'merged': False})
         self.client.request = request
         for accepted in [False, True]:

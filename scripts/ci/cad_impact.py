@@ -12,7 +12,7 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FINAL = "kufr/mechanika/final/"
+FINAL = "mechanika/final/"
 # Share the same small, standard-library-only dependency policy with the
 # manufacturing fingerprint. Import by file so no CAD modules enter this job.
 POLICY_PATH = ROOT / FINAL / "source_inputs.py"
@@ -22,10 +22,10 @@ POLICY_SPEC.loader.exec_module(SOURCE_POLICY)
 EXTERNAL_CAD_INPUTS = frozenset({
     # Snapshot and provenance documents are authoritative hardware evidence;
     # generic documentation filtering must never discard them.
-    "kufr/docs/zapojeni-potvrzeneho-hardwaru.md",
-    "kufr/mechanika/rozmery-nakoupenych-soucastek.md",
-    "kufr/mechanika/rozmery-doruceneho-kufru.md",
-    "kufr/mechanika/rozmery-hulek.md",
+    "docs/zapojeni-potvrzeneho-hardwaru.md",
+    "mechanika/rozmery-nakoupenych-soucastek.md",
+    "mechanika/rozmery-doruceneho-kufru.md",
+    "mechanika/rozmery-hulek.md",
     "scripts/ci/install-cad-slicer.sh",
     "scripts/cad.py", "scripts/cad.ps1",
     "scripts/ci/cad_impact.py", "scripts/ci/test_cad_impact.py",
@@ -37,7 +37,7 @@ def classify_path(path):
     """Return manufacturing, viewer, or none for a Git POSIX path."""
     if path in EXTERNAL_CAD_INPUTS or path.startswith(".github/actions/verified-cad/"):
         return "manufacturing"
-    if path.startswith("kufr/design-system/"):
+    if path.startswith("design-system/"):
         return "viewer"
     if not path.startswith(FINAL):
         return "none"

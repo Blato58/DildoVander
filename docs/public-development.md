@@ -1,20 +1,20 @@
 # Vývoj bez kompletního kufru
 
 Aktuální produkční rozhovor má pouze Live `gpt-live-1` a Realtime
-`gpt-realtime-2.1`; [kontrakt a migrace](../kufr/docs/autonomous-live-memory.md).
+`gpt-realtime-2.1`; [kontrakt a migrace](autonomous-live-memory.md).
 Offline test doubles jsou výslovně testovací. Staré textové route vracejí410;
 legacy dialog/voice přepínače se nepoužívají. Lokální testy nikdy nevolají AI.
 
 
 Příkazy níže nepotřebují produkční credentialy ani volání OpenAI. Používej
-syntetická data. Verze vybírej podle `kufr/global.json`, jednotlivých `.nvmrc`,
+syntetická data. Verze vybírej podle `global.json`, jednotlivých `.nvmrc`,
 lockfiles a `platformio.ini`; aktualizace se provádí společně s ověřením.
 Tabulka uvádí možnosti ověření, nikoli tvrzení o spuštění na každé platformě.
 
 | Část | Nástroje | Co lze ověřit bez zařízení |
 | --- | --- | --- |
 | Mobilní web a kontrakty | Node.js podle `.nvmrc`, npm | TypeScript, webový build, fixtures a automatické JS testy |
-| Backend | .NET SDK podle `kufr/global.json`, Node.js pro HTTP smoke | C# harness, fake HTTP/SQLite chování |
+| Backend | .NET SDK podle `global.json`, Node.js pro HTTP smoke | C# harness, fake HTTP/SQLite chování |
 | Hostitelský simulátor | C++14 kompilátor, Node.js, OpenSSL | Posloupnost, fake journal, WSS a token handshake |
 | ESP32 firmware | PlatformIO Core, profil v `platformio.ini` | Kompilace ESP-IDF a hostitelské C++ testy |
 | CAD F2 | Python 3.11, závislosti `final/requirements.txt`, Node.js, PowerShell | Generace a kontrola geometrií/exportů |
@@ -25,7 +25,7 @@ Tabulka uvádí možnosti ověření, nikoli tvrzení o spuštění na každé p
 Z kořene checkoutu, každý blok ve vlastní shell session nebo po návratu do kořene:
 
 ```powershell
-Set-Location kufr/mobilni-aplikace
+Set-Location mobilni-aplikace
 npm ci
 npm ci --prefix ../contracts
 npm test
@@ -37,14 +37,14 @@ Poslední příkaz je volitelný místní server. Webová fake varianta není na
 ovladač a nedává přístup do produkce. Pro schémata a fixtures:
 
 ```powershell
-Set-Location kufr/contracts
+Set-Location contracts
 npm ci
 npm test
 ```
 
 ## Backend bez provider credentialu
 
-CLI spouštěj z `kufr/`, aby našlo jeho `global.json`. Komitované NuGet
+CLI spouštěj z ``, aby našlo jeho `global.json`. Komitované NuGet
 lockfiles zahrnují CI profil `linux-x64`; obecný Windows locked restore může
 skončit `NU1004`. Neměň CI lockfile pouze kvůli místní platformě. Windows
 lokální test používá oddělený ignorovaný lockfile:
@@ -63,7 +63,7 @@ používají dočasné SQLite a fake provider; nejde o projekt pro `dotnet test`
 Linux CI nadále používá připnutý `linux-x64` restore s `--locked-mode`.
 Volitelné živé smoke přepínače potřebují vlastní oprávnění k placenému testu.
 
-Při ručním spuštění služby z `kufr/backend/` nejprve nastav lokální cestu:
+Při ručním spuštění služby z `backend/` nejprve nastav lokální cestu:
 
 ```powershell
 $databaseDirectory = Join-Path ([IO.Path]::GetTempPath()) ('kufr-dev-' + [guid]::NewGuid())
@@ -83,26 +83,26 @@ zařízení služba nevydá device token; HTTP smoke si vytváří vlastní náh
 testovací identitu. Místní databáze mohou obsahovat text testovacího dialogu
 i po ukončení služby; nepatří do gitu.
 
-[backend/.env.example](../kufr/backend/.env.example) je referenční seznam
+[backend/.env.example](../backend/.env.example) je referenční seznam
 proměnných, nikoli soubor automaticky načítaný ASP.NET Core. Skutečné lokální
 hodnoty nastav ve vlastním prostředí mimo git; bez provider klíče server hlásí oba produkční enginy nedostupné; nehraje úspěšný fake rozhovor.
 
 ## Firmware, simulátor a mechanika
 
-Firmware se sestavuje `pio run` z `kufr/firmware/`. Sestavení nenahrává image do desky. Hostitelské
-testy a konkrétní zdroje uvádí [firmware README](../kufr/firmware/README.md).
+Firmware se sestavuje `pio run` z `firmware/`. Sestavení nenahrává image do desky. Hostitelské
+testy a konkrétní zdroje uvádí [firmware README](../firmware/README.md).
 
 Simulátor není jen `npm test`: potřebuje nejprve sestavený C++ bridge,
 `KUFR_SIMULATOR_BRIDGE` a OpenSSL. Přesné Windows příkazy, dočasné certifikáty a
-loopback server popisuje [simulátor README](../kufr/simulator/README.md).
+loopback server popisuje [simulátor README](../firmware/simulator/README.md).
 
-CAD regeneruj skutečným [postupem F2](../kufr/mechanika/final/README.md), se
+CAD regeneruj skutečným [postupem F2](../mechanika/final/README.md), se
 závislostmi z `requirements.txt` v odděleném virtuálním prostředí. Exporty,
 `.pio`, `node_modules`, `dist` a lokální virtuální prostředí nejsou zdrojové
 soubory. Nepotřebuješ soukromý server pro místní kontrolu. iOS podpis,
 produkční deployment, OTA publikace a živé AI evaluace jsou správcovské operace.
 
-Po `npx cap sync ios` spusť z `kufr/mobilni-aplikace/`:
+Po `npx cap sync ios` spusť z `mobilni-aplikace/`:
 
 ```powershell
 node scripts/generate-native-assets.mjs

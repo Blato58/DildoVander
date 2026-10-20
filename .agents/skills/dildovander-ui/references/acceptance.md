@@ -2,13 +2,13 @@
 
 Read only the affected section. Resolve paths from the repository root and
 check this branch's source before treating a control or scenario as supported.
-Use `kufr/design-system/screens.md` and `accessibility.md` for shared acceptance.
+Use `design-system/screens.md` and `accessibility.md` for shared acceptance.
 Record the actual artifact, viewport, input method and tested states; missing
 device/input coverage remains a gap, not a pass.
 
 ## CAD / Workshop viewer
 
-Start with `kufr/mechanika/final/README.md`, `viewer-template.html`, `viewer.js`,
+Start with `mechanika/final/README.md`, `viewer-template.html`, `viewer.js`,
 `viewer-workshop.css` and `test_viewer.cjs`. Geometry, assembly and effect sources
 include `parameters.json`, `assembly-guide.json`, `effects.json` and `harness.py`.
 
@@ -42,7 +42,7 @@ include `parameters.json`, `assembly-guide.json`, `effects.json` and `harness.py
   contrast and reduced motion against the shared accessibility document.
 
 Run focused viewer checks when relevant: `node --check viewer.js` and
-`node --test test_viewer.cjs` from `kufr/mechanika/final`. When viewer/generation
+`node --test test_viewer.cjs` from `mechanika/final`. When viewer/generation
 source changes, first use the dependency policy in `scripts/ci/cad_impact.py`.
 Reviewed viewer HTML/CSS/JS changes use the focused tests and the CAD-free
 `refresh_package.py` path over trusted mesh data; they do not require CAD,
@@ -55,9 +55,9 @@ regenerate CAD for guidance-only changes or publish without task authorization.
 
 ## Simulator / Simulation Lab
 
-Start with `kufr/simulator/README.md`, `package.json`, `dashboard.html`,
+Start with `firmware/simulator/README.md`, `package.json`, `dashboard.html`,
 `dashboard.js`, the bridge/server source and corresponding `verify-*.mjs` checks.
-Trace firmware model ownership in `kufr/firmware/src/features/` where relevant.
+Trace firmware model ownership in `firmware/src/features/` where relevant.
 
 - **Model versus hardware:** distinguish C++ host model, local bridge/fake
   adapters, simulated firmware state and physical firmware/GPIO. Preserve visible
@@ -77,7 +77,7 @@ Trace firmware model ownership in `kufr/firmware/src/features/` where relevant.
   and shared effect data where already applicable; do not fork these for a visual
   change or assume the observer, CAD preview and native mobile share an engine.
   Verify every affected consumer when changing shared tokens or rendering data.
-- **Checks:** `npm test` in `kufr/simulator` currently runs five Node checks:
+- **Checks:** `npm test` in `firmware/simulator` currently runs five Node checks:
   dashboard, bridge, conversation, control socket and media socket. Follow the
   README for prepared C++ bridge, dependencies, local TLS and runtime prerequisites.
   Run the affected tests and inspect the live dashboard for behavioral UI changes;

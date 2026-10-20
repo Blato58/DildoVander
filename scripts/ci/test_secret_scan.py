@@ -51,6 +51,26 @@ VUE_HEADER_STATEMENTS = {
 
 
 class SecretScanWorkflowTests(unittest.TestCase):
+    def test_source_literal_exceptions_preserve_current_and_legacy_history_paths(self):
+        config = tomllib.loads((ROOT / ".gitleaks.toml").read_text(encoding="utf-8"))
+        exceptions = {entry["description"]: entry for entry in config["allowlists"]}
+        paths = {
+            "CAD component identifier, not an API credential": "mechanika/cad/scripts/generate.py",
+            "Smoke test passes a generated idempotency key by variable": "backend/tests/deployed_smoke.py",
+            "Reviewed synthetic firmware idempotency UUID": "firmware/tests/conversation_text_codec_test.cpp",
+            "RFC 6455 public example nonce in the synthetic WebSocket handshake":
+                "mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs",
+        }
+        for description, path in paths.items():
+            with self.subTest(path=path):
+                entry = exceptions[description]
+                self.assertEqual(entry["condition"], "AND")
+                self.assertEqual(entry["targetRules"], ["generic-api-key"])
+                self.assertNotIn("commits", entry)
+                self.assertTrue(any(re.fullmatch(pattern, path) for pattern in entry["paths"]))
+                self.assertTrue(any(re.fullmatch(pattern, "kufr/" + path) for pattern in entry["paths"]))
+                self.assertFalse(any(re.fullmatch(pattern, "unrelated/" + path) for pattern in entry["paths"]))
+
     def test_shallow_checkout_runs_without_historical_objects(self):
         with tempfile.TemporaryDirectory() as directory:
             seed = Path(directory) / "seed"
@@ -183,11 +203,11 @@ class SecretScanIntegrationTests(SecretScanRepository):
         for path in INVENTORY_PATHS:
             self.write(path, json.dumps({
                 "assembly_access.py": digest,
-                "kufr/backend/DeviceAccessTokenService.cs": digest,
+                "backend/DeviceAccessTokenService.cs": digest,
                 "Microsoft.AspNetCore.Authentication.BearerToken.dll": digest,
-                "kufr/contracts/verify-backend-openapi.mjs": digest,
+                "contracts/verify-backend-openapi.mjs": digest,
                 "NativeAccessToken.swift": digest,
-                "kufr/design-system/tokens.d.mts": digest,
+                "design-system/tokens.d.mts": digest,
             }, indent=2))
         self.commit("File inventories")
         self.assertEqual([], self.scan(0))
@@ -199,11 +219,11 @@ class SecretScanIntegrationTests(SecretScanRepository):
         self.assertFalse((self.root / ".gitleaksignore").exists())
 
     def test_reviewed_source_literals_pass_without_commit_fingerprints(self):
-        self.write("kufr/mechanika/cad/scripts/generate.py", '    key = "DFR0954_amplifier"')
-        self.write("kufr/backend/tests/deployed_smoke.py",
+        self.write("mechanika/cad/scripts/generate.py", '    key = "DFR0954_amplifier"')
+        self.write("backend/tests/deployed_smoke.py",
                    '    "POST", "/v1/conversations", bearer=token, key=create_key, body=conversation_body')
         for name in ("text_codec", "start_coordinator"):
-            self.write(f"kufr/firmware/tests/conversation_{name}_test.cpp",
+            self.write(f"firmware/tests/conversation_{name}_test.cpp",
                        '  request.idempotencyKey = "7731ce10-a53c-4934-8909-06870fc86a12";')
         self.commit("Reviewed non-secrets")
         self.assertEqual([], self.scan(0))
@@ -215,11 +235,11 @@ class SecretScanIntegrationTests(SecretScanRepository):
                 "api_key": hashlib.sha256(b"synthetic secret value").hexdigest(),
                 "access.py": token,
             }, indent=2))
-        self.write("kufr/backend/tests/deployed_smoke.py", f'api_key = "{token}"')
-        self.write("kufr/mechanika/cad/scripts/generate.py", f'key = "{token}"')
-        self.write("kufr/firmware/tests/conversation_text_codec_test.cpp",
+        self.write("backend/tests/deployed_smoke.py", f'api_key = "{token}"')
+        self.write("mechanika/cad/scripts/generate.py", f'key = "{token}"')
+        self.write("firmware/tests/conversation_text_codec_test.cpp",
                    f'request.idempotencyKey = "{token}";')
-        self.write("kufr/mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs",
+        self.write("mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs",
                    f'const api_key = "{token}";')
         self.commit("Synthetic leaked credentials")
         findings = self.scan(1)
@@ -231,7 +251,7 @@ class SecretScanIntegrationTests(SecretScanRepository):
                              {finding["RuleID"] for finding in findings if finding["File"] == path})
 
     def test_public_websocket_nonce_exception_requires_exact_value_and_fixture(self):
-        path = "kufr/mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs"
+        path = "mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs"
         handshake = next(line for line in (ROOT / path).read_text(encoding="utf-8").splitlines()
                          if "Sec-WebSocket-Key:" in line)
         nonce = base64.b64encode(b"the sample nonce").decode("ascii")

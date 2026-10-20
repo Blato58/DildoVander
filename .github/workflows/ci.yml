@@ -127,7 +127,7 @@ jobs:
           fetch-depth: 2
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: kufr/contracts/.nvmrc
+          node-version-file: contracts/.nvmrc
       - name: Install pinned workflow validator
         run: |
           curl --fail --silent --show-error --location --retry 3 \
@@ -144,8 +144,8 @@ jobs:
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
       - name: Test model workflow contracts with small synthetic data
         run: |
-          python3 -m unittest discover -s kufr/mechanika/final -p test_fast_build.py
-          python3 -m unittest discover -s kufr/web/deploy -p test_cad_host.py
+          python3 -m unittest discover -s mechanika/final -p test_fast_build.py
+          python3 -m unittest discover -s web/deploy -p test_cad_host.py
       - name: Test private coordination transport without credentials
         run: python3 -m unittest discover -s scripts -p 'test_coordination*.py'
       - name: Check whitespace
@@ -153,7 +153,7 @@ jobs:
       - name: Verify Vapour Chrome design integrity
         run: |
           python3 scripts/generate_design_tokens.py --check
-          npm test --prefix kufr/design-system
+          npm test --prefix design-system
           python3 -m unittest discover -s scripts -p 'test_design_system.py'
           python3 scripts/check_design_system.py
 

@@ -5,9 +5,9 @@ on:
     branches: [main]
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
-      - 'kufr/backend/**'
-      - 'kufr/backend-tests/**'
-      - 'kufr/mobilni-aplikace/package*.json'
+      - 'backend/**'
+      - 'backend-tests/**'
+      - 'mobilni-aplikace/package*.json'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -89,7 +89,7 @@ jobs:
         env:
           DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
-          global-json-file: candidate/kufr/global.json
+          global-json-file: candidate/global.json
       - name: Regenerate backend and test locks together
         env:
           DEPENDABOT_PLAN: ${{ needs.plan.outputs.plan }}
@@ -127,7 +127,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: candidate/kufr/mobilni-aplikace/.nvmrc
+          node-version-file: candidate/mobilni-aplikace/.nvmrc
           package-manager-cache: false
       - name: Regenerate Capacitor manifest and resolve native Swift pins
         env:

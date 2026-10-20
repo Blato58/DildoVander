@@ -26,39 +26,39 @@ jobs:
           python-version: '3.11'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: kufr/mobilni-aplikace/.nvmrc
+          node-version-file: mobilni-aplikace/.nvmrc
           cache: npm
           cache-dependency-path: |
-            kufr/mobilni-aplikace/package-lock.json
-            kufr/contracts/package-lock.json
+            mobilni-aplikace/package-lock.json
+            contracts/package-lock.json
       - name: Guard application and viewer CI independence
         run: python scripts/ci/ui_boundary.py
       - name: Validate application packaging and viewer fixtures
         run: |
           python scripts/generate_design_tokens.py --check
-          npm test --prefix kufr/design-system
-          python -m unittest discover -s kufr/web -p 'test_*.py'
-          python -m unittest discover -s kufr/web/deploy -p 'test_*.py'
-          python -m unittest discover -s kufr/mechanika/final -p test_viewer_style.py
-          python -m unittest discover -s kufr/mechanika/final -p test_viewer_document.py
-          python -m unittest discover -s kufr/mechanika/final -p test_twin_manifest.py
-          python kufr/mechanika/final/generate_effects.py --check
-          python -m unittest discover -s kufr/mechanika/final -p test_effects.py
-          python -m unittest discover -s kufr/mechanika/final -p test_model_bundle_export.py
-          python -m unittest discover -s kufr/mechanika/final -p test_model_verification.py
-          node --test kufr/mechanika/final/test_viewer.cjs kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_twin_media.cjs kufr/mechanika/final/test_show_timeline.cjs
-          node --test kufr/firmware/diagnostics/servo-bench/web/tests/*.test.mjs
-          python -m unittest discover -s kufr/firmware/diagnostics/servo-bench/web/tests -p 'test_*.py'
-          node kufr/simulator/verify-dashboard.mjs
+          npm test --prefix design-system
+          python -m unittest discover -s web -p 'test_*.py'
+          python -m unittest discover -s web/deploy -p 'test_*.py'
+          python -m unittest discover -s mechanika/final -p test_viewer_style.py
+          python -m unittest discover -s mechanika/final -p test_viewer_document.py
+          python -m unittest discover -s mechanika/final -p test_twin_manifest.py
+          python mechanika/final/generate_effects.py --check
+          python -m unittest discover -s mechanika/final -p test_effects.py
+          python -m unittest discover -s mechanika/final -p test_model_bundle_export.py
+          python -m unittest discover -s mechanika/final -p test_model_verification.py
+          node --test mechanika/final/test_viewer.cjs mechanika/final/test_twin_viewer.cjs mechanika/final/test_twin_media.cjs mechanika/final/test_show_timeline.cjs
+          node --test firmware/diagnostics/servo-bench/web/tests/*.test.mjs
+          python -m unittest discover -s firmware/diagnostics/servo-bench/web/tests -p 'test_*.py'
+          node firmware/simulator/verify-dashboard.mjs
       - name: Build shared application at its canonical root
-        working-directory: kufr/mobilni-aplikace
+        working-directory: mobilni-aplikace
         run: |
           npm ci
           npm ci --prefix ../contracts
           npm test
           npm run build
       - name: Verify shared application browser journeys
-        working-directory: kufr/mobilni-aplikace
+        working-directory: mobilni-aplikace
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser
@@ -69,10 +69,10 @@ jobs:
           node tests/workshop-media.browser.mjs
       - name: Check real compiled application inputs without CAD
         env:
-          KUFR_SITE_WEB_DIST: ${{ github.workspace }}/kufr/mobilni-aplikace/dist
-        run: python -m unittest discover -s kufr/web -p test_site_inputs.py
+          KUFR_SITE_WEB_DIST: ${{ github.workspace }}/mobilni-aplikace/dist
+        run: python -m unittest discover -s web -p test_site_inputs.py
       - name: Assemble application
-        run: python kufr/web/build-site.py --destination "$SITE_WORK/source" --web-dist kufr/mobilni-aplikace/dist
+        run: python web/build-site.py --destination "$SITE_WORK/source" --web-dist mobilni-aplikace/dist
       - name: Package with source provenance
         run: python scripts/ci/package.py pack "$SITE_WORK/source" "$SITE_WORK/package"
       - name: Upload immutable main package

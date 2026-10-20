@@ -3,7 +3,29 @@
 The application and its companion deployment checkout are separate Git
 repositories. Keep them as siblings under a non-Git development directory; do
 not initialize Git in the parent or combine their histories. The PlatformIO
-project for the kufr is only `kufr/firmware/` in the application repository.
+project for the kufr is only `firmware/` in the application repository.
+
+## Updating an existing checkout after the layout change
+
+Application components now live directly at the repository root. The old
+`kufr/` container is removed; its documentation is merged into `docs/` and its
+simulator is grouped with the production code under `firmware/simulator/`.
+Shared protocols and UI assets remain in `contracts/` and `design-system/`.
+
+Recreate local dependency/build outputs at their new paths with the component's
+normal restore/build commands. Old `.pio`, `node_modules`, `bin` and `obj`
+directories are local caches, not source to move or commit. From the updated
+application checkout, refresh the generated workspace paths and managed tasks:
+
+```powershell
+.\devtools\workspace\Sync-Workspace.ps1 -RefreshManagedTasks
+```
+
+The setup migrates the known former firmware folder path while retaining
+unrelated workspace settings and custom tasks. A firmware folder pointing to
+another custom location still requires resolving that name conflict explicitly.
+The source layout does not change service names, package identifiers, public
+routes, published artifact names or existing model/archive provenance.
 
 ## Fresh setup
 
@@ -13,7 +35,7 @@ project for the kufr is only `kufr/firmware/` in the application repository.
 2. Install VS Code, Git, Python, Node.js, a host C++14 compiler and PlatformIO
    Core 6.2.0. Install the recommended VS Code extensions when prompted.
    ESP-IDF 6.1 and the Espressif PlatformIO platform are selected by
-   `kufr/firmware/platformio.ini`; PlatformIO installs the project packages.
+   `firmware/platformio.ini`; PlatformIO installs the project packages.
 3. From the application clone, run:
 
    ```powershell
@@ -66,14 +88,14 @@ environment build outputs.
 Equivalent commands from the common parent are:
 
 ```powershell
-pio project config -d DildoVander-app/kufr/firmware --lint
-pio run -d DildoVander-app/kufr/firmware
-pio run -d DildoVander-app/kufr/firmware -e diag-servo-bench
-pio run -d DildoVander-app/kufr/firmware -e diag-servo-bench -t upload
-pio device monitor -d DildoVander-app/kufr/firmware -e diag-servo-bench
+pio project config -d DildoVander-app/firmware --lint
+pio run -d DildoVander-app/firmware
+pio run -d DildoVander-app/firmware -e diag-servo-bench
+pio run -d DildoVander-app/firmware -e diag-servo-bench -t upload
+pio device monitor -d DildoVander-app/firmware -e diag-servo-bench
 ```
 
-From inside `kufr/firmware`, the equivalent commands omit `-d`:
+From inside `firmware`, the equivalent commands omit `-d`:
 
 ```powershell
 pio run
@@ -85,7 +107,7 @@ pio device monitor -e diag-servo-bench
 Use **Firmware: Run Tests** for the existing native C++, Python, and servo-bench
 JavaScript suites. It invokes their existing runners rather than routing tests
 through PlatformIO. The C++ host checks require a local C++14 compiler; the
-show replay checks also require Node.js and the `kufr/contracts` npm
+show replay checks also require Node.js and the `contracts` npm
 dependencies.
 
 The servo-bench panel is a loopback-only static server. Run **Servo Bench: Start

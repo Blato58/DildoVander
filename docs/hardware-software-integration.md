@@ -1,8 +1,8 @@
 # Hardware/software integration boundary
 
-The authoritative wiring remains [confirmed hardware](../kufr/docs/zapojeni-potvrzeneho-hardwaru.md),
-[pin map](../kufr/docs/pin-mapa-esp32-s3.md), [camera](../kufr/docs/kamera.md)
-and [power/effects](../kufr/docs/efekty-a-napajeni.md). New software introduces
+The authoritative wiring remains [confirmed hardware](zapojeni-potvrzeneho-hardwaru.md),
+[pin map](pin-mapa-esp32-s3.md), [camera](kamera.md)
+and [power/effects](efekty-a-napajeni.md). New software introduces
 no alternate pin profile or cancelled actuator hardware.
 
 | Resource | Allocation / runtime contract |

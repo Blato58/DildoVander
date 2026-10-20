@@ -1,0 +1,108 @@
+# Review and copy to the PRIVATE repository's .github/workflows/kufr-site-deploy.yml.
+# Preparation only: not an active public workflow; no production dispatch made.
+name: Deploy shared DildoVander application
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful direct public main CI project=site run ID
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: kufr-backend-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'Blato58/DildoVander-deploy' && github.event.repository.private == true && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/reuse-build.yml
+    secrets:
+      PUBLIC_SOURCE_READ_TOKEN: ${{ secrets.PUBLIC_SOURCE_READ_TOKEN }}
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      workflow: ci.yml
+      artifact: arcane-site
+
+  publish:
+    if: github.repository == 'Blato58/DildoVander-deploy' && github.event.repository.private == true && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    needs: verify
+    permissions:
+      contents: read
+      actions: read
+    runs-on: [self-hosted, Linux, X64, kufr-backend]
+    environment: backend-production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Allocate isolated publication staging
+        run: |
+          site_work=$(mktemp -d "$RUNNER_TEMP/dildovander-app.XXXXXX")
+          echo "SITE_WORK=$site_work" >> "$GITHUB_ENV"
+      - name: Download immutable source artifact and verify GitHub SHA-256
+        env:
+          PUBLIC_SOURCE_READ_TOKEN: ${{ secrets.PUBLIC_SOURCE_READ_TOKEN }}
+          SOURCE_ARTIFACT_ID: ${{ needs.verify.outputs.artifact_id }}
+          SOURCE_ARTIFACT_DIGEST: ${{ needs.verify.outputs.artifact_digest }}
+          SOURCE_PACKAGE_PATH: ${{ env.SITE_WORK }}/package
+        run: python3 scripts/ci/download-artifact.py
+      - name: Verify archive checksum and unpack safely
+        run: python3 scripts/ci/package.py unpack "$SITE_WORK/package" "$SITE_WORK/verified"
+      - name: Validate schema-2 provenance and a compatible rollback release
+        env:
+          SOURCE_SHA: ${{ needs.verify.outputs.source_sha }}
+          APPLICATION_ORIGIN: ${{ vars.KUFR_APPLICATION_ORIGIN }}
+        run: |
+          test -n "$APPLICATION_ORIGIN"
+          python3 web/deploy/private-pipeline/verify-application.py \
+            --local "$SITE_WORK/verified" --expected-sha "$SOURCE_SHA" \
+            --preflight-root /var/www/dildovander --base "$APPLICATION_ORIGIN" --github-env "$GITHUB_ENV"
+      - name: Recheck public main immediately before activation
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_SHA: ${{ needs.verify.outputs.main_sha }}
+        with:
+          github-token: ${{ secrets.PUBLIC_SOURCE_READ_TOKEN }}
+          script: await require('./scripts/ci/verify-build.cjs').checkMain({ github, context }, process.env.EXPECTED_SHA, 'Blato58/DildoVander')
+      - name: Atomically publish schema-2 application
+        id: publish
+        if: env.APP_PRIOR_RELEASE != env.APP_TARGET_RELEASE
+        run: |
+          python3 web/deploy/release_store.py application publish \
+            --root /var/www/dildovander --source "$SITE_WORK/verified"
+      - name: Read back canonical HTTPS application and routing
+        env:
+          APPLICATION_ORIGIN: ${{ vars.KUFR_APPLICATION_ORIGIN }}
+          SOURCE_SHA: ${{ needs.verify.outputs.source_sha }}
+        run: |
+          python3 web/deploy/private-pipeline/verify-application.py \
+            --base "$APPLICATION_ORIGIN" --local "$SITE_WORK/verified" --expected-sha "$SOURCE_SHA"
+      - name: Restore compatible previous application after failed readback
+        id: rollback
+        if: failure() && steps.publish.outcome == 'success'
+        run: |
+          python3 web/deploy/release_store.py application rollback \
+            --root /var/www/dildovander
+      - name: Verify restored application after rollback
+        if: failure() && steps.rollback.outcome == 'success'
+        env:
+          APPLICATION_ORIGIN: ${{ vars.KUFR_APPLICATION_ORIGIN }}
+        run: |
+          python3 web/deploy/private-pipeline/verify-application.py \
+            --base "$APPLICATION_ORIGIN" --local "/var/www/dildovander/releases/$APP_PRIOR_RELEASE" \
+            --expected-sha "$APP_PRIOR_SOURCE_SHA"
+      - name: Remove local application staging
+        if: always() && env.SITE_WORK != ''
+        run: |
+          case "$SITE_WORK" in
+            "$RUNNER_TEMP"/dildovander-app.*) rm -rf -- "$SITE_WORK" ;;
+            *) echo 'Refusing unexpected staging path' >&2; exit 1 ;;
+          esac

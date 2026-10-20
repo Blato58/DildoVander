@@ -13,8 +13,8 @@ import time
 import uuid
 
 REPO = Path(__file__).resolve().parents[1]
-CAD = REPO / "kufr/mechanika/final"
-DEPLOY = REPO / "kufr/web/deploy"
+CAD = REPO / "mechanika/final"
+DEPLOY = REPO / "web/deploy"
 sys.path.insert(0, str(CAD))
 
 

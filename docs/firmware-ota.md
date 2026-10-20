@@ -10,9 +10,9 @@ core-dump partition remains intact. SD is a separate card, not reduced flash.
 Build from the repository root:
 
 ```powershell
-pio run -d kufr/firmware -e production
-$firmwareVersion = python kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --local
-python kufr/firmware/tools/ota_release.py check --binary kufr/firmware/.pio/build/production/firmware.bin --version $firmwareVersion
+pio run -d firmware -e production
+$firmwareVersion = python firmware/tools/firmware_version.py --policy firmware/version.txt --local
+python firmware/tools/ota_release.py check --binary firmware/.pio/build/production/firmware.bin --version $firmwareVersion
 ```
 
 `version.txt` supplies the reviewed baseline and version policy. `0.1.1+ci`
@@ -30,12 +30,12 @@ Before initial USB installation confirm the actual N16R8 board, detach actuator
 power, identify the correct port and privately back up the whole flash/NVS with
 the installed esptool. Save bootloader/partitions/NVS backup hashes. Do not run
 erase-flash. For the identical documented partition layout,
-`pio run -d kufr/firmware -e production -t upload --upload-port COM8` installs bootloader,
+`pio run -d firmware -e production -t upload --upload-port COM8` installs bootloader,
 table and app using the generated flash arguments. Examine those arguments
 before upload: no NVS erase/write is allowed. A different installed layout needs
 a separate controlled backup/migration; a partition-table change is not normal OTA.
 
-Run the separate [USB network service](../kufr/firmware/diagnostics/network-service/README.md)
+Run the separate [USB network service](../firmware/diagnostics/network-service/README.md)
 to initialize PoP, registered device identity and OTA trust, then restore the
 application image. Firmware initially lacking this updater/rollback bootloader
 cannot acquire these capabilities by a claimed automatic OTA migration.
@@ -96,9 +96,9 @@ successful firmware artifact matching the merged/current main Git tree.
 For an offline/local package with a signing key kept outside source:
 
 ```powershell
-$firmwareVersion = python kufr/firmware/tools/firmware_version.py --policy kufr/firmware/version.txt --local
-python kufr/firmware/tools/ota_release.py package --binary kufr/firmware/.pio/build/production/firmware.bin --version $firmwareVersion --build-id GIT_40_HEX --channel development --key C:/private/nonproduction-key.pem --out C:/private/new-ota-package
-python kufr/firmware/tools/ota_release.py verify --out C:/private/new-ota-package
+$firmwareVersion = python firmware/tools/firmware_version.py --policy firmware/version.txt --local
+python firmware/tools/ota_release.py package --binary firmware/.pio/build/production/firmware.bin --version $firmwareVersion --build-id GIT_40_HEX --channel development --key C:/private/nonproduction-key.pem --out C:/private/new-ota-package
+python firmware/tools/ota_release.py verify --out C:/private/new-ota-package
 ```
 
 OpenSSL is required (`--openssl` may select the installed executable). The output
@@ -178,4 +178,4 @@ the new slot and successful backend authentication. The CI USB recovery package
 and pre-service flash backup remain private. This accepts the successful update
 path; interrupted writes, invalid signatures/images and actual rollback still
 need physical tests. Exact CI/build/hash/UTC evidence is in the
-[implementation status](../kufr/docs/stav-implementace.md).
+[implementation status](stav-implementace.md).

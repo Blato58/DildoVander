@@ -5,19 +5,19 @@ description: Evaluate DV10 keepsake catalog binding, story and digital design qu
 
 # DV10 keepsake evaluation
 
-Include [Show Pack acceptance](../../../kufr/docs/show-pack.md) and backend
+Include [Show Pack acceptance](../../../docs/show-pack.md) and backend
 `--show`. Verify server-time prophecy gating, owner/operator projections, legacy
 editions, partial PNG/ZIP, distinct identities using one wand, duel side grants,
 source withdrawal and chronicle zero/tie/late-outcome revisions. Inspect actual
 PNG/export bytes and rendered owner/public pages. GET never triggers a job.
 
 Use for DV10 acceptance and regressions. Read the owner's current specification,
-the relevant backend contracts and `kufr/web/README.md`. Preserve the actual source,
+the relevant backend contracts and `web/README.md`. Preserve the actual source,
 artifact and schema versions. Do not treat an older result as a current check.
 
 Default dry-run is offline deterministic fixtures plus the explicitly synthetic
-browser suite: `npm test --prefix kufr/mobilni-aplikace` and
-`npm run test:browser --prefix kufr/mobilni-aplikace` after the application build.
+browser suite: `npm test --prefix mobilni-aplikace` and
+`npm run test:browser --prefix mobilni-aplikace` after the application build.
 The canonical feature tests are `src/features/archive/`: pure client tests and
 mounted Vue/native bridge tests. The compiled browser suite validates early
 fragment capture, routes and responsive shell. Legacy source receipts remain
@@ -47,4 +47,4 @@ provenance, findings and remaining acceptance gaps. Never mark an unrun test PAS
 New tracked skills require a fresh task/catalog reload to appear in discovery.
 During the current task read the file directly; writing it does not prove hot reload.
 
-The owner approved static pickup at `/keepsake/evening/`; read `kufr/docs/dv10/STATIC_EVENING.md` for precedence. Shared wands/stories are scoped to the configured device and captured active evening. Public browsing never grants owner/photo/admin rights. Preserve manual retention and read-only GET behavior.
+The owner approved static pickup at `/keepsake/evening/`; read `docs/dv10/STATIC_EVENING.md` for precedence. Shared wands/stories are scoped to the configured device and captured active evening. Public browsing never grants owner/photo/admin rights. Preserve manual retention and read-only GET behavior.

@@ -50,7 +50,7 @@ I2S audio, OE/resetové stavy a montážní materiál se musí ověřit zvláš�
 Po doručení kamery před připojením porovnat FPC, kontakty a revizi
 se stávající deskou. Kamerový profil B vyžaduje jiné
 audio/RGB piny než A. MikroSD je pro základní hlas a jednotlivý snímek
-volitelná. [Zapojení a napájení](../kufr/docs/efekty-a-napajeni.md).
+volitelná. [Zapojení a napájení](efekty-a-napajeni.md).
 
 ## 3. Teď neobjednávat – volitelné doplňky
 
@@ -72,7 +72,7 @@ vybrané konektory se jednou připájí a zaizolují.
 ## 4. Už koupené – znovu neobjednávat
 
 Všechny rozměry kufru a součástek, údaje doplněné majitelem a přímé zdroje
-jsou pohromadě v [přehledu rozměrů](../kufr/mechanika/rozmery-nakoupenych-soucastek.md).
+jsou pohromadě v [přehledu rozměrů](../mechanika/rozmery-nakoupenych-soucastek.md).
 
 | Díly | Doložené množství | Použití |
 | --- | ---: | --- |
