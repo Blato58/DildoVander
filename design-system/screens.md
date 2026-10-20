@@ -1,8 +1,9 @@
 # Specifikace obrazovek Vapour Chrome
 
 Společný základ: Inter pro celé UI, IBM Plex Mono pro technické údaje,
-klidná Midnight/Mist plocha a Periwinkle výběr. Tmavé téma je výchozí,
-světlé používá stejné komponenty s odvozenými sémantickými barvami.
+výchozí neutrální plocha Lord Voldemort a zdrženlivý modrofialový akcent.
+Olivander zachovává původní Midnight/Mist plochy a Periwinkle výběr.
+[Společný systém témat](THEMES.md) mění i rozměry a vzhled komponent.
 [Náhled systému](mockups/index.html) ukazuje obě témata vedle sebe.
 
 ## Desktop Workshop

@@ -61,7 +61,7 @@ details{border-top:1px solid var(--aw-border-subtle)}summary{min-height:44px;pad
  .motion-panel{left:12px;right:12px;bottom:80px;max-height:47dvh}.compact-dock>button{flex:1;min-width:44px}.compact-dock #assembly-controls{flex:3;min-width:0}.compact-dock #assembly-controls button{padding:8px}.compact-dock #guide-toggle{flex:1}
 }
 @media(max-width:640px){
- .workshop-header{padding:8px 12px;gap:10px;min-height:64px}.brand{font-size:12px;gap:6px}.brand-mark{width:26px;height:26px}.brand small{display:none}.project-heading{padding-left:10px}.project-heading .eyebrow{font-size:8px;margin-bottom:3px}h1{font-size:15px}.theme-toggle{font-size:0;padding:8px}.theme-toggle:before{content:'Aa';font-size:14px}.download-package{padding:9px}.download-package span{display:none}
+ .workshop-header{padding:8px 12px;gap:10px;min-height:64px}.brand{font-size:12px;gap:6px}.brand-mark{width:26px;height:26px}.brand small{display:none}.project-heading{padding-left:10px}.project-heading .eyebrow{font-size:8px;margin-bottom:3px}h1{font-size:15px}.theme-toggle{font-size:11px;padding:8px;max-width:170px;white-space:normal}.download-package{padding:9px}.download-package span{display:none}
  .workshop-toolbar{padding:8px;gap:8px;min-height:62px}.mode-tabs{flex:1;min-width:0;gap:0;padding:2px}.mode-tabs button{flex:1;min-width:44px;padding:8px 5px;font-size:11px}#show-open{font-size:11px;padding:8px}.show-open-caption{display:none}
  .viewport-heading{top:16px;left:16px;right:16px}.viewport-heading .eyebrow{font-size:9px}#viewer-status{font-size:10px}.viewport-unit{display:none}.viewport-bottom{left:12px;right:12px;bottom:12px;justify-content:center}.viewport-bottom>span:first-child{display:none}.cad-stamp{font-size:8px}.camera-menu{left:12px;bottom:38px}.inspect-button{right:12px;bottom:38px;font-size:11px}.camera-menu>summary{font-size:11px}
  .viewport-context strong{font-size:12px}.viewport-context>span{font-size:10px;max-width:24ch}.viewport-status{max-width:45%}.viewport-status button{font-size:10px;padding:6px 8px}.selection-bar{left:12px;right:12px;top:82px;padding-left:10px}.selection-bar strong,.selection-bar button{font-size:11px}.selection-bar #selection-details{display:none}#inspect-hint{display:none}
@@ -74,7 +74,16 @@ details{border-top:1px solid var(--aw-border-subtle)}summary{min-height:44px;pad
 @media(max-width:640px) and (min-height:521px){body:has(#assembly-controls:not([hidden])) .motion-panel{bottom:126px}}
 @media(max-width:380px){.brand>span{display:none}.project-heading{padding-left:8px}.workshop-header{gap:8px}#viewer-status{max-width:100px;text-align:right}}
 @media(max-height:520px) and (max-width:1100px){
- .workshop-header{display:none}.workshop-toolbar{min-height:52px}.compact-dock{padding-top:4px;padding-bottom:max(4px,env(safe-area-inset-bottom))}.compact-dock #assembly-controls{order:0;flex-basis:auto}.assembly-current{display:block;padding-bottom:4px}.assembly-current>div{flex-direction:row;gap:12px;align-items:baseline}.assembly-current strong{font-size:11px}.assembly-current span{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.assembly-current p{display:none}
+ .workshop-header{min-height:52px;padding:4px 12px}.workshop-header .brand,.workshop-header .project-heading,.workshop-header #model-status,.workshop-header .download-package{display:none}.workshop-toolbar{min-height:52px}.compact-dock{padding-top:4px;padding-bottom:max(4px,env(safe-area-inset-bottom))}.compact-dock #assembly-controls{order:0;flex-basis:auto}.assembly-current{display:block;padding-bottom:4px}.assembly-current>div{flex-direction:row;gap:12px;align-items:baseline}.assembly-current strong{font-size:11px}.assembly-current span{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.assembly-current p{display:none}
  #sidebar,#inspector-rail,.guide-sheet{left:auto;right:8px;top:8px;bottom:8px;max-height:none;width:43%}#workspace:has(#sidebar[data-open=true]) #scene,#workspace:has(#inspector-rail[data-open=true]) #scene,#workspace:has(.guide-sheet[data-open=true]) #scene{height:100%;width:55%}.motion-panel{max-height:calc(100dvh - 124px);bottom:64px}.viewport-heading{top:10px}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}button,a{transition:none}}
+
+/* Technical chrome belongs to the selected UI theme; model materials stay unchanged. */
+[data-theme="lord-voldemort"] :is(.mode-tabs,.download-package,.camera-menu,.guide-sheet,.motion-panel,.selection-bar,.show-inspector){border-radius:var(--aw-radius-control);box-shadow:none}
+[data-theme="lord-voldemort"] .mode-tabs{padding:0;gap:0;border:1px solid var(--aw-border)}
+[data-theme="lord-voldemort"] .mode-tabs button{border-radius:0}
+@media(min-width:681px) and (min-height:521px){
+ [data-theme="lord-voldemort"] .workshop-header{min-height:64px;padding-block:8px}
+ [data-theme="lord-voldemort"] .workshop-toolbar{min-height:56px;padding-block:6px}
+}

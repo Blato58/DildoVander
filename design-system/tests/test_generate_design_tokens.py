@@ -28,6 +28,10 @@ STORYBOARD = '''<?xml version="1.0" encoding="UTF-8"?>
 
 
 class DesignTokenTests(unittest.TestCase):
+    def copy_runtime(self, design):
+        for name in ("theme-runtime.js", "theme-controls.js"):
+            (design / name).write_text((ROOT / "design-system" / name).read_text(encoding="utf-8"), encoding="utf-8")
+
     def setUp(self):
         self.data = json.loads((ROOT / "design-system/tokens.json").read_text(encoding="utf-8"))
 
@@ -36,6 +40,10 @@ class DesignTokenTests(unittest.TestCase):
 
     def test_rejects_malformed_and_injected_values(self):
         mutations = [
+            lambda value: value.update(defaultTheme="olivander"),
+            lambda value: value["themeRegistry"]["olivander"].update(label="<script>"),
+            lambda value: value["themeRegistry"]["olivander"].update(palette="missing"),
+            lambda value: value["themeRegistry"]["olivander"]["presentation"].update(touch="1px;display:none"),
             lambda value: value["primitives"].update(mist="#zzzzzz"),
             lambda value: value["themes"]["light"].update(accent="red; display: none"),
             lambda value: value["themes"]["light"].update(accent="var(--aw-missing)"),
@@ -61,6 +69,7 @@ class DesignTokenTests(unittest.TestCase):
             root = Path(directory)
             source = root / "design-system/tokens.json"
             source.parent.mkdir(parents=True)
+            self.copy_runtime(source.parent)
             source.write_text(json.dumps(self.data), encoding="utf-8")
             for path, content in GENERATOR.outputs(self.data, root).items():
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,6 +111,7 @@ class DesignTokenTests(unittest.TestCase):
             root = Path(directory)
             token_source = root / "design-system/tokens.json"
             token_source.parent.mkdir(parents=True)
+            self.copy_runtime(token_source.parent)
             token_source.write_text(json.dumps(self.data), encoding="utf-8")
             self.assertNotIn(root / GENERATOR.LAUNCH_STORYBOARD, GENERATOR.outputs(self.data, root))
             storyboard = root / GENERATOR.LAUNCH_STORYBOARD
@@ -111,13 +121,14 @@ class DesignTokenTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(content.encode("utf-8"))
             self.assertEqual([], GENERATOR.check(root))
-            storyboard.write_bytes(storyboard.read_bytes().replace(b'red="0.10588235294117647"', b'red="0.0"'))
+            storyboard.write_bytes(storyboard.read_bytes().replace(b'red="0.058823529411764705"', b'red="0.0"'))
             self.assertEqual([str(GENERATOR.LAUNCH_STORYBOARD)], GENERATOR.check(root))
 
     def installer_fixture(self, root):
         design = root / "design-system"
         (design / "components").mkdir(parents=True)
         (design / "tokens").mkdir()
+        self.copy_runtime(design)
         (design / "tokens.json").write_text(json.dumps(self.data), encoding="utf-8")
         (design / "arcane-workshop.css").write_text("@import url('./tokens/palette.css');\n@import url('./tokens/typography.css');\n@import url('./components/patterns.css');\n", encoding="utf-8")
         # Deliberately stale on disk: generation must inline the newly computed tokens.
@@ -146,7 +157,7 @@ class DesignTokenTests(unittest.TestCase):
             self.assertNotIn("STALE PALETTE", css)
             self.assertNotIn("@font-face", css)
             self.assertNotIn("url(", css)
-            self.assertEqual(self.data["primitives"]["midnight"], namespace["INSTALLER_THEME_COLOR"])
+            self.assertEqual("#0f0f11", namespace["INSTALLER_THEME_COLOR"])
             ast.parse(publisher)
             for path, content in generated.items():
                 path.parent.mkdir(parents=True, exist_ok=True)

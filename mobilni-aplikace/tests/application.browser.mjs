@@ -65,9 +65,17 @@ try {
 
   await page.goto(origin); await hasHeading('Všechno pro jeden večer.');
   await fits(); await page.screenshot({ path: path.join(screenshots, 'home-desktop.png'), fullPage: true });
-  await page.getByLabel('Barevný režim').selectOption('light'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
-  await page.reload(); await hasHeading('Všechno pro jeden večer.'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
-  await page.getByLabel('Barevný režim').selectOption('dark');
+  await page.getByLabel('Vzhled aplikace').selectOption('olivander'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
+  await page.reload(); await hasHeading('Všechno pro jeden večer.'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
+  await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
+  const preferenceTab = await context.newPage();
+  await preferenceTab.goto(origin + '/settings');
+  await preferenceTab.getByLabel('Barevné téma', { exact: true }).selectOption('olivander');
+  assert.equal(await preferenceTab.getByLabel('Vzhled aplikace').inputValue(), 'olivander', 'settings and header synchronize in the same tab');
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'olivander');
+  assert.equal(await page.getByLabel('Vzhled aplikace').inputValue(), 'olivander', 'a second tab receives the stored preference');
+  await preferenceTab.close();
+  await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
   const nav = page.getByRole('navigation', { name: 'Sekce aplikace' });
   for (const [label, heading] of [['Kufr', 'Kufr'], ['Dílna', 'Workshop'], ['Archiv', 'Najdi svoji hůlku.'], ['Nastavení', 'Nastavení'], ['Domov', 'Všechno pro jeden večer.']]) {
     await nav.getByRole('link', { name: label, exact: true }).click(); await hasHeading(heading);
@@ -111,24 +119,96 @@ try {
   await page.waitForURL(/\?k=/); assert.equal(claimCount(), before + 1);
   assert(requests.every(request => !request.url.includes('a'.repeat(40))), 'claim capability never appears in a request URL');
 
-  for (const width of [390, 320]) {
-    await page.setViewportSize({ width, height: 844 });
-    for (const route of ['/', '/connections', '/suitcase', '/workshop', '/archive', '/settings']) {
-      await page.goto(origin + route); await page.getByRole('main').waitFor(); await page.waitForTimeout(100); await fits();
-      if (route === '/') await page.screenshot({ path: path.join(screenshots, `home-${width}.png`), fullPage: true });
+  for (const theme of ['lord-voldemort', 'olivander']) {
+    await page.goto(origin);
+    await page.getByLabel('Vzhled aplikace').selectOption(theme);
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+      for (const route of ['/', '/connections', '/suitcase', '/suitcase/diagnostics', '/suitcase/director', '/workshop', '/archive', '/archive/duel', '/archive/chronicle', '/keepsake/', '/signin', '/settings', '/settings/admin', '/unavailable-page']) {
+        await page.goto(origin + route); await page.getByRole('main').waitFor(); await page.waitForTimeout(100); await fits();
+        assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+        const installer = page.getByRole('link', { name: 'Aplikace pro iPhone', exact: true });
+        assert.equal(await installer.getAttribute('href'), '/ios/');
+        assert(await installer.isVisible(), 'the iPhone distribution link remains visible');
+        assert(await installer.evaluate(link => link.getBoundingClientRect().height >= 44), 'the iPhone link retains a 44px touch target');
+        if (route === '/') {
+          const homeInstaller = page.getByRole('link', { name: 'Stáhnout aplikaci pro iPhone', exact: true });
+          assert.equal(await homeInstaller.getAttribute('href'), '/ios/');
+          assert(await homeInstaller.isVisible(), 'browser home makes iPhone installation discoverable');
+          assert(await page.locator('.home-primary-actions .aw-button--primary').evaluate(link => {
+            const sample = document.createElement('span');
+            sample.style.color = 'var(--aw-on-accent)';
+            link.append(sample);
+            const expected = getComputedStyle(sample).color;
+            sample.remove();
+            return getComputedStyle(link).color === expected;
+          }), 'primary links retain accessible text on the accent surface');
+        }
+        const name = route.replace(/^\/|\/$/g, '').replaceAll('/', '-') || 'home';
+        await page.screenshot({ path: path.join(screenshots, `${theme}-${name}-${width}.png`), fullPage: true });
+      }
+      assert(await page.locator('.primary-navigation a').evaluateAll(links => links.every(link => link.getBoundingClientRect().height >= 44)), 'navigation targets retain 44px height');
+    }
+    await page.goto(origin); await hasHeading('Všechno pro jeden večer.');
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    await fits();
+    await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.application-shell')).paddingBottom)
+      >= document.querySelector('.primary-navigation').getBoundingClientRect().height - 1);
+    assert(await page.getByRole('button', { name: 'Stop', exact: true }).isVisible(), 'Stop remains visible with enlarged text');
+    await page.screenshot({ path: path.join(screenshots, `${theme}-home-320-text-200.png`), fullPage: true });
+    await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+  }
+  await page.goto(origin); await page.keyboard.press('Tab'); assert.equal(await page.locator(':focus').textContent(), 'Přejít na obsah');
+
+  // Synthetic owner UI evidence only. This does not authenticate against a
+  // backend, create a passkey or permit any management mutation.
+  const ownerRequests = [];
+  const owner = { id: 'synthetic-owner', displayName: 'SYNTETICKÝ VLASTNÍK · UI FIXTURE', roles: ['Owner'] };
+  await context.route('**/app/v1/**', async route => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    ownerRequests.push({ path: pathname, method: request.method() });
+    const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
+    if (request.method() !== 'GET') return json({ code: 'synthetic_fixture_read_only' }, 405);
+    if (pathname === '/app/v1/session') return json({ enabled: true, account: owner, csrfToken: 'synthetic-owner-csrf' });
+    if (pathname === '/app/v1/account') return json({
+      devices: [], associations: [], grants: [], passkeyCount: 1,
+      passkeys: [{ id: 'synthetic-key', name: 'Syntetický přístupový klíč', createdAt: '2026-10-20T00:00:00Z', isBackedUp: true }],
+      sessions: [{ id: 'synthetic-session', installationName: 'Syntetický prohlížeč', current: true, trusted: false, expiresAt: 1900000000 }],
+    });
+    if (pathname === '/app/v1/archive/associations') return json({ items: [] });
+    if (pathname === '/app/v1/admin/users') return json({ users: [{ ...owner, disabled: false }], grants: [] });
+    if (pathname === '/app/v1/admin/model-releases') return json({ enabled: false, active: null, releases: [], invalidReleases: 0, truncated: false, integrity: 'synthetic-fixture' });
+    if (pathname === '/app/v1/admin/operations/status') return json({
+      modes: { revision: 'synthetic-fixture', activeConversations: 0, personalityId: 'fixture', personalities: [{ id: 'fixture', name: 'Syntetická osobnost' }], characterEnabled: false, characterTone: 'Reserved', characterFinaleProfile: 'Blocked', characterVersion: 'synthetic-fixture' },
+      readiness: { accounts: true, keepsakes: false, keepsakeGeneration: false, passkeyRelyingParty: 'synthetic-fixture', nativeAssociationConfigured: false },
+      archive: [],
+    });
+    return route.fallback();
+  });
+  for (const theme of ['lord-voldemort', 'olivander']) {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+      await page.goto(origin + '/settings');
+      await page.getByLabel('Název přístupového klíče 1', { exact: true }).waitFor();
+      await page.getByLabel('Vzhled aplikace').selectOption(theme);
+      await fits();
+      await page.screenshot({ path: path.join(screenshots, `${theme}-synthetic-owner-settings-${width}.png`), fullPage: true });
+      await page.goto(origin + '/settings/admin');
+      const resource = page.getByLabel('Identifikátor prostředku', { exact: true });
+      await resource.fill('synthetic-unsaved-grant');
+      const original = await resource.elementHandle();
+      await page.getByLabel('Vzhled aplikace').selectOption(theme === 'olivander' ? 'lord-voldemort' : 'olivander');
+      assert.equal(await resource.inputValue(), 'synthetic-unsaved-grant', 'theme switching preserves an unsaved management draft');
+      assert(await resource.evaluate((element, previous) => element === previous, original), 'theme switching retains the management control');
+      await page.getByLabel('Vzhled aplikace').selectOption(theme);
+      await fits();
+      await page.screenshot({ path: path.join(screenshots, `${theme}-synthetic-owner-admin-${width}.png`), fullPage: true });
     }
   }
-  await page.goto(origin); await hasHeading('Všechno pro jeden večer.');
-  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
-  await fits();
-  await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.application-shell')).paddingBottom)
-    >= document.querySelector('.primary-navigation').getBoundingClientRect().height - 1);
-  assert(await page.getByRole('button', { name: 'Stop', exact: true }).isVisible(), 'Stop remains visible with enlarged text');
-  await page.screenshot({ path: path.join(screenshots, 'home-320-text-200.png'), fullPage: true });
-  await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
-  await page.goto(origin); await page.keyboard.press('Tab'); assert.equal(await page.locator(':focus').textContent(), 'Přejít na obsah');
+  assert(ownerRequests.every(request => request.method === 'GET'), 'theme checks never send a management mutation');
   assert.deepEqual(errors, [], 'no uncaught application errors');
-  console.log(`PASS compiled application: navigation, deep links, compatibility, claim capture, demo isolation, focus, theme, keyboard, 1440/390/320 layouts and 200% text. Screenshots: ${screenshots}`);
+  console.log(`PASS compiled application: all 14 route views (including unauthenticated/invalid-capability gates), synthetic owner settings/admin, management draft preservation with no writes, iPhone links, navigation, deep links, compatibility, claim capture, demo isolation, focus, both themes, keyboard, 1440/390/320 layouts and 200% text. Screenshots: ${screenshots}`);
   await context.close();
 } catch (error) {
   console.error('Application errors:', errors);

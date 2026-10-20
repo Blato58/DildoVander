@@ -4,12 +4,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const designTokens = JSON.parse(fs.readFileSync(path.join(__dirname,'../../design-system/tokens.json'),'utf8'));
 
 class Element {
   constructor(document = null) {
     this.document = document; this.parent = null; this.rendered = true;
     this.value = ''; this.checked = true; this.hidden = true;
-    this.children = []; this.style = {}; this.listeners = {}; this.attributes = {};
+    this.children = []; this.style = {}; this.dataset = {}; this.listeners = {}; this.attributes = {};
     this.clientWidth = 800; this.clientHeight = 600; this.width = 800; this.height = 600;
     this.offsetWidth = 100; this.offsetHeight = 22;
   }
@@ -17,7 +18,7 @@ class Element {
   fire(name, event = {}) { this.listeners[name]?.({preventDefault() {}, ...event}); }
   setAttribute(name, value) { this.attributes[name] = value; }
   set innerHTML(value) { this.textContent = value.replace(/<[^>]*>/g, ''); }
-  getAttribute(name) { return this.attributes[name]; }
+  getAttribute(name) { return name === 'data-theme' ? this.dataset.theme : this.attributes[name]; }
   append(node) { node.parent = this; this.children.push(node); }
   add(node) { this.append(node); }
   replaceChildren(...nodes) { this.children = []; for (const node of nodes) this.append(node); }
@@ -33,7 +34,7 @@ class Element {
 }
 
 function viewer(routes = [], extraMeshes = [], data = {}) {
-  const elements = new Map(), frames = [], geometryUploads = [], backgroundColors = [];
+  const elements = new Map(), frames = [], geometryUploads = [], backgroundColors = [], selectionColors = [], shaderSources = [];
   let document;
   let labelMeasurements = 0, clockNow = 0, audioStarts = 0;
   const get = id => { if (!elements.has(id)) elements.set(id, new Element(document)); return elements.get(id); };
@@ -45,7 +46,9 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   const constants = new Map();
   const gl = new Proxy({
     getShaderParameter: () => true, getProgramParameter: () => true,
-    getAttribLocation: () => 0, getUniformLocation: () => 0,
+    getAttribLocation: () => 0, getUniformLocation: (_program, name) => name,
+    shaderSource: (_shader, source) => shaderSources.push(source),
+    uniform3fv: (location, value) => { if (location === 'selectionColor') selectionColors.push([...value]); },
     checkFramebufferStatus: () => gl.FRAMEBUFFER_COMPLETE,
     clearColor: (...color) => backgroundColors.push(color),
     readPixels: (x,y,w,h,format,type,pixel) => { pixel[0] = hit; },
@@ -75,7 +78,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   }
   document = {
     activeElement:null, documentElement:new Element(),
-    getElementById:get, createElement, createElementNS:() => new Element(document),
+    querySelector:() => get('theme-meta'), getElementById:get, createElement, createElementNS:() => new Element(document),
     listeners:{}, addEventListener(name, callback) { this.listeners[name] = callback; },
   };
   // Model only the ancestry/visibility needed by keyboard focus; layout stays fake.
@@ -96,12 +99,19 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   };
   const context = {
     document, window, devicePixelRatio:data.devicePixelRatio || 1,
+    getComputedStyle: () => ({ getPropertyValue: name => {
+      const theme = designTokens.themeRegistry[document.documentElement.dataset.theme];
+      const palette = designTokens.themes[theme.palette];
+      const resolve = value => value.replace(/var\(--aw-([a-z-]+)\)/g, (_match, key) => resolve(palette[key] || designTokens.primitives[key]));
+      return resolve(palette[name.replace('--aw-', '')]);
+    } }),
     performance:{now:()=>clockNow},
     model:{meshes,routes,sources:[],hinge:[0,0,0],mechanism:{count:6,origin_y:21,origin_z:12,cam_y:112,cam_z:36,dwell_degrees:20,travel_degrees:160,lift:16},...data},
     localStorage:{getItem:key => key === 'dildovander.theme' ? data.theme || null : null,setItem() {}},
     Option:class {constructor(text,value) {this.textContent = text; this.value = value;}},
     requestAnimationFrame:callback => frames.push(callback),
   };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../design-system/theme.js'),'utf8'), context);
   require('./ui_test_runtime.cjs')(context);
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'viewer_engine_core.js'),'utf8'), context);
   context.F2GraphicsCore=context.window.F2GraphicsCore;
@@ -111,7 +121,7 @@ function viewer(routes = [], extraMeshes = [], data = {}) {
   const hover = id => { hit = id; get('view').fire('pointermove',{clientX:400,clientY:300,shiftKey:true}); flush(); };
   const click = () => { get('view').fire('pointerdown',{clientX:400,clientY:300,pointerId:1}); flush(); };
   const lights = () => vm.runInNewContext('lightStates.map(color=>color && [...color])', context);
-  return {get,hover,click,flush,frame,document,window,meshes,geometryUploads,backgroundColors,api:window.F2,lights,
+  return {get,hover,click,flush,frame,document,window,meshes,geometryUploads,backgroundColors,selectionColors,shaderSources,api:window.F2,lights,
     now:()=>clockNow,advanceTo:timestamp=>{clockNow=timestamp;},audioStarts:()=>audioStarts,measurements:()=>labelMeasurements};
 }
 
@@ -1027,19 +1037,28 @@ test('part search matches names and descriptions without changing model visibili
   assert.equal(app.get('tree').children.length, 2);
 });
 
-test('theme changes the viewer background without modifying physical material colors', () => {
+test('theme changes viewer background and selection without modifying physical material colors', () => {
   const app = viewer();
+  app.hover(1); app.click();
+  const pinnedId = app.get('mesh-id').textContent;
   const colors = app.meshes.map(mesh => [...mesh.color]);
-  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'dark');
+  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'lord-voldemort');
   app.get('theme-toggle').onclick(); app.flush();
-  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'light');
-  assert.equal(app.get('theme-toggle').getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(app.backgroundColors.at(-1), [238/255,241/255,245/255,1]);
-  assert.deepEqual(app.meshes.map(mesh => [...mesh.color]), colors);
-  app.get('theme-toggle').onclick(); app.flush();
-  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'dark');
+  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'olivander');
+  assert.match(app.get('theme-toggle').getAttribute('aria-label'), /Olivander.*Lord Voldemort/);
   assert.deepEqual(app.backgroundColors.at(-1), [27/255,36/255,48/255,1]);
-  assert.equal(viewer([],[],{theme:'light'}).document.documentElement.getAttribute('data-theme'), 'light');
+  assert.deepEqual(app.selectionColors.at(-1), [184/255,192/255,1]);
+  assert.deepEqual(app.meshes.map(mesh => [...mesh.color]), colors);
+  assert.equal(app.get('mesh-id').textContent, pinnedId, 'Theme changes preserve pinned selection');
+  app.get('theme-toggle').onclick(); app.flush();
+  assert.equal(app.document.documentElement.getAttribute('data-theme'), 'lord-voldemort');
+  assert.deepEqual(app.backgroundColors.at(-1), [15/255,15/255,17/255,1]);
+  assert.deepEqual(app.selectionColors.at(-1), [96/255,106/255,204/255]);
+  const fragment = app.shaderSources.find(source => source.includes('precision mediump float'));
+  assert.match(fragment, /uniform vec3 color,selectionColor/);
+  assert.match(fragment, /mix\(color\*l,selectionColor,highlight\)/);
+  assert.doesNotMatch(fragment, /vec3\(\.722,\.753,1\.\)/);
+  assert.equal(viewer([],[],{theme:'light'}).document.documentElement.getAttribute('data-theme'), 'olivander');
 });
 
 test('opening runtime tools clears competing mobile drawers and other tools can close runtime', () => {

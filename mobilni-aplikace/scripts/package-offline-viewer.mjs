@@ -7,8 +7,9 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readModelBundle } from './validate-model-bundle.mjs';
+import { themeBootstrap } from '../vite.config.mjs';
 
-async function viewerProvenance(appRoot) {
+export async function viewerSourceHash(appRoot) {
   const paths = [];
   async function collect(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -22,12 +23,19 @@ async function viewerProvenance(appRoot) {
   await collect(path.resolve(appRoot, '../design-system/components'));
   await collect(path.resolve(appRoot, '../design-system/fonts'));
   paths.push(path.resolve(appRoot, '../design-system/arcane-workshop.css'));
+  for (const name of ['theme.js', 'theme.mjs']) paths.push(path.resolve(appRoot, '../design-system', name));
+  paths.push(path.join(appRoot, 'vite.config.mjs'));
   paths.push(path.join(appRoot, 'package-lock.json'), path.join(appRoot, 'scripts/package-offline-viewer.mjs'));
   for (const name of ['viewer_engine_core.js', 'twin_core.js', 'timeline_core.js', 'twin_media_core.js', 'twin_media_controller.js']) paths.push(path.resolve(appRoot, '../mechanika/final', name));
   const digest = createHash('sha256');
   for (const absolute of paths.sort()) { digest.update(path.relative(appRoot, absolute).replaceAll('\\', '/') + '\0'); digest.update(await readFile(absolute)); }
+  return digest.digest('hex');
+}
+
+async function viewerProvenance(appRoot) {
+  const sourceHash = await viewerSourceHash(appRoot);
   const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: appRoot, encoding: 'utf8' }).trim();
-  return { viewerSourceRevision: revision, viewerSourceHash: digest.digest('hex') };
+  return { viewerSourceRevision: revision, viewerSourceHash: sourceHash };
 }
 
 export async function packageOffline({ bundleDirectory, output, allowFixture = false }) {
@@ -36,7 +44,7 @@ export async function packageOffline({ bundleDirectory, output, allowFixture = f
   const virtualId = 'virtual:workshop-offline-bundle';
   const result = await build({
     configFile: false, root: appRoot, base: './', publicDir: false, logLevel: 'warn',
-    plugins: [vue(), {
+    plugins: [themeBootstrap(), vue(), {
       name: 'selected-offline-model',
       resolveId(id) { if (id === virtualId) return '\0' + virtualId; },
       load(id) { if (id === '\0' + virtualId) return `export default ${JSON.stringify(bundle)};`; },

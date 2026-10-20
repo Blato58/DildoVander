@@ -39,6 +39,7 @@ class PanelTests(unittest.TestCase):
             ("/controller.mjs", b"BenchController"),
             ("/panel-ui.mjs", b"mountBenchUi"),
             ("/design-system/ui.js", b"export function button"),
+            ("/design-system/theme.js", b"DildoVanderTheme"),
             ("/design-system/arcane-workshop.css", b"palette.css"),
         ]:
             response = self.get(path)

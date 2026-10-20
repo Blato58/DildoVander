@@ -88,6 +88,8 @@ async function noOverflow(page, label) {
 
 async function screenshot(page, name) {
   if (!screenshotDirectory) return;
+  const theme = await page.locator('html').getAttribute('data-theme');
+  name = `${theme}-${name}`;
   await page.screenshot({ path: path.join(screenshotDirectory, `${name}.png`), fullPage: true });
   await page.screenshot({ path: path.join(screenshotDirectory, `${name}-viewport.png`) });
 }
@@ -103,12 +105,12 @@ async function playground(page, origin) {
   await page.evaluate(() => document.fonts.ready);
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const theme of ['dark', 'light']) {
+    for (const theme of ['olivander', 'lord-voldemort']) {
       await page.locator('#theme').selectOption(theme);
       await page.waitForFunction((selectedTheme) => {
         const style = getComputedStyle(document.querySelector('#buttons .aw-button--primary'));
-        return style.backgroundColor === (selectedTheme === 'dark' ? 'rgb(184, 192, 255)' : 'rgb(78, 85, 148)') &&
-          style.color === (selectedTheme === 'dark' ? 'rgb(27, 36, 48)' : 'rgb(255, 255, 255)');
+        return style.backgroundColor === (selectedTheme === 'olivander' ? 'rgb(184, 192, 255)' : 'rgb(96, 106, 204)') &&
+          style.color === (selectedTheme === 'olivander' ? 'rgb(27, 36, 48)' : 'rgb(255, 255, 255)');
       }, theme);
       const styles = await page.evaluate(() => {
         const button = document.querySelector('#buttons .aw-button--primary');
@@ -123,9 +125,9 @@ async function playground(page, origin) {
           interLoaded: Array.from(document.fonts).some((font) => font.family === 'Inter' && font.status === 'loaded'),
         };
       });
-      const expected = theme === 'dark'
+      const expected = theme === 'olivander'
         ? ['rgb(27, 36, 48)', 'rgb(238, 241, 245)', 'rgb(184, 192, 255)', 'rgb(27, 36, 48)']
-        : ['rgb(238, 241, 245)', 'rgb(27, 36, 48)', 'rgb(78, 85, 148)', 'rgb(255, 255, 255)'];
+        : ['rgb(15, 15, 17)', 'rgb(227, 228, 230)', 'rgb(96, 106, 204)', 'rgb(255, 255, 255)'];
       assert.deepEqual([styles.background, styles.foreground, styles.actionBackground, styles.actionForeground], expected, `${theme} ${width}: computed color contract`);
       assert.deepEqual([styles.mist, styles.midnight, styles.steel, styles.periwinkle], ['#EEF1F5', '#1B2430', '#8A94A6', '#B8C0FF']);
       assert.equal(styles.radius, '6px');
@@ -160,7 +162,7 @@ async function playground(page, origin) {
   assert.equal(await page.locator('#tab-wands').getAttribute('aria-selected'), 'true');
   assert.equal(await page.locator('#tab-device').getAttribute('tabindex'), '-1');
   assert.equal(await page.locator('[role=tab][tabindex="0"]').count(), 1);
-  assert.equal(await page.locator('#tab-wands').evaluate((tab) => getComputedStyle(tab).outlineWidth), '3px');
+  assert.equal(await page.locator('#tab-wands').evaluate((tab) => getComputedStyle(tab).outlineWidth), '2px');
 
   await page.locator('#open-dialog').click();
   assert.equal(await page.locator('#example-dialog').evaluate((dialog) => dialog.open), true);
@@ -182,11 +184,11 @@ async function playground(page, origin) {
   assert.equal(await page.locator('#open-dialog').evaluate((control) => control === document.activeElement), true, 'native method=dialog restores invoker focus');
 
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
-  await page.locator('#theme').selectOption('system');
+  await page.locator('#theme').selectOption('olivander');
   const reduced = await page.locator('#buttons button').first().evaluate((control) => ({ transition: getComputedStyle(control).transitionDuration, duration: getComputedStyle(document.body).getPropertyValue('--aw-motion-fast').trim(), background: getComputedStyle(document.body).backgroundColor }));
   assert.ok(reduced.transition.split(',').every((duration) => duration.trim() === '0s'));
   assert.equal(reduced.duration, '0ms');
-  assert.equal(reduced.background, 'rgb(238, 241, 245)', 'opt-in system follows OS light scheme');
+  assert.equal(reduced.background, 'rgb(27, 36, 48)', 'identity remains stable when the OS changes');
   const nested = await page.evaluate(() => {
     const outer = document.createElement('section');
     outer.dataset.theme = 'dark';
@@ -202,7 +204,7 @@ async function playground(page, origin) {
   assert.deepEqual(nested, ['rgb(238, 241, 245)', 'rgb(27, 36, 48)']);
   await page.emulateMedia({ reducedMotion: 'no-preference', colorScheme: 'dark' });
   await assertOffline(page, 'playground');
-  console.log('PASS playground: dark/light 320/390/768/1280, 200% text, tokens, touch, tabs, dialog, fields, reduced motion');
+  console.log('PASS playground: Lord Voldemort/Olivander 320/390/768/1280, 200% text, tokens, touch, tabs, dialog, fields, reduced motion');
 }
 
 async function simulator(page, origin) {
@@ -226,8 +228,9 @@ async function simulator(page, origin) {
     assert.ok((await page.locator('#model-guidance').textContent()).includes('Veřejný náhled simulace'));
     await screenshot(page, `simulator-static-${width}`);
   }
+  const before = await page.locator('html').getAttribute('data-theme');
   await page.locator('#theme-toggle').click();
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+  assert.equal(await page.locator('html').getAttribute('data-theme'), before === 'olivander' ? 'lord-voldemort' : 'olivander');
   console.log('PASS simulator: real modules, static-preview credential/observer guard, theme, responsive layout');
 }
 
@@ -423,11 +426,12 @@ async function main() {
     const page = await context.newPage();
     page.setDefaultTimeout(10000);
     await playground(page, origin);
-    await simulator(page, origin);
-    await servo(page, origin);
-    await installer(page, origin);
-    // Shared application journeys live in mobilni-aplikace/tests/application.browser.mjs.
-    await viewer(page, origin);
+    for (const theme of ['lord-voldemort', 'olivander']) {
+      for (const inspect of [simulator, servo, installer, viewer]) {
+        await page.evaluate(selected => globalThis.DildoVanderTheme.setTheme(selected), theme);
+        await inspect(page, origin);
+      }
+    }
     assert.deepEqual(blocked, [], 'all resources remain confined to this loopback static server');
     assert.deepEqual(errors, [], 'no browser console or module errors');
     await context.close();

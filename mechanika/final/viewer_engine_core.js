@@ -158,7 +158,7 @@ function placeLabels(labels,width,height) {
   }
   return placements;
 }
-const shaders={"vertex": "\n  attribute vec3 p,n; uniform mat4 projection,view,move; varying vec3 normal;\n  void main(){gl_Position=projection*view*move*vec4(p,1.);normal=mat3(move)*n;}", "fragment": "\n  precision mediump float; uniform vec3 color; uniform bool picking; uniform float highlight,opacity; varying vec3 normal;\n  void main(){if(picking){gl_FragColor=vec4(color,1.);return;}\n    float l=.48+.42*max(0.,dot(normalize(normal),normalize(vec3(.4,-.7,1.))))+.1*abs(normalize(normal).z);\n    gl_FragColor=vec4(mix(color*l,vec3(.722,.753,1.),highlight),opacity);}"};
+const shaders={"vertex": "\n  attribute vec3 p,n; uniform mat4 projection,view,move; varying vec3 normal;\n  void main(){gl_Position=projection*view*move*vec4(p,1.);normal=mat3(move)*n;}", "fragment": "\n  precision mediump float; uniform vec3 color,selectionColor; uniform bool picking; uniform float highlight,opacity; varying vec3 normal;\n  void main(){if(picking){gl_FragColor=vec4(color,1.);return;}\n    float l=.48+.42*max(0.,dot(normalize(normal),normalize(vec3(.4,-.7,1.))))+.1*abs(normalize(normal).z);\n    gl_FragColor=vec4(mix(color*l,selectionColor,highlight),opacity);}"};
 const api={placeLabels,shaders,uploadGeometry,identity,translate,rotX,transform,subtract,dot,cross,norm,look,perspective,lift,motionFor,movement,corners,fitScene,boundTarget,boundDistance,panCamera,projectPoint,componentOf,physicalEndpoint,routePoints,focusMeshes,cameraViews};
 if(typeof module!=='undefined' && module.exports)module.exports=api;else root.F2GraphicsCore=api;
 })(typeof window==='undefined'?globalThis:window);

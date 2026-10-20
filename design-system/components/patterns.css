@@ -1,9 +1,9 @@
 /* Component classes are opt-in; no form or application state is changed here. */
 .aw-root { margin: 0; background: var(--aw-void); color: var(--aw-ivory); font-family: var(--aw-font-ui); font-size: var(--aw-text-body); line-height: var(--aw-line-body); -webkit-font-smoothing: antialiased; }
 .aw-root *, .aw-root *::before, .aw-root *::after { box-sizing: border-box; }
-.aw-root a { color: var(--aw-accent); text-underline-offset: 4px; }
+.aw-root a { color: var(--aw-link); text-underline-offset: 4px; }
 .aw-root :is(button, input, select, textarea) { font: inherit; }
-.aw-root :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 3px solid var(--aw-info); outline-offset: 4px; }
+.aw-root :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: var(--aw-focus-width) solid var(--aw-info); outline-offset: var(--aw-focus-offset); }
 .aw-root :is(h1, h2, h3, p) { margin-top: 0; }
 .aw-root h1 { font: var(--aw-weight-heading) var(--aw-text-title)/var(--aw-line-heading) var(--aw-font-display); letter-spacing: var(--aw-tracking-heading); text-wrap: balance; }
 .aw-root h2 { font-size: var(--aw-text-heading); line-height: 1.4; }
@@ -30,7 +30,7 @@
 .aw-span-12 { grid-column: span 12; }
 .aw-stack { display: grid; gap: var(--aw-space-4); }
 .aw-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--aw-space-3); }
-.aw-card { padding: var(--aw-space-6); background: var(--aw-surface); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); min-width: 0; }
+.aw-card { padding: var(--aw-panel-padding); background: var(--aw-surface); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); min-width: 0; }
 .aw-card-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--aw-space-3); flex-wrap: wrap; margin-bottom: var(--aw-space-4); }
 .aw-card-heading h2 { margin: 0; }
 .aw-badge { display: inline-flex; align-items: center; gap: var(--aw-space-2); padding: var(--aw-space-1) var(--aw-space-3); border: 1px solid var(--aw-border-subtle); border-radius: 4px; color: var(--aw-muted); font-size: .75rem; font-weight: 600; white-space: nowrap; }
@@ -38,7 +38,7 @@
 .aw-badge--warning { color: var(--aw-warning); }
 .aw-badge--danger { color: var(--aw-danger); }
 .aw-badge--info { color: var(--aw-info); }
-.aw-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--aw-space-2); min-height: var(--aw-touch); padding: var(--aw-space-2) var(--aw-space-4); border: 1px solid var(--aw-accent); border-radius: var(--aw-radius-control); background: var(--aw-accent); color: var(--aw-on-accent); text-decoration: none; cursor: pointer; }
+.aw-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--aw-space-2); min-height: var(--aw-touch); padding: var(--aw-button-padding); border: 1px solid var(--aw-accent); border-radius: var(--aw-radius-control); background: var(--aw-accent); color: var(--aw-on-accent); text-decoration: none; cursor: pointer; }
 .aw-root .aw-button { font: 600 var(--aw-text-body)/1.4 var(--aw-font-ui); }
 .aw-root a.aw-button { color: var(--aw-on-accent); text-decoration: none; }
 .aw-button:hover { filter: brightness(1.06); }

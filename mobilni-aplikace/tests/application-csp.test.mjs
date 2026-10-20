@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { applicationCsp } from '../vite.config.mjs';
+import { applicationCsp, themeBootstrap } from '../vite.config.mjs';
+
+test('the synchronous theme bootstrap participates in the strict build CSP', () => {
+  const html = themeBootstrap().transformIndexHtml.handler('<head><meta charset="utf-8"><link rel="stylesheet" href="app.css"></head>');
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  assert.ok(html.indexOf('charset') < html.indexOf('<script>'));
+  assert.ok(html.indexOf('</script>') < html.indexOf('<link'));
+  assert.ok(script.includes('DildoVanderTheme'));
+  const [meta] = applicationCsp().transformIndexHtml.handler(html);
+  assert.ok(meta.attrs.content.includes(`sha256-${createHash('sha256').update(script.replace(/\r\n?/g, '\n')).digest('base64')}`));
+});
 
 test('early capability capture CSP uses HTML parser line endings on every checkout', () => {
   const script = '\nwindow.capture = true;\n';

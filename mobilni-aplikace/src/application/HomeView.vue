@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { Capacitor } from '@capacitor/core';
 import { account } from '../features/identity/session';
 import { deviceSession } from '../features/suitcase/deviceSession';
 
 const source = computed(() => deviceSession.target.value);
+const browserMode = !Capacitor.isNativePlatform();
 const greeting = computed(() => account.value ? `Vítejte, ${account.value.displayName}` : 'Všechno pro jeden večer.');
 const evening = ref<{ label: string; latest?: string } | null>(null);
 const eveningState = ref('Načítám přehled večera…');
@@ -32,6 +34,7 @@ onBeforeUnmount(() => controller.abort());
       <p class="eyebrow">DildoVander</p><h1>{{ greeting }}</h1>
       <p class="home-lead">Připojte kufr, prohlédněte sestavu nebo se vraťte k příběhu své hůlky.</p>
       <div class="home-primary-actions"><RouterLink class="aw-button aw-button--primary" :to="source === 'unavailable' ? '/connections' : '/suitcase'">{{ source === 'unavailable' ? 'Připojit kufr' : 'Otevřít kufr' }}</RouterLink><RouterLink class="aw-button aw-button--secondary" to="/archive">Najít příběh hůlky</RouterLink></div>
+      <div v-if="browserMode" class="home-download"><p class="aw-muted">Na webu si prohlédnete model, archiv a označenou simulaci. Nativní funkce iPhonu jsou dostupné v instalované aplikaci.</p><a class="aw-button aw-button--secondary" href="/ios/">Stáhnout aplikaci pro iPhone</a></div>
       <p v-if="!account" class="aw-muted">Veřejné příběhy a model si můžete prohlédnout rovnou. Účet zpřístupní oprávnění a správu.</p>
       <section class="home-evening" aria-label="Aktivní večer"><p class="eyebrow">{{ eveningState }}</p><template v-if="evening"><h2>{{ evening.label }}</h2><p v-if="evening.latest">Poslední připravená hůlka: {{ evening.latest }}</p><RouterLink to="/archive">Otevřít tento večer →</RouterLink></template></section>
     </section>

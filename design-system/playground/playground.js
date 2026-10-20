@@ -30,4 +30,3 @@ const dialog = bindDialog(document.querySelector('#example-dialog'), {
   onClose(value) { document.querySelector('#dialog-result').textContent = value === 'confirmed' ? 'Ukázka potvrzena. Focus se vrátil na tlačítko.' : 'Ukázka zrušena. Focus se vrátil na tlačítko.'; },
 });
 document.querySelector('#open-dialog').addEventListener('click', (event) => dialog.open(event.currentTarget));
-document.querySelector('#theme').addEventListener('change', (event) => { document.documentElement.dataset.theme = event.target.value; });

@@ -32,10 +32,15 @@ kontraktem. Název souboru neoznačuje aktuální vizuální identitu. Nový kó
 používá `--aw-accent`; `--aw-brass` je pouze alias `var(--aw-accent)` pro
 starší spotřebitele. Sémantické role se zachovávají napříč tématy.
 
-Výchozí téma je tmavé. Vlastník aplikace může nastavit `data-theme="dark"`,
-`data-theme="light"` nebo opt-in `data-theme="system"` na HTML či kořen UI.
-Systémová volba používá `prefers-color-scheme`. CSS neukládá preference ani
-nevytváří přepínač; vlastníkem chování zůstává aplikace.
+Výchozí vizuální identita je **Lord Voldemort** (`lord-voldemort`), tmavý
+Codex-inspired vzhled. **Olivander** (`olivander`) zachovává původní Vapour
+Chrome. Společný synchronní runtime `theme.js` řeší počáteční téma, místní
+persistenci a okamžité přepnutí; Vue používá `theme.mjs`. Výběr je v nastavení
+a v hlavičce aplikace i v samostatných nástrojích. Historické dark/light/system
+CSS selektory zůstávají kompatibilní s archivovanými integracemi.
+
+Podrobnosti, hranice synchronizace, přidání tématu a obnovu původního designu
+popisuje [Theme system](THEMES.md).
 
 Inter se používá pro titulky i UI, IBM Plex Mono pro technické údaje.
 Fonty jsou lokální a nevyžadují CDN. Offline CAD viewer musí vložit importy

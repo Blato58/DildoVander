@@ -97,7 +97,7 @@ def installer_design_css(design, generated):
     return css.replace("</style", "<\\/style")
 
 
-def native_installer_design(source, css, midnight):
+def native_installer_design(source, css, midnight, runtime="", controls=""):
     """Replace only the explicit generated block in the editable publisher."""
     lines = source.splitlines(keepends=True)
     begins = [index for index, line in enumerate(lines) if line.rstrip("\r\n") == INSTALLER_BEGIN]
@@ -107,13 +107,15 @@ def native_installer_design(source, css, midnight):
     newline = "\r\n" if lines[begins[0]].endswith("\r\n") else "\n"
     block = (f"# Derived from design-system/tokens.json and canonical component CSS.{newline}"
              f"INSTALLER_THEME_COLOR = {midnight!r}{newline}"
+             f"INSTALLER_THEME_JS = {runtime!r}{newline}"
+             f"INSTALLER_THEME_CONTROLS = {controls!r}{newline}"
              f"INSTALLER_DESIGN_CSS = {css!r}{newline}")
     return "".join(lines[:begins[0] + 1]) + block + "".join(lines[ends[0]:])
 
 
 def validate_tokens(data):
     """Reject malformed or executable CSS before writing any platform output."""
-    groups = {"$schemaVersion", "name", "primitives", "themes", "fonts", "typography", "layout", "motion", "reducedMotion"}
+    groups = {"$schemaVersion", "name", "primitives", "themes", "fonts", "typography", "layout", "motion", "reducedMotion", "themeRegistry", "defaultTheme"}
     if not isinstance(data, dict) or set(data) != groups or type(data["$schemaVersion"]) is not int or data["$schemaVersion"] != 1 or data["name"] != "Vapour Chrome":
         raise ValueError("Expected Vapour Chrome token schema version 1 and its declared groups.")
 
@@ -137,8 +139,8 @@ def validate_tokens(data):
     for key, value in primitives.items():
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
             raise ValueError(f"Invalid six-digit primitive color: {key}.")
-    if not isinstance(data["themes"], dict) or set(data["themes"]) != {"dark", "light"}:
-        raise ValueError("Expected dark and light themes.")
+    if not isinstance(data["themes"], dict) or not {"dark", "light", "lord-voldemort"}.issubset(data["themes"]):
+        raise ValueError("Expected preserved dark/light palettes and Lord Voldemort.")
     required_roles = {"void", "surface", "elevated", "ivory", "muted", "accent", "on-accent", "accent-soft", "success", "danger", "warning", "info", "border", "border-subtle", "shadow", "brass", "disabled-foreground", "disabled-background", "viewer-background", "viewer-grid", "viewer-selection", "overlay"}
     for theme, values in data["themes"].items():
         token_map(values, theme)
@@ -183,6 +185,25 @@ def validate_tokens(data):
 
     for group in ("typography", "layout", "motion", "reducedMotion"):
         token_map(data[group], group)
+    registry = data["themeRegistry"]
+    if not isinstance(registry, dict) or not {"lord-voldemort", "olivander"}.issubset(registry):
+        raise ValueError("Required visual identities are missing.")
+    if data["defaultTheme"] != "lord-voldemort":
+        raise ValueError("Lord Voldemort must remain the fallback theme.")
+    for identifier, definition in registry.items():
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", identifier) or not isinstance(definition, dict) or set(definition) != {"label", "palette", "presentation"}:
+            raise ValueError("Invalid theme registry entry.")
+        if not isinstance(definition["label"], str) or not re.fullmatch(r"[A-Za-z0-9 -]+", definition["label"]):
+            raise ValueError("Invalid theme label.")
+        if not isinstance(definition["palette"], str) or definition["palette"] not in data["themes"]:
+            raise ValueError("Invalid theme label or palette.")
+        token_map(definition["presentation"], identifier)
+        if set(definition["presentation"]) != set(registry["olivander"]["presentation"]):
+            raise ValueError("Presentation roles must match across identities.")
+        for value in definition["presentation"].values():
+            dimension = r"-?(?:\d*\.)?\d+(?:px|rem|em)"
+            if not re.fullmatch(rf"{dimension}(?: {dimension})*|clamp\({dimension}, (?:\d*\.)?\d+vw, {dimension}\)", value):
+                raise ValueError("Invalid theme presentation dimension.")
     typography = data["typography"]
     require_keys(typography, ["font-display", "font-ui", "font-mono", "text-body", "text-small", "text-title", "text-heading", "text-display"], "typography")
     for key, value in typography.items():
@@ -240,8 +261,15 @@ def outputs(data, root=ROOT):
     dark, light = data["themes"]["dark"], data["themes"]["light"]
     palette = HEADER + rule(":root", data["primitives"])
     palette += "\n[data-theme] { color: var(--aw-ivory); }\n\n"
-    palette += theme_rule(":root, [data-theme='dark'], [data-theme='system']", "dark", dark)
-    palette += "\n" + theme_rule("[data-theme='light']", "light", light)
+    registry = data["themeRegistry"]
+    for identifier, definition in registry.items():
+        selector = f"[data-theme='{identifier}']"
+        if identifier == data["defaultTheme"]:
+            selector = ":root, " + selector
+        values = {**data["themes"][definition["palette"]], **definition["presentation"]}
+        palette += theme_rule(selector, "dark", values) + "\n"
+    palette += theme_rule("[data-theme='dark'], [data-theme='system']", "dark", {**dark, **registry["olivander"]["presentation"]})
+    palette += "\n" + theme_rule("[data-theme='light']", "light", {**light, **registry["olivander"]["presentation"]})
     palette += "\n@media (prefers-color-scheme: light) {\n"
     palette += theme_rule("[data-theme='system']", "light", light, "  ") + "}\n"
     typography = HEADER
@@ -256,22 +284,44 @@ def outputs(data, root=ROOT):
     motion = HEADER + rule(":root", data["motion"])
     motion += "\n@media (prefers-reduced-motion: reduce) {\n"
     motion += rule(":root", data["reducedMotion"], "  ") + "}\n"
-    groups = ["primitives", "themes", "typography", "layout", "motion"]
+    groups = ["primitives", "themes", "typography", "layout", "motion", "themeRegistry", "defaultTheme"]
     module = "// Generated by scripts/generate_design_tokens.py; edit tokens.json.\n"
     module += "const freeze = (value) => { Object.values(value).forEach((item) => { if (item && typeof item === 'object') freeze(item); }); return Object.freeze(value); };\n"
     for group in groups:
         module += f"export const {group} = freeze({json.dumps(data[group], indent=2)});\n"
-    module += "export const tokens = Object.freeze({ primitives, themes, typography, layout, motion });\nexport default tokens;\n"
+    module += "export const tokens = Object.freeze({ primitives, themes, typography, layout, motion, themeRegistry, defaultTheme });\nexport default tokens;\n"
     declaration = "// Generated by scripts/generate_design_tokens.py; edit tokens.json.\n"
     for group in groups:
         declaration += f"export declare const {group}: {typescript_type(data[group])};\n"
-    declaration += "export declare const tokens: Readonly<{ primitives: typeof primitives; themes: typeof themes; typography: typeof typography; layout: typeof layout; motion: typeof motion }>;\nexport default tokens;\n"
+    declaration += "export declare const tokens: Readonly<{ primitives: typeof primitives; themes: typeof themes; typography: typeof typography; layout: typeof layout; motion: typeof motion; themeRegistry: typeof themeRegistry; defaultTheme: typeof defaultTheme }>;\nexport default tokens;\n"
     names = {"mist": "VapourMist", "midnight": "ChromeMidnight", "steel": "SteelGrey", "periwinkle": "DigitalPeriwinkle"}
     csharp = "// <auto-generated />\n// Source: design-system/tokens.json\nnamespace Kufr.Backend.Shared;\n\npublic static class DesignTokens\n{\n"
     for key, name in names.items():
         csharp += f'    public const string {name} = "{data["primitives"][key]}";\n'
     csharp += "}\n"
+    runtime = (design / "theme-runtime.js").read_text(encoding="utf-8")
+
+    def background(definition):
+        palette = {**data["primitives"], **data["themes"][definition["palette"]]}
+        value = palette["void"]
+        while reference := re.fullmatch(r"var\(--aw-([a-z][a-z0-9-]*)\)", value):
+            value = palette[reference[1]]
+        return value
+
+    entries = [{"id": identifier, "label": definition["label"], "background": background(definition)} for identifier, definition in registry.items()]
+    runtime = runtime.replace("/* THEME_REGISTRY */", "const themes = " + json.dumps(entries) + ";\n  const defaultTheme = " + json.dumps(data["defaultTheme"]) + ";")
+    theme_types = "// Generated by scripts/generate_design_tokens.py; edit tokens.json.\n"
+    theme_types += "export type ThemeId = " + " | ".join(json.dumps(identifier) for identifier in registry) + ";\n"
+    theme_types += """export declare const themes: readonly Readonly<{ id: ThemeId; label: string; background: string }>[];
+export declare const defaultTheme: ThemeId;
+export declare function normalizeTheme(value: unknown): ThemeId;
+export declare function getTheme(): ThemeId;
+export declare function setTheme(value: unknown): ThemeId;
+export declare function subscribe(listener: (theme: ThemeId) => void): () => void;
+"""
     generated = {
+        design / "theme.js": HEADER + runtime,
+        design / "theme.d.mts": theme_types,
         design / "tokens/palette.css": palette,
         design / "tokens/typography.css": typography,
         design / "tokens/layout.css": HEADER + rule(":root", data["layout"]),
@@ -282,11 +332,12 @@ def outputs(data, root=ROOT):
     }
     storyboard = root / LAUNCH_STORYBOARD
     if storyboard.is_file():
-        generated[storyboard] = native_launch_background(read_output(storyboard), data["primitives"]["midnight"])
+        generated[storyboard] = native_launch_background(read_output(storyboard), data["themes"]["lord-voldemort"]["void"])
     installer = root / INSTALLER_SCRIPT
     if installer.is_file():
         css = installer_design_css(design, generated)
-        generated[installer] = native_installer_design(read_output(installer), css, data["primitives"]["midnight"])
+        controls = (design / "theme-controls.js").read_text(encoding="utf-8")
+        generated[installer] = native_installer_design(read_output(installer), css, data["themes"]["lord-voldemort"]["void"], HEADER + runtime, controls)
     return generated
 
 

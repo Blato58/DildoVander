@@ -31,9 +31,9 @@ try {
   try { await page.getByText('SYNTETICKÁ UI FIXTURE', { exact: true }).waitFor({ timeout: 10000 }); }
   catch (error) { console.error(JSON.stringify({ failures, body: await page.locator('body').innerText(), artifact })); throw error; }
   await page.getByRole('button', { name: 'Celý model', exact: true }).click();
-  await page.getByLabel('Vzhled offline vieweru').selectOption('light');
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
-  await page.getByLabel('Vzhled offline vieweru').selectOption('dark');
+  await page.getByLabel('Vzhled offline vieweru').selectOption('olivander');
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
+  await page.getByLabel('Vzhled offline vieweru').selectOption('lord-voldemort');
   await page.getByRole('button', { name: 'Syntetický UI blok', exact: true }).click();
   assert.equal(await page.getByLabel('Barva dílu').count(), 1);
   await page.getByRole('button', { name: 'Montáž', exact: true }).click();
@@ -58,11 +58,18 @@ try {
   const before = await page.locator('.workshop-overlay [data-wire-id="fixture-lift"]').getAttribute('points');
   await page.getByLabel('Přihrádka 1', { exact: true }).evaluate(input => { input.value = '80'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.waitForFunction(previous => document.querySelector('.workshop-overlay [data-wire-id="fixture-lift"]')?.getAttribute('points') !== previous, before);
-  await page.screenshot({ path: path.join(output, 'desktop.png'), fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: path.join(output, 'mobile.png'), fullPage: true });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  const canvas = await page.locator('canvas').elementHandle();
+  for (const theme of ['lord-voldemort', 'olivander']) {
+    await page.getByLabel('Vzhled offline vieweru').selectOption(theme);
+    assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+    assert(await page.locator('canvas').evaluate((element, original) => element === original, canvas), 'theme switching retains the WebGL canvas');
+    for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
+      await page.setViewportSize({ width, height });
+      await page.screenshot({ path: path.join(output, `${theme}-${name}.png`), fullPage: true });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    }
+  }
   assert.deepEqual(requests, []); assert.deepEqual(failures, []);
-  console.log(JSON.stringify({ status: 'passed', artifact, screenshots: ['desktop.png', 'mobile.png'].map(name => path.join(output, name)), networkRequests: requests.length, pageErrors: failures.length }));
+  console.log(JSON.stringify({ status: 'passed', artifact, screenshots: ['lord-voldemort-desktop.png', 'lord-voldemort-mobile.png', 'olivander-desktop.png', 'olivander-mobile.png'].map(name => path.join(output, name)), networkRequests: requests.length, pageErrors: failures.length }));
   await context.close();
 } finally { await browser.close(); }

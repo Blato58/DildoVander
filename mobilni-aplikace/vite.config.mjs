@@ -2,10 +2,28 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 const localDirectory = relative => fileURLToPath(new URL(relative, import.meta.url));
+
+// Run the canonical resolver before CSS or Vue can render. The build CSP hashes
+// this exact inline source, and the offline packager reuses the same hook.
+export function themeBootstrap() {
+  return {
+    name: 'application-theme-bootstrap',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        const source = readFileSync(localDirectory('../design-system/theme.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
+        // Keep the encoding declaration within the first 1024 bytes. The
+        // synchronous resolver still runs before every stylesheet and module.
+        return html.replace(/(<meta\b[^>]*\bcharset\s*=[^>]*>)/i, match => `${match}\n<script>${source}</script>`);
+      },
+    },
+  };
+}
 
 function applicationBuildIdentity() {
   try {
@@ -57,7 +75,7 @@ export function applicationCsp() {
 
 export default defineConfig({
   define: { __DV_APPLICATION_BUILD__: JSON.stringify(applicationBuildIdentity()) },
-  plugins: [vue(), captureWorkletAsset(), applicationCsp()],
+  plugins: [themeBootstrap(), vue(), captureWorkletAsset(), applicationCsp()],
   base: '/',
   // The offline entry has a virtual bundle supplied only by its packager.
   optimizeDeps: { entries: ['index.html'] },

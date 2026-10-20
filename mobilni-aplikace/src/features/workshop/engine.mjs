@@ -3,6 +3,22 @@ import { graphics } from './graphics.mjs';
 import { overlaySnapshot } from './overlays.mjs';
 export const uploadGeometry=graphics.uploadGeometry;
 const {look}=graphics;
+
+function cssColor(value, fallback) {
+  const hex = value.trim().match(/^#([a-f0-9]{6})$/i);
+  if (hex) return [0, 2, 4].map(index => parseInt(hex[1].slice(index, index + 2), 16) / 255);
+  const rgb = value.trim().match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+  return rgb ? rgb.slice(1, 4).map(channel => Math.max(0, Math.min(255, Number(channel))) / 255) : fallback;
+}
+
+export function viewerThemeColors(canvas) {
+  const ownerDocument = canvas.ownerDocument;
+  const style = ownerDocument?.defaultView?.getComputedStyle(ownerDocument.documentElement);
+  return {
+    background: cssColor(style?.getPropertyValue('--aw-viewer-background') || '', [27 / 255, 36 / 255, 48 / 255]),
+    selection: cssColor(style?.getPropertyValue('--aw-viewer-selection') || '', [.722, .753, 1]),
+  };
+}
 export const matchesPart = (name, pattern) => name === pattern || name.startsWith(pattern.endsWith('*') ? pattern.slice(0, -1) : pattern.endsWith('_') ? pattern : pattern + '_');
 export function partVisible(mesh, state, guide) {
   if (state.hidden.includes(mesh.id) || state.hiddenGroups.includes(mesh.group) || state.isolate && state.isolate !== mesh.id) return false;
@@ -71,7 +87,7 @@ export function createViewerEngine(canvas, model, { onSelect = () => {}, onCamer
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) || 'WebGL linking failed');
     gl.useProgram(program);
-    const uniforms = Object.fromEntries(['projection', 'view', 'move', 'color', 'picking', 'highlight', 'opacity'].map(key => [key, gl.getUniformLocation(program, key)]));
+    const uniforms = Object.fromEntries(['projection', 'view', 'move', 'color', 'selectionColor', 'picking', 'highlight', 'opacity'].map(key => [key, gl.getUniformLocation(program, key)]));
     const position = gl.getAttribLocation(program, 'p'), normal = gl.getAttribLocation(program, 'n');
     gl.enableVertexAttribArray(position); gl.enableVertexAttribArray(normal); gl.enable(gl.DEPTH_TEST);
     const geometry = model.meshes.map((mesh, index) => {
@@ -93,9 +109,10 @@ export function createViewerEngine(canvas, model, { onSelect = () => {}, onCamer
     function draw(picking = false) {
       if (disposed) return;
       resize(); gl.useProgram(program); gl.viewport(0, 0, canvas.width, canvas.height);
-      const theme=globalThis.document?.documentElement?.getAttribute('data-theme');
-      const light=theme==='light' || theme==='system' && globalThis.matchMedia?.('(prefers-color-scheme: light)').matches;
-      const background=light?[238,241,245]:[27,36,48]; gl.clearColor(...(picking?[0,0,0]:background.map(channel=>channel/255)),picking?0:1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      const colors = viewerThemeColors(canvas);
+      gl.clearColor(...(picking ? [0, 0, 0] : colors.background), picking ? 0 : 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.uniform3fv(uniforms.selectionColor, colors.selection);
       if(automaticFit) {
         const fitted=graphics.fitScene(model.meshes.filter(mesh=>partVisible(mesh,state,model.assemblyGuide)),model,state,yaw,pitch,canvas.clientWidth,canvas.clientHeight);
         if(fitted) {target=fitted.target;distance=fitted.distance;}
@@ -188,8 +205,6 @@ export function createViewerEngine(canvas, model, { onSelect = () => {}, onCamer
       themeObserver=new MutationObserver(invalidate);
       themeObserver.observe(ownerDocument.documentElement,{attributes:true,attributeFilter:['data-theme']});
     }
-    const colorPreference=globalThis.matchMedia?.('(prefers-color-scheme: light)');
-    if(colorPreference?.addEventListener)listen(colorPreference,'change',invalidate);
     const motionPreference=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
     if(motionPreference?.addEventListener)listen(motionPreference,'change',()=>{
       if(motionPreference.matches && cameraTransition){target=cameraTransition.target;distance=cameraTransition.distance;cameraTransition=null;}

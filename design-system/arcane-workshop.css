@@ -1,8 +1,9 @@
 /* Vapour Chrome. Historical entry filename is a compatibility contract.
    Keep imports relative for offline and hosted consumers. */
-@import url('./tokens/palette.css');
 @import url('./tokens/typography.css');
 @import url('./tokens/layout.css');
 @import url('./tokens/motion.css');
+@import url('./tokens/palette.css');
 @import url('./components/patterns.css');
 @import url('./components/framework.css');
+@import url('./components/identities.css');

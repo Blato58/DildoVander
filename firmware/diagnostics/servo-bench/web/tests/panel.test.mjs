@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { mountBenchUi, benchGuidance } from "../panel-ui.mjs";
 
-const ids = ["connection-actions", "pulse-actions", "calibration-actions", "auto-actions", "stop-actions", "calibration-fields", "log-empty", "connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm",
+const ids = ["theme-toggle", "connection-actions", "pulse-actions", "calibration-actions", "auto-actions", "stop-actions", "calibration-fields", "log-empty", "connect", "disconnect", "connection", "support", "channel", "pulse-width", "arm",
   "pulse", "stop", "state", "error", "readback", "log", "mcp", "bench-readiness",
   "calibration-support", "cal-width", "cal-duration", "cal-range", "cal-minus", "cal-plus", "cal-1200", "cal-1500", "cal-1800",
   "cal-arm", "cal-move", "cal-validation", "profile-title", "profile-label", "profile-save-label", "profile-values",
@@ -59,9 +59,18 @@ function fakePage(serial, modelContext, localStorage) {
     set textContent(value) { this._text = value; },
     set innerHTML(value) { this.markup = value; this._text = value.replace(/<[^>]*>/g, ""); },
     disabled: false, value: id === "channel" ? "0" : "1500", hidden: false,
+    attributes: {}, setAttribute(name, value) { this.attributes[name] = value; },
     listeners: {}, addEventListener(event, listener) { this.listeners[event] = listener; },
     async click() { if (!this.disabled) await this.listeners.click?.(); },
   }]));
+  let theme = "lord-voldemort";
+  const themeListeners = new Set();
+  globalThis.DildoVanderTheme = {
+    themes: [{ id: "lord-voldemort", label: "Lord Voldemort" }, { id: "olivander", label: "Olivander" }],
+    getTheme: () => theme,
+    setTheme(value) { theme = value; themeListeners.forEach(listener => listener(value)); },
+    subscribe(listener) { themeListeners.add(listener); return () => themeListeners.delete(listener); },
+  };
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: serial ? { serial } : {} });
   const windowListeners = new Map();
@@ -70,6 +79,7 @@ function fakePage(serial, modelContext, localStorage) {
   globalThis.document = { getElementById: id => elements[id], modelContext, visibilityState: "visible",
     addEventListener: (name, listener) => documentListeners.set(name, listener) };
   return { elements, windowListeners, documentListeners, restore() {
+    delete globalThis.DildoVanderTheme;
     delete globalThis.window;
     delete globalThis.document;
     if (originalNavigator) Object.defineProperty(globalThis, "navigator", originalNavigator);
@@ -96,6 +106,10 @@ test("real panel button handlers require explicit Arm and Pulse and disconnect f
   const receive = async line => { nextRead({ value: new TextEncoder().encode(`${line}\n`), done: false }); await tick(); };
   try {
     await import(`../panel.mjs?buttons=${Date.now()}`);
+    await page.elements["theme-toggle"].click();
+    assert.match(page.elements["theme-toggle"].textContent, /Olivander/);
+    assert.match(page.elements["theme-toggle"].attributes["aria-label"], /Lord Voldemort/);
+    assert.deepEqual(writes, [], "Theme changes must not write to the physical controller");
     assert.equal(el.arm.disabled, true);
     assert.equal(el.pulse.disabled, true);
     await el.connect.click();
@@ -112,6 +126,9 @@ test("real panel button handlers require explicit Arm and Pulse and disconnect f
     await receive("SERVO_BENCH ARMED for one pulse, 10 seconds");
     assert.equal(el.pulse.disabled, false);
     assert.match(el["bench-readiness"].textContent, /Arm potvrzen/);
+    await el["theme-toggle"].click();
+    assert.equal(el.pulse.disabled, false, "Theme changes preserve acknowledged Arm state");
+    assert.deepEqual(writes, ["!\n", "arm\n"], "Theme changes never send motion or Stop");
     await el.pulse.click();
     await tick();
     assert.equal(el.pulse.disabled, true);

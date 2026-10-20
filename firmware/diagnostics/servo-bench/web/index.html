@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="cs">
+<html lang="cs" data-theme="lord-voldemort">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Servo bench · DildoVander</title>
+  <script src="/design-system/theme.js"></script>
   <link rel="stylesheet" href="/design-system/arcane-workshop.css">
   <link rel="stylesheet" href="./panel.css">
   <script type="module" src="./panel.mjs"></script>
@@ -13,7 +14,9 @@
   <main id="bench-main" class="aw-main bench">
     <header class="aw-header">
       <div><h1>Servo bench</h1><p class="aw-muted">DildoVander · ruční kalibrace jednoho volného serva</p></div>
-      <span class="aw-badge aw-badge--warning">REAL USB · skutečný hardware</span>
+      <div class="bench-header-actions"><span class="aw-badge aw-badge--warning">REAL USB · skutečný hardware</span>
+        <button id="theme-toggle" class="aw-button aw-button--secondary" type="button">Vzhled: Lord Voldemort</button>
+      </div>
     </header>
     <p class="bench-boundary">Příkazy ovládají skutečný PWM signál. Napájení ani poloha serva se neměří. Připravte fyzické odpojení 5 V serv.</p>
     <div id="bench-readiness" class="bench-readiness"></div>
