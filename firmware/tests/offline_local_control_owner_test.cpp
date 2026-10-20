@@ -8,6 +8,7 @@
 
 #include "physical_effects_test_support.h"
 #include "../src/features/device_control/DeviceStorageRuntime.h"
+#include "../src/features/device_control/DeviceStorageStartup.h"
 #include "../src/features/offline_show/OfflineEvidenceBridge.h"
 #include "../src/features/local_control/LocalControlOwner.h"
 #include "../src/features/local_control/LocalControlTransport.h"
@@ -54,28 +55,43 @@ JournalIdentityView Identity(bool provisioned = true) {
   if (provisioned) identity.deviceId = Device;
   return identity;
 }
+struct DurableBytes {
+  std::vector<uint8_t> journal, marker, online, offline;
+};
 struct BoundStorage {
-  BoundStorage() {
+  explicit BoundStorage(unsigned boot = 0, const DurableBytes* persisted = nullptr)
+      : bootId(boot ? Id(100000 + boot) : Boot) {
     IoScope io;
-    PersistentCommandJournal core(journal);
-    JournalIdentityOwner identity(marker, core);
-    KeepsakeCommittedInventory onlineSource(online);
-    OfflineCommittedInventory offlineSource(offline);
-    assert(identity.BeginFactory(Device, Identity(false), true));
-    assert(core.EstablishScopedIdentity(Device, true));
-    assert(onlineSource.Establish(Device, true));
-    assert(offlineSource.EstablishBinding(Device, true));
-    JournalEvidenceInventory a, b;
-    assert(onlineSource.ReadCommitted(a) && offlineSource.ReadCommitted(b));
-    assert(identity.Finalize(Identity(), a, b, true));
-    assert(core.PersistReadyMask(63));
-    storage = std::make_unique<DeviceStorageRuntime>(journal, marker, online, offline, Identity(),
+    if (persisted) {
+      journal.bytes = persisted->journal; marker.bytes = persisted->marker;
+      online.bytes = persisted->online; offline.bytes = persisted->offline;
+    } else {
+      PersistentCommandJournal core(journal);
+      JournalIdentityOwner identity(marker, core);
+      KeepsakeCommittedInventory onlineSource(online);
+      OfflineCommittedInventory offlineSource(offline);
+      assert(identity.BeginFactory(Device, Identity(false), true));
+      assert(core.EstablishScopedIdentity(Device, true));
+      assert(onlineSource.Establish(Device, true));
+      assert(offlineSource.EstablishBinding(Device, true));
+      JournalEvidenceInventory a, b;
+      assert(onlineSource.ReadCommitted(a) && offlineSource.ReadCommitted(b));
+      assert(identity.Finalize(Identity(), a, b, true));
+      assert(core.PersistReadyMask(63));
+    }
+    startup = std::make_unique<DeviceStorageStartup>(journal, marker, online, offline, Identity(),
         DeviceStorageRuntime::Policy::BoundedCompaction);
-    assert(storage->Boot());
+    assert(startup->Boot() && startup->CurrentState() == DeviceStorageStartup::State::Established);
+    assert(startup->ImageStorageHealthy() && !startup->RequiresService());
+    storage = startup->Runtime();
+    assert(storage && startup->ControlJournal().CurrentEpoch() != 0);
   }
-  bool Work() { IoScope io; return storage->RunOne(); }
+  bool Work() { IoScope io; return startup->RunOne(); }
+  DurableBytes CaptureBytes() const { return {journal.bytes, marker.bytes, online.bytes, offline.bytes}; }
+  std::string bootId;
   Memory journal, marker, online, offline;
-  std::unique_ptr<DeviceStorageRuntime> storage;
+  std::unique_ptr<DeviceStorageStartup> startup;
+  DeviceStorageRuntime* storage = nullptr;
 };
 const uint8_t Samples[] = {0, 0};
 const Clip Clips[] = {
@@ -143,7 +159,27 @@ class Output final : public LocalControlOutputPort {
     lastLease = lease; return true;
   }
   bool Heartbeat(const LocalSocketAdmission::Handle&, const LocalControlMessage&, uint64_t) override { return true; }
-  bool CommandAck(const LocalSocketAdmission::Handle&, const LocalControlMessage&, const CommandReceipt&) override { return true; }
+  struct CommandDelivery {
+    LocalSocketAdmission::Handle handle;
+    LocalControlMessage message;
+    CommandReceipt receipt;
+    bool sent;
+  };
+  bool CommandAck(const LocalSocketAdmission::Handle& handle, const LocalControlMessage& message,
+      const CommandReceipt& receipt) override {
+    if (beforeCommandAck) beforeCommandAck();
+    commands.push_back({handle, message, receipt, commandAckSucceeds});
+    return commandAckSucceeds;
+  }
+  size_t CommandCount(const LocalControlMessage& message) const {
+    size_t count = 0;
+    for (const auto& delivery : commands)
+      count += delivery.message.messageId == message.messageId && delivery.sent;
+    return count;
+  }
+  std::vector<CommandDelivery> commands;
+  std::function<void()> beforeCommandAck;
+  bool commandAckSucceeds = true;
   bool ConversationAck(const LocalSocketAdmission::Handle&, const LocalControlMessage&,
       const ConversationCommandReceipt&) override { return true; }
   bool ConversationResult(const LocalSocketAdmission::Handle&, const std::string&, uint64_t, const std::string&) override { return true; }
@@ -180,18 +216,18 @@ class Steps final : public LocalControlStepPort {
   void OnStep(const SelectionStep&) override {}
 };
 struct Fixture : BoundStorage {
-  Fixture()
-      : effects(io), safetyPort(effects), safety(safetyPort), sequence(safety, true),
-        control(Device, Boot, sequence, storage->ControlJournal(), 1), state(false, 0, ""),
+  explicit Fixture(unsigned boot = 0, const DurableBytes* persisted = nullptr)
+      : BoundStorage(boot, persisted), effects(io), safetyPort(effects), safety(safetyPort), sequence(safety, true),
+        control(Device, bootId, sequence, startup->ControlJournal(), 1), state(false, 0, ""),
         runtime(control, sequence, state, OfflineShow::CatalogVersion()), physical(effects, runtime),
         presentation(physical), audio(clock), bridge(storage->EvidenceRequests(), *storage),
-        show(runtime, state, control, presentation, physical, audio, bridge, Device, Boot, Evening, &Bank),
-        conversation(Boot, Id(900)), inbox(Device, Boot), transport(inbox),
-        owner(Device, Boot, runtime, state, conversation, network, inbox, transport, output, ids, recovery, steps, clock) {
+        show(runtime, state, control, presentation, physical, audio, bridge, Device, bootId, Evening, &Bank),
+        conversation(bootId, Id(900)), inbox(Device, bootId), transport(inbox),
+        owner(Device, bootId, runtime, state, conversation, network, inbox, transport, output, ids, recovery, steps, clock) {
     calibration.fill({1100, 1900, 120});
     assert(effects.Configure(calibration, 1)); effects.Tick(0); effects.Tick(clock.now);
     assert(effects.RecoverAfterInspection() && runtime.BindPresentation(presentation));
-    physical.BindClock(ReadClock, this); physical.BindBootIdentity(Boot);
+    physical.BindClock(ReadClock, this); physical.BindBootIdentity(bootId);
     for (unsigned attempt = 0; attempt != 12 && !runtime.RecoverAfterInspection(); ++attempt) Work();
     assert(!runtime.NeedsRecovery());
     owner.BindOffline(show);
@@ -201,7 +237,7 @@ struct Fixture : BoundStorage {
   LocalControlMessage Message(LocalControlMessageKind kind, unsigned id) const {
     LocalControlMessage message;
     message.kind = kind; message.messageId = Id(id); message.commandId = message.messageId;
-    message.deviceId = Device; message.bootId = Boot; message.controlLeaseId = Lease;
+    message.deviceId = Device; message.bootId = bootId; message.controlLeaseId = Lease;
     message.generation = runtime.Generation(); message.expectedRevision = control.Revision();
     message.operationEpoch = control.OperationEpoch(); message.hasOperationEpoch = true;
     message.compartment = 3; message.issuedAtDeviceMs = clock.now; message.maxAgeMs = 1000;
@@ -268,6 +304,141 @@ struct Fixture : BoundStorage {
   std::array<ServoCalibration, 6> calibration{};
   LocalSocketAdmission::Handle handle{7, 1};
 };
+
+void ManualOwnerLifecyclesAcrossProductionBoots() {
+  constexpr unsigned Boots = 128, PerBoot = 8;
+  static_assert(Boots * PerBoot == 1024, "Keep the actual owner workload explicit");
+  DurableBytes persisted;
+  LocalControlMessage first;
+  uint64_t compactions = 0, simulated = 0, finalEpoch = 0;
+  unsigned delivered = 0, heartbeats = 0;
+  for (unsigned boot = 0; boot != Boots; ++boot) {
+    // Every prior owner and its reference-holding consumers are destroyed before
+    // the next startup reconstructs authority exclusively from durable bytes.
+    Fixture fixture(boot + 1, boot ? &persisted : nullptr);
+    fixture.Connect(); fixture.Acquire();
+    for (unsigned cycle = 0; cycle != PerBoot; ++cycle) {
+      const unsigned operation = boot * PerBoot + cycle + 1;
+      fixture.Send(fixture.Message(LocalControlMessageKind::Heartbeat, 20000 + operation));
+      ++heartbeats;
+      auto command = fixture.Message(LocalControlMessageKind::Selection, 1000 + operation);
+      command.sequence = cycle + 1;
+      if (operation == 1) first = command;
+      const auto epoch = fixture.control.OperationEpoch();
+      const auto revision = fixture.control.Revision();
+      const int servoBefore = fixture.io.servoWrites, vibrationBefore = fixture.io.vibrationWrites;
+      fixture.output.beforeCommandAck = [&]() {
+        assert(!fixture.sequence.IsBusy());
+        assert(fixture.io.servoWrites == servoBefore && fixture.io.vibrationWrites == vibrationBefore);
+        assert(fixture.control.HasManualControl() && fixture.clock.now < command.issuedAtDeviceMs + command.maxAgeMs);
+      };
+      fixture.Send(command);
+      fixture.Send(command); // Pending exact duplicate must retain the original envelope.
+      assert(fixture.output.CommandCount(command) == 0 && fixture.output.commands.size() == cycle);
+      assert(!fixture.sequence.IsBusy() && fixture.io.servoWrites == servoBefore);
+      fixture.Tick(false);
+      assert(fixture.output.CommandCount(command) == 0 && !fixture.sequence.IsBusy());
+      assert(fixture.Work()); // Journal begin is durable before owner ACK adoption.
+      assert(fixture.output.CommandCount(command) == 0 && !fixture.sequence.IsBusy());
+      fixture.owner.Tick();
+      assert(fixture.output.CommandCount(command) == 1 && fixture.sequence.IsBusy());
+      const auto& ack = fixture.output.commands.back();
+      assert(ack.sent && ack.receipt.error == CommandError::None && ack.receipt.outcome == CommandOutcome::Accepted);
+      assert(!ack.receipt.deferred && !ack.receipt.duplicate);
+      assert(ack.handle.generation == fixture.handle.generation && ack.handle.socket == fixture.handle.socket);
+      assert(ack.message.bootId == command.bootId && ack.message.generation == command.generation);
+      assert(ack.message.operationEpoch == epoch && ack.message.sequence == command.sequence);
+      assert(ack.message.expectedRevision == revision && ack.message.issuedAtDeviceMs == command.issuedAtDeviceMs);
+      assert(ack.message.maxAgeMs == command.maxAgeMs && ack.message.controlLeaseId == command.controlLeaseId);
+      fixture.output.beforeCommandAck = {};
+      ++delivered;
+      const auto started = fixture.clock.now;
+      while (fixture.control.HasPendingSelection()) {
+        assert(fixture.clock.now - started < 15000);
+        if ((fixture.clock.now - started) % 1000 == 0) {
+          fixture.Send(fixture.Message(LocalControlMessageKind::Heartbeat, 30000 + operation));
+          ++heartbeats;
+        }
+        fixture.Tick();
+      }
+      assert(fixture.control.LastResult().commandId == command.commandId);
+      assert(fixture.control.LastResult().outcome == CommandOutcome::Completed);
+      assert(fixture.io.servoWrites > servoBefore && fixture.io.vibrationWrites > vibrationBefore);
+      assert(!fixture.sequence.IsBusy() && !fixture.storage->ControlJournal().HasPending());
+      assert(fixture.output.CommandCount(command) == 1 && fixture.transport.closes == 0);
+      for (unsigned drain = 0; drain != 3; ++drain) fixture.Tick();
+      finalEpoch = fixture.control.OperationEpoch();
+    }
+    compactions += fixture.storage->Compactions(); simulated += fixture.clock.now - 30;
+    persisted = fixture.CaptureBytes();
+  }
+  assert(delivered == Boots * PerBoot && compactions >= 2 && finalEpoch > first.operationEpoch);
+  Fixture reopened(Boots + 1, &persisted); reopened.Connect(); reopened.Acquire();
+  const auto servoBefore = reopened.io.servoWrites;
+  auto replay = first; replay.bootId = reopened.bootId;
+  reopened.Send(replay);
+  assert(reopened.output.CommandCount(replay) == 1);
+  assert(reopened.output.commands.back().receipt.error == CommandError::WrongOperationEpoch);
+  assert(reopened.io.servoWrites == servoBefore && !reopened.sequence.IsBusy());
+  std::printf("manual LocalControlOwner production-startup workload: cycles=%u boots=%u verificationBoots=1 compactions=%llu finalEpoch=%llu simulatedMs=%llu successfulACKs=%u heartbeats=%u\n",
+      Boots * PerBoot, Boots, static_cast<unsigned long long>(compactions), static_cast<unsigned long long>(finalEpoch),
+      static_cast<unsigned long long>(simulated), delivered, heartbeats);
+}
+
+void ManualOwnerFailedAckAndExpiredDeferredIntentNeverMove() {
+  for (bool expires : {false, true}) {
+    Fixture fixture; fixture.Connect(); fixture.Acquire();
+    auto command = fixture.Message(LocalControlMessageKind::Selection, 9000);
+    command.sequence = 1;
+    const auto servoBefore = fixture.io.servoWrites, vibrationBefore = fixture.io.vibrationWrites;
+    fixture.Send(command);
+    assert(fixture.output.commands.empty() && !fixture.sequence.IsBusy());
+    assert(fixture.Work());
+    if (expires) fixture.clock.now += command.maxAgeMs + 1;
+    else fixture.output.commandAckSucceeds = false;
+    fixture.owner.Tick();
+    assert(fixture.output.commands.size() == 1);
+    const auto& ack = fixture.output.commands.back();
+    if (expires) assert(ack.sent && ack.receipt.error == CommandError::Expired);
+    else assert(!ack.sent && ack.receipt.error == CommandError::None && fixture.transport.closes != 0);
+    for (unsigned drain = 0; drain != 20; ++drain) fixture.Tick();
+    assert(fixture.io.servoWrites == servoBefore && fixture.io.vibrationWrites == vibrationBefore);
+    assert(!fixture.sequence.IsBusy() && fixture.control.NeedsRecovery());
+  }
+}
+
+void ManualOwnerFinalAckCannotReviveRevokedIntent() {
+  enum class Cut { Stop, SocketRevocation, AckTtlExpiry, AckLeaseExpiry };
+  for (const auto cut : {Cut::Stop, Cut::SocketRevocation, Cut::AckTtlExpiry, Cut::AckLeaseExpiry}) {
+    Fixture fixture; fixture.Connect(); fixture.Acquire();
+    auto command = fixture.Message(LocalControlMessageKind::Selection, 9100);
+    command.sequence = 1;
+    const auto servoBefore = fixture.io.servoWrites, vibrationBefore = fixture.io.vibrationWrites;
+    fixture.Send(command);
+    assert(fixture.output.commands.empty() && !fixture.sequence.IsBusy());
+    if (cut != Cut::Stop) {
+      assert(fixture.Work());
+      fixture.output.beforeCommandAck = [&]() {
+        if (cut == Cut::SocketRevocation) fixture.inbox.Disconnect(fixture.handle);
+        else fixture.clock.now += cut == Cut::AckTtlExpiry
+            ? command.maxAgeMs + 1 : DeviceControl::ManualLeaseDurationMs + 1;
+      };
+      fixture.owner.Tick();
+      fixture.output.beforeCommandAck = {};
+      assert(fixture.output.commands.size() == 1 && fixture.output.commands.back().sent);
+      fixture.owner.Poll();
+    } else {
+      fixture.Send(fixture.Message(LocalControlMessageKind::Stop, 9101));
+      assert(fixture.Work()); // The cancelled begin may still become durable.
+      assert(fixture.output.commands.empty());
+    }
+    for (unsigned drain = 0; drain != 20; ++drain) fixture.Tick();
+    assert(fixture.io.servoWrites == servoBefore && fixture.io.vibrationWrites == vibrationBefore);
+    assert(!fixture.sequence.IsBusy() && fixture.control.NeedsRecovery());
+    if (cut == Cut::SocketRevocation || cut == Cut::AckLeaseExpiry) assert(!fixture.control.HasManualControl());
+    if (cut == Cut::Stop) assert(fixture.output.commands.empty());
+  }
+}
 
 void PendingArmRetainsPostHandoffEnvelopeAcrossQueries() {
   Fixture fixture; fixture.Connect(); fixture.Acquire();
@@ -511,6 +682,9 @@ void LeaseExpiryAndMaintenanceCannotRenewInspection() {
 }
 
 int main() {
+  ManualOwnerLifecyclesAcrossProductionBoots();
+  ManualOwnerFailedAckAndExpiredDeferredIntentNeverMove();
+  ManualOwnerFinalAckCannotReviveRevokedIntent();
   PendingArmRetainsPostHandoffEnvelopeAcrossQueries();
   StartAndSyncAckWaitForRealSourceResults();
   StopBeforeArmAcknowledgementAdoptsLateFacts();

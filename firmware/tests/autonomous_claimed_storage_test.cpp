@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "../src/features/device_control/DeviceStorageRuntime.h"
+#include "../src/features/device_control/DeviceStorageStartup.h"
 #include "physical_effects_test_support.h"
 
 namespace {
@@ -61,6 +62,15 @@ struct DurableFixture {
     assert(offlineOwner.ReadCommitted(offlineInventory));
     assert(identity.Finalize(Identity(), onlineInventory, offlineInventory, true));
     assert(journalOwner.PersistReadyMask(63));
+  }
+  std::unique_ptr<DeviceStorageStartup> Start() {
+    auto startup = std::make_unique<DeviceStorageStartup>(journal, marker, online, offline,
+        Identity(), DeviceStorageRuntime::Policy::BoundedCompaction);
+    assert(startup->Boot());
+    assert(startup->CurrentState() == DeviceStorageStartup::State::Established);
+    assert(startup->Runtime() && startup->ImageStorageHealthy() && !startup->RequiresService());
+    assert(startup->ControlJournal().CurrentEpoch() == startup->Runtime()->ControlJournal().CurrentEpoch());
+    return startup;
   }
   std::unique_ptr<DeviceStorageRuntime> Open() {
     return std::make_unique<DeviceStorageRuntime>(journal, marker, online, offline,
@@ -301,8 +311,8 @@ void ExtendedRealPhysicalOwnerCycles() {
   KeepsakeOutcome retained;
   uint64_t compactions = 0, lastEpoch = 0, elapsedMs = 0;
   for (unsigned boot = 0; boot != Boots; ++boot) {
-    auto storage = durable.Open();
-    assert(storage->Boot());
+    auto startup = durable.Start();
+    auto* storage = startup->Runtime();
     Rig owner(*storage, boot + 1);
     for (unsigned cycle = 0; cycle != CyclesPerBoot; ++cycle) {
       const unsigned operation = boot * CyclesPerBoot + cycle + 1;
@@ -329,8 +339,8 @@ void ExtendedRealPhysicalOwnerCycles() {
     elapsedMs += owner.now - 30;
   }
   assert(compactions >= 2 && lastEpoch > retained.operationEpoch);
-  auto storage = durable.Open();
-  assert(storage->Boot());
+  auto startup = durable.Start();
+  auto* storage = startup->Runtime();
   Rig reopened(*storage, 99);
   assert(Contains(Source(*storage).pending, retained));
   assert(HasKeepsakePhysicalEvidence(storage->ControlJournal(), retained));
@@ -340,7 +350,7 @@ void ExtendedRealPhysicalOwnerCycles() {
   assert(!reopened.control.BeginAutonomousPresentation(retained.physicalOperationId, retained.compartment,
       reopened.control.Revision(), retained.physicalFingerprint, retained.operationEpoch));
   assert(reopened.io.servoWrites == before && !reopened.runtime.HasAutonomousPresentation());
-  std::printf("autonomous workload: cycles=%u boots=%u compactions=%llu finalEpoch=%llu simulatedMs=%llu delivered=%u retained=1\n",
+  std::printf("autonomous production-startup workload: cycles=%u boots=%u verificationBoots=1 compactions=%llu finalEpoch=%llu simulatedMs=%llu delivered=%u retained=1\n",
       Boots * CyclesPerBoot, Boots, static_cast<unsigned long long>(compactions),
       static_cast<unsigned long long>(lastEpoch), static_cast<unsigned long long>(elapsedMs),
       Boots * CyclesPerBoot - 1);

@@ -63,7 +63,6 @@ constexpr uint32_t ControlLoopPeriodMs = 10;
 constexpr char CatalogVersion[] = "ollivander-private-party-v1";
 // All physical admission remains held until complete production-consumer crash
 // acceptance. The real storage worker and boot reconciliation are composed now.
-constexpr bool ScopedRuntimeAdmissionEnabled = false;
 
 class UnavailableOfflineStorage final : public kufr::offline::StoragePort {
  public:
@@ -396,7 +395,8 @@ extern "C" void app_main() {
   static EspIdfKeepsakeInventoryStorage onlineStorage(nvsStatus == ESP_OK);
   static kufr::offline::EspIdfOfflineBlobStorage offlineStorage(nvsStatus == ESP_OK);
   static DeviceStorageStartup storageStartup(journalStorage, markerStorage, onlineStorage, offlineStorage,
-      {identity.IsHealthy(), identity.IsProvisioned(), identity.DeviceId()});
+      {identity.IsHealthy(), identity.IsProvisioned(), identity.DeviceId()},
+      DeviceStorageRuntime::Policy::BoundedCompaction);
   static EspIdfDeviceStorageWorker storageWorker(storageStartup);
   const bool storageStarted = storageWorker.Start();
   CommandJournal& journal = storageStartup.ControlJournal();
@@ -567,7 +567,8 @@ extern "C" void app_main() {
     // Boot verification freezes new interactions while permitting STA recovery.
     const bool needsOtaReservation = sdAssets.Reserved() ||
         (firmwareUpdate.Reserved() && otaStatus.state != "verifying-boot");
-    const bool maintaining = !ScopedRuntimeAdmissionEnabled || !storageStarted || storageStartup.RequiresService() || !ownsControlPass ||
+    const bool maintaining = !storageStarted || !sharedStorage || !sharedStorage->AllowsAdmission() ||
+        controlRuntime.HasRecoveryWork() || !ownsControlPass ||
         firmwareUpdate.Reserved() || sdAssets.Reserved();
     const bool recoveryAdmission = ownsControlPass && storageStarted && !storageStartup.RequiresService() &&
         !firmwareUpdate.Reserved() && !sdAssets.Reserved();

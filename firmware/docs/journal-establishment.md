@@ -1,10 +1,10 @@
 # Establishment witness and evidence reconciliation
 
-These components prepare the remaining production journal migration. They are
-compiled and tested separately from production admission. **Production scoped
-admission, pin release and compaction remain disabled; the legacy 32-operation
-limit remains.** Merely linking these classes does not establish an identity or
-prove that the live outboxes use their barrier.
+Production composes the establishment witness, both committed inventories and one
+asynchronous storage owner. An explicitly established device uses scoped admission
+and bounded compaction after complete reconciliation and inspected recovery.
+Normal boot never establishes or rebinds identity, recreates missing storage, or
+restamps legacy evidence. A full pinned window refuses admission conservatively.
 
 The original replay contract is in [journal epochs](journal-epochs.md). The
 backend must already support [original epochs](backend-operation-epochs.md).
@@ -62,16 +62,14 @@ state is not recovery.
 The `diag-network-service` image now composes `JournalServiceEstablishment`
 with the actual `DeviceIdentity`, journal/witness NVS adapters and both committed
 inventory owners. It is an exclusive service image with no actuator or live
-reference producers. Its local barrier is not the unfinished production barrier.
+reference producers. Its local barrier is distinct from the shared production owner.
 The software path has not been executed on a board.
-Production explicitly holds scoped journals and any present or unavailable
-establishment marker behind its existing maintenance admission gates until the
-complete runtime integration is accepted. This also covers interrupted legacy
-preparation before the scoped journal commit. A missing marker alone preserves
-legacy behavior; marker presence is read into static storage without decoding it
-on the production task stack. This refusal-only hold is not validation. Stop and
-passive OTA health checks remain available; service establishment cannot by
-itself activate scoped motion after booting the production image.
+Production decodes the marker only on its storage worker and requires established
+binding plus successful complete-source reconciliation. Interrupted preparation,
+found unbound legacy data, and missing/failed established stores hold motion for
+service. A missing marker alone cannot authorize legacy motion. Stop and passive
+OTA health remain separate; service establishment does not supply physical
+inspection, calibration or authority to resume an interrupted presentation.
 
 The existing USB request envelope and `ACTUATORS_OFF_USB_SERVICE` confirmation
 remain required. An optional `journalEstablishment` field names exactly one
@@ -202,23 +200,23 @@ journal mutations and reconciliation without claiming that physical motion is
 pending. The trusted control owner remains the author of timed completion proof;
 reservation alone cannot provide it.
 
-## Remaining production integration and evidence
+## Production composition and evidence
 
-The production stores currently remain unbound. Startup recovery, every live
-producer and persisted-journal reader still need one barrier with the control
-owner, including original-epoch validation and pin ordering for late producers.
-The scoped online/offline admission paths now reserve before their evidence
-commits, but this is not a substitute for the common barrier or boot gate.
-The exclusive diagnostic caller composes establishment; production startup must
-still prevent motion or inspection mutations during recovery. A ready identity witness alone is not
-physical admission: successful committed-source reconciliation is also required.
-These are required before production activation.
-The synchronous core performs at most one journal write per attempt.
-The [asynchronous journal port](runtime-storage-owner.md) now provides bounded
-request/result ownership and manual deferred acknowledgement. Production still
-requires its worker task, all remaining producers and common barrier composition;
-these methods must not be dropped into the existing control loop as blocking
-work. The host tests do not establish an ESP latency or flash-wear bound.
+The [asynchronous storage runtime](runtime-storage-owner.md) gives all actual
+manual/online/offline producers and persisted readers the same logical barrier.
+Scoped reference creation reserves the original tuple and pin before the source
+commit. No source/journal I/O runs on the control owner. Worker boot publishes the
+post-reconciliation epoch before consumer construction; deferred inspection waits
+for its original resolve ACK and complete-source reconciliation. A source failure
+revokes admission without blocking Stop. Recovery and admission are separate gates.
+
+Registered host workloads use actual production startup: 1,024 LocalControlOwner
+selection/ACK lifecycles across 128 workload boots and 32 compactions; 1,152 manual
+runtime cycles with a restart each; 1,152 online producer cycles over 144 boots;
+and 1,008 offline cycles over 126 boots. Each workload retains replay/evidence
+checks. Actual ACK delivery cuts cover failure, Stop, socket revocation, TTL and
+lease expiry without granting motion. These are simulated actuators and stores,
+not board timing, physical NVS or the separate four-hour media/session soak.
 
 Host tests inject commit cuts, failed writes and committed writes with lost
 ACKs. The combined test runs 1,152 mixed manual/online/offline journal operations

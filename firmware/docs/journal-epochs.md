@@ -49,10 +49,11 @@ Backendová trvalá korelace a outcome ACK používají popsanou
 [migraci backendu](backend-operation-epochs.md). Marker založení identity a
 reconciliation pinů popisuje navazující
 [implementace a její produkční brány](journal-establishment.md).
-Zapojení všech trvalých konzumentů zůstává nutné před produkční aktivací.
-Současný čítač device revision nelze
-vydávat za epochu. Produkční cesta stále používá epochu nula a limit 32 operací;
-kompakce ani automatické uvolňování důkazů nejsou zapnuté.
+Produkce nyní skládá všechny trvalé konzumenty přes společného vlastníka úložiště
+a po explicitním servisním založení používá scoped epochu a bounded kompakci.
+Čítač device revision není epocha. Třicet dva položek omezuje jedno uchované okno,
+nikoli životnost zařízení; plně pinované okno bezpečně odmítne další operaci.
+Legacy či nejasně založené zařízení bez servisní migrace pohyb nepovolí.
 
 ## Pořadí trvalých přechodů
 
@@ -79,8 +80,8 @@ na starší firmware a tovární reset musí mít výslovný migrační postup.
 
 ## Důkazní hranice
 
-Testovací engine má procvičit alespoň 1 000 scoped operací s opakovanou
-kompakcí a restarty, staré epochy, duplicate/conflict, pinované památky,
-legacy formáty a ztracené potvrzení commitů. Tento test sám nedokládá odstranění
-produkčního limitu: to vyžaduje druhý checkpoint a ověření všech producentů.
+Registrované testy procvičují přes 1 000 skutečných lifecycle každého producenta
+přes produkční startup, opakovanou kompakci, restarty a uchované důkazy. Samostatné
+řezy ověřují staré epochy, duplicate/conflict, legacy formáty a ztracené ACK commitů.
+Simulovaný příjem ACK a aktuátory nenahrazují ověření konkrétní desky.
 Skutečné výpadky napájení NVS zůstávají součástí bench akceptace.

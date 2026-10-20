@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "../src/features/device_control/DeviceStorageRuntime.h"
+#include "../src/features/device_control/DeviceStorageStartup.h"
 #include "../src/features/device_control/DeviceControlRuntime.h"
 
 namespace {
@@ -57,6 +58,15 @@ struct Fixture {
     assert(onlineOwner.ReadCommitted(a) && offlineOwner.ReadCommitted(b));
     assert(identity.Finalize(Identity(), a, b, true));
     assert(core.PersistReadyMask(63)); // explicit fixture inventory loading, after service finalization
+  }
+  std::unique_ptr<DeviceStorageStartup> Start() {
+    auto startup = std::make_unique<DeviceStorageStartup>(journal, marker, online, offline,
+        Identity(), DeviceStorageRuntime::Policy::BoundedCompaction);
+    assert(startup->Boot());
+    assert(startup->CurrentState() == DeviceStorageStartup::State::Established);
+    assert(startup->Runtime() && startup->ImageStorageHealthy() && !startup->RequiresService());
+    assert(startup->ControlJournal().CurrentEpoch() == startup->Runtime()->ControlJournal().CurrentEpoch());
+    return startup;
   }
   std::unique_ptr<DeviceStorageRuntime> Open() {
     return std::make_unique<DeviceStorageRuntime>(journal, marker, online, offline, Identity(),
@@ -307,8 +317,8 @@ void ControlLifecycleAcrossCompactionsAndRestarts() {
   uint64_t time = 0, compactions = 0, firstFingerprint = 0;
   SelectionCommand first;
   for (unsigned operation = 0; operation < 1152; ++operation) {
-    auto storage = fixture.Open();
-    assert(storage->Boot());
+    auto startup = fixture.Start();
+    auto* storage = startup->Runtime();
     Control owner(*storage, operation + 100000);
     assert(owner.runtime.RecoverAfterInspection());
     assert(owner.runtime.AcquireManualControl("lease", time));
@@ -342,7 +352,8 @@ void ControlLifecycleAcrossCompactionsAndRestarts() {
       assert(storage->EvidenceRequests().ReleaseCompletion(token));
     }
     SelectionStep step;
-    // The fixture represents a successful final command ACK before this call.
+    // This lower-level runtime workload begins the accepted intent directly.
+    // Actual transport ACK gating is exercised by offline_local_control_owner_test.
     owner.port.now = time;
     assert(owner.runtime.BeginAcceptedSelection(time, step));
     const uint64_t started = time;
@@ -375,12 +386,12 @@ void ControlLifecycleAcrossCompactionsAndRestarts() {
     }
   }
   assert(compactions >= 30);
-  auto finalStorage = fixture.Open();
-  assert(finalStorage->Boot());
+  auto finalStartup = fixture.Start();
+  auto* finalStorage = finalStartup->Runtime();
   KeepsakeOutboxState retained;
   assert(finalStorage->EvidenceRequests().TryReadOnline(retained));
   assert(retained.prepared.size() == 1 && retained.prepared[0].physicalFingerprint == firstFingerprint);
-  std::printf("PASS 1152 actual manual control/storage cycles, %llu compactions, restarts and retained untimed evidence; simulated time %llu ms\n",
+  std::printf("PASS 1152 manual runtime cycles via production startup, boots=1152 verificationBoots=1, %llu compactions, restarts and retained untimed evidence; simulated time %llu ms\n",
       static_cast<unsigned long long>(compactions), static_cast<unsigned long long>(time));
 }
 } // namespace

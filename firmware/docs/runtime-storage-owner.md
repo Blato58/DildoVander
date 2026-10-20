@@ -2,9 +2,11 @@
 
 The production entry point instantiates one asynchronous storage worker and shares
 its journal and evidence ports with manual, autonomous and offline producers.
-Scoped motion activation and automatic compaction remain disabled. Removal of the
-32-operation limit still requires the remaining acceptance described in
-[journal establishment](journal-establishment.md).
+An explicitly established device uses scoped admission and bounded compaction.
+Legacy/unbound devices require [explicit service migration](journal-establishment.md);
+normal boot never invents identity or replaces missing stores. Thirty-two entries
+bound each retained journal window, rather than the device's lifetime operations.
+An entirely pinned window still refuses new motion without evicting evidence.
 
 `JournalStorageOwner` has one preallocated request and completion slot. A worker
 alone accesses its mutable `PersistentCommandJournal`. Submission reserves both
@@ -94,8 +96,8 @@ pruning even when the new journal epoch was committed before a source ACK was
 lost. A failed source or journal ACK requires a fresh authoritative runtime;
 ordinary control polls never reopen it as healthy.
 
-The `BoundedCompaction` policy is exercised by host integration fixtures. Production
-selects `ReconcileOnly` and keeps its separate scoped-motion admission guard off.
+Production selects `BoundedCompaction` behind complete committed-source admission
+and inspected recovery. The same policy is exercised by host integration fixtures.
 The fixture runs 1,152 actual manual
 producer/control/selection/storage cycles through 37 compactions and restarts,
 retaining an untimed prepared reference and rejecting old boot/epoch replays.
@@ -201,8 +203,8 @@ retained original proof. It polls real reserve, prepare, Begin, close, proof and
 source outcomes at 10 ms simulated cadence. Its 8,835,840 ms workload, calibrated
 elapsed travel and direct test producer are not backend/offline end-to-end,
 physical position feedback or the required four-hour media/session soak.
-Production composes the shared worker and producers; measured runtime acceptance,
-scoped motion activation and compaction remain open.
+Production composes the shared worker and producers with scoped admission and
+bounded compaction. Physical runtime measurements remain unrun.
 
 ## Shared online evidence producer
 
@@ -281,8 +283,8 @@ audio and storage ports. The offline workload executes 1,008 cycles through 126
 boots and 33 compactions, retaining old evidence and rejecting replay. Its
 7,844,740 simulated milliseconds do not establish the four-hour media/session
 soak, ESP task scheduling, physical power-cut behavior or hardware acceptance.
-Production uses the shared offline constructor after startup. Scoped activation
-and measured scheduling/stack/latency acceptance remain open.
+Production uses the shared offline constructor after startup. Actual scheduling,
+stack and latency measurements remain unrun.
 
 ## Maintenance does not own the control pass
 

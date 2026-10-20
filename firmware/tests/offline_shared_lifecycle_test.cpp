@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../src/features/device_control/DeviceStorageRuntime.h"
+#include "../src/features/device_control/DeviceStorageStartup.h"
 #include "../src/features/offline_show/OfflineEvidenceBridge.h"
 #include "physical_effects_test_support.h"
 
@@ -67,6 +68,17 @@ struct Durable {
     assert(onlineOwner.ReadCommitted(a) && offlineOwner.ReadCommitted(b));
     assert(identity.Finalize(Identity(), a, b, true));
     assert(core.PersistReadyMask(63));
+  }
+  std::unique_ptr<DeviceStorageStartup> Start() {
+    WorkerIo = true;
+    auto startup = std::make_unique<DeviceStorageStartup>(journal, marker, online, offline,
+        Identity(), DeviceStorageRuntime::Policy::BoundedCompaction);
+    assert(startup->Boot());
+    assert(startup->CurrentState() == DeviceStorageStartup::State::Established);
+    assert(startup->Runtime() && startup->ImageStorageHealthy() && !startup->RequiresService());
+    assert(startup->ControlJournal().CurrentEpoch() == startup->Runtime()->ControlJournal().CurrentEpoch());
+    WorkerIo = false;
+    return startup;
   }
   std::unique_ptr<DeviceStorageRuntime> Open(bool ready = true) {
     WorkerIo = true;
@@ -244,7 +256,8 @@ void ExtendedOfflineProducerLifecycle() {
   Outcome retained;
   uint64_t compactions = 0, simulated = 0, epoch = 0;
   for (unsigned boot = 0; boot != Boots; ++boot) {
-    auto storage = durable.Open();
+    auto startup = durable.Start();
+    auto* storage = startup->Runtime();
     Rig owner(*storage, boot + 1); owner.Arm();
     for (unsigned cycle = 0; cycle != PerBoot; ++cycle) {
       const unsigned operation = boot * PerBoot + cycle + 1;
@@ -260,7 +273,7 @@ void ExtendedOfflineProducerLifecycle() {
     compactions += storage->Compactions(); simulated += owner.now - 30;
   }
   assert(compactions >= 2 && epoch > retained.operationEpoch);
-  std::printf("offline producer workload: cycles=%u boots=%u compactions=%llu finalEpoch=%llu simulatedMs=%llu acked=%u retained=1\n",
+  std::printf("offline production-startup workload: cycles=%u boots=%u compactions=%llu finalEpoch=%llu simulatedMs=%llu acked=%u retained=1\n",
       Boots * PerBoot, Boots, static_cast<unsigned long long>(compactions), static_cast<unsigned long long>(epoch),
       static_cast<unsigned long long>(simulated), Boots * PerBoot - 1);
 }
