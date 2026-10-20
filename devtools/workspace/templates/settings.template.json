@@ -1,0 +1,16 @@
+{
+  "git.autoRepositoryDetection": "subFolders",
+  "git.repositoryScanMaxDepth": 2,
+  "files.exclude": {
+    "**/.pio": true,
+    "**/managed_components": true,
+    "**/node_modules": true,
+    "**/dist": true
+  },
+  "search.exclude": {
+    "**/.pio": true,
+    "**/managed_components": true,
+    "**/node_modules": true,
+    "**/dist": true
+  }
+}

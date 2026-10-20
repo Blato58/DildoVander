@@ -22,6 +22,7 @@ Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle 
 - Firmware: PlatformIO Core CLI a jeho závislosti podle `kufr/firmware/platformio.ini`; samotný C++ hostitelský test vyžaduje C++ kompilátor. Instalace PlatformIO IDE ve VS Code je volitelná.
 - Mobil: Node.js ve verzi `kufr/mobilni-aplikace/.nvmrc`, `npm ci` a `npm run build`. Na Windows lze verzi vybrat pomocí nvm-windows.
 - Backend: .NET 10 SDK podle `kufr/global.json` a místní SQLite mimo repozitář. Výchozí fake režim nepotřebuje OpenAI klíč. Nativní iOS build/test potřebuje Xcode na macOS a pro distribuci vlastní Apple identitu.
+- [Společný vývojový workspace](docs/development-workspace.md) popisuje setup obou samostatných checkoutů, `code .`, multi-root PlatformIO, firmware tasks a testy.
 - [Vývojové spuštění bez hardwaru](docs/public-development.md) uvádí minimální příkazy a potřebné nástroje; [architektura a hranice ověření](docs/public-architecture.md) propojují komponenty a kontrakty.
 
 
