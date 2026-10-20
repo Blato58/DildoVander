@@ -56,6 +56,16 @@ internal sealed class PersonaLabRealtimeInput(Func<byte[], CancellationToken, Ta
         uploads.Release();
     }
 
+    internal void PrepareNextListening()
+    {
+        lock (stateGate)
+        {
+            // Preserve microphone PCM arriving after drain acknowledgement
+            // until the sole provider reader has cleared/configured input.
+            if (phase == InputPhase.Stopped) { phase = InputPhase.Interrupting; }
+        }
+    }
+
     internal async Task ListenAsync(CancellationToken token)
     {
         await uploads.WaitAsync(token);

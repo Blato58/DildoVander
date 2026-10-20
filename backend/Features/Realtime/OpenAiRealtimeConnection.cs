@@ -14,6 +14,12 @@ internal interface IStreamingAudioInput
     Task SendAudioAsync(byte[] pcm, CancellationToken token);
 }
 
+internal interface IRealtimeResponsePlayback
+{
+    Task StartedAsync(string playbackId, CancellationToken token);
+    Task CompletedAsync(string playbackId, int totalSamples, bool final, CancellationToken token);
+}
+
 internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAudioInput
 {
     private WebSocket socket;
@@ -24,6 +30,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
     internal string? ProviderSessionId { get; private set; }
     internal long? LastInputTokens { get; private set; }
     internal long? LastOutputTokens { get; private set; }
+    internal long LastCostMicroUsd { get; private set; }
     private int visualResets;
     private readonly HashSet<string> items = new(StringComparer.Ordinal);
     private bool initialized;
@@ -35,7 +42,10 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
     private readonly HashSet<string> cancellationEvents = new(StringComparer.Ordinal);
     private readonly Queue<string> cancellationOrder = new();
 
-    internal async Task<bool> InterruptResponseAsync(int playedAudioMs, CancellationToken token)
+    internal Task<bool> InterruptResponseAsync(int playedAudioMs, CancellationToken token) =>
+        InterruptResponseAsync(null, playedAudioMs, token);
+
+    internal async Task<bool> InterruptResponseAsync(string? playbackId, int playedAudioMs, CancellationToken token)
     {
         if (playedAudioMs < 0 || playedAudioMs > RealtimeProtocol.MaxAudioBytes / 48)
         {
@@ -45,25 +55,36 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         lock (responseGate)
         {
             if (activeResponse is not { } response) { return false; }
+            if (playbackId is not null && response.PlaybackId != playbackId) { return false; }
             if (response.Cancellation is not null) { cancellation = response.Cancellation; }
             else
             {
                 response.PlayedAudioMs = Math.Min(playedAudioMs, response.ForwardedPcmBytes / 48);
-                var eventId = "interrupt_" + Guid.NewGuid().ToString("N");
-                // A late cancel can race provider completion. Only an error
-                // causally tied to this exact command may be drained as benign.
-                if (cancellationOrder.Count >= 128)
+                if (response.ProviderCompleted)
                 {
-                    cancellationEvents.Remove(cancellationOrder.Dequeue());
+                    // The provider is idle, but its conversation still contains
+                    // speech the browser has not played. Truncate it at drain.
+                    response.Cancellation = Task.CompletedTask;
+                    cancellation = response.Cancellation;
                 }
-                cancellationEvents.Add(eventId);
-                cancellationOrder.Enqueue(eventId);
-                response.Cancellation = session.SendCommandAsync(new RealtimeClientCommandResponseCancel
+                else
                 {
-                    EventId = eventId,
-                    ResponseId = response.ResponseId
-                }, token);
-                cancellation = response.Cancellation;
+                    var eventId = "interrupt_" + Guid.NewGuid().ToString("N");
+                    // A late cancel can race provider completion. Only an error
+                    // causally tied to this exact command may be drained as benign.
+                    if (cancellationOrder.Count >= 128)
+                    {
+                        cancellationEvents.Remove(cancellationOrder.Dequeue());
+                    }
+                    cancellationEvents.Add(eventId);
+                    cancellationOrder.Enqueue(eventId);
+                    response.Cancellation = session.SendCommandAsync(new RealtimeClientCommandResponseCancel
+                    {
+                        EventId = eventId,
+                        ResponseId = response.ResponseId
+                    }, token);
+                    cancellation = response.Cancellation;
+                }
             }
         }
         await cancellation;
@@ -110,11 +131,13 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         Func<(int Revision, string Context)>? visualContext = null,
         Func<VisualResponseRevision>? visualRevision = null,
         Func<string>? recoveryContext = null,
-        Func<RealtimeReply, CancellationToken, Task>? finalize = null)
+        Func<RealtimeReply, CancellationToken, Task>? finalize = null,
+        IRealtimeResponsePlayback? playback = null)
     {
         var original = turn;
         LastInputTokens = null;
         LastOutputTokens = null;
+        LastCostMicroUsd = 0;
         var latestInput = turn.Request.Text;
         var acceptedInput = !turn.LiveAudio && inputPcm is null;
         long retiredCost = 0;
@@ -133,7 +156,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
             {
                 var result = await GenerateTurnCoreAsync(turn, inputPcm, audio,
                     async (text, token) => { latestInput = text; acceptedInput = true; await visitor(text, token); }, cancellationToken,
-                    listening, speech, responseReady, transcript, visualImage, inputContext, visualContext, visualRevision, progress);
+                    listening, speech, responseReady, transcript, visualImage, inputContext, visualContext, visualRevision, progress, playback);
                 result = result with { CostMicroUsd = checked(result.CostMicroUsd + retiredCost) };
                 if (finalize is not null) { await finalize(result, cancellationToken); }
                 return result;
@@ -178,7 +201,8 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         Func<VisualMediaRecord?>? visualImage = null,
         Func<string, CancellationToken, Task<string>>? inputContext = null,
         Func<(int Revision, string Context)>? visualContext = null,
-        Func<VisualResponseRevision>? visualRevision = null, RealtimeTurnProgress? progress = null)
+        Func<VisualResponseRevision>? visualRevision = null, RealtimeTurnProgress? progress = null,
+        IRealtimeResponsePlayback? playback = null)
     {
         using var abort = cancellationToken.Register(socket.Abort);
         var continuing = initialized;
@@ -380,6 +404,11 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                             {
                                 if (responsePlayback!.Cancellation is not null) { break; }
                             }
+                            if (playback is not null && !responsePlayback.PlaybackStarted)
+                            {
+                                responsePlayback.PlaybackStarted = true;
+                                await playback.StartedAsync(responsePlayback.PlaybackId, cancellationToken);
+                            }
                             var chunk = pcm.AsSpan(
                                 offset,
                                 Math.Min(RealtimeProtocol.MaxChunkBytes, pcm.Length - offset)).ToArray();
@@ -426,8 +455,31 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                     Task? cancellation;
                     lock (responseGate)
                     {
-                        activeResponse = null;
+                        responsePlayback!.ProviderCompleted = true;
+                        if (playback is null) { activeResponse = null; }
                         cancellation = responsePlayback!.Cancellation;
+                    }
+                    // Account observed provider work before a browser drain can
+                    // time out or disconnect. Both dispositions share this path.
+                    if (response.Status == RealtimeResponseStatus.Completed || response.Status == RealtimeResponseStatus.Cancelled)
+                    {
+                        cost = checked(cost + RealtimeProtocol.ResponseCost(response.Usage));
+                        LastCostMicroUsd = cost;
+                        RecordObservedTokens(response.Usage);
+                    }
+                    if (playback is not null && cancellation is null && responsePlayback.ForwardedPcmBytes > 0)
+                    {
+                        if (response.Status != RealtimeResponseStatus.Completed)
+                        {
+                            throw new InvalidDataException("Incomplete Realtime response.");
+                        }
+                        await playback.CompletedAsync(responsePlayback.PlaybackId, responsePlayback.ForwardedPcmBytes / 2,
+                            !response.OutputItems.Any(item => item is RealtimeFunctionCallItem), cancellationToken);
+                    }
+                    lock (responseGate)
+                    {
+                        activeResponse = null;
+                        cancellation = responsePlayback.Cancellation;
                     }
                     if (cancellation is not null)
                     {
@@ -436,8 +488,6 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                         {
                             throw new InvalidDataException("Incomplete Realtime interruption.");
                         }
-                        cost = checked(cost + RealtimeProtocol.ResponseCost(response.Usage));
-                        RecordObservedTokens(response.Usage);
                         if (responsePlayback.UnidentifiedPcmBytes > 0)
                         {
                             throw new InvalidDataException("Realtime interruption audio identity missing.");
@@ -460,8 +510,6 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                     {
                         throw new InvalidDataException("Output budget exceeded.");
                     }
-                    cost = checked(cost + RealtimeProtocol.ResponseCost(response.Usage));
-                    RecordObservedTokens(response.Usage);
                     responseId = null;
                     RealtimeFunctionCallItem? function = null;
                     foreach (var output in response.OutputItems)
@@ -515,6 +563,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                     else
                     {
                         if (reply.Length == 0 || audioBytes == 0
+                            || playback is not null && responsePlayback.ForwardedPcmBytes == 0
                             || turn.Request.ReadyMask == 0 && decision != "no_selection")
                         {
                             throw new InvalidDataException("Realtime reply is missing.");
@@ -626,6 +675,9 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
     private sealed class ResponseInterruption(string responseId)
     {
         internal string ResponseId { get; } = responseId;
+        internal string PlaybackId { get; } = Guid.NewGuid().ToString("N");
+        internal bool PlaybackStarted { get; set; }
+        internal bool ProviderCompleted { get; set; }
         internal List<ResponseAudioPart> AudioParts { get; } = [];
         internal int ForwardedPcmBytes { get; set; }
         internal int UnidentifiedPcmBytes { get; set; }

@@ -213,7 +213,8 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
     }
 
     internal async Task VoiceAsync(string owner, string id, WebSocket socket,
-        Func<CancellationToken, Task<bool>> authorized, CancellationToken requestToken, bool recovery = false)
+        Func<CancellationToken, Task<bool>> authorized, CancellationToken requestToken, bool recovery = false,
+        bool acknowledgedPlayback = false)
     {
         await RunAsync(owner, id, async (session, lifetime) =>
         {
@@ -224,10 +225,20 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
             using var realtimeInput = transport.Realtime is null ? null
                 : new PersonaLabRealtimeInput(transport.Realtime.SendAudioAsync);
             var sender = new LabSocketSender(socket, authorized);
+            var outputSuppressed = 0;
+            Stopwatch? responseClock = null;
+            var playback = acknowledgedPlayback && transport.Realtime is not null
+                ? new PersonaLabPlayback(sender.JsonAsync,
+                    (playbackId, played, cancellation) => realtimeInput!.InterruptAsync(() =>
+                    {
+                        Volatile.Write(ref outputSuppressed, 1);
+                        return transport.Realtime.InterruptResponseAsync(playbackId, played, cancellation);
+                    }), realtimeInput!.PrepareNextListening,
+                    wait => { if (wait) { responseClock?.Stop(); } else { responseClock?.Start(); } })
+                : null;
             var timer = Stopwatch.StartNew();
             var inputBytes = 0;
             var outputBytes = 0;
-            var outputSuppressed = 0;
             var providerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             double minimumOutputStart = 0;
             long lastInputAt = -1;
@@ -285,6 +296,35 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                     using var message = JsonDocument.Parse(buffer.AsMemory(0, received.Count));
                     var type = GptLiveProtocol.RequiredString(message.RootElement, "type", 20);
                     if (type == "end") { return; }
+                    if (playback is not null && type is "playback_done" or "playback_error")
+                    {
+                        var playbackId = GptLiveProtocol.RequiredString(message.RootElement, "playbackId", 128);
+                        if (!playback.IsCurrent(playbackId)) { continue; }
+                        if (type == "playback_error")
+                        {
+                            var code = GptLiveProtocol.RequiredString(message.RootElement, "code", 40);
+                            if (code is not ("audio_backpressure" or "audio_stalled" or "audio_interrupted"))
+                            {
+                                throw new LabException(400, "invalid_lab_playback");
+                            }
+                            if (playback.IsCurrent(playbackId))
+                            {
+                                SaveEvent(session, LabContract.Event("client_playback_failure", code));
+                                throw new LabException(502, "lab_" + code);
+                            }
+                        }
+                        else
+                        {
+                            if (!message.RootElement.TryGetProperty("playedSamples", out var samples)
+                                || !samples.TryGetInt32(out var playedSamples)
+                                || playedSamples is < 0 or > RealtimeProtocol.MaxAudioBytes / 2)
+                            {
+                                throw new LabException(400, "invalid_lab_playback");
+                            }
+                            playback.Acknowledge(playbackId, playedSamples);
+                        }
+                        continue;
+                    }
                     if (type == "cancel")
                     {
                         if (transport.Live is not null)
@@ -297,6 +337,19 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                         }
                         else
                         {
+                            if (playback is not null)
+                            {
+                                var playbackId = GptLiveProtocol.RequiredString(message.RootElement, "playbackId", 128);
+                                if (!playback.IsCurrent(playbackId)) { continue; }
+                                if (!message.RootElement.TryGetProperty("playedAudioMs", out var playedPosition)
+                                    || !playedPosition.TryGetInt32(out var playedMs)
+                                    || playedMs is < 0 or > RealtimeProtocol.MaxAudioBytes / 48)
+                                {
+                                    throw new LabException(400, "invalid_lab_playback");
+                                }
+                                await playback.CancelAsync(playbackId, playedMs, token);
+                                continue;
+                            }
                             var played = message.RootElement.TryGetProperty("playedAudioMs", out var position) && position.TryGetInt32(out var milliseconds)
                                 && milliseconds is >= 0 and <= 180000 ? milliseconds : 0;
                             if (!await realtimeInput!.InterruptAsync(() =>
@@ -330,7 +383,8 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                 SaveEvent(session, LabContract.Event("provider_session", "ready", providerSessionId: transport.Live.ProviderSessionId));
                 if (recovery) { SaveEvent(session, LabContract.Event("recovery_completed", "provider_ready")); }
                 providerReady.TrySetResult();
-                await sender.JsonAsync(new { type = "ready" }, token);
+                if (acknowledgedPlayback) { await sender.JsonAsync(new { type = "ready", playbackMode = "stream" }, token); }
+                else { await sender.JsonAsync(new { type = "ready" }, token); }
                 await transport.Live.SendAsync(new { type = "session.instructions.append", event_id = Guid.NewGuid().ToString("N"), delegation_id = (string?)null,
                     content = "Begin this fictional test interaction now. Greet briefly, ask one question, then listen." }, token);
                 var transcript = new LiveTranscriptCollector(this, session, sender);
@@ -394,6 +448,7 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                     if (opening) { context = context with { Request = context.Request with { Opening = true } }; }
                     RealtimeReply reply;
                     var responseTimer = Stopwatch.StartNew();
+                    responseClock = responseTimer;
                     try
                     {
                         reply = await transport.Realtime!.GenerateTurnAsync(context, null,
@@ -416,15 +471,20 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                             {
                                 SaveEvent(session, LabContract.Event("provider_session", "ready", providerSessionId: transport.Realtime.ProviderSessionId));
                                 if (recovery) { SaveEvent(session, LabContract.Event("recovery_completed", "provider_ready")); }
-                                await sender.JsonAsync(new { type = "ready" }, cancellation);
+                                if (acknowledgedPlayback)
+                                {
+                                    await sender.JsonAsync(new { type = "ready", playbackMode = "acknowledged" }, cancellation);
+                                }
+                                else { await sender.JsonAsync(new { type = "ready" }, cancellation); }
                             }
+                            if (playback is not null) { await sender.JsonAsync(new { type = "listening" }, cancellation); }
                         },
                         speech: async (state, cancellation) =>
                         {
                             if (state == "speech_stopped") { await realtimeInput!.StopAsync(cancellation); }
                             await sender.JsonAsync(new { type = "speech", state }, cancellation);
                         },
-                        visualImage: () => images?.Read(owner, id));
+                        visualImage: () => images?.Read(owner, id), playback: playback);
                     }
                     catch (RealtimeResponseInterruptedException interrupted)
                     {
@@ -436,12 +496,23 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                         await sender.JsonAsync(new { type = "interrupted" }, token);
                         continue;
                     }
-                    var assistant = SaveTurn(session, "assistant", reply.Reply, responseTimer.ElapsedMilliseconds, null, reply.Decision, reply.Compartment);
-                    await sender.JsonAsync(new { type = "turn", turn = assistant }, token);
-                    SaveEvent(session, LabContract.Event("provider_turn", "completed", responseTimer.ElapsedMilliseconds, reply.Decision, reply.Compartment, reply.CostMicroUsd));
+                    catch
+                    {
+                        if (playback is not null)
+                        {
+                            SaveEvent(session, LabContract.Event("provider_cost", "micro_usd", costMicroUsd: transport.Realtime!.LastCostMicroUsd));
+                            RecordTokens(session, transport.Realtime);
+                        }
+                        throw;
+                    }
+                    // A drained reply is already observed provider work. Keep
+                    // its usage even if the final client notification fails.
                     SaveEvent(session, LabContract.Event("provider_cost", "micro_usd", costMicroUsd: reply.CostMicroUsd));
                     RecordTokens(session, transport.Realtime!);
+                    var assistant = SaveTurn(session, "assistant", reply.Reply, responseTimer.ElapsedMilliseconds, null, reply.Decision, reply.Compartment);
+                    SaveEvent(session, LabContract.Event("provider_turn", "completed", responseTimer.ElapsedMilliseconds, reply.Decision, reply.Compartment, reply.CostMicroUsd));
                     RecordProposal(session, reply);
+                    await sender.JsonAsync(new { type = "turn", turn = assistant }, token);
                     opening = false;
                 }
                 throw new LabException(409, "lab_turn_limit");
