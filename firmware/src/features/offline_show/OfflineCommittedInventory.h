@@ -14,7 +14,7 @@ namespace kufr { namespace offline {
 // A future bound composition must serialize these calls with every producer and
 // persisted-journal reader under the common reconciliation barrier. Binding and
 // reopen are synchronous service/startup work, never control-loop operations.
-class OfflineCommittedInventory final : public StoragePort, public JournalEvidenceSource {
+class OfflineCommittedInventory final : public StoragePort, public JournalServiceInventory {
  public:
   static constexpr size_t MaximumDeviceIdLength = 64;
   static constexpr size_t EnvelopeHeaderSize = 104;
@@ -29,7 +29,7 @@ class OfflineCommittedInventory final : public StoragePort, public JournalEviden
   bool Read(Outbox& outbox) override;
   bool Write(const Outbox& outbox) override;
   bool ReadCommitted(JournalEvidenceInventory& inventory) const override;
-  bool EstablishBinding(const std::string& deviceId, bool serviceAuthorized);
+  bool EstablishBinding(const std::string& deviceId, bool serviceAuthorized) override;
 
   bool IsHealthy() const { return healthy_; }
   bool IsBound() const { return healthy_ && bound_; }

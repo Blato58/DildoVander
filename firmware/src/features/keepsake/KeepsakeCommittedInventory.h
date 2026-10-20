@@ -11,7 +11,7 @@ class PersistentCommandJournal;
 
 // Only this owner's committed bytes can authorize an online inventory. A RAM
 // outbox, missing blob or legacy unbound payload never proves established empty.
-class KeepsakeCommittedInventory final : public JournalEvidenceSource {
+class KeepsakeCommittedInventory final : public JournalServiceInventory {
  public:
   static constexpr size_t MaximumRecordSize = 32768;
   explicit KeepsakeCommittedInventory(JournalStorage& storage);
@@ -22,6 +22,9 @@ class KeepsakeCommittedInventory final : public JournalEvidenceSource {
   bool ReadCommitted(JournalEvidenceInventory& inventory) const override;
   bool Commit(const KeepsakeOutboxState& state);
   bool Establish(const std::string& deviceId, bool serviceAuthorized);
+  bool EstablishBinding(const std::string& deviceId, bool serviceAuthorized) override {
+    return Establish(deviceId, serviceAuthorized);
+  }
   // Explicit post-compaction cleanup, under the same barrier as all producers.
   // Public Commit cannot remove durable ledger entries.
   bool PruneRetired(const PersistentCommandJournal& journal, JournalReconciliationBarrier& barrier);

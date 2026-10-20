@@ -4,14 +4,14 @@
 #include "OfflineCommittedInventory.h"
 
 namespace kufr { namespace offline {
-class EspIdfOutboxStorage final : public StoragePort, public JournalEvidenceSource {
+class EspIdfOutboxStorage final : public StoragePort, public JournalServiceInventory {
  public:
   explicit EspIdfOutboxStorage(bool initialized);
   bool Read(Outbox& outbox) override;
   bool Write(const Outbox& outbox) override;
   bool ReadCommitted(JournalEvidenceInventory& inventory) const override;
   // Explicit synchronous service/startup operations. No production caller binds.
-  bool EstablishBinding(const std::string& deviceId, bool serviceAuthorized);
+  bool EstablishBinding(const std::string& deviceId, bool serviceAuthorized) override;
   bool Reopen();
  private:
   class BlobStorage final : public JournalStorage {

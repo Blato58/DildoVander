@@ -17,6 +17,7 @@ CORE = [
     "physical_effects/PhysicalPresentation", "physical_effects/PresentationDiagnostics",
     "scene_intent/SceneIntentBridge",
     "offline_show/OfflineShow",
+    "offline_show/OfflineOutboxCodec",
     "offline_show/ImaAdpcm",
 ]
 

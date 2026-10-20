@@ -14,6 +14,8 @@
 #include "nvs_flash.h"
 
 #include "features/device_control/EspIdfJournalStorage.h"
+#include "features/device_control/EspIdfJournalIdentityStorage.h"
+#include "features/device_control/JournalIdentityOwner.h"
 #include "features/device_control/DeviceControl.h"
 #include "features/device_control/DeviceControlRuntime.h"
 #include "features/device_control/PersistentCommandJournal.h"
@@ -335,6 +337,20 @@ extern "C" void app_main() {
   if (!calibrated) ESP_LOGW(LogTag, "Hardware wiring/calibration unverified; motion stays disabled");
   static EspIdfJournalStorage journalStorage(nvsStatus == ESP_OK);
   static PersistentCommandJournal journal(journalStorage);
+  // Service can now establish scoped bytes, but production has not composed
+  // the common barrier, complete boot reconciliation and asynchronous storage
+  // ownership. Keep every interaction behind the existing maintenance gates.
+  // This does not change journal health or passive OTA boot verification.
+  static EspIdfJournalIdentityStorage markerStorage(nvsStatus == ESP_OK);
+  static std::array<uint8_t, JournalIdentityOwner::MaximumRecordSize> markerBytes{};
+  size_t markerLength = 0;
+  const auto markerRead = markerStorage.Read(markerBytes.data(), markerBytes.size(), markerLength);
+  // Presence alone is enough to refuse, including a PreparingLegacy witness
+  // before the journal's scoped commit. This is not validation or recovery.
+  const bool journalEstablishmentHeld = markerRead != JournalReadResult::Missing ||
+      journal.Origin() == PersistentCommandJournal::StateOrigin::Scoped;
+  if (journalEstablishmentHeld)
+    ESP_LOGW(LogTag, "Journal service state retained; production admission integration is not activated");
   static EspIdfProvisioningStorage identityStorage(nvsStatus == ESP_OK);
   static DeviceIdentity identity(identityStorage);
   // PSA may seed its random generator during parsing or hasher construction.
@@ -483,7 +499,8 @@ extern "C" void app_main() {
     // Boot verification freezes new interactions while permitting STA recovery.
     maintenance.otaHeld = sdAssets.Reserved() ||
         (firmwareUpdate.Reserved() && otaStatus.state != "verifying-boot");
-    const bool maintaining = maintenance.networkHeld || firmwareUpdate.Reserved() || sdAssets.Reserved();
+    const bool maintaining = journalEstablishmentHeld || maintenance.networkHeld ||
+        firmwareUpdate.Reserved() || sdAssets.Reserved();
     owner.SetMaintenance(maintaining);
     owner.SetDanceAdmission(maintenance.safeIdle && !maintaining);
     provisioning.Tick(nowMs, station.HasIp());

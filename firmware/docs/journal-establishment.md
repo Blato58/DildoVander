@@ -57,6 +57,58 @@ The owner or adapter stops subsequent work and must be reconstructed from
 authoritative storage. Reusing the failed instance or its cached preparation
 state is not recovery.
 
+## Explicit USB service composition
+
+The `diag-network-service` image now composes `JournalServiceEstablishment`
+with the actual `DeviceIdentity`, journal/witness NVS adapters and both committed
+inventory owners. It is an exclusive service image with no actuator or live
+reference producers. Its local barrier is not the unfinished production barrier.
+The software path has not been executed on a board.
+Production explicitly holds scoped journals and any present or unavailable
+establishment marker behind its existing maintenance admission gates until the
+complete runtime integration is accepted. This also covers interrupted legacy
+preparation before the scoped journal commit. A missing marker alone preserves
+legacy behavior; marker presence is read into static storage without decoding it
+on the production task stack. This refusal-only hold is not validation. Stop and
+passive OTA health checks remain available; service establishment cannot by
+itself activate scoped motion after booting the production image.
+
+The existing USB request envelope and `ACTUATORS_OFF_USB_SERVICE` confirmation
+remain required. An optional `journalEstablishment` field names exactly one
+operation; absence never implies establishment:
+
+- `factory` requires a fresh unprovisioned identity, actually missing journal,
+  witness and inventories, and the existing `deviceId`/`credential` pair. It
+  commits preparation, scoped journal and both bindings before credentials.
+- `legacy` uses the already provisioned identity without a credential pair.
+  Both actual inventory stores must be present; missing legacy evidence cannot
+  be inferred empty. Unknown associations remain unchanged and block evidence
+  reconciliation even if the identity witness can be finalized.
+- `resume` reopens the committed target witness. Before credential commit it
+  needs the original target/credential pair; after identity commit it requires
+  their omission and uses the existing identity. It never rotates credentials,
+  rebinds the device or recreates a missing established store. A lost first
+  witness write with no committed witness requires another explicit `factory`
+  or `legacy` operation instead.
+
+`replaceIdentity` is rejected with these modes. The older credential-only path
+also refuses to change any preparing/established or scoped identity. Existing
+PoP replacement checks and network/OTA validation still apply. No credential is
+included in the witness, service result or stack diagnostic. Request credential
+buffers retain their existing explicit wiping behavior.
+
+Finalization is followed by complete committed-source reconciliation with
+compaction disabled. `journal-evidence-blocked` is a refusal, not motion
+admission. The owner reports success only for a fully checked inventory snapshot;
+production startup must independently reopen and reconcile before admission.
+
+The service task has an explicit 32 KiB stack. Large inventory snapshots live
+in a bounded heap-owned context reconstructed for each request. On task exit,
+`KUFR_SERVICE_STACK_FREE` reports its minimum free stack bytes. This allocation
+and a successful build are not measured board stack/heap acceptance; actual
+worst-case service data and power-cut tests remain unrun. Service/provisioning
+execution and flashing require their separate authorization.
+
 ## Reconciliation boundary
 
 `JournalEvidenceSource` supplies a bounded committed snapshot with origin,
@@ -157,8 +209,8 @@ producer and persisted-journal reader still need one barrier with the control
 owner, including original-epoch validation and pin ordering for late producers.
 The scoped online/offline admission paths now reserve before their evidence
 commits, but this is not a substitute for the common barrier or boot gate.
-The service/provisioning caller must compose establishment without allowing
-motion or inspection mutations midway. A ready identity witness alone is not
+The exclusive diagnostic caller composes establishment; production startup must
+still prevent motion or inspection mutations during recovery. A ready identity witness alone is not
 physical admission: successful committed-source reconciliation is also required.
 These are required before production activation.
 The synchronous core performs at most one journal write per attempt.

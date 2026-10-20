@@ -24,6 +24,7 @@ idf_component_register(
         "features/physical_effects/PresentationDiagnostics.cpp"
         "features/scene_intent/SceneIntentBridge.cpp"
         "features/offline_show/OfflineShow.cpp"
+        "features/offline_show/OfflineOutboxCodec.cpp"
         "features/offline_show/OfflineCommittedInventory.cpp"
         "features/offline_show/ImaAdpcm.cpp"
         "features/offline_show/EspIdfOfflineShow.cpp"
@@ -124,6 +125,18 @@ elseif(KUFR_PLATFORMIO_ENV STREQUAL "diag-hardware-service")
 elseif(KUFR_PLATFORMIO_ENV STREQUAL "diag-network-service")
     idf_component_register(
         SRCS "diagnostics/network-service/main.cpp"
+             "features/device_control/PersistentCommandJournal.cpp"
+             "features/device_control/EspIdfJournalStorage.cpp"
+             "features/device_control/EspIdfJournalIdentityStorage.cpp"
+             "features/device_control/JournalIdentityOwner.cpp"
+             "features/device_control/JournalReconciliation.cpp"
+             "features/device_control/JournalServiceEstablishment.cpp"
+             "features/keepsake/KeepsakeCommittedInventory.cpp"
+             "features/keepsake/EspIdfKeepsakeInventoryStorage.cpp"
+             "features/conversation/ConversationStartCodec.cpp"
+             "features/offline_show/OfflineOutboxCodec.cpp"
+             "features/offline_show/OfflineCommittedInventory.cpp"
+             "features/offline_show/EspIdfOfflineOutboxStorage.cpp"
         INCLUDE_DIRS "."
         REQUIRES esp_driver_usb_serial_jtag esp_timer nvs_flash mbedtls espressif__cjson device_configuration
     )

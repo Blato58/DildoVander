@@ -32,6 +32,7 @@ class JournalIdentityOwner final {
   JournalIdentityOwner(JournalStorage& markerStorage, PersistentCommandJournal& journal);
   bool IsHealthy() const;
   Phase CurrentPhase() const { return state_.phase; }
+  const std::string& TargetDeviceId() const { return state_.deviceId; }
   Validation Validate(const JournalIdentityView& identity) const;
   bool BeginFactory(const std::string& target, const JournalIdentityView& identity, bool serviceAuthorized);
   bool BeginLegacy(const JournalIdentityView& identity, bool serviceAuthorized);

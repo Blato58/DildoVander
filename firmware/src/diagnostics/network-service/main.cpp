@@ -1,9 +1,13 @@
 #include <array>
 #include <cstring>
 #include <cstdlib>
+#include <cstdio>
+#include <memory>
+#include <new>
 #include "cJSON.h"
 #include "driver/usb_serial_jtag.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_timer.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -12,6 +16,12 @@
 #include "NetworkSettings.h"
 #include "DeviceIdentity.h"
 #include "EspIdfProvisioningStorage.h"
+#include "features/device_control/EspIdfJournalStorage.h"
+#include "features/device_control/EspIdfJournalIdentityStorage.h"
+#include "features/device_control/JournalServiceEstablishment.h"
+#include "features/keepsake/EspIdfKeepsakeInventoryStorage.h"
+#include "features/keepsake/KeepsakeCommittedInventory.h"
+#include "features/offline_show/EspIdfOfflineOutboxStorage.h"
 
 namespace {
 constexpr size_t MaximumFrame = 4096;
@@ -55,6 +65,47 @@ class PhysicalServiceGate final : public ServiceGate {
   bool ServiceModeActive() const override { return true; }
   bool ActuatorSupplyDisconnected() const override { return true; }
 };
+// This diagnostic image has no producers or actuators. This barrier is local to
+// its exclusive service owner; it is not the unfinished production barrier.
+class ServiceBarrier final : public JournalReconciliationBarrier {
+ public:
+  bool TryEnter() override { if (held_) return false; held_ = true; return true; }
+  void Leave() override { held_ = false; }
+ private:
+  bool held_ = false;
+};
+struct JournalServiceContext {
+  JournalServiceContext(DeviceIdentity& identity, const ServiceGate& gate)
+      : journalStorage(true), markerStorage(true), journal(journalStorage),
+        witness(markerStorage, journal), onlineStorage(true), online(onlineStorage), offline(true),
+        reconciliation(journal, witness, online, offline, barrier),
+        service(identity, gate, witness, online, offline, reconciliation) {}
+  EspIdfJournalStorage journalStorage;
+  EspIdfJournalIdentityStorage markerStorage;
+  PersistentCommandJournal journal;
+  JournalIdentityOwner witness;
+  EspIdfKeepsakeInventoryStorage onlineStorage;
+  KeepsakeCommittedInventory online;
+  kufr::offline::EspIdfOutboxStorage offline;
+  ServiceBarrier barrier;
+  JournalReconciliation reconciliation;
+  JournalServiceEstablishment service;
+};
+const char* EstablishmentResult(JournalServiceEstablishment::Result result) {
+  using Result = JournalServiceEstablishment::Result;
+  switch (result) {
+    case Result::Established: return nullptr;
+    case Result::EvidenceBlocked: return "journal-evidence-blocked";
+    case Result::IdentityReplacementDenied: return "journal-identity-replacement-denied";
+    case Result::InventoryRejected: return "journal-inventory-rejected";
+    case Result::MarkerRejected: return "journal-marker-rejected";
+    case Result::JournalRejected: return "journal-state-rejected";
+    case Result::ServiceDenied: return "journal-service-denied";
+    case Result::InvalidRequest: return "journal-invalid-request";
+    case Result::IdentityUnavailable: return "journal-identity-unavailable";
+    default: return "journal-write-failed-reopen-required";
+  }
+}
 const char* Apply(cJSON* request) {
   const char* confirmation = Text(request, "physicalConfirmation");
   const char* proof = Text(request, "pop");
@@ -64,6 +115,15 @@ const char* Apply(cJSON* request) {
       (backend != nullptr && !NetworkSettings::IsValidBackendHost(backend))) { return "invalid-request"; }
   const char* deviceId = Text(request, "deviceId");
   const char* credential = Text(request, "credential");
+  const char* journalMode = Text(request, "journalEstablishment");
+  if (cJSON_GetObjectItemCaseSensitive(request, "journalEstablishment") &&
+      (!journalMode || (std::strcmp(journalMode, "factory") != 0 &&
+       std::strcmp(journalMode, "legacy") != 0 && std::strcmp(journalMode, "resume") != 0)))
+    return "invalid-journal-establishment";
+  if (journalMode && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(request, "replaceIdentity")))
+    return "journal-identity-replacement-denied";
+  if (journalMode && ((cJSON_GetObjectItemCaseSensitive(request, "deviceId") && !deviceId) ||
+      (cJSON_GetObjectItemCaseSensitive(request, "credential") && !credential))) return "invalid-identity";
   if ((deviceId == nullptr) != (credential == nullptr) ||
       (credential != nullptr && (!Hex(credential, 64) || std::strspn(credential, "0") == 64))) { return "invalid-identity"; }
   cJSON* ota = cJSON_GetObjectItemCaseSensitive(request, "ota");
@@ -92,25 +152,44 @@ const char* Apply(cJSON* request) {
     nvs_close(ble); return "pop-exists";
   }
   if (exists != ESP_OK && exists != ESP_ERR_NVS_NOT_FOUND) { nvs_close(ble); return "nvs-failed"; }
-  if (deviceId != nullptr) {
-    if (std::strlen(deviceId) == 0 || std::strlen(deviceId) > 64 ||
-        std::strspn(deviceId, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != std::strlen(deviceId)) {
+  if (deviceId != nullptr || journalMode != nullptr) {
+    if (deviceId && (std::strlen(deviceId) == 0 || std::strlen(deviceId) > 64 ||
+        std::strspn(deviceId, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != std::strlen(deviceId))) {
       nvs_close(ble); return "invalid-identity";
     }
     EspIdfProvisioningStorage identityStorage(true);
     DeviceIdentity identity(identityStorage);
-    if (identity.IsProvisioned() && !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(request, "replaceIdentity"))) {
+    if (!journalMode && identity.IsProvisioned() &&
+        !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(request, "replaceIdentity"))) {
       nvs_close(ble); return "identity-exists";
     }
     std::array<uint8_t, 32> bytes{};
-    for (size_t i = 0; i < bytes.size(); ++i) {
+    for (size_t i = 0; credential && i < bytes.size(); ++i) {
       char pair[3] = {credential[i * 2], credential[i * 2 + 1], 0};
       bytes[i] = static_cast<uint8_t>(std::strtoul(pair, nullptr, 16));
     }
     PhysicalServiceGate gate;
-    const bool written = identity.Provision(deviceId, bytes, gate);
+    // Heap-owned bounded snapshots keep marker/codecs off the small app task
+    // stack. Reconstruct every attempt after any uncertain durable ACK.
+    std::unique_ptr<JournalServiceContext> context(new (std::nothrow) JournalServiceContext(identity, gate));
+    const char* error = context ? nullptr : "service-memory-unavailable";
+    if (context && journalMode) {
+      using Mode = JournalServiceEstablishment::Mode;
+      const Mode mode = std::strcmp(journalMode, "factory") == 0 ? Mode::Factory :
+          std::strcmp(journalMode, "legacy") == 0 ? Mode::Legacy : Mode::Resume;
+      const std::string target = deviceId ? deviceId : identity.IsProvisioned()
+          ? identity.DeviceId() : context->witness.TargetDeviceId();
+      error = EstablishmentResult(context->service.Run(mode, target, credential ? &bytes : nullptr));
+    } else if (context) {
+      if (!context->witness.IsHealthy() ||
+          context->witness.CurrentPhase() != JournalIdentityOwner::Phase::Missing ||
+          !context->journal.IsHealthy() ||
+          context->journal.Origin() == PersistentCommandJournal::StateOrigin::Scoped)
+        error = "journal-mode-required";
+      else if (!identity.Provision(deviceId, bytes, gate)) error = "nvs-failed";
+    }
     Wipe(bytes.data(), bytes.size());
-    if (!written) { nvs_close(ble); return "nvs-failed"; }
+    if (error) { nvs_close(ble); return error; }
   }
   if (backend != nullptr) {
     nvs_handle_t network;
@@ -149,7 +228,8 @@ void EraseStrings(cJSON* value) {
   for (cJSON* child = value->child; child != nullptr; child = child->next) { EraseStrings(child); }
 }
 }
-extern "C" void app_main() {
+namespace {
+void ServiceLoop() {
   usb_serial_jtag_driver_config_t config{};
   config.tx_buffer_size = 512;
   config.rx_buffer_size = 4096;
@@ -198,4 +278,20 @@ extern "C" void app_main() {
   }
   Wipe(frame, sizeof(frame));
   Send("KUFR_SERVICE_RESULT window-closed\n");
+}
+}
+extern "C" void app_main() {
+  // Canonical marker decode nests real journal validation. Board high-water
+  // acceptance is still required; the small default app_main stack is avoided.
+  constexpr uint32_t ServiceStackBytes = 32768;
+  const auto task = [](void*) {
+    ServiceLoop();
+    char report[80];
+    std::snprintf(report, sizeof(report), "KUFR_SERVICE_STACK_FREE %u\n",
+        static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+    Send(report);
+    vTaskDelete(nullptr);
+  };
+  if (xTaskCreate(task, "journal-service", ServiceStackBytes, nullptr, 5, nullptr) != pdPASS)
+    Send("KUFR_SERVICE_RESULT service-memory-unavailable\n");
 }

@@ -67,6 +67,13 @@ class JournalEvidenceSource {
   virtual bool ReadCommitted(JournalEvidenceInventory& inventory) const = 0;
 };
 
+// Explicit service-image binding only. Runtime reads/commits do not infer this
+// authority from a missing store or an unbound legacy payload.
+class JournalServiceInventory : public JournalEvidenceSource {
+ public:
+  virtual bool EstablishBinding(const std::string& deviceId, bool serviceAuthorized) = 0;
+};
+
 // All producers, inventory commits and persisted-journal readers must share this
 // barrier before production reclamation can be enabled. Late producers must
 // revalidate their original epoch and pin evidence before committing a reference.

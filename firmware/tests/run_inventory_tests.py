@@ -25,6 +25,11 @@ CHECKS = {
         "device_control/JournalIdentityOwner", "device_control/JournalReconciliation",
         "conversation/ConversationStartCodec", "keepsake/KeepsakeCommittedInventory",
         "offline_show/OfflineCommittedInventory"],
+    "journal_service_establishment_test": ["device_control/PersistentCommandJournal",
+        "device_control/JournalIdentityOwner", "device_control/JournalReconciliation",
+        "device_control/JournalServiceEstablishment", "conversation/ConversationStartCodec",
+        "keepsake/KeepsakeCommittedInventory", "offline_show/OfflineOutboxCodec",
+        "offline_show/OfflineCommittedInventory", "lib/device_configuration/DeviceIdentity"],
 }
 
 
@@ -62,7 +67,11 @@ def main():
             if name == "keepsake_inventory_storage_test":
                 stub = str(ROOT / "tests/journal_storage_stubs")
                 flags += ["/I" + stub] if msvc else ["-I", stub]
-            files = [str(ROOT / "src/features" / (source + ".cpp")) for source in sources]
+            if name == "journal_service_establishment_test":
+                include = str(ROOT / "lib/device_configuration/include")
+                flags += ["/I" + include] if msvc else ["-I", include]
+            files = [str(ROOT / ((source + ".cpp") if source.startswith("lib/")
+                else "src/features/" + source + ".cpp")) for source in sources]
             files += [str(ROOT / "tests" / (name + ".cpp")), str(obj)]
             subprocess.run([compiler, *flags, *files], cwd=output, env=env, check=True)
             subprocess.run([str(executable)], cwd=output, env=env, check=True)
