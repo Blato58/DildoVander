@@ -10,7 +10,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 if (args is ["--persona-reliability"]) { await PersonaReliabilityTests.RunAsync(); return; }
 if (args is ["--persona-lab-transport"]) { await PersonaLabTransportTests.RunAsync(); return; }
 if (args is ["--persona-lab-provider-smoke"]) { Environment.ExitCode = await PersonaLabProviderSmoke.RunAsync(); return; }
-if (args is ["--persona-lab"]) { PersonaLabObservationsTests.Run(); await PersonaLabTests.RunAsync(); return; }
+if (args is ["--persona-lab"])
+{
+    PersonaLabObservationsTests.Run();
+    await PersonaLabTests.RunAsync();
+    await PersonaLabHardwareTests.RunAsync();
+    return;
+}
 if (args is ["--persona-provider-soak", var seconds])
 {
     Environment.ExitCode = await PersonaProviderSoak.RunAsync(seconds);

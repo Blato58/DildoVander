@@ -22,6 +22,8 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
     private readonly Func<CancellationToken, Task<WebSocket>>? reconnect;
     internal long VisualGeneration { get; set; }
     internal string? ProviderSessionId { get; private set; }
+    internal long? LastInputTokens { get; private set; }
+    internal long? LastOutputTokens { get; private set; }
     private int visualResets;
     private readonly HashSet<string> items = new(StringComparer.Ordinal);
     private bool initialized;
@@ -111,6 +113,8 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         Func<RealtimeReply, CancellationToken, Task>? finalize = null)
     {
         var original = turn;
+        LastInputTokens = null;
+        LastOutputTokens = null;
         var latestInput = turn.Request.Text;
         var acceptedInput = !turn.LiveAudio && inputPcm is null;
         long retiredCost = 0;
@@ -433,6 +437,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                             throw new InvalidDataException("Incomplete Realtime interruption.");
                         }
                         cost = checked(cost + RealtimeProtocol.ResponseCost(response.Usage));
+                        RecordObservedTokens(response.Usage);
                         if (responsePlayback.UnidentifiedPcmBytes > 0)
                         {
                             throw new InvalidDataException("Realtime interruption audio identity missing.");
@@ -456,6 +461,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                         throw new InvalidDataException("Output budget exceeded.");
                     }
                     cost = checked(cost + RealtimeProtocol.ResponseCost(response.Usage));
+                    RecordObservedTokens(response.Usage);
                     responseId = null;
                     RealtimeFunctionCallItem? function = null;
                     foreach (var output in response.OutputItems)
@@ -533,6 +539,17 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
             throw new OperationCanceledException(cancellationToken);
         }
         return new(visitorText, reply.ToString(), decision, reason, compartment, cost);
+    }
+
+    private void RecordObservedTokens(RealtimeResponseUsage? usage)
+    {
+        // ResponseCost has already validated this response's actual counts.
+        // Reset once per public turn and sum response segments, including tools.
+        if (usage?.InputTokenCount is { } input && usage.OutputTokenCount is { } output)
+        {
+            LastInputTokens = checked((LastInputTokens ?? 0) + input);
+            LastOutputTokens = checked((LastOutputTokens ?? 0) + output);
+        }
     }
     private async Task RefreshVisualAsync(VisualMediaRecord? image, CancellationToken token)
     {

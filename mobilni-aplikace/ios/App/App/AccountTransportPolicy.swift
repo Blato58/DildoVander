@@ -206,7 +206,7 @@ enum AccountTransportPolicy {
         guard route.count == 3 else { return false }
         switch route[2] {
         case "context": return method == "GET"
-        case "turns", "end", "socket-ticket": return method == "POST"
+        case "turns", "end", "socket-ticket", "hardware-ticket": return method == "POST"
         case "evaluation": return method == "PUT"
         case "image": return ["POST", "DELETE"].contains(method)
         default: return false

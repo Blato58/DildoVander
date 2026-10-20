@@ -45,11 +45,72 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
     private readonly ConcurrentDictionary<string, DateTimeOffset> ephemeralExpiry = new(StringComparer.Ordinal);
     private Timer? ephemeralCleanup;
     private bool stopping;
+    private readonly Dictionary<string, Guid> scriptReservations = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim capacity = new(options?.MaxConcurrentSessions ?? 4, options?.MaxConcurrentSessions ?? 4);
     internal bool LiveAvailable => live.Available;
     internal bool RealtimeAvailable => realtime.Available;
     internal int ActiveCount => active.Count;
     internal bool IsActive(string id) => active.ContainsKey(id);
+    internal IDisposable ReserveScript(string owner, string id, out Guid scriptOwner)
+    {
+        lock (admissionGate)
+        {
+            if (stopping) { throw new LabException(503, "lab_runtime_stopping"); }
+            var session = Detail(owner, id);
+            if (session.Status != "open") { throw new LabException(409, "lab_session_closed"); }
+            if (session.Hardware is not null) { throw new LabException(409, "lab_hardware_bound"); }
+            if (active.ContainsKey(id) || scriptReservations.ContainsKey(id))
+            { throw new LabException(409, "lab_session_busy"); }
+            var reservation = Guid.NewGuid();
+            scriptReservations.Add(id, reservation);
+            scriptOwner = reservation;
+            return new ScriptReservation(() =>
+            {
+                lock (admissionGate)
+                {
+                    if (scriptReservations.TryGetValue(id, out var current) && current == reservation)
+                    { scriptReservations.Remove(id); }
+                }
+            });
+        }
+    }
+    internal void ObserveHardware(LabSession session, LabEvent observation) => SaveEvent(session, observation);
+    internal LabTurn ObserveHardwareTurn(LabSession session, string role, string text, long? latencyMs = null,
+        int? audioBytes = null, string? decision = null, int? compartment = null) =>
+        SaveTurn(session, role, text, latencyMs, audioBytes, decision, compartment);
+    internal LabHardwareLease ReserveHardware(string owner, string id)
+    {
+        lock (admissionGate)
+        {
+            if (stopping) { throw new LabException(503, "lab_runtime_stopping"); }
+            var session = Detail(owner, id);
+            if (session.Status != "open") { throw new LabException(409, "lab_session_closed"); }
+            if (session.Hardware is not null) { throw new LabException(409, "lab_hardware_bound"); }
+            if (active.ContainsKey(id) || scriptReservations.ContainsKey(id)) { throw new LabException(409, "lab_session_busy"); }
+            if (session.HasImage) { throw new LabException(409, "lab_hardware_image_context_unsupported"); }
+            if (session.Engine == GptLiveProtocol.Model ? !LiveAvailable : !RealtimeAvailable)
+            { throw new LabException(503, "lab_provider_unavailable"); }
+            if (!capacity.Wait(0)) { throw new LabException(429, "lab_concurrency_limit"); }
+            var lifetime = new CancellationTokenSource();
+            var expiresAt = DateTimeOffset.UtcNow.AddSeconds(options?.MaxSessionSeconds ?? 180);
+            lifetime.CancelAfter(expiresAt - DateTimeOffset.UtcNow);
+            active[id] = lifetime;
+            return new(session, lifetime, () =>
+            {
+                lock (admissionGate)
+                {
+                    if (active.TryGetValue(id, out var current) && ReferenceEquals(current, lifetime))
+                    {
+                        active.TryRemove(id, out _);
+                        ephemeral.TryRemove(id, out _);
+                        ephemeralExpiry.TryRemove(id, out _);
+                        images?.Clear(owner, id);
+                        capacity.Release();
+                    }
+                }
+            }, expiresAt);
+        }
+    }
     internal LabSession Detail(string owner, string id)
     {
         ExpireEphemeral();
@@ -89,6 +150,8 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
         {
             var session = store.Session(owner, id);
             if (session.Engine != RealtimeProtocol.Model) { throw new LabException(409, "lab_image_requires_realtime"); }
+            if (!revoke && session.Hardware is not null) { throw new LabException(409, "lab_hardware_bound"); }
+            if (!revoke && scriptReservations.ContainsKey(id)) { throw new LabException(409, "lab_session_busy"); }
             if (!revoke && session.Status != "open") { throw new LabException(409, "lab_session_closed"); }
             if (active.TryGetValue(id, out var current))
             {
@@ -97,10 +160,11 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
             }
             change(session);
             SaveEvent(session, LabContract.Event("image_context", revoke ? "revoked" : "provided"));
+            if (revoke && scriptReservations.ContainsKey(id)) { return End(owner, id); }
             return Detail(owner, id);
         }
     }
-    internal async Task<LabSession> TurnAsync(string owner, string id, string text, CancellationToken token)
+    internal async Task<LabSession> TurnAsync(string owner, string id, string text, CancellationToken token, Guid? scriptOwner = null)
     {
         LabContract.Text(text, 4000);
         return await RunAsync(owner, id, async (session, lifetime) =>
@@ -120,6 +184,8 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                 SaveTurn(session, "assistant", reply.Reply, timer.ElapsedMilliseconds, audioBytes, reply.Decision, reply.Compartment);
                 SaveEvent(session, LabContract.Event("provider_turn", "completed", timer.ElapsedMilliseconds, reply.Decision, reply.Compartment, reply.CostMicroUsd));
                 SaveEvent(session, LabContract.Event("provider_cost", "micro_usd", costMicroUsd: reply.CostMicroUsd));
+                RecordTokens(session, transport.Realtime);
+                RecordProposal(session, reply);
             }
             else
             {
@@ -143,7 +209,7 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                 }
             }
             return Detail(owner, id);
-        }, token);
+        }, token, scriptOwner);
     }
 
     internal async Task VoiceAsync(string owner, string id, WebSocket socket,
@@ -350,6 +416,7 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                         Volatile.Write(ref outputSuppressed, 0);
                         SaveEvent(session, LabContract.Event("provider_interrupt", "realtime_cancelled", costMicroUsd: interrupted.CostMicroUsd));
                         SaveEvent(session, LabContract.Event("provider_cost", "micro_usd", costMicroUsd: interrupted.CostMicroUsd));
+                        RecordTokens(session, transport.Realtime!);
                         await sender.JsonAsync(new { type = "interrupted" }, token);
                         continue;
                     }
@@ -357,6 +424,8 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
                     await sender.JsonAsync(new { type = "turn", turn = assistant }, token);
                     SaveEvent(session, LabContract.Event("provider_turn", "completed", responseTimer.ElapsedMilliseconds, reply.Decision, reply.Compartment, reply.CostMicroUsd));
                     SaveEvent(session, LabContract.Event("provider_cost", "micro_usd", costMicroUsd: reply.CostMicroUsd));
+                    RecordTokens(session, transport.Realtime!);
+                    RecordProposal(session, reply);
                     opening = false;
                 }
                 throw new LabException(409, "lab_turn_limit");
@@ -364,10 +433,12 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
         }, requestToken);
     }
 
-    private async Task<T> RunAsync<T>(string owner, string id, Func<LabSession, CancellationToken, Task<T>> action, CancellationToken requestToken)
+    private async Task<T> RunAsync<T>(string owner, string id, Func<LabSession, CancellationToken, Task<T>> action,
+        CancellationToken requestToken, Guid? scriptOwner = null)
     {
         var session = Detail(owner, id);
         if (session.Status != "open") { throw new LabException(409, "lab_session_closed"); }
+        if (session.Hardware is not null) { throw new LabException(409, "lab_hardware_bound"); }
         if ((session.Engine == GptLiveProtocol.Model && !live.Available)
             || (session.Engine == RealtimeProtocol.Model && !realtime.Available)) { throw new LabException(503, "lab_provider_unavailable"); }
         if (!await capacity.WaitAsync(0, requestToken)) { throw new LabException(429, "lab_concurrency_limit"); }
@@ -378,7 +449,10 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
             lock (admissionGate)
             {
                 if (stopping) { throw new LabException(503, "lab_runtime_stopping"); }
+                if (scriptReservations.TryGetValue(id, out var reserved) && reserved != scriptOwner)
+                { throw new LabException(409, "lab_session_busy"); }
                 session = Detail(owner, id);
+                if (session.Hardware is not null) { throw new LabException(409, "lab_hardware_bound"); }
                 if (session.Status != "open" || !active.TryAdd(id, lifetime))
                 { throw new LabException(409, session.Status == "open" ? "lab_session_busy" : "lab_session_closed"); }
             }
@@ -563,11 +637,31 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
         var delegation = value.GetProperty("delegation");
         var id = GptLiveProtocol.RequiredString(delegation, "id", 200);
         if (GptLiveProtocol.RequiredString(delegation, "target", 20) != "client") { throw new InvalidDataException("Unexpected delegation."); }
-        SaveEvent(session, LabContract.Event("tool_result", "simulation_only"));
+        SaveEvent(session, LabContract.Event("tool_requested", "client_delegation"));
+        var failed = session.ScenarioId == "tool-failure";
         await connection.SendAsync(new { type = "session.commentary.append", event_id = Guid.NewGuid().ToString("N"),
-            delegation_id = id, content = "Simulation-only tool result: no physical operation dispatched and no production memory read or written. "
+            delegation_id = id, content = (failed
+                ? "Simulated tool execution failure: the fictional tool is unavailable. Explain that no operation succeeded and continue without claiming an outcome. "
+                : "Simulation-only tool result: no physical operation dispatched and no production memory read or written. ")
                 + "A simulated selection has not been scored; do not invent a confirmed wand or physical outcome. Continue the fictional conversation." }, token);
+        SaveEvent(session, LabContract.Event("tool_result", failed ? "simulated_failure" : "simulation_only"));
     }
+    private void RecordProposal(LabSession session, RealtimeReply reply)
+    {
+        if (reply.Decision != "ask")
+        {
+            SaveEvent(session, LabContract.Event("tool_result", "validated_simulation", decision: reply.Decision,
+                compartment: reply.Compartment));
+        }
+    }
+    private void RecordTokens(LabSession session, OpenAiRealtimeConnection connection)
+    {
+        if (connection.LastInputTokens is { } input && connection.LastOutputTokens is { } output)
+        {
+            SaveEvent(session, LabContract.Event("provider_tokens", "observed", inputTokens: input, outputTokens: output));
+        }
+    }
+
     private void RecordUsage(LabSession session, JsonElement value, ref long accountedCost, bool required = false)
     {
         if (value.TryGetProperty("usage", out var usage) && usage.TryGetProperty("seconds", out var duration)
@@ -624,12 +718,22 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
         {
             if (stopping) { return; }
             stopping = true;
+            scriptReservations.Clear();
             ephemeralCleanup?.Dispose();
             foreach (var lifetime in active.Values) { lifetime.Cancel(); }
             ephemeral.Clear();
             ephemeralExpiry.Clear();
             // Active calls still execute Release while unwinding. No semaphore
             // wait handle is used, so leave this managed primitive alive for them.
+        }
+    }
+
+    private sealed class ScriptReservation(Action release) : IDisposable
+    {
+        private int disposed;
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref disposed, 1) == 0) { release(); }
         }
     }
 

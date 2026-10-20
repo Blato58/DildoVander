@@ -153,6 +153,12 @@ internal static class PersonaReliabilityTests
         Require(bytes == 2 && reply.Reply == "Fixture reply." && reply.Decision == "ask" && socket.Responses == 1,
             "the official Realtime SDK completes one correlated response without reconnect or replay");
         Require(connection.ProviderSessionId == "sess_fixture-1", "actual SDK session metadata exposes only the captured provider id");
+        Require(connection.LastInputTokens == 1 && connection.LastOutputTokens == 1,
+            "actual response usage supplies token counts without estimating from audio");
+        await connection.GenerateTurnAsync(Context(), null, (_, _) => Task.CompletedTask,
+            (_, _) => Task.CompletedTask, lifetime.Token);
+        Require(connection.LastInputTokens == 1 && connection.LastOutputTokens == 1,
+            "per-turn token counts reset rather than double-counting connection totals");
     }
 
     private static async Task VerifyProviderSessionIdsAsync()

@@ -66,7 +66,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         var visualState = visualRevision?.Invoke();
         if (connection.VisualGeneration > 0)
         {
-            var safe = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess).Text : "";
+            var safe = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess).Text : call.LabHardware is null ? "" : call.Context.EveningContext;
             turn = turn with { EveningContext = safe, LiveInput = new object[] {
                 new { type = "message", role = "developer", content = new[] { new { type = "input_text", text = safe.Length > 0 ? safe : "Historicky fotograficky kontext byl odvolan." } } } } };
         }
@@ -92,7 +92,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     retiredVoiceCost = checked(retiredVoiceCost + GptLiveProtocol.VoiceReservation);
                     await connection.RestartAsync(current.Generation, token);
                     try { using var retired = await pending; } catch (Exception) { }
-                    var safe = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess).Text : "";
+                    var safe = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess).Text : call.LabHardware is null ? "" : call.Context.EveningContext;
                     context = context with { CostumeContext = visualContext?.Invoke().Context ?? "", EveningContext = safe,
                         LiveInput = new object[] { new { type = "message", role = "developer", content = new[] {
                             new { type = "input_text", text = safe.Length > 0 ? safe : "Fotograficky kontext byl odvolan." } } } } };
@@ -108,6 +108,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     || started.RootElement.GetProperty("session").GetProperty("model").GetString() != GptLiveProtocol.Model)
                 { throw new InvalidDataException("Live startup correlation failed."); }
                 connection.CaptureSessionId(started.RootElement);
+                call.LabHardware?.ProviderReady(connection.ProviderSessionId);
                 visualState = visualRevision?.Invoke();
                 turn = context;
                 return;
@@ -292,7 +293,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             }
             tracker = new LiveCommandTracker(connection);
             providerTimelineOffset = projection.Segments.Select(segment => segment.EndMs).DefaultIfEmpty(0).Max() + 100;
-            var recovery = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess) : new LiveMemoryContext("", []);
+            var recovery = memory is not null && memoryAccess is not null ? memory.RecoveryContext(memoryAccess) : new LiveMemoryContext(call.LabHardware is null ? "" : call.Context.EveningContext, []);
             var literal = projection.Segments.Where(segment => segment.Speaker == "user")
                 .Select(segment => segment.Text).ToArray();
             var input = new List<object>();
@@ -400,6 +401,19 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 && !operatorFinishRequested
                 && CharacterSession.ClassifyExplicitControl(projection.LatestInput) != CharacterSignalKind.RequestExpress)
             { waiting = null; tasks[task.DelegationId] = task with { State = "character_control" }; return; }
+            if (call.LabHardware is { } hardware
+                && projection.Intent is LiveRequestIntent.Memory or LiveRequestIntent.Remember or LiveRequestIntent.Forget)
+            {
+                var result = projection.Intent == LiveRequestIntent.Memory
+                    ? "Synthetic read-only fixture data:\n" + call.Context.EveningContext
+                    : "Simulated test memory change acknowledged. No production memory was read or changed.";
+                await tracker.AppendAsync("commentary", result, task.DelegationId, token);
+                hardware.Runtime.ObserveHardware(hardware.Session,
+                    Kufr.Backend.Features.PersonaLab.LabContract.Event("hardware_memory", "synthetic_only"));
+                waiting = null;
+                tasks[task.DelegationId] = task with { State = "synthetic_memory" };
+                return;
+            }
             if (projection.Intent is LiveRequestIntent.Memory or LiveRequestIntent.Remember or LiveRequestIntent.Forget
                 && memory is not null && memoryAccess is not null)
             {

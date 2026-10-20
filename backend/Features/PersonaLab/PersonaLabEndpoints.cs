@@ -26,6 +26,8 @@ internal static class PersonaLabEndpoints
         });
         services.AddSingleton<LabTicketRegistry>();
         services.AddSingleton<PersonaLabRuntime>();
+        services.AddSingleton<PersonaLabHardware>();
+        services.AddHostedService(sp => sp.GetRequiredService<PersonaLabHardware>());
         services.AddSingleton<PersonaLabSuites>();
         services.AddHostedService(sp => sp.GetRequiredService<PersonaLabSuites>());
         services.AddSingleton<PersonaLabImages>();
@@ -38,6 +40,7 @@ internal static class PersonaLabEndpoints
         _ = app.Services.GetService<PersonaLabOptions>();
         var group = app.MapGroup("/app/v1/persona-lab").RequireAuthorization().RequireRateLimiting("account");
         group.MapPersonaLabImages();
+        group.MapPersonaLabHardware();
         group.AddEndpointFilter(async (invocation, next) =>
         {
             try
@@ -54,7 +57,7 @@ internal static class PersonaLabEndpoints
         group.MapGet("/catalog", (PersonaLabStore store, PersonaLabRuntime runtime) => Results.Json(new
         {
             capabilities = new { live = runtime.LiveAvailable, realtime = runtime.RealtimeAvailable, voice = true,
-                text = true, simulationOnly = true, imageRealtime = true },
+                text = true, simulationOnly = false, defaultMode = "simulation", hardwareContext = true, imageRealtime = true },
             activeRevisionId = store.ActiveRevisionId, versions = store.Revisions(),
             scenarios = LabContract.Scenarios, memoryFixtures = LabContract.Fixtures
         }));
@@ -104,7 +107,7 @@ internal static class PersonaLabEndpoints
         group.MapGet("/diagnostics", (HttpContext http, PersonaLabStore store, PersonaLabRuntime runtime) =>
             AccountRoles.IsAdmin(http.User)
                 ? Results.Json(new { storage = store.Diagnostics(), activeConnections = runtime.ActiveCount,
-                    liveAvailable = runtime.LiveAvailable, realtimeAvailable = runtime.RealtimeAvailable, simulationOnly = true })
+                    liveAvailable = runtime.LiveAvailable, realtimeAvailable = runtime.RealtimeAvailable, simulationOnly = false, hardwareContext = true })
                 : ApiProblem.Create(http, 403, "administrator_required"));
         group.MapPost("/sessions/{id}/socket-ticket", async (HttpContext http, string id, LabTicketRequest request, PersonaLabStore store, LabTicketRegistry registry) =>
         {

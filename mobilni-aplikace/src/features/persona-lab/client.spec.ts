@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PersonaLabClient, technicalDiagnostics } from './client';
 import type { LabSession } from './contracts';
 const transport = vi.hoisted(() => vi.fn());
+const platform = vi.hoisted(() => vi.fn(() => 'web'));
 vi.mock('../identity/session', () => ({ accountTransport: transport }));
-beforeEach(() => { transport.mockReset(); });
+vi.mock('./platform', () => ({ labClientPlatform: platform }));
+beforeEach(() => { transport.mockReset(); platform.mockReset().mockReturnValue('web'); });
 
 describe('Persona Lab account requests', () => {
   it('cancels the native-compatible request and rejects a late account response', async () => {
@@ -28,10 +30,10 @@ describe('Persona Lab account requests', () => {
   it('projects diagnostics without content, comments or future payload fields', () => {
     const session = {
       id: 'test', engine: 'gpt-live-1', config: { id: 'revision', instructions: 'PRIVATE PROMPT' }, status: 'ended',
-      createdAt: '2026-10-20T00:00:00Z', endedAt: null,
+      createdAt: '2026-10-20T00:00:00Z', endedAt: null, platform: 'ios',
       turns: [{ id: 'turn', role: 'user', text: 'PRIVATE TRANSCRIPT', latencyMs: 120, token: 'SECRET' }],
       events: [
-        { id: 'event', type: 'turn', code: 'ok', providerSessionId: 'sess_safe-123', payload: 'PRIVATE FUTURE PAYLOAD' },
+        { id: 'event', type: 'provider_tokens', code: 'observed', inputTokens: 0, outputTokens: null, providerSessionId: 'sess_safe-123', payload: 'PRIVATE FUTURE PAYLOAD' },
         { id: 'unsafe', type: 'turn', providerSessionId: 'SECRET authorization header' },
       ],
       evaluation: { comment: 'PRIVATE COMMENT' },
@@ -40,6 +42,8 @@ describe('Persona Lab account requests', () => {
     expect(output).toContain('120'); expect(output).toContain('simulationOnly');
     expect(output).toContain('sess_safe-123');
     expect(output).not.toMatch(/PRIVATE|SECRET|instructions|payload|evaluation/);
+    expect(JSON.parse(output).platform).toBe('ios');
+    expect(JSON.parse(output).events[0]).toMatchObject({ inputTokens: 0, outputTokens: null });
   });
   it('does not admit requests without an account', async () => {
     const client = new PersonaLabClient(() => '');
@@ -76,5 +80,23 @@ describe('Persona Lab account requests', () => {
     transport.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     await expect(client.sessions()).rejects.toMatchObject({ failure: { category: 'Network', recoverable: true } });
     expect(transport).toHaveBeenCalledTimes(2);
+  });
+  it('propagates the observed client platform to sessions and suites as metadata', async () => {
+    transport.mockImplementation(async () => new Response('{}'));
+    const client = new PersonaLabClient(() => 'tester');
+    await client.createSession({ revisionId: 'r', engine: 'gpt-live-1', scenarioId: 's', fixtureId: 'f', label: 'Test', recordContent: false, platform: 'ios' });
+    expect(JSON.parse(transport.mock.calls[0][1].body).platform).toBe('web');
+    platform.mockReturnValue('ios');
+    await client.createSuite({ revisionId: 'r', engine: 'gpt-live-1', fixtureId: 'f', scenarioIds: ['s'], label: 'Suite', recordContent: false });
+    expect(JSON.parse(transport.mock.calls[1][1].body).platform).toBe('ios');
+  });
+  it('exports hardware binding observations without a bearer capability or a false simulation claim', () => {
+    const hardware = { deviceId: 'case', bootId: 'boot', expectedRevision: 2, conversationId: null, status: 'prepared',
+      expiresAt: '2026-10-20T12:03:00Z', testContext: 'SECRET CAPABILITY' };
+    const session = { id: 's', config: { id: 'r' }, turns: [], events: [], hardware } as unknown as LabSession;
+    const diagnostics = technicalDiagnostics(session);
+    expect(diagnostics).toMatchObject({ simulationOnly: false, hardwareBinding: { deviceId: 'case', expectedRevision: 2 } });
+    expect(JSON.stringify(diagnostics)).not.toContain('SECRET');
+    expect(technicalDiagnostics({ ...session, hardware: null }, true)).toMatchObject({ simulationOnly: null, hardwareUncertain: true });
   });
 });

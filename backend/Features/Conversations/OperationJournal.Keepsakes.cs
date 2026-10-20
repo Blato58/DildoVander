@@ -12,6 +12,8 @@ internal sealed partial class OperationJournal
     public bool MarkSelectionCompleted(string operationId, object? value, string? eveningId = null,
         long memoryDeletionEpoch = 0, string personalityId = PersonalityCatalog.DefaultId)
     {
+        var labCompleted = CompleteLabSelection(operationId, value);
+        if (labCompleted is { } completed) { return completed; }
         if (!keepsakesEnabled || value is not SelectionProposal proposal)
         {
             return MarkCompleted(operationId);

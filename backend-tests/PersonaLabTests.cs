@@ -34,6 +34,8 @@ internal static class PersonaLabTests
         try
         {
             PersistenceAndOwnership(root);
+            DiagnosticsPrivacyAndBounds(root);
+            DeletedSuiteResultsStayDeleted(root);
             TicketBoundaries();
             TechnicalLimits();
             SourceBaselineRestart(root);
@@ -51,6 +53,10 @@ internal static class PersonaLabTests
         var baseline = store.ActiveRevisionId;
         Check(store.PublishedOverride() is null, "source baseline preserves existing production builder");
         var first = store.CreateSession("alice", new(baseline, "gpt-live-1", "first-visit", "empty", "A"));
+        var ios = store.CreateSession("alice", new(baseline, "gpt-realtime-2.1", "first-visit", "empty", "iOS diagnostic", Platform: "ios"));
+        Check(ios.Platform == "ios" && store.Session("alice", ios.Id).Platform == "ios", "explicit iOS diagnostic platform persists without changing ownership");
+        Reject(() => store.CreateSession("alice", new(baseline, "gpt-live-1", "first-visit", "empty", "bad platform", Platform: "android")), 400,
+            "unsupported diagnostic platform rejected by authoritative store");
         Check(!first.RecordContent, "transcript recording is explicit opt-in");
         Check(store.Sessions("bob").Length == 0, "session listing is tenant-scoped");
         Reject(() => store.Session("bob", first.Id), 404, "cross-account session detail concealed");
@@ -78,7 +84,14 @@ internal static class PersonaLabTests
         Reject(() => reopened.Evaluate("alice", first.Id, Evaluation() with { Scores = new() { ["overall"] = 7 } }), 400, "invalid rubric scores rejected");
         Reject(() => reopened.Evaluate("alice", first.Id, Evaluation() with { TurnComments = [new("foreign-turn", "x")] }), 400,
             "turn comment cannot target another conversation");
-        Check(LabContract.Scenarios.Length == 19 && LabContract.Fixtures.Length == 3, "nineteen runnable cases and isolated memory fixtures available");
+        Check(LabContract.Scenarios.Length == 20 && LabContract.Fixtures.Length == 3, "twenty runnable cases and isolated memory fixtures available");
+        Check(LabContract.Scenarios.All(scenario => scenario.Script.Length is >= 2 and <= 8
+            && scenario.Script.Select(turn => turn.Index).SequenceEqual(Enumerable.Range(1, scenario.Script.Length))
+            && scenario.ScriptSha256 == LabContract.Hash(JsonSerializer.Serialize(scenario.Script)))
+            && LabContract.Scenarios.Sum(scenario => scenario.Script.Length) <= 120,
+            "canonical multi-turn scripts have sequential indexes, exact fingerprints and bounded total work");
+        Check(first.ScenarioSnapshot!.ScriptSha256 == LabContract.Scenarios.Single(x => x.Id == "first-visit").ScriptSha256
+            && first.ScenarioSnapshot.Script.Length == 3, "each session persists its complete exact scenario script snapshot");
         var suite = reopened.CreateSuite("alice", new(baseline, "gpt-live-1", "empty", ["first-visit", "stop"], "smoke"));
         Check(reopened.Suites("bob").Length == 0 && reopened.Suite("alice", suite.Id).Results.Length == 0, "suite storage ownership and no fabricated results");
         Reject(() => reopened.Suite("bob", suite.Id), 404, "cross-account suite concealed");
@@ -87,8 +100,111 @@ internal static class PersonaLabTests
         var observed = first with { Turns = [new("t", "assistant", "Ahoj.", DateTimeOffset.UtcNow)] };
         Check(LabRubric.Inspect(observed).All(x => x.Passed), "deterministic rubric uses actual observed output");
         Check(!LabRubric.Inspect(first).First(x => x.Name == "nonempty-output").Passed, "empty output cannot pass observed-response assertion");
+        var adultReply = new LabTurn("adult", "assistant", "Kurva, ten orloj má vlastní odbory?", DateTimeOffset.UtcNow);
+        var ordinary = new LabScriptTurn(1, "Běžný adult/chaos tón.", ["nonempty-output", "short-reply", "no-explicit-movement-claim"]);
+        Check(LabRubric.InspectTurn(ordinary, adultReply).All(assertion => assertion.Passed),
+            "ordinary adult profanity and an ordinary question are not generic rubric failures");
+        Check(!LabRubric.InspectTurn(new(2, "Teď výslovně bez nadávek.", ["no-profanity-after-withdrawal"]), adultReply).Single().Passed,
+            "bounded known profanity markers are checked only after explicit withdrawal");
+        Check(!LabRubric.InspectTurn(new(2, "Další otázku nechci.", ["no-question-after-withdrawal"]), adultReply).Single().Passed,
+            "question punctuation check applies only to an explicit user boundary");
+        Check(!LabRubric.InspectTurn(ordinary, adultReply with { Text = "Hůlka už vyjela, můžeš si ji vzít." }).Single(x => x.Name == "no-explicit-movement-claim").Passed,
+            "bounded Czech physical claim check handles diacritics");
+        var unexercised = LabRubric.InspectTurn(new(1, "Síť se přerušila.", ["network-recovery-not-exercised", "audio-stop-not-exercised", "tool-failure-observed"]), adultReply);
+        Check(unexercised.All(assertion => assertion.Status == "not_exercised" && !assertion.Passed),
+            "text alone cannot pass actual network recovery, audio interruption or unrequested tool failure");
     }
     private static LabEvaluation Evaluation() => new(LabContract.Metrics.ToDictionary(x => x, _ => 4), "Human observation", []);
+    private static void DiagnosticsPrivacyAndBounds(string root)
+    {
+        var store = new PersonaLabStore(Path.Combine(root, "diagnostics.sqlite"), Baseline());
+        const string secret = "PRIVATE-CONTENT-DO-NOT-EXPORT";
+        var instant = new DateTimeOffset(2026, 10, 20, 10, 0, 0, TimeSpan.Zero);
+        var sessions = new List<LabSession>();
+        var events = Enumerable.Range(0, 25).Reverse().Select(index => new LabEvent(index.ToString("D64"),
+            new string('t', 48), instant.AddSeconds(index), new string('c', 64), long.MaxValue,
+            new string('d', 24), 6, long.MaxValue, new string('p', 128), long.MaxValue, long.MaxValue)).ToArray();
+        for (var index = 0; index < 21; index++)
+        {
+            var owner = secret + (index % 2);
+            var session = store.CreateSession(owner, new(store.ActiveRevisionId, "gpt-realtime-2.1", "first-visit", "empty",
+                secret, secret, RecordContent: true, Platform: "ios"));
+            sessions.Add(store.Change(owner, session.Id, value => value with
+            {
+                CreatedAt = instant.AddMinutes(index / 3), EndedAt = instant.AddHours(1), Status = new string('s', 32),
+                Config = value.Config with { Id = new string('r', 64), Name = secret, Instructions = secret, Sha256 = secret, SourceVersion = secret },
+                Turns = [new(new string('u', 32), "user", secret, instant)], Events = events,
+                Evaluation = new(LabContract.Metrics.ToDictionary(metric => metric, _ => 4), secret, [new(new string('u', 32), secret)]),
+                MemorySnapshot = new("empty", secret, secret, secret, secret, secret), HasImage = true,
+                ScenarioSnapshot = value.ScenarioSnapshot! with { Name = secret, Description = secret, OpeningText = secret },
+                Hardware = index % 2 == 0 ? new(secret, Guid.NewGuid(), 1, instant.AddHours(1), secret) : null
+            }));
+        }
+        var json = JsonSerializer.Serialize(store.Diagnostics());
+        using var document = JsonDocument.Parse(json);
+        var storage = document.RootElement;
+        var recent = storage.GetProperty("recentSessions").EnumerateArray().ToArray();
+        var expected = sessions.OrderByDescending(session => session.CreatedAt).ThenByDescending(session => session.Id, StringComparer.Ordinal).Take(20).ToArray();
+        Check(storage.GetProperty("sessions").GetInt64() == 21 && storage.GetProperty("sessionsTruncated").GetBoolean() && recent.Length == 20,
+            "system diagnostics counts all owners but bounds recent sessions at twenty");
+        Check(recent.Select(session => session.GetProperty("sessionId").GetString()).SequenceEqual(expected.Select(session => session.Id)),
+            "system diagnostics orders newest sessions by creation time then id across owners");
+        Check(!json.Contains(secret, StringComparison.Ordinal) && !json.Contains("hasImage", StringComparison.Ordinal) &&
+            !storage.GetProperty("simulationOnly").GetBoolean(), "technical diagnostics excludes recorded content, ownership, images and nested hardware data");
+        Check(System.Text.Encoding.UTF8.GetByteCount(json) < 256 * 1024,
+            "full bounded technical export stays below 256 KiB with maximum token and numeric widths");
+        string[] sessionFields = ["sessionId", "engine", "personaRevisionId", "platform", "createdAt", "endedAt", "status", "testMode", "eventsTruncated", "events"];
+        string[] eventFields = ["id", "type", "createdAt", "code", "latencyMs", "decision", "compartment", "costMicroUsd", "providerSessionId", "inputTokens", "outputTokens"];
+        Check(recent.All(session => session.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(sessionFields.Order())),
+            "recent system sessions use the exact technical field whitelist");
+        Check(recent.All(session => session.GetProperty("eventsTruncated").GetBoolean() && session.GetProperty("events").GetArrayLength() == 20 &&
+            session.GetProperty("events").EnumerateArray().All(entry => entry.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(eventFields.Order()))),
+            "each session bounds its technical event projection at twenty with the exact whitelist");
+        Check(recent.All(session => session.GetProperty("events").EnumerateArray().Select(entry => entry.GetProperty("id").GetString())
+            .SequenceEqual(Enumerable.Range(5, 20).Select(index => index.ToString("D64")))),
+            "recent events retain the last twenty in chronological order regardless of stored order");
+        Check(recent.Select((session, index) => session.GetProperty("testMode").GetString() == (expected[index].Hardware is null ? "simulation" : "hardware")).All(value => value),
+            "diagnostics mode derives from actual hardware context without exposing its authority metadata");
+        var hardwareOutcomeId = "hardware-outcome:" + Guid.NewGuid().ToString("D");
+        store.Change(expected[0].OwnerId, expected[0].Id, value => value with
+        {
+            Events = [
+                new(new string('a', 32), "provider_turn", instant, ProviderSessionId: new string('p', 129)),
+                new(new string('b', 32), "provider_turn", instant.AddSeconds(1), Code: secret + "\nraw", ProviderSessionId: secret + " raw"),
+                new(hardwareOutcomeId, "provider_turn", instant.AddSeconds(2), ProviderSessionId: "remote-žluťoučký")]
+        });
+        var sanitizedJson = JsonSerializer.Serialize(store.Diagnostics());
+        using var sanitized = JsonDocument.Parse(sanitizedJson);
+        var sanitizedEvents = sanitized.RootElement.GetProperty("recentSessions")[0].GetProperty("events");
+        Check(sanitizedEvents.EnumerateArray().All(entry => entry.GetProperty("providerSessionId").ValueKind == JsonValueKind.Null) &&
+            sanitizedEvents[1].GetProperty("code").ValueKind == JsonValueKind.Null && !sanitizedJson.Contains(secret, StringComparison.Ordinal),
+            "oversized or non-token provider metadata and event codes are omitted rather than truncated into export");
+        Check(sanitizedEvents[2].GetProperty("id").GetString() == hardwareOutcomeId,
+            "actual hardware-outcome UUID correlation survives the bounded event-id projection");
+    }
+    private static void DeletedSuiteResultsStayDeleted(string root)
+    {
+        var store = new PersonaLabStore(Path.Combine(root, "deleted-suite-results.sqlite"), Baseline());
+        var baseline = store.ActiveRevisionId;
+        var removed = store.CreateSession("alice", new(baseline, "gpt-realtime-2.1", "first-visit", "empty", "delete"));
+        var retained = store.CreateSession("alice", new(baseline, "gpt-realtime-2.1", "stop", "empty", "keep"));
+        var foreign = store.CreateSession("bob", new(baseline, "gpt-realtime-2.1", "first-visit", "empty", "foreign"));
+        var suite = store.CreateSuite("alice", new(baseline, "gpt-realtime-2.1", "empty", ["first-visit", "stop"], "deletion regression"));
+        var stale = suite with { Results = [new("first-visit", removed.Id, "completed", []), new("stop", retained.Id, "completed", [])] };
+        store.SaveSuite(stale);
+        store.InterruptRunningSuites();
+        var interruptedAt = store.Suite("alice", suite.Id).CompletedAt;
+        store.DeleteSession("alice", removed.Id);
+        Check(store.Suite("alice", suite.Id).Results.Single().SessionId == retained.Id,
+            "explicit session deletion removes only its suite result");
+        store.SaveSuite(stale with { Status = "completed", Results = [.. stale.Results, new("first-visit", foreign.Id, "completed", [])] });
+        var saved = store.Suite("alice", suite.Id);
+        Check(saved.Results.Single().SessionId == retained.Id,
+            "stale suite writes cannot reintroduce deleted or foreign-owned session results");
+        Check(saved.Status == "failed" && saved.FailureCode == "interrupted" && saved.CompletedAt == interruptedAt,
+            "result filtering preserves an existing interrupted terminal state and completion time");
+        Reject(() => store.Session("alice", removed.Id), 404, "filtered suite write does not recreate the deleted session");
+    }
     private static void SourceBaselineRestart(string root)
     {
         var path = Path.Combine(root, "baseline-restart.sqlite");
@@ -259,6 +375,18 @@ internal static class PersonaLabTests
         Check((await client.PostAsJsonAsync("/app/v1/persona-lab/sessions/" + owned.Id + "/turns", new { text = "Ahoj" })).StatusCode
             == HttpStatusCode.ServiceUnavailable, "unconfigured provider fails explicitly without fabricated reply");
         using var admin = await AccountClientAsync("admin", AccountRoles.Administrator);
+        var diagnostics = await admin.GetFromJsonAsync<JsonElement>("/app/v1/persona-lab/diagnostics");
+        var systemSessions = diagnostics.GetProperty("storage").GetProperty("recentSessions").EnumerateArray().ToArray();
+        Check(systemSessions.Any(session => session.GetProperty("sessionId").GetString() == first.Id) &&
+            systemSessions.Any(session => session.GetProperty("sessionId").GetString() == owned.Id) &&
+            systemSessions.All(session => !session.TryGetProperty("ownerId", out _)),
+            "real admin diagnostics sees bounded cross-account technical metadata without owner identities");
+        var catalog = await admin.GetFromJsonAsync<JsonElement>("/app/v1/persona-lab/catalog");
+        var capabilities = catalog.GetProperty("capabilities");
+        Check(!capabilities.GetProperty("simulationOnly").GetBoolean() && capabilities.GetProperty("hardwareContext").GetBoolean() &&
+            capabilities.GetProperty("defaultMode").GetString() == "simulation" && !catalog.TryGetProperty("hardwareContext", out _) &&
+            !diagnostics.GetProperty("simulationOnly").GetBoolean() && diagnostics.GetProperty("hardwareContext").GetBoolean(),
+            "catalog nested capabilities and system diagnostics truthfully expose simulation default and hardware support");
         await CsrfAsync(admin);
         admin.DefaultRequestHeaders.Add("X-DV-Confirm", "yes");
         var draftResponse = await admin.PostAsJsonAsync("/app/v1/persona-lab/revisions", new LabRevisionRequest(store.ActiveRevisionId,

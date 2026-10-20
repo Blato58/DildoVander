@@ -195,6 +195,7 @@ app.MapServerModes();
 app.MapServerLogs();
 app.MapShowEndpoints();
 app.MapShowDeviceCues();
+app.MapKeepsakeOutcomes();
 if (keepsakesEnabled)
 {
     app.MapKeepsakes();

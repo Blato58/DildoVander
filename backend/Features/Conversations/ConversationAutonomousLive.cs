@@ -10,14 +10,14 @@ internal sealed partial class ConversationStore
     {
         lock (gate)
         {
-            return call.EveningId is null ? null : new(call.Correlation.DeviceId, call.EveningId,
+            return call.LabHardware is not null || call.EveningId is null ? null : new(call.Correlation.DeviceId, call.EveningId,
                 call.Correlation.ConversationId, call.Context.PersonalityId,
                 eveningMemory?.GuestPermission(call.Correlation.DeviceId, call.Correlation.ConversationId));
         }
     }
     internal bool CanBindGuest(string device, string id)
     {
-        lock (gate) return conversations.TryGetValue(id, out var c) && c.DeviceId == device && c.TurnCount == 0 && !HasActiveCall(id);
+        lock (gate) return conversations.TryGetValue(id, out var c) && c.DeviceId == device && c.LabHardware is null && c.TurnCount == 0 && !HasActiveCall(id);
     }
     internal void InvalidateMemoryContext(string device, string? conversation = null)
     {
@@ -53,7 +53,7 @@ internal sealed partial class ConversationStore
     {
         var availability = LiveAvailability(call);
         var decision = outcome.Decision;
-        if (call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null
+        if (call.LabHardware is null && call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null
             && !show.CanPublishCharacterFinale(call.Correlation.DeviceId, call.SessionGeneration)) { return null; }
         if (call.Context.LivePrompt is { Version: "dv01-adult-v1" } characterSnapshot
             && (characterSnapshot.CatalogVersion != call.Context.Request.CatalogVersion
@@ -83,17 +83,19 @@ internal sealed partial class ConversationStore
                 MemoryKind.TopicUsed, motif, call.OperationId, ExpectedEpoch: epoch, ExpectedDeletionEpoch: call.MemoryDeletionEpoch));
         }
         if (!IsRealtimeTurnCurrent(call)) { return null; }
-        var capturedEvening = eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId;
+        var capturedEvening = call.LabHardware is null
+            ? eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId : null;
         bool CommitProposal() => journal.MarkSelectionCompleted(call.OperationId, proposal, capturedEvening,
             call.MemoryDeletionEpoch, call.Context.PersonalityId);
-        var published = call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null
+        var published = call.LabHardware is null && call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null
             ? show.TryCommitCharacterFinale(correlation.DeviceId, call.SessionGeneration, CommitProposal)
             : CommitProposal();
         if (!published) { return null; }
-        BindFinaleSnapshot(correlation.DeviceId, call.OperationId, proposal, call.SessionGeneration,
+        if (call.LabHardware is null) { BindFinaleSnapshot(correlation.DeviceId, call.OperationId, proposal, call.SessionGeneration,
             decision.DecisionRevision, call.Context.LivePrompt?.Version ?? "live-existing",
             call.Context.LivePrompt is { Version: "dv01-adult-v1" } frozen ? frozen.Options.Character.FinaleProfile : null,
-            eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId);
+            eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId); }
+        ObserveLabCompletion(call, reply.Reply, reply.CostMicroUsd, result.Decision, proposal?.Compartment, proposal);
         operations.Add(call.OperationId, new(call.OperationId, "turn", "completed", correlation, result, null));
         conversations[correlation.ConversationId].TerminalReplyPublished = true;
         return result;

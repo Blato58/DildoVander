@@ -32,6 +32,14 @@ internal static class PersonaLabObservationsTests
         var failure = LabAnalytics.Reliability([failed]);
         Check(failure.FailedSessions == 1 && failure.RecoveryRate == 0
             && failure.UnexpectedDisconnectionRate is null, "missing connection denominator is not fabricated");
+        Check(measured.InputTokens is null && measured.OutputTokens is null && measured.TokenMeasuredTurns == 0,
+            "cost and audio observations do not invent token usage");
+        var tokenSession = session with { Events = [LabContract.Event("provider_tokens", "observed", inputTokens: 0, outputTokens: 2),
+            LabContract.Event("provider_tokens", "observed", inputTokens: 3, outputTokens: 4),
+            LabContract.Event("provider_tokens", "unknown")] };
+        var tokens = LabAnalytics.Reliability([tokenSession]);
+        Check(tokens.InputTokens == 3 && tokens.OutputTokens == 6 && tokens.TokenMeasuredTurns == 2,
+            "observed zero and incremental per-turn token counts remain distinct from missing usage");
 
         var clock = new AdjustableTimeProvider(now);
         using var images = new PersonaLabImages(clock);

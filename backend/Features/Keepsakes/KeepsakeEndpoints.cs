@@ -181,7 +181,6 @@ internal static partial class KeepsakeEndpoints
         group.MapGet("/deletions/{receiptId:guid}", (HttpContext c, string receiptId, KeepsakeStore store) =>
             Results.Json(new { schemaVersion = 1, receipt = Receipt(store.GetDeletionReceipt(receiptId, Session(c))) }));
 
-        app.MapPost("/v1/keepsakes/outcomes/{operationId:guid}", KeepsakeOutcomeEndpoints.PublishAsync);
         app.MapPost("/v1/keepsakes/{id:guid}/claim", KeepsakeOutcomeEndpoints.IssueClaim);
         app.MapPost("/v1/keepsakes/{id:guid}/restore-owner", async (HttpContext c, string id, ServerAdminAccess admin, KeepsakeStore store, IConfiguration config) =>
         {

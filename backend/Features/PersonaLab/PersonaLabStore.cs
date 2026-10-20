@@ -144,6 +144,7 @@ internal sealed partial class PersonaLabStore
         LabContract.Text(request.RevisionId, 100);
         LabContract.Text(request.Label, 100);
         if (!LabContract.Engine(request.Engine)
+            || request.Platform is not ("web" or "ios")
             || !LabContract.Scenarios.Any(x => x.Id == request.ScenarioId)
             || !LabContract.Fixtures.Any(x => x.Id == request.FixtureId)
             || request.ComparisonId is { } comparison && (comparison.Length > 64 || !comparison.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')))
@@ -163,7 +164,8 @@ internal sealed partial class PersonaLabStore
             var session = new LabSession(Guid.NewGuid().ToString("N"), owner, request.Label.Trim(), request.Engine,
                 request.ScenarioId, request.FixtureId, request.ComparisonId, DateTimeOffset.UtcNow, null, "open",
                 revision with { Engine = request.Engine }, [], [LabContract.Event("session_created", "simulation_only")], null, 1, request.RecordContent,
-                LabContract.Fixtures.Single(x => x.Id == request.FixtureId), LabContract.Scenarios.Single(x => x.Id == request.ScenarioId));
+                LabContract.Fixtures.Single(x => x.Id == request.FixtureId), LabContract.Scenarios.Single(x => x.Id == request.ScenarioId),
+                request.Platform);
             Insert(connection, "session", session.Id, owner, session.Revision, session, transaction);
             transaction.Commit();
             return session;
@@ -251,8 +253,48 @@ internal sealed partial class PersonaLabStore
         lock (gate)
         {
             using var connection = Open();
-            return new { sessions = Count(connection, "session"), revisions = Count(connection, "revision"), simulationOnly = true };
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT json FROM lab_documents WHERE kind='session' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 21";
+            var recent = new List<LabSession>();
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read()) { recent.Add(JsonSerializer.Deserialize<LabSession>(reader.GetString(0), Json)!); }
+            }
+            // Keep this projection independent of content-bearing session DTOs. The token caps
+            // bound even a full 20-by-20 export below 256 KiB without truncating serialized JSON.
+            var recentSessions = recent.Take(20).Select(session => new
+            {
+                sessionId = Token(session.Id, 32) ?? "unknown",
+                engine = session.Engine is "gpt-live-1" or "gpt-realtime-2.1" ? session.Engine : "unknown",
+                personaRevisionId = Token(session.Config.Id, 64) ?? "unknown",
+                platform = session.Platform is "web" or "ios" ? session.Platform : "unknown",
+                createdAt = session.CreatedAt,
+                endedAt = session.EndedAt,
+                status = Token(session.Status, 32) ?? "unknown",
+                testMode = session.Hardware is null ? "simulation" : "hardware",
+                eventsTruncated = session.Events.Length > 20,
+                events = session.Events.OrderBy(entry => entry.CreatedAt).ThenBy(entry => entry.Id, StringComparer.Ordinal)
+                    .TakeLast(20).Select(entry => new
+                    {
+                        id = Token(entry.Id, 64) ?? "unknown",
+                        type = Token(entry.Type, 48) ?? "unknown",
+                        createdAt = entry.CreatedAt,
+                        code = Token(entry.Code, 64),
+                        latencyMs = Nonnegative(entry.LatencyMs),
+                        decision = Token(entry.Decision, 24),
+                        compartment = entry.Compartment is >= 1 and <= 6 ? entry.Compartment : null,
+                        costMicroUsd = Nonnegative(entry.CostMicroUsd),
+                        providerSessionId = Token(entry.ProviderSessionId, 128),
+                        inputTokens = Nonnegative(entry.InputTokens),
+                        outputTokens = Nonnegative(entry.OutputTokens)
+                    }).ToArray()
+            }).ToArray();
+            return new { sessions = Count(connection, "session"), revisions = Count(connection, "revision"),
+                simulationOnly = false, recentSessions, sessionsTruncated = recent.Count > 20 };
         }
+        static long? Nonnegative(long? value) => value is >= 0 ? value : null;
+        static string? Token(string? value, int maximum) => value is { Length: > 0 } && value.Length <= maximum &&
+            value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.' or ':') ? value : null;
     }
     private SqliteConnection Open()
     {

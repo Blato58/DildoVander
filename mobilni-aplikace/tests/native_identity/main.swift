@@ -21,6 +21,7 @@ for (method, path) in [
     ("GET", "/suites/\(labID)"), ("GET", "/sessions/\(labID)"),
     ("GET", "/sessions/\(labID)/context"), ("POST", "/sessions/\(labID)/turns"),
     ("POST", "/sessions/\(labID)/socket-ticket"), ("POST", "/sessions/\(labID)/end"),
+    ("POST", "/sessions/\(labID)/hardware-ticket"),
     ("PUT", "/sessions/\(labID)/evaluation"), ("POST", "/sessions/\(labID)/image"),
     ("DELETE", "/sessions/\(labID)/image"), ("DELETE", "/sessions/\(labID)"),
     ("POST", "/revisions/\(labID)/publish"),

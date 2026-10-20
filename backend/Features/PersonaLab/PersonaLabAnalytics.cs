@@ -4,7 +4,8 @@ internal sealed record LabReliabilitySummary(int SuccessfulSessions, int FailedS
     int ConnectionAttempts, int EstablishedConnections, int UnexpectedDisconnections,
     double? UnexpectedDisconnectionRate, int RecoveryAttempts, int SuccessfulRecoveries, double? RecoveryRate,
     int LatencySamples, double? AverageResponseMs, double? P95ResponseMs, double? AverageDurationSeconds,
-    decimal? EstimatedCostUsd, int CostMeasuredSessions);
+    decimal? EstimatedCostUsd, int CostMeasuredSessions,
+    long? InputTokens = null, long? OutputTokens = null, int TokenMeasuredTurns = 0);
 
 internal static class LabAnalytics
 {
@@ -16,6 +17,10 @@ internal static class LabAnalytics
             sessions = sessions.Length,
             evaluations = evaluated.Length,
             summary = Reliability(sessions),
+            platforms = sessions.GroupBy(x => x.Platform).Select(group => new
+            {
+                platform = group.Key, sessions = group.Count(), summary = Reliability(group.ToArray())
+            }),
             metrics = LabContract.Metrics.Select(metric => new
             {
                 name = metric, count = evaluated.Length,
@@ -64,13 +69,17 @@ internal static class LabAnalytics
         var costMicroUsd = costSessions.SelectMany(x => x.Events)
             .Where(x => x.Type == "provider_cost" && x.Code == "micro_usd" && x.CostMicroUsd >= 0)
             .Sum(x => (decimal)x.CostMicroUsd!.Value);
+        var tokens = events.Where(x => x.Type == "provider_tokens" && x.Code == "observed"
+            && x.InputTokens >= 0 && x.OutputTokens >= 0).ToArray();
         return new(successes, failures, sessions.Length - successes - failures,
             attempts, connections, disconnected, connections == 0 ? null : (double)disconnected / connections,
             recoveryAttempts, recovered, recoveryAttempts == 0 ? null : (double)recovered / recoveryAttempts,
             latency.Length, latency.Length == 0 ? null : latency.Average(),
             latency.Length == 0 ? null : latency[(int)Math.Ceiling(latency.Length * .95) - 1],
             durations.Length == 0 ? null : durations.Average(),
-            costSessions.Length == 0 ? null : costMicroUsd / 1_000_000m, costSessions.Length);
+            costSessions.Length == 0 ? null : costMicroUsd / 1_000_000m, costSessions.Length,
+            tokens.Length == 0 ? null : tokens.Sum(x => x.InputTokens!.Value),
+            tokens.Length == 0 ? null : tokens.Sum(x => x.OutputTokens!.Value), tokens.Length);
     }
 
     private static bool IsFailure(LabEvent item) => item.Type == "provider_failure"

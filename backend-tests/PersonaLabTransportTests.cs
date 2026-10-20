@@ -16,11 +16,14 @@ internal static class PersonaLabTransportTests
         await RunCaseAsync("text history and privacy", 10, TextHistoryAndPrivacyAsync);
         await RunCaseAsync("provider failure and recovery", 10, ProviderFailureAndRecoveryAsync);
         await RunCaseAsync("suite execution", 10, SuiteExecutionAsync);
+        await RunCaseAsync("script isolation between turns", 10, ScriptIsolationBetweenTurnsAsync);
         await RunCaseAsync("Live close and final usage", 30, LiveCompletionAsync);
         await RunCaseAsync("Live provider error categories", 10, LiveErrorCategoriesAsync);
+        await RunCaseAsync("observed simulated Live tool failure", 15, LiveToolFailureAsync);
         await RunCaseAsync("shutdown and orphaned suites", 10, ShutdownAndOrphansAsync);
         await RunCaseAsync("voice interruption and reuse", 10, VoiceInterruptionAsync);
         await RunCaseAsync("observed voice recovery", 10, VoiceRecoveryAsync);
+        await RunCaseAsync("hardware admission leases", 10, HardwareAdmissionLeasesAsync);
         Console.WriteLine("Persona Lab actual runtime: text history/privacy, provider faults, suite execution, Live final usage, and PCM interruption/reuse passed (fake providers only).");
     }
 
@@ -77,23 +80,60 @@ internal static class PersonaLabTransportTests
         using var fixture = new Fixture();
         using var host = new TestHostLifetime();
         using var suites = new PersonaLabSuites(fixture.Store, fixture.Runtime, host);
-        var good = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "evening", ["first-visit"], "transport suite"),
+        var good = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "evening", ["first-visit"], "transport suite", Platform: "ios"),
             _ => Task.FromResult(true));
         var result = await WaitSuiteAsync(fixture, good.Id);
-        Check(result.Status == "completed" && result.Results.Length == 1 && result.Results[0].Assertions.All(assertion => assertion.Passed),
-            "suite invokes the real runtime and inspects actual fake-provider output before clearing RAM");
-        Check(fixture.Store.Session("owner", result.Results[0].SessionId).Status == "ended", "suite releases its created session after execution");
+        var observed = result.Results.Single();
+        var saved = fixture.Store.Session("owner", observed.SessionId);
+        var script = saved.ScenarioSnapshot!.Script;
+        Check(result.Status == "completed" && observed.TurnObservations.Length == 3
+            && observed.TurnObservations.All(turn => turn.Status == "completed" && turn.UserTurnId is not null
+                && turn.AssistantTurnId is not null && turn.LatencyMs >= 15 && turn.AudioBytes == 4800),
+            "multi-turn suite records actual per-turn transport observations and metadata");
+        Check(saved.Status == "ended" && saved.Platform == "ios" && saved.Turns.Length == 6 && saved.Turns.All(turn => turn.Text == ""),
+            "multi-turn suite preserves platform, releases session and does not retain transcript without consent");
+        Check(observed.ScenarioSha256 == saved.ScenarioSnapshot.ScriptSha256
+            && fixture.RealtimeSockets.Take(3).Select(socket => CurrentInput(socket.Commands)).SequenceEqual(script.Select(turn => turn.Input))
+            && string.Join('\n', fixture.RealtimeSockets[2].Commands).Contains("TRANSPORT-ANSWER-1", StringComparison.Ordinal),
+            "all exact saved Czech inputs execute in order and later provider turns receive earlier response context");
+        Check(observed.TurnObservations.Last().Assertions.Any(assertion => assertion.Name == "anchor:orloj" && !assertion.Passed),
+            "generic fake answers fail the limited requested anchor check instead of receiving fabricated quality credit");
+        var candidate = fixture.Store.CreateRevision(new(fixture.Revision, "Candidate", "Different exact test persona instructions.", RealtimeProtocol.Model, "marin"));
+        var other = suites.Start("owner", new(candidate.Id, RealtimeProtocol.Model, "evening", ["first-visit"], "candidate suite", RecordContent: true), _ => Task.FromResult(true));
+        var otherResult = (await WaitSuiteAsync(fixture, other.Id)).Results.Single();
+        Check(otherResult.ScenarioSha256 == observed.ScenarioSha256
+            && fixture.RealtimeSockets.Skip(3).Take(3).Select(socket => CurrentInput(socket.Commands)).SequenceEqual(script.Select(turn => turn.Input))
+            && fixture.Store.Session("owner", otherResult.SessionId).Config.Sha256 != saved.Config.Sha256,
+            "two persona configurations run identical immutable scripts with separate exact configuration snapshots");
+        Check(fixture.Store.Session("owner", otherResult.SessionId).Turns.Where(turn => turn.Role == "user").Select(turn => turn.Text)
+            .SequenceEqual(script.Select(turn => turn.Input)), "explicit recording opt-in preserves the actual multi-turn script transcript");
         fixture.FailNextRealtime = true;
         var bad = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty", ["first-visit"], "failed transport suite"),
             _ => Task.FromResult(true));
         var failure = await WaitSuiteAsync(fixture, bad.Id);
         Check(failure.Status == "failed" && failure.Results.Single().Status == "failed"
-            && failure.Results[0].Assertions.Length == 0, "suite never scores a provider transport failure as a successful evaluation");
+            && failure.Results[0].TurnObservations.Length == 1
+            && failure.Results[0].TurnObservations[0].Assertions.Any(assertion => assertion.Name == "provider-turn" && !assertion.Passed)
+            && failure.Results[0].TurnObservations[0].Assertions.Where(assertion => assertion.Name != "provider-turn").All(assertion => assertion.Status == "not_exercised"),
+            "failed transport stops the case and leaves unobserved model checks explicitly unexercised");
         var maximumLabel = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty", ["technical-recovery"], new string('L', 80)),
             _ => Task.FromResult(true));
         var bounded = await WaitSuiteAsync(fixture, maximumLabel.Id);
         Check(bounded.Status == "completed" && fixture.Store.Session("owner", bounded.Results.Single().SessionId).Label.Length == 100,
             "maximum valid suite label produces a bounded session label for the longest scenario identifier");
+        Check(bounded.Results.Single().TurnObservations.SelectMany(turn => turn.Assertions)
+            .Where(assertion => assertion.Name == "network-recovery-not-exercised").All(assertion => assertion.Status == "not_exercised"),
+            "scripted network discussion never becomes evidence of actual network recovery");
+        try { suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty", ["first-visit"], "bad platform", Platform: "android"), _ => Task.FromResult(true)); throw new Exception("Invalid suite platform accepted."); }
+        catch (LabException error) when (error.Status == 400) { }
+        var socketsBeforeRevocation = fixture.RealtimeSockets.Count;
+        var authorizations = 0;
+        var revoked = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty", ["first-visit"], "authority withdrawn"),
+            _ => Task.FromResult(Interlocked.Increment(ref authorizations) < 3));
+        var revokedResult = await WaitSuiteAsync(fixture, revoked.Id);
+        Check(revokedResult.Status == "failed" && revokedResult.Results.Single().TurnObservations.Length == 1
+            && fixture.RealtimeSockets.Count == socketsBeforeRevocation + 1,
+            "authority revoked between script turns preserves the first observation and prevents another provider call");
         await suites.StopAsync(fixture.Token);
     }
 
@@ -105,6 +145,76 @@ internal static class PersonaLabTransportTests
             var suite = fixture.Store.Suite("owner", id);
             if (suite.Status != "running") { return suite; }
             await Task.Delay(10, fixture.Token);
+        }
+    }
+
+    private static async Task ScriptIsolationBetweenTurnsAsync()
+    {
+        using var fixture = new Fixture();
+        using var host = new TestHostLifetime();
+        using var suites = new PersonaLabSuites(fixture.Store, fixture.Runtime, host);
+        var paused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var admissions = 0;
+        var suite = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty", ["first-visit"], "exclusive script"),
+            async token =>
+            {
+                if (Interlocked.Increment(ref admissions) == 3)
+                {
+                    paused.TrySetResult();
+                    await resume.Task.WaitAsync(token);
+                }
+                return true;
+            });
+        await paused.Task.WaitAsync(fixture.Token);
+        var firstResult = fixture.Store.Suite("owner", suite.Id).Results.Single();
+        var session = fixture.Runtime.Detail("owner", firstResult.SessionId);
+        var before = session.Turns.ToArray();
+        Check(firstResult.TurnObservations.Length == 1 && fixture.RealtimeSockets.Count == 1 && !fixture.Runtime.IsActive(session.Id),
+            "test pauses after the first persisted script observation while no provider turn is active");
+        await ExpectBusyAsync(() => fixture.Runtime.TurnAsync("owner", session.Id, "EXTERNAL-TEXT-MUST-NOT-ENTER", fixture.Token));
+        using (var socket = new ClientSocket())
+        {
+            await ExpectBusyAsync(() => fixture.Runtime.VoiceAsync("owner", session.Id, socket, _ => Task.FromResult(true), fixture.Token));
+        }
+        ExpectBusy(() => { using var unexpected = fixture.Runtime.ReserveHardware("owner", session.Id); });
+        var imageMutation = false;
+        ExpectBusy(() => fixture.Runtime.ChangeImage("owner", session.Id, _ => { imageMutation = true; }));
+        Check(!imageMutation && fixture.RealtimeSockets.Count == 1
+            && fixture.Runtime.Detail("owner", session.Id).Turns.SequenceEqual(before),
+            "same-account text, voice, hardware and image attempts cannot mutate script history or open another provider connection");
+        resume.TrySetResult();
+        var completed = (await WaitSuiteAsync(fixture, suite.Id)).Results.Single();
+        Check(completed.Status == "completed" && completed.TurnObservations.Length == session.ScenarioSnapshot!.Script.Length
+            && fixture.RealtimeSockets.Select(socket => CurrentInput(socket.Commands)).SequenceEqual(session.ScenarioSnapshot.Script.Select(turn => turn.Input)),
+            "the leased runner continues with exactly the saved script after the pause");
+        var clearedAfterEnd = false;
+        fixture.Runtime.ChangeImage("owner", session.Id, _ => { clearedAfterEnd = true; }, revoke: true);
+        Check(clearedAfterEnd, "normal script end releases its reservation before the completed suite is observed");
+        fixture.FailNextRealtime = true;
+        var failedSuite = suites.Start("owner", new(fixture.Revision, RealtimeProtocol.Model, "empty", ["first-visit"], "failed exclusive script"),
+            _ => Task.FromResult(true));
+        var failed = (await WaitSuiteAsync(fixture, failedSuite.Id)).Results.Single();
+        var clearedAfterFailure = false;
+        fixture.Runtime.ChangeImage("owner", failed.SessionId, _ => { clearedAfterFailure = true; }, revoke: true);
+        Check(failed.Status == "failed" && clearedAfterFailure, "a terminal provider failure also releases the whole-script reservation");
+        var fresh = fixture.Session();
+        var freshTurn = await fixture.Runtime.TurnAsync("owner", fresh.Id, "Fresh independent session.", fixture.Token);
+        Check(freshTurn.Turns.Any(turn => turn.Role == "assistant") && fixture.Runtime.ActiveCount == 0,
+            "completed and failed scripts leave new admissible sessions and shared capacity available");
+        await suites.StopAsync(fixture.Token);
+
+        static async Task ExpectBusyAsync(Func<Task> action)
+        {
+            try { await action(); }
+            catch (LabException error) when (error.Status == 409 && error.Code == "lab_session_busy") { return; }
+            throw new Exception("Script isolation allowed an external asynchronous mutation.");
+        }
+        static void ExpectBusy(Action action)
+        {
+            try { action(); }
+            catch (LabException error) when (error.Status == 409 && error.Code == "lab_session_busy") { return; }
+            throw new Exception("Script isolation allowed an external synchronous mutation.");
         }
     }
 
@@ -171,6 +281,27 @@ internal static class PersonaLabTransportTests
         }
     }
 
+    private static async Task LiveToolFailureAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.NextLiveError = "delegate";
+        var session = fixture.Session(engine: GptLiveProtocol.Model, scenario: "tool-failure");
+        var result = await fixture.Runtime.TurnAsync("owner", session.Id, session.ScenarioSnapshot!.Script[0].Input, fixture.Token);
+        var assertion = LabRubric.InspectTurn(session.ScenarioSnapshot.Script[0], result.Turns.Last(turn => turn.Role == "assistant"), result.Events)
+            .Single(check => check.Name == "tool-failure-observed");
+        Check(assertion.Status == "passed" && result.Events.Any(entry => entry.Type == "tool_requested" && entry.Code == "client_delegation")
+            && result.Events.Any(entry => entry.Type == "tool_result" && entry.Code == "simulated_failure"),
+            "real Live client delegation receives and records the simulated failure before a narrow exercised assertion can pass");
+        using var commentary = JsonDocument.Parse(fixture.LiveSockets.Single().Commands.Single(command =>
+            command.Contains("\"session.commentary.append\"", StringComparison.Ordinal)));
+        Check(commentary.RootElement.GetProperty("content").GetString()!.Contains("no operation succeeded", StringComparison.Ordinal)
+            && result.Events.Where(entry => entry.Type == "tool_result").All(entry => entry.Compartment is null && entry.Decision is null),
+            "actual delegated failure reports no successful operation and never creates a confirmed compartment proposal");
+        var unrequested = LabRubric.InspectTurn(session.ScenarioSnapshot.Script[0], result.Turns.Last(turn => turn.Role == "assistant"),
+            [LabContract.Event("tool_result", "validated_simulation")]).Single(check => check.Name == "tool-failure-observed");
+        Check(unrequested.Status == "not_exercised", "ordinary validated Realtime tool simulation is not proof of an injected tool failure");
+    }
+
     private static async Task ShutdownAndOrphansAsync()
     {
         using (var fixture = new Fixture())
@@ -191,13 +322,14 @@ internal static class PersonaLabTransportTests
         using (var suites = new PersonaLabSuites(fixture.Store, fixture.Runtime, host))
         {
             var orphan = fixture.Store.CreateSuite("owner", new(fixture.Revision, GptLiveProtocol.Model, "empty", ["first-visit"], "orphan"));
-            fixture.Store.SaveSuite(orphan with { Results = [new("first-visit", "finished-session", "completed", [])] });
+            var finished = fixture.Session();
+            fixture.Store.SaveSuite(orphan with { Results = [new("first-visit", finished.Id, "completed", [])] });
             var reopened = new PersonaLabStore(fixture.Database, Fixture.Baseline());
             using var restarted = new PersonaLabSuites(reopened, fixture.Runtime, host);
             await restarted.StartAsync(fixture.Token);
             var recovered = reopened.Suite("owner", orphan.Id);
             Check(recovered.Status == "failed" && recovered.FailureCode == "interrupted" && recovered.CompletedAt is not null
-                && recovered.Results.Single().SessionId == "finished-session" && fixture.LiveSockets.Count == 0,
+                && recovered.Results.Single().SessionId == finished.Id && fixture.LiveSockets.Count == 0,
                 "startup makes an orphaned suite terminal, preserves finished results and never replays paid work");
             await restarted.StopAsync(fixture.Token);
             fixture.NextLiveError = "hold-startup";
@@ -239,6 +371,80 @@ internal static class PersonaLabTransportTests
         await fixture.Runtime.TurnAsync("owner", session.Id, "A fresh HTTP text connection is not voice recovery.", fixture.Token);
         Check(fixture.Store.Session("owner", session.Id).Events.Count(item => item.Type == "recovery_started") == 1,
             "ordinary new HTTP provider connections never fabricate recovery attempts");
+    }
+
+    private static async Task HardwareAdmissionLeasesAsync()
+    {
+        using (var fixture = new Fixture(new() { MaxConcurrentSessions = 2 }))
+        {
+            var first = fixture.Session();
+            var second = fixture.Session();
+            var third = fixture.Session();
+            using var firstLease = fixture.Runtime.ReserveHardware("owner", first.Id);
+            Check(fixture.Runtime.ActiveCount == 1 && !firstLease.Token.IsCancellationRequested
+                && firstLease.Session.Id == first.Id && firstLease.ExpiresAt > DateTimeOffset.UtcNow,
+                "hardware admission owns one active operation and a bounded cancellation lifetime");
+            await RejectAdmissionAsync(() => fixture.Runtime.TurnAsync("owner", first.Id, "Competing text.", fixture.Token),
+                409, "lab_session_busy");
+            using (var socket = new ClientSocket())
+            {
+                await RejectAdmissionAsync(() => fixture.Runtime.VoiceAsync("owner", first.Id, socket, _ => Task.FromResult(true), fixture.Token),
+                    409, "lab_session_busy");
+            }
+            ExpectLeaseFailure(() => fixture.Runtime.ReserveHardware("owner", first.Id), 409, "lab_session_busy");
+            using var oldSecond = fixture.Runtime.ReserveHardware("owner", second.Id);
+            await RejectAdmissionAsync(() => fixture.Runtime.TurnAsync("owner", third.Id, "Global capacity.", fixture.Token),
+                429, "lab_concurrency_limit");
+            using (var socket = new ClientSocket())
+            {
+                await RejectAdmissionAsync(() => fixture.Runtime.VoiceAsync("owner", third.Id, socket, _ => Task.FromResult(true), fixture.Token),
+                    429, "lab_concurrency_limit");
+            }
+            ExpectLeaseFailure(() => fixture.Runtime.ReserveHardware("owner", third.Id), 429, "lab_concurrency_limit");
+            Check(fixture.RealtimeSockets.Count == 0 && fixture.LiveSockets.Count == 0,
+                "competing provider operations are rejected before any connection is opened");
+            oldSecond.Dispose();
+            using var newerSecond = fixture.Runtime.ReserveHardware("owner", second.Id);
+            oldSecond.Dispose();
+            Check(fixture.Runtime.ActiveCount == 2 && !newerSecond.Token.IsCancellationRequested,
+                "disposing an old lease twice cannot remove or cancel a newer operation on the same session");
+            ExpectLeaseFailure(() => fixture.Runtime.ReserveHardware("owner", third.Id), 429, "lab_concurrency_limit");
+            fixture.Runtime.End("owner", first.Id);
+            Check(firstLease.Token.IsCancellationRequested && fixture.Runtime.ActiveCount == 2,
+                "ending a session cancels its hardware lease while admission remains held until disposal");
+            firstLease.Dispose();
+            firstLease.Dispose();
+            using var thirdLease = fixture.Runtime.ReserveHardware("owner", third.Id);
+            Check(fixture.Runtime.ActiveCount == 2 && !thirdLease.Token.IsCancellationRequested,
+                "a disposed lease releases exactly one slot for another session");
+            var fourth = fixture.Session();
+            ExpectLeaseFailure(() => fixture.Runtime.ReserveHardware("owner", fourth.Id), 429, "lab_concurrency_limit");
+            newerSecond.Dispose();
+            thirdLease.Dispose();
+            Check(fixture.Runtime.ActiveCount == 0, "all hardware admission slots are released without any hardware broker");
+        }
+        using (var unavailable = new Fixture(new() { MaxConcurrentSessions = 1 }, liveAvailable: false))
+        {
+            var session = unavailable.Session(engine: GptLiveProtocol.Model);
+            ExpectLeaseFailure(() => unavailable.Runtime.ReserveHardware("owner", session.Id), 503, "lab_provider_unavailable");
+            Check(unavailable.Runtime.ActiveCount == 0 && unavailable.LiveSockets.Count == 0,
+                "an explicitly unavailable provider cannot reserve hardware admission or open a provider socket");
+            using var availableLease = unavailable.Runtime.ReserveHardware("owner", unavailable.Session().Id);
+            Check(unavailable.Runtime.ActiveCount == 1, "unavailable-provider rejection leaves the single shared capacity slot available");
+        }
+
+        static async Task RejectAdmissionAsync(Func<Task> action, int status, string code)
+        {
+            try { await action(); }
+            catch (LabException error) when (error.Status == status && error.Code == code) { return; }
+            throw new Exception("Persona Lab hardware admission accepted a competing operation: " + code);
+        }
+        static void ExpectLeaseFailure(Func<LabHardwareLease> action, int status, string code)
+        {
+            try { using var unexpected = action(); }
+            catch (LabException error) when (error.Status == status && error.Code == code) { return; }
+            throw new Exception("Persona Lab hardware admission accepted an invalid lease: " + code);
+        }
     }
 
     private static async Task VoiceInterruptionAsync()
@@ -298,6 +504,23 @@ internal static class PersonaLabTransportTests
         }
         return null;
     }
+    private static string? CurrentInput(IEnumerable<string> commands)
+    {
+        string? current = null;
+        foreach (var command in commands)
+        {
+            using var document = JsonDocument.Parse(command);
+            if (!document.RootElement.TryGetProperty("item", out var item)
+                || !item.TryGetProperty("role", out var role) || role.GetString() != "user"
+                || !item.TryGetProperty("content", out var content)) { continue; }
+            foreach (var part in content.EnumerateArray())
+            {
+                if (part.TryGetProperty("text", out var value) && value.GetString() is { } text
+                    && !text.Contains("\"eveningMemory\"", StringComparison.Ordinal)) { current = text; }
+            }
+        }
+        return current;
+    }
 
     private sealed class Fixture : IDisposable
     {
@@ -322,7 +545,7 @@ internal static class PersonaLabTransportTests
         internal string? NextLiveError { get; set; }
         internal static LivePromptSnapshot Baseline() => LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, new GptLiveOptions());
 
-        internal Fixture()
+        internal Fixture(PersonaLabOptions? options = null, bool liveAvailable = true)
         {
             Store = new(Database, Baseline());
             Revision = Store.CreateRevision(new(Store.ActiveRevisionId, "Transport fixture", "Exact transport persona instructions.", RealtimeProtocol.Model, "marin")).Id;
@@ -333,7 +556,8 @@ internal static class PersonaLabTransportTests
                 RealtimeSockets.Add(socket); RealtimeConnected.Writer.TryWrite(true);
                 return Task.FromResult<WebSocket>(socket);
             });
-            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["OPENAI_API_KEY"] = "fixture-key-not-a-credential" }).Build();
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+                { ["OPENAI_API_KEY"] = liveAvailable ? "fixture-key-not-a-credential" : null }).Build();
             live = new(configuration, _ =>
             {
                 var socket = new LiveSocket("LIVE-ANSWER-" + (LiveSockets.Count + 1), HoldNextLiveClose, InvalidNextLiveUsage, NextLiveError);
@@ -342,11 +566,11 @@ internal static class PersonaLabTransportTests
                 LiveSockets.Add(socket); LiveConnected.Writer.TryWrite(true);
                 return Task.FromResult<WebSocket>(socket);
             });
-            Runtime = new(Store, live, realtime, images);
+            Runtime = new(Store, live, realtime, images, options);
         }
 
-        internal LabSession Session(string fixture = "empty", string engine = RealtimeProtocol.Model) =>
-            Store.CreateSession("owner", new(Revision, engine, "first-visit", fixture, "transport fixture"));
+        internal LabSession Session(string fixture = "empty", string engine = RealtimeProtocol.Model, string scenario = "first-visit") =>
+            Store.CreateSession("owner", new(Revision, engine, scenario, fixture, "transport fixture"));
         public void Dispose()
         {
             lifetime.Cancel();
@@ -498,6 +722,11 @@ internal static class PersonaLabTransportTests
                     Check(root.TryGetProperty("delegation_id", out var delegation) && delegation.ValueKind == JsonValueKind.Null,
                         "standalone Live append explicitly carries a null delegation reference");
                     break;
+                case "session.commentary.append" when errorStage == "delegate":
+                    Check(root.GetProperty("delegation_id").GetString() == "fixture-tool-failure", "simulated tool failure is correlated to the actual requested delegation");
+                    Push(new { type = "session.output_audio.delta", delta = "AAA=" });
+                    Push(new { type = "session.output_transcript.delta", delta = reply });
+                    break;
                 case "session.input_audio.append":
                     Check(!closed, "Live text input stops and joins before session.close");
                     var pcm = Convert.FromBase64String(root.GetProperty("audio").GetString()!);
@@ -514,6 +743,11 @@ internal static class PersonaLabTransportTests
                     if (errorStage == "audio")
                     {
                         Push(new { type = "error", error = new { type = "invalid_request_error", code = "unknown_parameter", message = "PRIVATE-PROVIDER-PAYLOAD" } });
+                        break;
+                    }
+                    if (errorStage == "delegate")
+                    {
+                        Push(new { type = "session.delegation.created", delegation = new { id = "fixture-tool-failure", target = "client" } });
                         break;
                     }
                     Push(new { type = "session.usage.updated", usage = new { seconds = 0.5 } });

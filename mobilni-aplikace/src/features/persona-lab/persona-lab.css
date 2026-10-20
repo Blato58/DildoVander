@@ -36,6 +36,8 @@
 .lab-filter-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap: var(--aw-space-4); padding-top: var(--aw-space-4); }
 .lab-image > :not(summary) { margin-top: var(--aw-space-3); }.lab-image figure { margin-inline: 0; }.lab-image img { max-width: min(100%,20rem); max-height: 20rem; object-fit: contain; border-radius: var(--aw-radius-control); }.lab-image figcaption { font-size: var(--aw-text-small); color: var(--aw-muted); }
 .lab-livebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--aw-space-4); border-color: var(--aw-accent); }
+.lab-suite-result { overflow-wrap: anywhere; }
+.lab-hardware { display: grid; gap: var(--aw-space-3); padding-block-end: var(--aw-space-4); border-bottom: 1px solid var(--aw-border-subtle); overflow-wrap: anywhere; }
 .persona-lab .aw-input { font: inherit; font-size: max(1rem, var(--aw-text-body, 1rem)); min-height: var(--aw-touch); }
 .persona-lab :is(input:not([type='radio'],[type='checkbox']),select,textarea) { width: 100%; }.persona-lab small,.persona-lab code { overflow-wrap: anywhere; }
 @media (max-width: 800px) { .lab-workspace { grid-template-columns: minmax(0,1fr); }.lab-comparison-select { grid-template-columns: minmax(0,1fr); }.lab-aggregate { grid-template-columns: minmax(0,1fr); gap: var(--aw-space-2); }.lab-turn--user { margin-inline-start: var(--aw-space-2); }.lab-transcript { max-height: 32rem; }.lab-heading h1 { font-size: var(--aw-text-title); } }

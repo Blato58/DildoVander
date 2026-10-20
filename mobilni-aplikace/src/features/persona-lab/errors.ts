@@ -7,6 +7,7 @@ export interface LabFailure {
   action: string;
   recoverable: boolean;
   manualRestart: boolean;
+  reauthenticate: boolean;
 }
 
 const labels: Record<LabErrorCategory, string> = {
@@ -15,18 +16,20 @@ const labels: Record<LabErrorCategory, string> = {
   Infrastructure: 'Provoz serveru', Tool: 'Simulovaný nástroj', Unknown: 'Neurčená příčina',
 };
 
-function failure(category: LabErrorCategory, message: string, action: string, recoverable = false, manualRestart = false): LabFailure {
-  return { category, message, action, recoverable, manualRestart };
+function failure(category: LabErrorCategory, message: string, action: string, recoverable = false, manualRestart = false, reauthenticate = false): LabFailure {
+  return { category, message, action, recoverable, manualRestart, reauthenticate };
 }
 
 /** Only application-owned codes establish a cause; arbitrary provider strings do not. */
 export function classifyLabFailure(code: string, status = 0): LabFailure {
   if (code === 'recent_passkey_required') return failure('Auth',
-    'Změna konfigurace vyžaduje nové ověření přístupovým klíčem.', 'Ověřte přihlášení a potom akci znovu výslovně odešlete.');
+    'Změna konfigurace vyžaduje nové ověření přístupovým klíčem.', 'Ověřte přihlášení a potom akci znovu výslovně odešlete.', false, false, true);
   if (['lab_decision_provider_auth', 'lab_provider_auth'].includes(code)) return failure('Auth',
     'Poskytovatel odmítl serverové oprávnění pro model.', 'Správce musí ověřit přístup poskytovatele. Opakování testu ani nové přihlášení testera tento problém neopraví.');
-  if (status === 401 || ['account_required', 'account_session_revoked', 'invalid_lab_ticket', 'connection_policy_rejected'].includes(code))
-    return failure('Auth', 'Oprávnění k této operaci není platné.', 'Ověřte přihlášení. Chybu serverového přístupu musí vyřešit správce.');
+  if (['invalid_lab_ticket', 'connection_policy_rejected'].includes(code))
+    return failure('Auth', 'Server nepovolil toto hlasové spojení.', 'Zkontrolujte technické údaje spojení. Nové přihlášení není potvrzenou nápravou tohoto problému.');
+  if (status === 401 || ['account_required', 'account_session_revoked'].includes(code))
+    return failure('Auth', 'Přihlášení k této operaci není platné.', 'Ověřte přihlášení a potom akci znovu výslovně odešlete.', false, false, true);
   if (status === 403 || ['forbidden', 'confirmation_required', 'csrf_required', 'account_origin_required', 'lab_socket_origin_required'].includes(code))
     return failure('Auth', 'Server tuto operaci nepovolil.', 'Obnovte přehled a ověřte oprávnění nebo požadované potvrzení.');
 
@@ -46,6 +49,7 @@ export function classifyLabFailure(code: string, status = 0): LabFailure {
     'Pokračujte textem nebo použijte prostředí s podporovaným zvukovým vstupem.');
   if (code === 'audio_setup_failed') return failure('AudioVideo', 'Zahájení zvukového vstupu se nepodařilo; přesná příčina není známá.',
     'Zkontrolujte podporu zvuku, oprávnění a technickou diagnostiku. Textové testování zůstává dostupné.');
+  if (code === 'image_prepare_failed') return failure('AudioVideo', 'Fotografii se nepodařilo připravit.', 'Zkontrolujte podporovaný formát a velikost snímku.');
   if (code === 'audio_backpressure') return failure('AudioVideo', 'Přehrávání se příliš opozdilo a bylo vypnuté.',
     'Ověřte zvukový výstup. Nové spojení spusťte výslovně po krátké prodlevě.', true);
   if (['lab_image_consent_or_format', 'lab_image_format', 'lab_image_requires_realtime'].includes(code))
@@ -79,6 +83,14 @@ export function classifyLabFailure(code: string, status = 0): LabFailure {
   if (code === 'lab_revision_conflict') return failure('ClientLifecycle', 'Aktivní verze se změnila.',
     'Obnovte přehled a zkontrolujte rozdíl před opětovným potvrzením.');
   if (code === 'lab_session_closed') return failure('ClientLifecycle', 'Sezení už skončilo.', 'Pro další test připravte nové sezení.');
+  if (code === 'client_platform_unsupported') return failure('ClientLifecycle', 'Prostředí aplikace není rozpoznáno jako web nebo iOS.',
+    'Pro nový test použijte podporovanou aplikaci; uložené výsledky zůstávají dostupné.');
+  if (code === 'lab_hardware_target_changed') return failure('ClientLifecycle', 'Identita, boot, revize nebo hlas skutečného kufru se změnily.',
+    'Test se nepřenese na nový cíl. Ověřte původní kufr a stav ukončení testovací vazby.');
+  if (code === 'lab_hardware_start_unconfirmed') return failure('ClientLifecycle', 'Předání skutečného testu není potvrzené.',
+    'Test se automaticky neopakuje. Ověřte původní kufr; ukončení serverové vazby není důkaz fyzického zastavení.');
+  if (code === 'client_offline') return failure('Network', 'Připojení k síti není dostupné. Audio bylo vypnuté.',
+    'Výsledek rozpracovaného požadavku není potvrzený. Po návratu sítě obnovte přehled.');
   if (['user_cancelled', 'lab_live_cancelled', 'lab_live_close_interrupted'].includes(code))
     return failure('ClientLifecycle', 'Operace nebo její dokončení byly přerušené.', 'Zkontrolujte uložené výsledky. Další akce vyžaduje nový výslovný pokyn.');
   if (code === 'lab_session_busy') return failure('ClientLifecycle', 'Server ještě dokončuje předchozí operaci sezení.',

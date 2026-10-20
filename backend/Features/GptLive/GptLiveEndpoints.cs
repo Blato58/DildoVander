@@ -93,12 +93,13 @@ internal static class GptLiveEndpoints
             if (!conversations.RegisterRealtimeLifetime(call, lifetime)) throw new OperationCanceledException();
             registered = true;
             if (!conversations.StartRealtimeTurn(call)) throw new OperationCanceledException();
+            if (call.LabHardware is { } hardwareAdmission) { await hardwareAdmission.EnsureAuthorizedAsync(call.Cancellation.Token); }
             var memoryAccess = conversations.LiveMemoryAccess(call);
             call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token);
             // Session.start may incur cost even if the socket fails subsequently.
             dispatched = true;
             await using var connection = await provider.ConnectAsync(call.Cancellation.Token);
-            using var live = new RealtimeLiveSession(device, id, connection, lifetime, continuous: true);
+            using var live = new RealtimeLiveSession(device, id, connection, lifetime, continuous: true, labHardware: call.LabHardware);
             session = live;
             if (!registry.Add(live)) throw new InvalidOperationException();
             context.Response.ContentType = "application/x-ndjson";
@@ -143,7 +144,7 @@ internal static class GptLiveEndpoints
                 }, token);
             }
             var outcome = await new AutonomousLiveDialogue(connection, decisions, clock, memory,
-                context.RequestServices.GetService<ShowCoordinator>()).RunAsync(call,
+                call.LabHardware is null ? context.RequestServices.GetService<ShowCoordinator>() : null).RunAsync(call,
                     async (pcm, token) =>
                     {
                         if (!conversations.IsRealtimeTurnCurrent(call)) { throw new OperationCanceledException(token); }
@@ -226,6 +227,8 @@ internal static class GptLiveEndpoints
         if (device is null) return ApiProblem.Create(context, 401, "access_token_required");
         var session = registry.Find(streamId, device, id);
         if (session is null) return ApiProblem.Create(context, 404, "realtime_session_not_found");
+        try { await session.EnsureHardwareAuthorityAsync(context.RequestAborted); }
+        catch (OperationCanceledException) { return ApiProblem.Create(context, 403, "lab_hardware_authority_revoked"); }
         try
         {
             using var body = await ReadControl(context);
@@ -245,7 +248,10 @@ internal static class GptLiveEndpoints
     {
         var device = DeviceAccessEndpoints.Authenticate(context, access);
         if (device is null) return ApiProblem.Create(context, 401, "access_token_required");
-        if (registry.Find(streamId, device, id) is null) return ApiProblem.Create(context, 404, "realtime_session_not_found");
+        var session = registry.Find(streamId, device, id);
+        if (session is null) return ApiProblem.Create(context, 404, "realtime_session_not_found");
+        try { await session.EnsureHardwareAuthorityAsync(context.RequestAborted); }
+        catch (OperationCanceledException) { return ApiProblem.Create(context, 403, "lab_hardware_authority_revoked"); }
         try
         {
             using var body = await ReadControl(context); var r = body.RootElement;

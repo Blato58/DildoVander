@@ -1,6 +1,8 @@
 import { accountTransport } from '../identity/session';
-import type { Analytics, Catalog, Evaluation, LabSession, LabSuite, Revision, RevisionInput, SessionInput, SocketTicket, SuiteInput } from './contracts';
+import type { Analytics, Catalog, Evaluation, LabHardwareTicket, LabSession, LabSuite, Revision, RevisionInput, SessionInput, SocketTicket, SuiteInput } from './contracts';
 import { classifyLabFailure, describeLabFailure, isNetworkTransportFailure, type LabFailure } from './errors';
+import { labClientPlatform } from './platform';
+import { sanitizeSystemDiagnostics } from './systemDiagnostics';
 
 const base = '/app/v1/persona-lab';
 export class LabError extends Error {
@@ -51,9 +53,17 @@ export class PersonaLabClient {
     return value as T;
   }
   catalog() { return this.request<Catalog>('/catalog'); }
+  async systemDiagnostics() { return sanitizeSystemDiagnostics(await this.request<unknown>('/diagnostics')); }
   sessions() { return this.request<LabSession[]>('/sessions'); }
   session(id: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}`); }
-  createSession(input: SessionInput) { return this.request<LabSession>('/sessions', 'POST', input); }
+  hardwareTicket(id: string, target: { deviceId: string; bootId: string; expectedRevision: number }) {
+    return this.request<LabHardwareTicket>(`/sessions/${encodeURIComponent(id)}/hardware-ticket`, 'POST', target);
+  }
+  createSession(input: SessionInput) {
+    const platform = labClientPlatform();
+    if (!platform) return Promise.reject(new LabError('client_platform_unsupported', 0));
+    return this.request<LabSession>('/sessions', 'POST', { ...input, platform });
+  }
   text(id: string, text: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/turns`, 'POST', { text }); }
   end(id: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/end`, 'POST', {}); }
   ticket(id: string, recovery = false) {
@@ -66,7 +76,11 @@ export class PersonaLabClient {
   removeImage(id: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/image`, 'DELETE'); }
   analytics() { return this.request<Analytics>('/analytics'); }
   suites() { return this.request<LabSuite[]>('/suites'); }
-  createSuite(input: SuiteInput) { return this.request<LabSuite>('/suites', 'POST', input); }
+  createSuite(input: SuiteInput) {
+    const platform = labClientPlatform();
+    if (!platform) return Promise.reject(new LabError('client_platform_unsupported', 0));
+    return this.request<LabSuite>('/suites', 'POST', { ...input, platform });
+  }
   draft(input: RevisionInput) { return this.request<Revision>('/revisions', 'POST', input, true); }
   publish(id: string, expectedActiveRevisionId: string | null) {
     return this.request<Revision>(`/revisions/${encodeURIComponent(id)}/publish`, 'POST', { expectedActiveRevisionId }, true);
@@ -78,14 +92,18 @@ export class PersonaLabClient {
 
 // Deliberately project known technical fields. Transcript, drafts and tickets never
 // enter a diagnostic download even if future server events gain extra fields.
-export function technicalDiagnostics(session: LabSession): object {
+export function technicalDiagnostics(session: LabSession, hardwareUncertain = false): object {
   return {
-    schemaVersion: 1, simulationOnly: true, sessionId: session.id, engine: session.engine,
+    schemaVersion: 1, simulationOnly: hardwareUncertain ? null : !session.hardware, hardwareUncertain,
+    sessionId: session.id, engine: session.engine, platform: session.platform ?? 'unknown',
+    hardwareBinding: session.hardware ? { deviceId: session.hardware.deviceId, bootId: session.hardware.bootId,
+      expectedRevision: session.hardware.expectedRevision, conversationId: session.hardware.conversationId,
+      status: session.hardware.status, expiresAt: session.hardware.expiresAt } : null,
     revisionId: session.config.id, status: session.status, createdAt: session.createdAt, endedAt: session.endedAt,
     turns: session.turns.map(({ id, role, createdAt, latencyMs, audioBytes, decision, compartment }) =>
       ({ id, role, createdAt, latencyMs, audioBytes, decision, compartment })),
-    events: session.events.map(({ id, type, createdAt, code, latencyMs, decision, compartment, costMicroUsd, providerSessionId }) =>
-      ({ id, type, createdAt, code, latencyMs, decision, compartment, costMicroUsd,
+    events: session.events.map(({ id, type, createdAt, code, latencyMs, decision, compartment, costMicroUsd, providerSessionId, inputTokens, outputTokens }) =>
+      ({ id, type, createdAt, code, latencyMs, decision, compartment, costMicroUsd, inputTokens, outputTokens,
         providerSessionId: typeof providerSessionId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(providerSessionId) ? providerSessionId : null })),
   };
 }

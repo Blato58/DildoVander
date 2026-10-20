@@ -17,6 +17,12 @@ vi.mock('./voice', () => ({ LabVoice: class {
   connect = api.voiceConnect; dispose = api.voiceDispose; end = vi.fn(); setMuted = vi.fn(); interrupt = vi.fn();
 } }));
 vi.mock('./image', () => ({ prepareLabImage: api.prepareImage }));
+vi.mock('../suitcase/deviceSession', async () => {
+  const { ref } = await import('vue');
+  return { deviceSession: { native: false, snapshot: ref(null), savedDevice: ref({ paired: false }),
+    startLabVoice: vi.fn(() => false), stopLabVoice: vi.fn(() => false), labConnectionEpoch: () => 1, configureVoice: vi.fn(() => false) } };
+});
+vi.mock('../suitcase/deviceAssociation', async () => { const { ref } = await import('vue'); return { deviceAssociation: { canOperate: ref(false), refresh: vi.fn(async () => {}) } }; });
 const revision = { id: 'revision', parentId: null, name: 'Základ', instructions: 'Testovací instrukce', engine: 'gpt-live-1', voice: 'cedar', status: 'baseline', createdAt: '2026-10-20T10:00:00Z', publishedAt: null, revision: 1 };
 const fixture = { id: 'empty', name: 'Prázdná paměť', description: 'Syntetická testovací paměť', current: '', evening: '', returning: '' };
 const scenario = { id: 'intro', name: 'První setkání', description: 'Syntetický scénář', openingText: 'Dobrý večer.' };
@@ -26,7 +32,7 @@ beforeEach(() => {
   api.transport.mockReset(); api.voiceConnect.mockReset(); api.voiceDispose.mockReset(); api.prepareImage.mockReset();
   account.value = { id: 'tester', displayName: 'Tester', roles: ['Tester'] };
   session = { id: 'session', label: 'Můj syntetický test', ownerId: 'tester', createdAt: '2026-10-20T10:00:00Z', endedAt: null, status: 'open',
-    engine: 'gpt-live-1', scenarioId: 'intro', fixtureId: 'empty', recordContent: false, config: revision,
+    engine: 'gpt-live-1', scenarioId: 'intro', fixtureId: 'empty', platform: 'web', recordContent: false, config: revision,
     turns: [{ id: 'turn-1', role: 'user', text: 'Syntetický vstup', createdAt: '2026-10-20T10:00:00Z' },
       { id: 'turn-2', role: 'assistant', text: 'Syntetická odpověď', createdAt: '2026-10-20T10:00:01Z', latencyMs: 123 }], events: [] } as LabSession;
   api.transport.mockImplementation(async (path: string, init: RequestInit) => {
@@ -202,5 +208,44 @@ describe('Persona Lab user journeys', () => {
     api.voiceObserver!.error('lab_provider_capacity', true); await flushPromises();
     expect(wrapper.findAll('button').some(button => button.text().startsWith('Zkusit hlas znovu'))).toBe(true);
     expect(wrapper.text()).toContain('kapacitní omezení');
+  });
+  it('offers account reauthentication only for an account-auth failure, retaining microphone restart and text', async () => {
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    api.voiceObserver!.phase('error'); api.voiceObserver!.error('account_session_revoked', false); await flushPromises();
+    const reauthLinks = () => wrapper.findAll('a').filter(link => link.text() === 'Ověřit přihlášení');
+    expect(reauthLinks()).toHaveLength(1);
+    api.voiceObserver!.error('microphone_permission', false); await flushPromises();
+    expect(reauthLinks()).toHaveLength(0);
+    expect(wrapper.findAll('button').some(button => button.text() === 'Spustit hlas')).toBe(true);
+    expect(wrapper.get('#lab-message').attributes('disabled')).toBeUndefined();
+    api.voiceObserver!.error('lab_decision_provider_auth', false); await flushPromises();
+    expect(reauthLinks()).toHaveLength(0);
+  });
+  it('filters recorded platform observations and displays known zero separately from unavailable tokens', async () => {
+    session.events = [{ id: 'web-tokens', type: 'provider_tokens', code: 'observed', createdAt: session.createdAt, inputTokens: 0, outputTokens: null }];
+    const baseline = api.transport.getMockImplementation()!;
+    const ios = { ...session, id: 'ios-test', platform: 'ios', events: [{ ...session.events[0], id: 'ios-tokens', inputTokens: 7, outputTokens: 2 }] };
+    api.transport.mockImplementation((path: string, init: RequestInit) => path.endsWith('/sessions') && init.method === 'GET'
+      ? Promise.resolve(new Response(JSON.stringify([session, ios]))) : baseline(path, init));
+    const wrapper = await render();
+    await wrapper.get('#lab-filter-platform').setValue('web');
+    const panel = wrapper.get('[aria-labelledby="lab-token-title"]');
+    expect(panel.findAll('dd')[0].text()).toContain('0 · 1 pozorování z 1 / 1 sezení');
+    expect(panel.findAll('dd')[1].text()).toContain('Neuvedeno');
+    await wrapper.get('#lab-filter-platform').setValue('ios');
+    expect(panel.findAll('dd')[0].text()).toContain('7 · 1 pozorování z 1 / 1 sezení');
+    expect(panel.findAll('dd')[1].text()).toContain('2 · 1 pozorování z 1 / 1 sezení');
+    await wrapper.get('#lab-filter-platform').setValue('unknown');
+    expect(panel.findAll('dd')[0].text()).toContain('Neuvedeno');
+  });
+  it('keeps a hardware-bound session out of ordinary browser text, voice and image input', async () => {
+    session.hardware = { deviceId: 'old-case', bootId: 'old-boot', expectedRevision: 1, conversationId: null,
+      status: 'ended', expiresAt: '2026-10-20T13:00:00Z' };
+    const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
+    expect(wrapper.text()).toContain('SKUTEČNÝ KUFR');
+    expect(wrapper.get('#lab-message').attributes('disabled')).toBeDefined();
+    expect(wrapper.findAll('button').some(button => button.text() === 'Spustit hlas')).toBe(false);
+    await wrapper.get('.lab-composer').trigger('submit'); await flushPromises();
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/turns'))).toBe(false);
   });
 });

@@ -37,8 +37,9 @@ const now = '2026-10-20T12:00:00Z';
 function fixture(admin) {
   const baseline = { id: 'baseline-browser', parentId: null, name: 'Výchozí persona', instructions: 'Syntetická persona pro prohlížečový test.', engine: 'gpt-live-1', voice: 'cedar', status: 'baseline', sha256: 'a'.repeat(64), sourceVersion: 'browser-fixture', createdAt: now, publishedAt: null, revision: 1 };
   return {
-    admin, authenticated: false, versions: [baseline], activeRevisionId: baseline.id, sessions: [], evaluations: [], writes: [], requests: [], blocked: [], unknown: [], sockets: 0,
-    scenarios: [{ id: 'first-visit', name: 'První návštěva', description: 'Syntetický host bez produkčního kontextu.', openingText: 'Ahoj, jsem fiktivní tester.' }],
+    admin, authenticated: false, versions: [baseline], activeRevisionId: baseline.id, sessions: [], suites: [], evaluations: [], writes: [], requests: [], blocked: [], unknown: [], sockets: 0,
+    scenarios: [{ id: 'first-visit', name: 'První návštěva', description: 'Syntetický host bez produkčního kontextu.', openingText: 'Ahoj, jsem fiktivní tester.',
+      scriptSha256: 'c'.repeat(64), script: [{ index: 1, input: 'Ahoj, jsem fiktivní tester.', checks: ['reply'] }, { index: 2, input: 'Oprava: jsem knihovník.', checks: ['reply', 'memory'] }] }],
     memoryFixtures: [{ id: 'returning', name: 'Vrácený host', description: 'Výhradně syntetická paměť.', current: 'Fiktivní knihovník Áda.', evening: 'Testovací večer.', returning: 'Fiktivní zachráněná kniha.' }],
   };
 }
@@ -81,11 +82,38 @@ async function installFixtures(context, state) {
       if (!state.authenticated) return json({ code: 'account_required' }, 401);
       if (method !== 'GET') assert.equal(request.headers()['x-dv-csrf'], 'synthetic-browser-csrf', 'mutations use the normal CSRF transport');
       const suffix = pathname.slice(base.length);
-      if (suffix === '/catalog') return json({ capabilities: { live: true, realtime: true, voice: true, text: true, simulationOnly: true, imageRealtime: false }, activeRevisionId: state.activeRevisionId, versions: state.versions, scenarios: state.scenarios, memoryFixtures: state.memoryFixtures });
+      if (suffix === '/catalog') return json({ capabilities: { live: true, realtime: true, voice: true, text: true, simulationOnly: false, defaultMode: 'simulation', hardwareContext: true, imageRealtime: false }, activeRevisionId: state.activeRevisionId, versions: state.versions, scenarios: state.scenarios, memoryFixtures: state.memoryFixtures });
+      if (suffix === '/diagnostics') {
+        if (!state.admin) return json({ code: 'forbidden' }, 403);
+        return json({ storage: { sessions: 30, revisions: state.versions.length, sessionsTruncated: true, recentSessions: [{
+          sessionId: 'synthetic-system-session', engine: 'gpt-realtime-2.1', personaRevisionId: 'baseline-browser', platform: 'ios',
+          createdAt: now, endedAt: now, status: 'ended', testMode: 'simulation', eventsTruncated: true,
+          events: [{ id: 'synthetic-system-event', type: 'provider_tokens', code: 'observed', createdAt: now, inputTokens: 0, outputTokens: null }],
+        }] }, activeConnections: 0, liveAvailable: true, realtimeAvailable: true, simulationOnly: false, hardwareContext: true });
+      }
       if (suffix === '/sessions' && method === 'GET') return json(state.sessions);
-      if (suffix === '/suites') return json([]);
+      if (suffix === '/suites' && method === 'GET') return json(state.suites);
+      if (suffix === '/suites' && method === 'POST') {
+        assert.equal(body.platform, 'web', 'suite carries an observed browser platform claim');
+        const scenario = state.scenarios[0];
+        const sessionId = `suite-session-${state.sessions.length + 1}`;
+        const observations = scenario.script.map(turn => ({ index: turn.index, userTurnId: `${sessionId}-u${turn.index}`, assistantTurnId: `${sessionId}-a${turn.index}`,
+          status: 'completed', latencyMs: 125, audioBytes: 4800, assertions: [{ name: 'reply', passed: true, status: 'passed', detail: 'Syntetická odpověď přítomna.' }] }));
+        const suite = { id: `suite-${state.suites.length + 1}`, ownerId: account().id, status: 'completed', createdAt: now, completedAt: now,
+          revisionId: body.revisionId, engine: body.engine, results: [{ scenarioId: scenario.id, sessionId, status: 'completed', scenarioSha256: scenario.scriptSha256,
+            assertions: [{ name: 'interrupt', passed: false, status: 'not_exercised', detail: 'Textový běh nepoužil hlasové přerušení.' }], turnObservations: observations }] };
+        state.sessions.unshift({ id: sessionId, label: 'Syntetické sezení scénářové sady', ownerId: account().id, createdAt: now, endedAt: now,
+          status: 'ended', engine: body.engine, platform: 'web', scenarioId: scenario.id, fixtureId: body.fixtureId, recordContent: body.recordContent,
+          config: structuredClone(state.versions.find(version => version.id === body.revisionId)), memorySnapshot: structuredClone(state.memoryFixtures[0]), scenarioSnapshot: structuredClone(scenario),
+          turns: scenario.script.flatMap(turn => [
+            { id: `${sessionId}-u${turn.index}`, role: 'user', text: turn.input, createdAt: now },
+            { id: `${sessionId}-a${turn.index}`, role: 'assistant', text: `Syntetická odpověď skriptu ${turn.index}.`, createdAt: now, latencyMs: 125, audioBytes: 4800 },
+          ]), events: [{ id: `${sessionId}-tokens`, type: 'provider_tokens', code: 'observed', createdAt: now, inputTokens: 42, outputTokens: 16 }], evaluation: null });
+        state.suites.unshift(suite); return json(suite);
+      }
       if (suffix === '/analytics') return json({ sessions: state.sessions.length, evaluations: state.evaluations.length, metrics: metrics.map(name => ({ name, mean: state.evaluations.length ? 4 : null, count: state.evaluations.length })), comparisons: [] });
       if (suffix === '/sessions' && method === 'POST') {
+        assert.equal(body.platform, 'web', 'session carries an observed browser platform claim');
         const session = { ...body, id: `session-${state.sessions.length + 1}`, ownerId: account().id, createdAt: now, endedAt: null, status: 'open', config: structuredClone(state.versions.find(version => version.id === body.revisionId)), turns: [], events: [], evaluation: null, memorySnapshot: state.memoryFixtures[0], scenarioSnapshot: state.scenarios[0] };
         state.sessions.unshift(session); return json(session);
       }
@@ -98,6 +126,7 @@ async function installFixtures(context, state) {
           session.turns.push({ id: `user-${session.turns.length + 1}`, role: 'user', text: body.text, createdAt: now });
           session.turns.push({ id: `assistant-${session.turns.length + 1}`, role: 'assistant', text: 'Jsem fiktivní odpověď. Jakou knihu zachráníme?', createdAt: now, latencyMs: 125, audioBytes: 4800 });
           session.events.push({ id: `event-${session.events.length}`, type: 'provider_turn', code: 'completed', createdAt: now, latencyMs: 125, costMicroUsd: 100 });
+          session.events.push({ id: `tokens-${session.events.length}`, type: 'provider_tokens', code: 'observed', createdAt: now, inputTokens: 0, outputTokens: null });
           return json(session);
         }
         if (match[2] === 'evaluation') { session.evaluation = body; state.evaluations.push(structuredClone(body)); return json(session); }
@@ -182,6 +211,13 @@ async function viewerJourney(width) {
     await page.getByRole('button', { name: 'Obnovit přehled', exact: true }).click();
     await page.getByRole('heading', { name: 'Hodnocení po filtrování', exact: true }).waitFor();
     await page.getByText('4.00 · n=1', { exact: true }).first().waitFor();
+    await page.getByLabel('Platforma', { exact: true }).selectOption('web');
+    const tokens = page.locator('[aria-labelledby="lab-token-title"]');
+    assert.match(await tokens.locator('dd').nth(0).innerText(), /^0 · 1 pozorování z 1 \/ 1 sezení/);
+    assert.match(await tokens.locator('dd').nth(1).innerText(), /^Neuvedeno/);
+    await page.getByLabel('Platforma', { exact: true }).selectOption('unknown');
+    assert.match(await tokens.locator('dd').nth(0).innerText(), /^Neuvedeno/);
+    await page.getByLabel('Platforma', { exact: true }).selectOption('web');
     await layout(page, `viewer-${width}-results`);
     await page.getByRole('button', { name: 'Playground', exact: true }).click();
     await page.getByRole('button', { name: 'Spustit hlas', exact: true }).click();
@@ -189,13 +225,56 @@ async function viewerJourney(width) {
     assert.equal(await page.evaluate(() => window.__personaLabMediaRequests), 1, 'actual voice entry handles a deterministic permission denial');
     assert(await page.getByRole('button', { name: 'Spustit hlas', exact: true }).isEnabled(), 'permission denial permits an explicit manual voice restart');
     assert(await page.getByLabel('Vaše zpráva', { exact: true }).isEnabled(), 'permission denial leaves text input available');
+    assert.equal(await page.getByRole('link', { name: 'Ověřit přihlášení', exact: true }).count(), 0, 'microphone denial never offers account reauthentication');
     assert.equal(state.requests.filter(request => request.path.endsWith('/socket-ticket')).length, 0, 'permission denial does not create a provider socket ticket');
     assert.equal(state.sockets, 0, 'permission denial creates no WebSocket');
     await page.getByLabel('Vaše zpráva', { exact: true }).fill('Po zamítnutí mikrofonu pokračuji textem.');
     await page.getByRole('button', { name: 'Odeslat do modelu', exact: true }).click();
     await page.getByText('Po zamítnutí mikrofonu pokračuji textem.', { exact: true }).first().waitFor();
     await layout(page, `viewer-${width}-microphone-denied`);
+    await page.locator('.lab-suite > summary').click();
+    await page.locator('.lab-suite-options input[value="first-visit"]').check();
+    await page.getByRole('button', { name: 'Spustit scénáře (1)', exact: true }).click();
+    await page.getByText('Neověřeno textovým během · interrupt:', { exact: false }).waitFor();
+    await page.getByText('Pozorování jednotlivých tahů (2)', { exact: true }).click();
+    await page.getByText('Tah 2 · Dokončen', { exact: true }).waitFor();
+    await layout(page, `viewer-${width}-scripted-suite`);
+    await page.getByRole('button', { name: 'Obnovit přehled', exact: true }).click();
+    const manualId = state.sessions.find(session => !session.id.startsWith('suite-session-')).id;
+    const suiteSessionId = state.suites[0].results[0].sessionId;
+    await page.getByRole('button', { name: 'Porovnání a přehled', exact: true }).click();
+    const variantA = page.getByLabel('Varianta A', { exact: true });
+    const variantB = page.getByLabel('Varianta B', { exact: true });
+    await variantA.locator(`option[value="${suiteSessionId}"]`).waitFor({ state: 'attached' });
+    await variantA.selectOption(manualId); await variantB.selectOption(suiteSessionId);
+    const recommendation = page.getByRole('region', { name: 'Doporučení z vybraného páru', exact: true });
+    await recommendation.getByText('Nedostatek srovnatelných podkladů pro doporučení.', { exact: true }).waitFor();
+    await recommendation.getByText('Oba testy nejsou doložené jako běhy stejného skriptu; ruční vstupy se mohly lišit.', { exact: true }).waitFor();
+    await recommendation.getByText('Technická pozorování vybraného páru', { exact: true }).waitFor();
+    await recommendation.getByRole('rowheader', { name: 'Průměr / p95 odezva', exact: true }).waitFor();
+    await recommendation.getByRole('rowheader', { name: 'Známá část vstupních / výstupních tokenů', exact: true }).waitFor();
+    assert.match(await recommendation.innerText(), /42 \/ 16/, 'comparison shows fixture token observations instead of inventing missing totals');
+    assert(await variantA.locator(`option[value="${suiteSessionId}"]`).isDisabled(), 'A cannot select the existing B');
+    assert(await variantB.locator(`option[value="${manualId}"]`).isDisabled(), 'B cannot select the existing A');
+    // Dispatch defensive events as well: stale/custom controls cannot retain the
+    // same ID on both sides even if native disabled-option handling is bypassed.
+    await variantA.evaluate((select, id) => { select.value = id; select.dispatchEvent(new Event('change', { bubbles: true })); }, suiteSessionId);
+    await page.waitForFunction(() => document.querySelector('#lab-compare-b').value === '');
+    await variantB.evaluate((select, id) => { select.value = id; select.dispatchEvent(new Event('change', { bubbles: true })); }, suiteSessionId);
+    await page.waitForFunction(() => document.querySelector('#lab-compare-a').value === '');
+    await variantA.selectOption(manualId); await variantB.selectOption(suiteSessionId);
+    await layout(page, `viewer-${width}-comparison`);
+    await page.getByRole('button', { name: 'Playground', exact: true }).click();
+    const detailReads = state.requests.filter(request => request.path.endsWith(`/sessions/${suiteSessionId}`)).length;
+    await page.getByRole('button', { name: 'Otevřít sezení a hodnotit', exact: true }).click();
+    await page.locator(`#lab-comment-${suiteSessionId}-a2`).waitFor({ state: 'visible' });
+    assert(await page.locator('.lab-evaluation').isVisible(), 'suite result opens the actual evaluation section');
+    assert.equal(state.requests.filter(request => request.path.endsWith(`/sessions/${suiteSessionId}`)).length, detailReads + 1, 'opening the result re-fetches the exact owned session');
+    assert.equal(await page.getByLabel('Vaše sezení', { exact: true }).inputValue(), suiteSessionId, 'suite evaluation is bound to the requested session');
+    await layout(page, `viewer-${width}-suite-evaluation`);
     assert.deepEqual(state.writes, [], 'Viewer sends no admin writes');
+    assert.equal(await page.locator('.lab-system-diagnostics').count(), 0, 'Viewer has no system diagnostic controls');
+    assert.equal(state.requests.filter(request => request.path.endsWith('/diagnostics')).length, 0, 'Viewer never requests system-wide diagnostics');
     assert.deepEqual(state.blocked, [], 'no nonlocal requests are attempted');
     assert.deepEqual(state.unknown, [], 'all account/provider requests use declared synthetic fixtures');
     assert.deepEqual(errors, [], 'no frontend runtime errors');
@@ -235,6 +314,28 @@ async function adminJourney() {
     assert.equal(state.activeRevisionId, 'baseline-browser');
     assert.deepEqual(state.writes.map(write => write.suffix), ['/revisions', '/revisions/draft-1/publish', '/rollback']);
     await layout(page, 'administrator-1440-rollback');
+    assert.equal(state.requests.filter(request => request.path.endsWith('/diagnostics')).length, 0, 'system diagnostics are not loaded by visiting Configuration');
+    const system = page.locator('.lab-system-diagnostics');
+    await system.locator(':scope > summary').click();
+    assert.equal(state.requests.filter(request => request.path.endsWith('/diagnostics')).length, 0, 'expanding the detail does not access other session metadata');
+    await system.getByRole('button', { name: 'Načíst systémovou diagnostiku', exact: true }).click();
+    await system.getByText('synthetic-system-session', { exact: true }).waitFor();
+    await system.getByText('Seznam sezení je zkrácený; nejde o úplnou historii serveru.', { exact: true }).waitFor();
+    await system.getByText('Technické události (1)', { exact: true }).click();
+    await system.getByText('Tokeny vstup / výstup: 0 / Neuvedeno', { exact: true }).waitFor();
+    const downloading = page.waitForEvent('download');
+    await system.getByRole('button', { name: 'Stáhnout systémovou diagnostiku', exact: true }).click();
+    const download = await downloading;
+    const bundlePath = path.join(screenshots, 'administrator-system-diagnostics.json');
+    await download.saveAs(bundlePath);
+    const bundle = JSON.parse(await readFile(bundlePath, 'utf8'));
+    assert.equal(bundle.scope, 'admin_technical_metadata');
+    assert.deepEqual(bundle.limits, { sessions: 20, eventsPerSession: 20 });
+    assert.equal(bundle.storage.recentSessions[0].sessionId, 'synthetic-system-session');
+    assert.equal(bundle.storage.recentSessions[0].events[0].inputTokens, 0);
+    assert.equal(bundle.storage.recentSessions[0].events[0].outputTokens, null);
+    assert.equal(state.requests.filter(request => request.path.endsWith('/diagnostics')).length, 1, 'one explicit load produces one diagnostic read');
+    await layout(page, 'administrator-1440-system-diagnostics');
     assert.deepEqual(state.unknown, []); assert.deepEqual(state.blocked, []);
     reports.push({ role: 'Administrator', viewport: { width: 1440, height: 1000 }, operations: state.writes.map(write => write.suffix), activeRevisionId: state.activeRevisionId });
   } catch (error) {

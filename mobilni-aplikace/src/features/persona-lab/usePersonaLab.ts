@@ -1,11 +1,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { account, accountOrigin, hasRole } from '../identity/session';
-import { PersonaLabClient, technicalDiagnostics } from './client';
+import { LabError, PersonaLabClient, technicalDiagnostics } from './client';
 import { LabVoice, type VoicePhase } from './voice';
 import { directorStop, registerDirectorStop, clearDirectorStop } from '../director/directorStop';
 import { prepareLabImage, type LabImage } from './image';
-import { classifyLabFailure, describeLabFailure } from './errors';
-import { metricLabels, type Analytics, type Catalog, type Evaluation, type LabEngine, type LabSession, type LabSuite, type Metric, type Revision, type Scores } from './contracts';
+import { classifyLabFailure, describeLabFailure, type LabFailure } from './errors';
+import { useLabHardware } from './useLabHardware';
+import { systemDiagnosticsBundle } from './systemDiagnostics';
+import { metricLabels, type Analytics, type Catalog, type Evaluation, type LabEngine, type LabSession, type LabSuite, type Metric, type Revision, type Scores, type SystemDiagnostics } from './contracts';
 
 export function usePersonaLab() {
   const identityKey = () => account.value ? `${account.value.id}:${[...account.value.roles].sort().join(',')}` : '';
@@ -14,8 +16,10 @@ export function usePersonaLab() {
   const sessions = shallowRef<LabSession[]>([]);
   const selected = shallowRef<LabSession | null>(null);
   const analytics = shallowRef<Analytics | null>(null);
+  const systemDiagnostics = shallowRef<SystemDiagnostics | null>(null); const diagnosticsLoading = ref(false);
   const suites = shallowRef<LabSuite[]>([]); const suiteScenarioIds = ref<string[]>([]);
   const loading = ref(false); const busy = ref(false); const error = ref(''); const notice = ref('');
+  const failure = shallowRef<LabFailure | null>(null);
   const voicePhase = ref<VoicePhase>('idle'); const muted = ref(false); const recoverable = ref(false); const reconnects = ref(0);
   const recoveryPending = ref(false); const online = ref(navigator.onLine); const conversationPending = ref(false); const now = ref(Date.now());
   const manualVoiceRestart = ref(false);
@@ -47,7 +51,7 @@ export function usePersonaLab() {
     if (session.hasImage === false && imageAttachedSession.value === session.id) imageAttachedSession.value = '';
   }
   function selectSession(session: LabSession): void {
-    if (busy.value || voiceActive.value || recoveryPending.value || session.ownerId !== account.value?.id) return;
+    if (busy.value || voiceActive.value || recoveryPending.value || hardware.active.value || session.ownerId !== account.value?.id) return;
     clearImage(); selected.value = session; partial.value = { user: '', assistant: '' }; voicePhase.value = 'idle'; recoverable.value = false; reconnects.value = 0;
     scores.value = { ...session.evaluation?.scores }; comment.value = session.evaluation?.comment ?? '';
     turnComments.value = Object.fromEntries((session.evaluation?.turnComments ?? []).map(item => [item.turnId, item.comment]));
@@ -70,28 +74,41 @@ export function usePersonaLab() {
     interrupted: () => { partial.value = { ...partial.value, assistant: '' }; },
     error: (code, canRecover) => {
       const details = classifyLabFailure(code);
+      failure.value = details;
       error.value = describeLabFailure(details);
       recoverable.value = canRecover && details.recoverable && online.value && reconnects.value < 2;
       manualVoiceRestart.value = details.manualRestart;
     },
     closed: () => { muted.value = false; void refreshSelected(); },
   });
-  function message(cause: unknown): string { return cause instanceof Error ? cause.message : 'Požadavek se nepodařil.'; }
+  function message(cause: unknown, code = 'unknown_client_error'): string {
+    const details = cause instanceof LabError ? cause.failure : classifyLabFailure(code);
+    failure.value = cause instanceof LabError || !(cause instanceof Error) ? details : { ...details, message: cause.message };
+    return describeLabFailure(failure.value);
+  }
+  function clearFailure(): void { error.value = ''; failure.value = null; }
+  const hardware = useLabHardware({ selected, catalog, busy, identity: identityKey, ownerId: () => account.value?.id ?? '',
+    isolatedBusy: () => voiceActive.value || conversationPending.value || recoveryPending.value || imagePreparing.value || !!selected.value?.hasImage || !!image.value,
+    remember, failure: cause => { error.value = message(cause); }, notice: value => { notice.value = value; } });
+  const simulationBlocked = computed(() => hardware.mode.value || hardware.bound.value || hardware.pending.value);
+  const noticeTone = computed(() => hardware.mode.value || hardware.bound.value ? 'warning' as const : 'success' as const);
   async function run(action: () => Promise<void>): Promise<void> {
     if (busy.value || disposed) return;
     const epoch = generation; selectedReadGeneration++; listGeneration++; loading.value = false;
-    busy.value = true; error.value = ''; notice.value = '';
+    busy.value = true; clearFailure(); notice.value = '';
     try { await action(); }
     catch (cause) { if (epoch === generation && !(cause instanceof DOMException && cause.name === 'AbortError')) error.value = message(cause); }
     finally { if (epoch === generation) busy.value = false; }
   }
   async function load(): Promise<void> {
     if (!account.value || disposed) return;
-    const epoch = generation; const request = ++listGeneration; loading.value = true; error.value = '';
+    const epoch = generation; const request = ++listGeneration; loading.value = true; clearFailure();
     try {
       const [nextCatalog, nextSessions, nextAnalytics, nextSuites] = await Promise.all([client.catalog(), client.sessions(), client.analytics(), client.suites()]);
       if (epoch !== generation || request !== listGeneration) return;
-      if (nextCatalog.capabilities.simulationOnly !== true) throw new Error('Server nepotvrdil oddělený simulační režim. Testování zůstává vypnuté.');
+      if (nextCatalog.capabilities.defaultMode !== 'simulation'
+        && !(nextCatalog.capabilities.simulationOnly === true && nextCatalog.capabilities.defaultMode === undefined))
+        throw new Error('Server nepotvrdil výchozí simulační režim. Testování zůstává vypnuté.');
       catalog.value = nextCatalog; sessions.value = nextSessions.filter(item => item.ownerId === account.value?.id); analytics.value = nextAnalytics;
       suites.value = nextSuites.filter(item => item.ownerId === account.value?.id);
       if (!nextCatalog.versions.some(item => item.id === revisionId.value)) revisionId.value = nextCatalog.activeRevisionId ?? nextCatalog.versions[0]?.id ?? '';
@@ -103,7 +120,7 @@ export function usePersonaLab() {
     finally { if (epoch === generation && request === listGeneration) loading.value = false; }
   }
   async function create(): Promise<void> {
-    if (voiceActive.value || recoveryPending.value || !online.value || !revisionId.value || !scenarioId.value || !fixtureId.value) return;
+    if (voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !revisionId.value || !scenarioId.value || !fixtureId.value) return;
     await run(async () => {
       const session = await client.createSession({ revisionId: revisionId.value, engine: engine.value,
         scenarioId: scenarioId.value, fixtureId: fixtureId.value, label: label.value.trim() || 'Test persony', recordContent: recordContent.value,
@@ -116,7 +133,7 @@ export function usePersonaLab() {
   }
   async function send(): Promise<void> {
     const session = selected.value; const input = text.value.trim();
-    if (!session || session.status !== 'open' || !input || busy.value || voiceActive.value || recoveryPending.value || !online.value) return;
+    if (!session || session.status !== 'open' || !input || busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || !online.value) return;
     const epoch = generation; conversationPending.value = true;
     try { await run(async () => { const result = await client.text(session.id, input); remember(result); text.value = ''; }); }
     finally { if (epoch === generation) conversationPending.value = false; }
@@ -133,7 +150,7 @@ export function usePersonaLab() {
   }
   async function startVoice(retry = false): Promise<void> {
     const session = selected.value;
-    if (!session || session.status !== 'open' || busy.value || voiceActive.value || recoveryPending.value || !online.value || !selectedEngineReady.value) return;
+    if (!session || session.status !== 'open' || busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || !online.value || !selectedEngineReady.value) return;
     if (retry && (!recoverable.value || reconnects.value >= 2)) return;
     if (retry) {
       reconnects.value++; recoveryPending.value = true; recoverable.value = false;
@@ -144,17 +161,21 @@ export function usePersonaLab() {
       recoveryPending.value = false;
       if (!proceed || selected.value?.id !== session.id || !online.value) return;
     }
-    recoverable.value = false; manualVoiceRestart.value = false; error.value = ''; muted.value = false;
+    recoverable.value = false; manualVoiceRestart.value = false; clearFailure(); muted.value = false;
     if (retry) notice.value = 'Nové hlasové spojení vytváří nový modelový kontext. Obnovují se pouze archivované tahy.';
     await voice.connect(() => client.ticket(session.id, retry), session.id, accountOrigin.value || window.location.origin);
   }
   async function end(): Promise<void> {
     const session = selected.value; if (!session) return;
+    const hadHardware = hardware.bound.value || hardware.active.value;
+    const localStopSubmitted = hardware.stopLocal(); hardware.clear(false, false); hardware.uncertain.value = hadHardware; hardware.mode.value = hadHardware;
     cancelRecovery(); voice.end(); recoverable.value = false; conversationPending.value = false; clearImage();
     // Stop must not wait behind a slow model response. Cancelling only fences
     // the old request; the explicit end call lets the server retire its worker.
     if (busy.value) { generation++; listGeneration++; client.invalidate(); busy.value = loading.value = false; }
-    await run(async () => { remember(await client.end(session.id)); notice.value = 'Sezení je ukončené. Můžete uložit hodnocení.'; });
+    await run(async () => { remember(await client.end(session.id)); notice.value = hadHardware
+      ? `Backend potvrdil ukončení testovací vazby. ${localStopSubmitted ? 'Místní Stop byl předán původnímu spojení.' : 'Místní Stop nemohl potvrdit původní spojení.'} Fyzické zastavení ani poloha tím nejsou ověřené.`
+      : 'Sezení je ukončené. Můžete uložit hodnocení.'; });
   }
   function stopVoice(refresh = true): void {
     cancelRecovery(); voice.dispose(); voicePhase.value = 'idle'; muted.value = false; recoverable.value = false;
@@ -168,19 +189,19 @@ export function usePersonaLab() {
     image.value = null; imageConsent.value = false; imagePreparing.value = false; imageAttachedSession.value = '';
   }
   async function chooseImage(file: File): Promise<void> {
-    if (busy.value || voiceActive.value || recoveryPending.value || selected.value?.engine !== 'gpt-realtime-2.1') return;
+    if (busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || selected.value?.engine !== 'gpt-realtime-2.1') return;
     imageController.abort(); imageController = new AbortController();
-    const epoch = ++imageGeneration; const sessionId = selected.value?.id; imagePreparing.value = true; imageConsent.value = false; error.value = '';
+    const epoch = ++imageGeneration; const sessionId = selected.value?.id; imagePreparing.value = true; imageConsent.value = false; clearFailure();
     try {
       const prepared = await prepareLabImage(file, imageController.signal);
       if (epoch !== imageGeneration || selected.value?.id !== sessionId) { URL.revokeObjectURL(prepared.previewUrl); return; }
       if (image.value) URL.revokeObjectURL(image.value.previewUrl); image.value = prepared;
-    } catch (cause) { if (epoch === imageGeneration) error.value = message(cause); }
+    } catch (cause) { if (epoch === imageGeneration) error.value = message(cause, 'image_prepare_failed'); }
     finally { if (epoch === imageGeneration) imagePreparing.value = false; }
   }
   async function attachImage(): Promise<void> {
     const session = selected.value; const prepared = image.value;
-    if (!session || !prepared || !imageConsent.value || voiceActive.value || recoveryPending.value || session.engine !== 'gpt-realtime-2.1') return;
+    if (!session || !prepared || !imageConsent.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || session.engine !== 'gpt-realtime-2.1') return;
     await run(async () => { remember(await client.attachImage(session.id, prepared.dataBase64)); imageAttachedSession.value = session.id;
       imageConsent.value = false; notice.value = 'Fotografie je dočasně připojená k testu. Model ji dostane při další skutečné odpovědi; na serveru se nearchivuje.'; });
   }
@@ -196,13 +217,31 @@ export function usePersonaLab() {
     await run(async () => { remember(await client.evaluate(session.id, evaluation)); analytics.value = await client.analytics(); notice.value = 'Hodnocení je uložené u přesných tahů tohoto sezení.'; });
   }
   async function runSuite(): Promise<void> {
-    if (!suiteScenarioIds.value.length || voiceActive.value || recoveryPending.value || !online.value || !engineReady.value) return;
+    if (!suiteScenarioIds.value.length || voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !engineReady.value) return;
     await run(async () => {
       const suite = await client.createSuite({ revisionId: revisionId.value, engine: engine.value,
         fixtureId: fixtureId.value, scenarioIds: [...suiteScenarioIds.value], label: label.value.trim() || 'Scénářová sada', recordContent: recordContent.value });
       suites.value = [suite, ...suites.value.filter(item => item.id !== suite.id)];
       notice.value = 'Scénářová sada byla spuštěna. Výsledky obnovíte tlačítkem Obnovit přehled.';
     });
+  }
+  async function openSuiteSession(id: string): Promise<boolean> {
+    if (!id || busy.value || voiceActive.value || recoveryPending.value || hardware.active.value) return false;
+    const epoch = generation; let opened: LabSession | null = null;
+    await run(async () => {
+      let result: LabSession;
+      try { result = await client.session(id); }
+      catch (cause) {
+        if (cause instanceof LabError && cause.status === 404)
+          throw new Error('Sezení z výsledku sady už není dostupné. Obnovte přehled; toto hodnocení nebylo otevřené.');
+        throw cause;
+      }
+      if (result.id !== id || result.ownerId !== account.value?.id) throw new LabError('invalid_response', 502);
+      remember(result); opened = result;
+    });
+    if (!opened || epoch !== generation || busy.value || voiceActive.value || recoveryPending.value || hardware.active.value) return false;
+    selectSession(opened);
+    return selected.value === opened;
   }
   function editRevision(revision: Revision): void {
     configRevisionId.value = revision.id; draftName.value = revision.name; draftInstructions.value = revision.instructions;
@@ -233,22 +272,40 @@ export function usePersonaLab() {
   }
   function downloadDiagnostics(): void {
     if (!selected.value) return;
-    const url = URL.createObjectURL(new Blob([JSON.stringify(technicalDiagnostics(selected.value), null, 2)], { type: 'application/json' }));
+    const url = URL.createObjectURL(new Blob([JSON.stringify(technicalDiagnostics(selected.value, hardware.uncertain.value && !selected.value.hardware), null, 2)], { type: 'application/json' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `persona-lab-${selected.value.id}-diagnostika.json`; anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }
+  async function loadSystemDiagnostics(): Promise<void> {
+    if (!admin.value || diagnosticsLoading.value || disposed || !online.value) return;
+    const epoch = generation; diagnosticsLoading.value = true; systemDiagnostics.value = null; clearFailure();
+    try {
+      const result = await client.systemDiagnostics();
+      if (epoch === generation && admin.value && !disposed) systemDiagnostics.value = result;
+    } catch (cause) {
+      if (epoch === generation && !(cause instanceof DOMException && cause.name === 'AbortError')) error.value = message(cause);
+    } finally { if (epoch === generation) diagnosticsLoading.value = false; }
+  }
+  function downloadSystemDiagnostics(): void {
+    if (!admin.value || !systemDiagnostics.value) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(systemDiagnosticsBundle(systemDiagnostics.value), null, 2)], { type: 'application/json' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'persona-lab-systemova-diagnostika.json'; anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
   function clear(): void {
-    generation++; listGeneration++; selectedReadGeneration++; client.invalidate(); cancelRecovery(); voice.dispose(); clearImage(); conversationPending.value = false;
+    hardware.clear(); generation++; listGeneration++; selectedReadGeneration++; client.invalidate(); cancelRecovery(); voice.dispose(); clearImage(); conversationPending.value = false;
     catalog.value = null; sessions.value = []; selected.value = null; analytics.value = null; suites.value = []; suiteScenarioIds.value = []; busy.value = loading.value = false;
+    systemDiagnostics.value = null; diagnosticsLoading.value = false;
     scores.value = {}; comment.value = ''; turnComments.value = {}; text.value = ''; partial.value = { user: '', assistant: '' };
     draftName.value = draftInstructions.value = draftVoice.value = ''; configRevisionId.value = revisionId.value = '';
     scenarioId.value = fixtureId.value = label.value = comparisonId.value = ''; configConfirmed.value = false;
-    error.value = notice.value = ''; voicePhase.value = 'idle'; recoverable.value = false; manualVoiceRestart.value = false; reconnects.value = 0; recordContent.value = false;
+    clearFailure(); notice.value = ''; voicePhase.value = 'idle'; recoverable.value = false; manualVoiceRestart.value = false; reconnects.value = 0; recordContent.value = false;
   }
   watch(identityKey, () => { clear(); void load(); }, { flush: 'sync' });
   watch(revisionId, id => { const revision = catalog.value?.versions.find(item => item.id === id); if (revision) engine.value = revision.engine; });
   watch(configRevisionId, () => { const revision = configRevision.value; if (revision) editRevision(revision); });
   function visibilityChanged(): void {
+    if (document.visibilityState === 'hidden' && hardware.active.value) { void end(); return; }
     if (document.visibilityState === 'hidden' && (voiceActive.value || recoveryPending.value)) {
       stopVoice(false); notice.value = 'Hlas byl při přechodu na pozadí vypnutý. Po návratu jej spusťte ručně; nové spojení používá nový modelový kontext.';
     }
@@ -256,17 +313,18 @@ export function usePersonaLab() {
   function networkChanged(): void {
     online.value = navigator.onLine;
     if (!online.value) {
+      const hadHardware = hardware.active.value; hardware.clear(); hardware.uncertain.value = hadHardware; hardware.mode.value = hadHardware;
       generation++; listGeneration++; selectedReadGeneration++; client.invalidate(); stopVoice(false);
-      busy.value = loading.value = conversationPending.value = false;
-      error.value = 'Připojení k síti není dostupné. Audio je vypnuté; výsledek rozpracovaného požadavku není potvrzený. Po návratu sítě obnovte přehled.';
+      busy.value = loading.value = conversationPending.value = diagnosticsLoading.value = false;
+      failure.value = classifyLabFailure('client_offline'); error.value = describeLabFailure(failure.value);
     } else notice.value = 'Síť je znovu dostupná. Obnovte přehled. Hlas spustíte výslovně v novém modelovém kontextu.';
   }
   const globalStopParticipant = {
     canStop: () => !disposed && selected.value?.status === 'open'
-      && (voiceActive.value || conversationPending.value || recoveryPending.value),
+      && (voiceActive.value || conversationPending.value || recoveryPending.value || hardware.active.value),
     busy: () => busy.value && !conversationPending.value,
     stop: () => end(),
-    clear: () => { cancelRecovery(); voice.dispose(); },
+    clear: () => { cancelRecovery(); voice.dispose(); hardware.clear(); },
   };
   onMounted(() => {
     registerDirectorStop(globalStopParticipant);
@@ -278,11 +336,12 @@ export function usePersonaLab() {
     document.removeEventListener('visibilitychange', visibilityChanged); window.removeEventListener('online', networkChanged); window.removeEventListener('offline', networkChanged);
     if (ageTimer) clearInterval(ageTimer); disposed = true; clear();
   });
-  return { account, admin, catalog, sessions, selected, analytics, suites, suiteScenarioIds, runSuite, loading, busy, error, notice, voicePhase, voiceActive,
+  return { account, admin, catalog, sessions, selected, analytics, suites, suiteScenarioIds, runSuite, loading, busy, error, failure, notice, voicePhase, voiceActive,
+    hardware, simulationBlocked, noticeTone,
     recoveryPending, online, conversationPending, sessionAgeSeconds, manualVoiceRestart,
     muted, recoverable, reconnects, partial, revisionId, engine, engineReady, selectedEngineReady, scenarioId, fixtureId, label, comparisonId, recordContent, text,
     scores, comment, turnComments, validEvaluation, image, imageConsent, imagePreparing, imageAttachedSession, chooseImage, attachImage, removeImage,
     draftName, draftInstructions, draftVoice, draftEngine, configRevisionId,
-    configRevision, configConfirmed, load, create, selectSession, send, startVoice, stopVoice, end, toggleMute, interrupt: () => voice.interrupt(),
-    saveEvaluation, saveDraft, publish, downloadDiagnostics };
+    configRevision, configConfirmed, load, create, selectSession, openSuiteSession, send, startVoice, stopVoice, end, toggleMute, interrupt: () => voice.interrupt(),
+    saveEvaluation, saveDraft, publish, downloadDiagnostics, systemDiagnostics, diagnosticsLoading, loadSystemDiagnostics, downloadSystemDiagnostics };
 }

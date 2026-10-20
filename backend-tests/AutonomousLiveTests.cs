@@ -473,7 +473,8 @@ internal static class AutonomousLiveTests
             else
             {
                 var access = new DeviceAccessStore(configuration, clock);
-                using var services = new ServiceCollection().AddSingleton(show).BuildServiceProvider();
+                var keepsakes = new KeepsakeStore(configuration, clock);
+                using var services = new ServiceCollection().AddSingleton(show).AddSingleton(keepsakes).BuildServiceProvider();
                 var context = new DefaultHttpContext { RequestServices = services };
                 context.Request.Headers.Authorization = "Bearer " + access.IssueToken("device")!.AccessToken;
                 context.Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("D");
@@ -483,12 +484,11 @@ internal static class AutonomousLiveTests
                 context.Request.ContentType = "application/json";
                 context.Request.ContentLength = body.Length;
                 context.Request.Body = new MemoryStream(body);
-                var keepsakes = new KeepsakeStore(configuration, clock);
                 var memoryOptions = HybridMemoryOptions.Read(configuration, journal);
                 using var memoryProvider = new OpenAiVectorMemoryProvider(configuration, memoryOptions);
                 var hybridMemory = new HybridMemoryService(memory, memoryProvider, memoryOptions, clock);
                 var published = await KeepsakeOutcomeEndpoints.PublishAsync(context, call.OperationId, access, journal,
-                    keepsakes, configuration, memory, hybridMemory);
+                    configuration, memory, hybridMemory);
                 Check((published as IStatusCodeHttpResult)?.StatusCode == 201
                     && show.ReadFinalePlan("device", call.OperationId) is { Locked: true, PresentationEvidence: "completed_by_timing" }
                     && show.Read("device").SceneExecution?.Cues.Single(cue => cue.Kind == "PresentSelected").Status == "completed"

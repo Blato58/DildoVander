@@ -6,6 +6,28 @@ globalThis.window = { setTimeout, clearTimeout };
 const settings = { available: true, mode: 'off', voice: 'marin', phase: 'idle', error: null };
 const context = { deviceId: 'kufr-001', bootId: 'boot-1', revision: 37, controlMode: 'standalone', phase: 'ready', activeCommandId: null, voice: settings };
 
+test('hardware test tickets require an advertised capability and never fall back to ordinary start', () => {
+  const sent = [];
+  const client = new LocalVoiceClient(message => { sent.push(message); return true; }, () => {}, () => {});
+  const ticket = 'A'.repeat(43);
+  const ready = { ...context, voice: { ...settings, mode: 'realtime' } };
+  client.update(ready);
+  assert.equal(client.start(false, ticket), false);
+  client.update({ ...ready, capabilities: ['voiceTestContext'] });
+  for (const invalid of ['', 'A'.repeat(42), 'A'.repeat(44), '<'.repeat(43)]) {
+    assert.equal(client.start(false, invalid), false);
+  }
+  assert.equal(sent.length, 0);
+  assert.equal(client.start(false, ticket), true);
+  assert.equal(sent[0].testContext, ticket);
+  assert.equal(sent[0].expectedRevision, context.revision);
+  assert.equal(sent[0].imageConsent, undefined);
+  client.update({ ...ready, bootId: 'boot-2' });
+  assert.equal(client.start(false, ticket), false);
+  assert.equal(sent.length, 1);
+  client.invalidate();
+});
+
 test('voice requires device confirmation, ignores wrong boot/ACK and prevents replay', () => {
   const sent = [];
   const client = new LocalVoiceClient(m => { sent.push(m); return true; }, () => {}, () => assert.fail('unexpected close'));
@@ -30,6 +52,23 @@ test('voice requires device confirmation, ignores wrong boot/ACK and prevents re
   client.invalidate();
   client.update(context);
   assert.equal(sent.length, 3); // No retry on reconnect.
+  client.invalidate();
+});
+
+test('scoped Lab Stop cannot stop a later production or different test conversation', () => {
+  const sent = [];
+  const client = new LocalVoiceClient(message => { sent.push(message); return true; }, () => {}, () => {});
+  const fingerprint = 'a'.repeat(64);
+  const speaking = { ...context, capabilities: ['voiceTestContext'], voice: { ...settings, mode: 'realtime', phase: 'speaking' } };
+  client.update(speaking);
+  assert.equal(client.stop(fingerprint), false);
+  client.update({ ...speaking, voice: { ...speaking.voice, testContextId: 'b'.repeat(64) } });
+  assert.equal(client.stop(fingerprint), false);
+  assert.equal(sent.length, 0);
+  client.update({ ...speaking, voice: { ...speaking.voice, testContextId: fingerprint } });
+  assert.equal(client.stop(fingerprint), true);
+  assert.equal(sent[0].type, 'voice.stop');
+  assert.equal(sent[0].testContextId, fingerprint);
   client.invalidate();
 });
 
