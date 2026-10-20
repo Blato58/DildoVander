@@ -83,6 +83,7 @@ internal sealed record LivePromptSnapshot(string PersonalityId, string Version, 
 {
     internal string CatalogVersion { get; init; } = "";
     internal string LoreVersion { get; init; } = "";
+    internal string? PersonaRevisionId { get; init; }
     internal static LivePromptSnapshot Create(string personality, GptLiveOptions options)
     {
         var policy = options.Policy(personality);

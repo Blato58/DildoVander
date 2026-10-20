@@ -105,8 +105,6 @@ internal static class GptLiveEndpoints
             context.Response.Headers["X-Accel-Buffering"] = "no";
             await Write(new { type = "session", streamId = live.Id, audioFormat = "pcm16-mono-24000" }, lifetime.Token);
             await Write(new { type = "started", operationId = call.OperationId, correlation = call.Correlation, responseGeneration = live.OutputGeneration }, lifetime.Token);
-            live.Listen(call);
-            await Write(new { type = "listening", inputId = request.ClientTurnId, responseGeneration = live.OutputGeneration }, lifetime.Token);
             heartbeat = Heartbeat((item, token) => Write(item, token), lifetime);
             visualWatcher = VisualResponseWatcher.RunAsync(conversations, live, (item, token) => Write(item, token), lifetime.Token, (revision, token) => CancelOutputAsync(revision, token));
             var inputStopped = false;

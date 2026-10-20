@@ -8,6 +8,7 @@ using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Character;
 using Kufr.Backend.Features.DigitalTwin;
+using Kufr.Backend.Features.PersonaLab;
 
 namespace Kufr.Backend.Features.Conversations;
 
@@ -22,7 +23,8 @@ internal sealed partial class ConversationStore(
     TwinFakeInputPolicy? twinFakeInputs = null,
     IConfiguration? configuration = null,
     CostumeVisionService? vision = null,
-    ShowCoordinator? show = null)
+    ShowCoordinator? show = null,
+    PersonaLabStore? personaLab = null)
 {
     private readonly Lock gate = new();
     private CharacterPolicy characterPolicy = liveOptions?.Character ?? new();
@@ -117,7 +119,7 @@ internal sealed partial class ConversationStore(
                     request.Consent.Audio,
                     personalityId,
                     response.ExpiresAt,
-                    now.AddMinutes(30)) { ImageConsented = request.Consent.Image, LivePrompt = LivePromptSnapshot.Create(personalityId, (liveOptions ?? new()) with { Character = characterPolicy }) });
+                    now.AddMinutes(30)) { ImageConsented = request.Consent.Image, LivePrompt = CreatePersonaSnapshot(personalityId) });
             return new CreateResult(201, response);
         }
     }

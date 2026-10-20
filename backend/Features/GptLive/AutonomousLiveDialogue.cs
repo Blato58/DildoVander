@@ -99,10 +99,15 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     continue;
                 }
                 using var started = await pending;
+                if (GptLiveProtocol.RequiredString(started.RootElement, "type", 100) == "error")
+                {
+                    throw LiveProviderFailure.Read(started.RootElement);
+                }
                 if (GptLiveProtocol.RequiredString(started.RootElement, "type", 100) != "session.started"
                     || GptLiveProtocol.RequiredString(started.RootElement, "client_event_id", 128) != id
                     || started.RootElement.GetProperty("session").GetProperty("model").GetString() != GptLiveProtocol.Model)
                 { throw new InvalidDataException("Live startup correlation failed."); }
+                connection.CaptureSessionId(started.RootElement);
                 visualState = visualRevision?.Invoke();
                 turn = context;
                 return;
@@ -122,6 +127,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         await StartProviderAsync(turn);
         connection.ObserveInput(inputActivity.Observe);
         connection.AudioReady();
+        // The phone starts capture on listening. Advertising it before the
+        // correlated provider acknowledgement can overflow its bounded PCM queue.
+        if (resumeInput is not null) { await resumeInput(token); }
         if (character is not null)
         {
             directive = CharacterDirector.Evaluate(character, CharacterPhase.Opening, 0);

@@ -12,6 +12,31 @@ require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", q
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
 let publicHash = String(repeating: "a", count: 64)
+let labID = String(repeating: "a", count: 32)
+let labPrefix = "/app/v1/persona-lab"
+for (method, path) in [
+    ("GET", "/catalog"), ("GET", "/sessions"), ("POST", "/sessions"),
+    ("GET", "/analytics"), ("GET", "/diagnostics"), ("POST", "/revisions"),
+    ("POST", "/rollback"), ("GET", "/suites"), ("POST", "/suites"),
+    ("GET", "/suites/\(labID)"), ("GET", "/sessions/\(labID)"),
+    ("GET", "/sessions/\(labID)/context"), ("POST", "/sessions/\(labID)/turns"),
+    ("POST", "/sessions/\(labID)/socket-ticket"), ("POST", "/sessions/\(labID)/end"),
+    ("PUT", "/sessions/\(labID)/evaluation"), ("POST", "/sessions/\(labID)/image"),
+    ("DELETE", "/sessions/\(labID)/image"), ("DELETE", "/sessions/\(labID)"),
+    ("POST", "/revisions/\(labID)/publish"),
+    ("POST", "/revisions/baseline-aaaaaaaaaaaaaaaa/publish")
+] {
+    require(AccountTransportPolicy.account(path: labPrefix + path, method: method), "valid lab HTTP route rejected: \(path)")
+}
+for (method, path) in [
+    ("DELETE", "/catalog"), ("POST", "/diagnostics"), ("POST", "/sessions/../turns"),
+    ("GET", "/sessions/\(id)"), ("GET", "/sessions/\(labID)?ticket=secret"),
+    ("GET", "/sessions/\(labID)/live"), ("POST", "/sessions/\(labID)/turns/extra"),
+    ("POST", "/revisions/baseline-unknown/publish"), ("GET", "/sessions/%61/context"),
+    ("GET", "/sessions//\(labID)")
+] {
+    require(!AccountTransportPolicy.account(path: labPrefix + path, method: method), "unsafe lab HTTP route accepted: \(path)")
+}
 require(AccountTransportPolicy.publicOrigin("https://public.example:8443")?.host == "public.example", "configured public HTTPS origin unavailable without RP")
 for invalidOrigin in ["http://public.example", "https://user:secret@public.example", "https://public.example/path", "https://public.example?query", "https://public.example#fragment", "https://%70ublic.example", "https://public.example ", "https://$(KUFR_ACCOUNT_ORIGIN)"] {
     require(AccountTransportPolicy.publicOrigin(invalidOrigin) == nil, "unsafe public origin accepted")
