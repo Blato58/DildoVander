@@ -8,9 +8,16 @@
 namespace ServoBench {
 constexpr uint32_t OscillatorHz = 25000000;
 constexpr unsigned Prescale = 121;
+constexpr unsigned CalibrationMinimumUs = 500;
+constexpr unsigned CalibrationMaximumUs = 2400;
+constexpr unsigned MaximumCommandPulseUs = 9999;
 constexpr uint64_t PulseDurationUs = 500000;
 constexpr uint64_t ArmDurationUs = 10000000;
 
+static_assert(CalibrationMinimumUs >= 5 && CalibrationMinimumUs <= CalibrationMaximumUs,
+    "Servo calibration pulse-width limits must be positive and ordered");
+static_assert(CalibrationMaximumUs <= MaximumCommandPulseUs,
+    "Servo calibration pulse-width limits must fit the four-digit command grammar");
 inline unsigned PulseTicks(unsigned microseconds) {
   return static_cast<unsigned>((static_cast<uint64_t>(microseconds) * OscillatorHz +
       (Prescale + 1) * 500000ULL) / ((Prescale + 1) * 1000000ULL));
@@ -92,7 +99,12 @@ class Controller {
       return;
     }
     if (std::strcmp(line_, "help") == 0) {
-      outputs_.Report("arm | pulse <channel 0-5> <us 1400-1600> | cal <channel 0-5> <us 1000-2000> <ms 0500-3000> | stop | ! | help");
+      char help[160];
+      std::snprintf(help, sizeof(help),
+          "arm | pulse <channel 0-5> <us 1400-1600> | cal <channel 0-5> <us %04u-%04u> "
+          "<ms 0500-3000> | stop | ! | help",
+          CalibrationMinimumUs, CalibrationMaximumUs);
+      outputs_.Report(help);
       return;
     }
     if (faulted_) {
@@ -124,9 +136,9 @@ class Controller {
         Stop("REJECT cal syntax");
         return;
       }
-      if (!armed_ || microseconds < 1000 || microseconds > 2000 ||
+      if (!armed_ || microseconds < CalibrationMinimumUs || microseconds > CalibrationMaximumUs ||
           milliseconds < 500 || milliseconds > 3000) {
-        Stop("REJECT arm first; permitted cal is 1000-2000 us, 0500-3000 ms");
+        Stop("REJECT arm first; cal pulse width outside configured limits or duration outside 0500-3000 ms");
         return;
       }
       armed_ = false;

@@ -87,8 +87,8 @@ static void CheckRegisters() {
     }
   }
   assert(!ServoBench::SetPulse(bus, 6, 307));
-  assert(!ServoBench::SetPulse(bus, 0, ServoBench::PulseTicks(1000) - 1));
-  assert(!ServoBench::SetPulse(bus, 0, ServoBench::PulseTicks(2000) + 1));
+  assert(!ServoBench::SetPulse(bus, 0, 0));
+  assert(!ServoBench::SetPulse(bus, 0, ServoBench::PulseTicks(ServoBench::MaximumCommandPulseUs) + 1));
   assert(!ServoBench::SetPulse(bus, 0, 4096));
   for (unsigned failAt = 1; failAt <= 9; ++failAt) {
     FakeRegisterBus failed;
@@ -112,7 +112,7 @@ static void CheckReadback() {
   ServoBench::PwmSnapshot snapshot;
   assert(!ServoBench::ReadPwmSnapshot(bus, 6, snapshot) && bus.operations == 0);
   assert(ServoBench::PreparePca(bus));
-  for (unsigned microseconds : {1000U, 1400U, 1500U, 1600U, 2000U}) {
+  for (unsigned microseconds : {500U, 1000U, 1400U, 1500U, 1600U, 2000U, 2400U}) {
     const unsigned ticks = ServoBench::PulseTicks(microseconds);
     assert(ServoBench::SetPulse(bus, 0, ticks));
     assert(ServoBench::ReadPwmSnapshot(bus, 0, snapshot) && snapshot.Matches(ticks));
@@ -236,12 +236,14 @@ static void CheckCalibrationTiming() {
       ServoBench::Controller controller(outputs);
       Send(controller, "arm\n", 10);
       char command[24];
-      std::snprintf(command, sizeof(command), "cal %u 2000 %04u", channel, milliseconds);
+      std::snprintf(command, sizeof(command), "cal %u %04u %04u",
+          channel, ServoBench::CalibrationMaximumUs, milliseconds);
       Send(controller, command, 100);
       assert(outputs.pulses == 0); // A complete line is required before movement.
       const uint64_t commandTime = ServoBench::ArmDurationUs - 1;
       Send(controller, "\r\n", commandTime);
-      assert(outputs.enabled && outputs.channel == channel && outputs.ticks == 410);
+      assert(outputs.enabled && outputs.channel == channel &&
+          outputs.ticks == ServoBench::PulseTicks(ServoBench::CalibrationMaximumUs));
       assert(outputs.lastReport == "PULSE nominal " + std::to_string(milliseconds) +
           " ms; calibration; timeout/Stop writes PCA FULL_OFF");
       const uint64_t deadline = commandTime + static_cast<uint64_t>(milliseconds) * 1000;
@@ -261,18 +263,36 @@ static void CheckCalibrationTiming() {
   Send(controller, "arm\n", 10);
   Send(controller, "cal 0 1000 0500\n", 10 + ServoBench::ArmDurationUs);
   assert(outputs.pulses == 0); // Exact arm expiry is checked before the command.
-  Send(controller, "arm\ncal 0 1000 0500\n", 20000000);
-  assert(outputs.enabled && outputs.ticks == 205);
-  Send(controller, "cal 5 2000 3000\n", 20000001);
+  char minimumCommand[32];
+  std::snprintf(minimumCommand, sizeof(minimumCommand), "arm\ncal 0 %04u 0500\n",
+      ServoBench::CalibrationMinimumUs);
+  Send(controller, minimumCommand, 20000000);
+  assert(outputs.enabled && outputs.ticks == ServoBench::PulseTicks(ServoBench::CalibrationMinimumUs));
+  char maximumCommand[32];
+  std::snprintf(maximumCommand, sizeof(maximumCommand), "cal 5 %04u 3000\n",
+      ServoBench::CalibrationMaximumUs);
+  Send(controller, maximumCommand, 20000001);
   assert(!outputs.enabled && outputs.pulses == 1); // Busy cancels and never queues.
-  Send(controller, "cal 5 2000 3000\n", 20000002);
+  Send(controller, maximumCommand, 20000002);
   assert(outputs.pulses == 1);
+}
+
+static void CheckHelpReportsConfiguredLimits() {
+  FakeOutputs outputs;
+  ServoBench::Controller controller(outputs);
+  Send(controller, "help\n");
+  char expected[160];
+  std::snprintf(expected, sizeof(expected),
+      "arm | pulse <channel 0-5> <us 1400-1600> | cal <channel 0-5> <us %04u-%04u> "
+      "<ms 0500-3000> | stop | ! | help",
+      ServoBench::CalibrationMinimumUs, ServoBench::CalibrationMaximumUs);
+  assert(outputs.lastReport == expected);
 }
 
 static void CheckCalibrationGrammar() {
   const char* invalid[] = {
     "cal 6 1500 0500\n", "cal 16 1500 0500\n", "cal -1 1500 0500\n",
-    "cal 0 0999 0500\n", "cal 0 2001 0500\n", "cal 0 1500 0499\n",
+    "cal 0 0499 0500\n", "cal 0 2401 0500\n", "cal 0 1500 0499\n",
     "cal 0 1500 3001\n", "cal 0 1500 500\n", "cal 0 1500 03000\n",
     "cal 0 1500 +500\n", "cal 0 1500 5e02\n", "cal 0 1e03 0500\n",
     "cal 0 +500 0500\n", "cal 0 10000 0500\n", "cal 0 1500 0500 extra\n",
@@ -290,13 +310,19 @@ static void CheckCalibrationGrammar() {
 }
 
 static void CheckCalibrationStopAndFault() {
-  for (const char* command : {"cal 0 1000 0500\n", "cal 5 2000 3000\n"}) {
+  char minimumCommand[32], maximumCommand[32];
+  std::snprintf(minimumCommand, sizeof(minimumCommand), "cal 0 %04u 0500\n",
+      ServoBench::CalibrationMinimumUs);
+  std::snprintf(maximumCommand, sizeof(maximumCommand), "cal 5 %04u 3000\n",
+      ServoBench::CalibrationMaximumUs);
+  for (const char* command : {minimumCommand, maximumCommand}) {
     RegisterOutputs outputs;
     ServoBench::Controller controller(outputs);
     Send(controller, "arm\n");
     Send(controller, command, 100);
     const unsigned selected = static_cast<unsigned>(command[4] - '0');
-    const unsigned ticks = selected == 0 ? 205 : 410;
+    const unsigned ticks = ServoBench::PulseTicks(
+        selected == 0 ? ServoBench::CalibrationMinimumUs : ServoBench::CalibrationMaximumUs);
     ServoBench::PwmSnapshot snapshot;
     assert(ServoBench::ReadPwmSnapshot(outputs.bus, selected, snapshot));
     assert(snapshot.Matches(ticks) && !snapshot.FullOff() && !snapshot.FullOn());
@@ -309,10 +335,13 @@ static void CheckCalibrationStopAndFault() {
   for (const char* stop : {"stop\n", "partial!", "cal 0 1500 500\n", "timeout"}) {
     RegisterOutputs outputs;
     ServoBench::Controller controller(outputs);
-    Send(controller, "arm\ncal 5 2000 3000\n", 100);
+    char command[32];
+    std::snprintf(command, sizeof(command), "arm\ncal 5 %04u 3000\n",
+        ServoBench::CalibrationMaximumUs);
+    Send(controller, command, 100);
     ServoBench::PwmSnapshot snapshot;
     assert(ServoBench::ReadPwmSnapshot(outputs.bus, 5, snapshot));
-    assert(snapshot.Matches(410));
+    assert(snapshot.Matches(ServoBench::PulseTicks(ServoBench::CalibrationMaximumUs)));
     if (std::strcmp(stop, "timeout") == 0) {
       controller.Tick(3000099);
       assert((outputs.bus.registers[0x1d] & 0x10) == 0);
@@ -341,7 +370,10 @@ static void CheckCalibrationStopAndFault() {
     ServoBench::Controller controller(outputs);
     Send(controller, "arm\n");
     outputs.bus.corruptReadback = true;
-    Send(controller, "cal 5 2000 3000\n", 100);
+    char command[24];
+    std::snprintf(command, sizeof(command), "cal 5 %04u 3000\n",
+        ServoBench::CalibrationMaximumUs);
+    Send(controller, command, 100);
     assert(controller.Faulted());
     AssertAllOff(outputs.bus);
   }
@@ -377,6 +409,7 @@ int main() {
   CheckPcaStop();
   CheckVerifiedPulseFailure();
   CheckCalibrationTiming();
+  CheckHelpReportsConfiguredLimits();
   CheckCalibrationGrammar();
   CheckCalibrationStopAndFault();
   {

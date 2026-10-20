@@ -289,7 +289,7 @@ test("authorized connection rejects no or ambiguous ports without picker or open
 async function calibrationConnected(f) {
   const connect = f.tool("connect");
   await tick();
-  f.ack("READY PWM FULL_OFF; calibration=v1");
+  f.ack("READY PWM FULL_OFF; calibration=v2 calibration_min_us=500 calibration_max_us=2400");
   f.ack("STOP PWM FULL_OFF");
   assert.equal((await connect).isError, false);
   const arm = f.tool("arm");
@@ -302,12 +302,13 @@ test("calibration MCP schema enforces support and strict bounds without altering
   const schema = f.definitions.get("servo_bench_calibrate").inputSchema;
   assert.equal(schema.additionalProperties, false);
   assert.equal(schema.properties.durationMs.maximum, 3000);
-  assert.equal(schema.properties.pulseWidthUs.minimum, 1000);
+  assert.equal(schema.properties.pulseWidthUs.minimum, 1);
+  assert.equal(schema.properties.pulseWidthUs.maximum, 9999);
   assert.equal((await f.tool("calibrate", { channel: 0, pulseWidthUs: 1500, durationMs: 1500 })).isError, true);
   await calibrationConnected(f);
   const before = f.writes.length;
   for (const input of [
-    { channel: 0, pulseWidthUs: 999, durationMs: 1500 }, { channel: 0, pulseWidthUs: 2001, durationMs: 1500 },
+    { channel: 0, pulseWidthUs: 499, durationMs: 1500 }, { channel: 0, pulseWidthUs: 2401, durationMs: 1500 },
     { channel: 0, pulseWidthUs: 1500, durationMs: 499 }, { channel: 0, pulseWidthUs: 1500, durationMs: 3001 },
     { channel: 6, pulseWidthUs: 1500, durationMs: 1500 }, { channel: 0, pulseWidthUs: 1500, durationMs: "1500" },
     { channel: 0, pulseWidthUs: 1500, durationMs: 1500, command: "arm" },
@@ -319,9 +320,9 @@ test("calibration MCP schema enforces support and strict bounds without altering
 test("maximum calibration waits past legacy deadline and reports only DONE for requested duration", async () => {
   const f = await fixture();
   await calibrationConnected(f);
-  const move = f.tool("calibrate", { channel: 5, pulseWidthUs: 2000, durationMs: 3000 });
+  const move = f.tool("calibrate", { channel: 5, pulseWidthUs: 2400, durationMs: 3000 });
   await tick();
-  assert.equal(f.writes.at(-1), "cal 5 2000 3000\n");
+  assert.equal(f.writes.at(-1), "cal 5 2400 3000\n");
   f.ack("PULSE nominal 3000 ms; calibration; timeout/Stop writes PCA FULL_OFF");
   let settled = false;
   move.then(() => { settled = true; });
@@ -333,7 +334,7 @@ test("maximum calibration waits past legacy deadline and reports only DONE for r
   const result = payload(await move);
   assert.equal(result.ok, true);
   assert.match(result.message, /3000 ms/);
-  assert.equal(result.state.lastCompleted.pulseWidthUs, 2000);
+  assert.equal(result.state.lastCompleted.pulseWidthUs, 2400);
   assert.equal(f.writes.filter(command => command.startsWith("cal ")).length, 1);
 });
 

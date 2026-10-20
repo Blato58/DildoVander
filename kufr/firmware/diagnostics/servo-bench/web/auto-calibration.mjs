@@ -1,4 +1,4 @@
-const STEP_US = 25;
+export const AUTO_CALIBRATION_STEP_US = 25;
 const PULSE_MS = 1500;
 const INTERVAL_MS = 3000;
 const REASONS = {
@@ -30,13 +30,18 @@ export class AutoCalibration {
   start({ channel, direction, centerUs } = {}) {
     if (this.state.active || this.stopObserver || !Number.isInteger(channel) || channel < 0 || channel > 5 ||
       !["min", "max"].includes(direction) || !Number.isInteger(centerUs) ||
-      centerUs < 1000 || centerUs > 2000) return false;
+      !Number.isInteger(AUTO_CALIBRATION_STEP_US) || AUTO_CALIBRATION_STEP_US <= 0) return false;
     let controller;
     try { controller = this.getState(); } catch { return false; }
-    if (!this.ready(controller) || !controller.capabilities?.arm) return false;
+    const minimumUs = controller.calibrationMinimumUs;
+    const maximumUs = controller.calibrationMaximumUs;
+    if (!this.ready(controller) || !controller.capabilities?.arm ||
+      !Number.isInteger(minimumUs) || !Number.isInteger(maximumUs) ||
+      minimumUs >= maximumUs || centerUs < minimumUs || centerUs > maximumUs) return false;
     const token = ++this.token;
     this.state = { active: true, stage: "starting", channel, direction, centerUs,
-      currentUs: centerUs, previousUs: null, candidateUs: null, candidateEvidence: null, stopConfirmed: false,
+      minimumUs, maximumUs, currentUs: centerUs, previousUs: null, candidateUs: null,
+      candidateEvidence: null, stopConfirmed: false,
       reason: "", message: "Začíná asistovaná kalibrace; mějte Stop po ruce." };
     try {
       const unsubscribe = this.subscribe(() => this.check(token));
@@ -260,9 +265,11 @@ export class AutoCalibration {
   async run(token) {
     let target = this.state.centerUs;
     let lastCompleted = null;
-    const endpoint = this.state.direction === "min" ? 1000 : 2000;
-    const step = this.state.direction === "min" ? -STEP_US : STEP_US;
-    for (let count = 0; count < 41 && this.live(token); ++count) {
+    const endpoint = this.state.direction === "min" ? this.state.minimumUs : this.state.maximumUs;
+    const step = this.state.direction === "min" ?
+      -AUTO_CALIBRATION_STEP_US : AUTO_CALIBRATION_STEP_US;
+    const maxSteps = Math.ceil(Math.abs(endpoint - target) / AUTO_CALIBRATION_STEP_US) + 1;
+    for (let count = 0; count < maxSteps && this.live(token); ++count) {
       if (!await this.command(token, "arm", () => this.arm()) || !this.live(token)) return;
       let started;
       if (!await this.command(token, "pulse", () => {

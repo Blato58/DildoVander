@@ -2,7 +2,7 @@ import { BenchController } from "./controller.mjs";
 import { SerialTransport, flushStopBeforeClose } from "./serial.mjs";
 import { registerBenchTools } from "./mcp.mjs";
 import { ManualProfiles, canSaveTarget } from "./profiles.mjs";
-import { AutoCalibration } from "./auto-calibration.mjs";
+import { AutoCalibration, AUTO_CALIBRATION_STEP_US } from "./auto-calibration.mjs";
 import { mountBenchUi, benchGuidance, statusBadge, notice, emptyState } from "./panel-ui.mjs";
 
 mountBenchUi(document);
@@ -106,12 +106,35 @@ function render(state, capabilities) {
 function calibrationValues() {
   const width = Number(elements["cal-width"].value);
   const durationMs = Number(elements["cal-duration"].value);
-  return { width, durationMs, valid: Number.isInteger(width) && width >= 1000 && width <= 2000 &&
+  const { calibrationMinimumUs, calibrationMaximumUs } = controller.state;
+  return { width, durationMs, valid: Number.isInteger(calibrationMinimumUs) &&
+    Number.isInteger(calibrationMaximumUs) && width >= calibrationMinimumUs && width <= calibrationMaximumUs &&
     Number.isInteger(durationMs) && durationMs >= 500 && durationMs <= 3000 };
+}
+
+function displayedCalibrationLimits() {
+  return {
+    minimumUs: Number.isInteger(controller.state.calibrationMinimumUs) ?
+      controller.state.calibrationMinimumUs : 500,
+    maximumUs: Number.isInteger(controller.state.calibrationMaximumUs) ?
+      controller.state.calibrationMaximumUs : 2400,
+  };
 }
 
 function renderCalibration(state, capabilities) {
   const channel = Number(elements.channel.value);
+  const { minimumUs, maximumUs } = displayedCalibrationLimits();
+  elements["cal-width"].min = String(minimumUs);
+  elements["cal-width"].max = String(maximumUs);
+  elements["cal-range"].min = String(minimumUs);
+  elements["cal-range"].max = String(maximumUs);
+  if (Number(elements["cal-width"].value) >= minimumUs &&
+    Number(elements["cal-width"].value) <= maximumUs) {
+    elements["cal-range"].value = elements["cal-width"].value;
+  } else {
+    elements["cal-range"].value = String(Math.max(minimumUs,
+      Math.min(maximumUs, Number(elements["cal-width"].value) || 1500)));
+  }
   const values = calibrationValues();
   const automatic = !!autoCalibration?.state.active;
   const busy = automatic || !!state.pending || state.writing || !!state.armedUntil || closing;
@@ -119,14 +142,17 @@ function renderCalibration(state, capabilities) {
     elements[id].disabled = busy;
   }
   elements["calibration-support"].textContent = state.calibrationSupported ?
-    `Firmware potvrdil calibration=v1 · vybraný kanál ${channel}` :
-    "Kalibrace není dostupná: čeká na READY calibration=v1 z firmwaru. Běžný pulz 500 ms zůstává samostatný.";
+    `Firmware potvrdil meze ${minimumUs}–${maximumUs} µs · vybraný kanál ${channel}` :
+    "Kalibrace není dostupná: čeká na READY s podporou a mezemi z firmwaru. Běžný pulz 500 ms zůstává samostatný.";
   elements["cal-arm"].disabled = automatic || !state.calibrationSupported || !capabilities.arm || !values.valid || closing;
   elements["cal-move"].disabled = automatic || !capabilities.calibrate || !values.valid || closing;
   elements["cal-state"].textContent = state.message;
   elements["cal-validation"].textContent = values.valid ?
     `Další ruční pokus: kanál ${channel}, ${values.width} µs, ${values.durationMs} ms. Vyžaduje samostatné Arm.` :
-    "Zadejte celé hodnoty: 1000–2000 µs a 500–3000 ms. Žádný povel nebyl odeslán.";
+    `Zadejte celé hodnoty: ${minimumUs}–${maximumUs} µs a 500–3000 ms. Žádný povel nebyl odeslán.`;
+  for (const value of [1200, 1500, 1800]) {
+    elements[`cal-${value}`].disabled = busy || value < minimumUs || value > maximumUs;
+  }
   const profile = profiles.channels[channel];
   if (selectedProfileChannel !== channel) {
     elements["profile-label"].value = profile.label;
@@ -191,7 +217,8 @@ function canStartAuto() {
   const center = profiles.channels[channel]?.center;
   const state = controller.state;
   return autoCalibration && !autoCalibration.state.active && !connecting && !closing &&
-    document.visibilityState !== "hidden" && Number.isInteger(center) && center >= 1000 && center <= 2000 &&
+    document.visibilityState !== "hidden" && Number.isInteger(center) &&
+    center >= state.calibrationMinimumUs && center <= state.calibrationMaximumUs &&
     state.calibrationSupported && !state.error && controller.capabilities.arm &&
     (autoCalibration.state.candidateUs === null || autoCalibration.state.stopConfirmed);
 }
@@ -203,10 +230,10 @@ function candidateProposal() {
 function renderAuto() {
   const channel = Number(elements.channel.value);
   const center = profiles.channels[channel]?.center;
-  elements["auto-context"].textContent = `Kanál ${channel} · uložený ruční střed ${center ?? "—"} µs · 25 µs / 1500 ms / nejméně 3 s`;
+  elements["auto-context"].textContent = `Kanál ${channel} · uložený ruční střed ${center ?? "—"} µs · ${AUTO_CALIBRATION_STEP_US} µs / 1500 ms / nejméně 3 s`;
   const available = canStartAuto();
-  elements["auto-min"].disabled = !available || center <= 1000;
-  elements["auto-max"].disabled = !available || center >= 2000;
+  elements["auto-min"].disabled = !available || center <= controller.state.calibrationMinimumUs;
+  elements["auto-max"].disabled = !available || center >= controller.state.calibrationMaximumUs;
   const state = autoCalibration?.state;
   const activeTarget = state?.active && Number.isInteger(state.currentUs) ? ` Poslední zkoušený cíl: ${state.currentUs} µs.` : "";
   elements["auto-state"].textContent = (state?.message || "Automatické kroky nejsou spuštěny.") + activeTarget;
@@ -299,16 +326,22 @@ elements["pulse-width"].addEventListener("change", () => {
 });
 const editWidth = value => {
   if (autoCalibration?.state.active) return false;
+  const { minimumUs, maximumUs } = displayedCalibrationLimits();
   discardProposal();
   elements["cal-width"].value = String(value);
-  if (Number.isInteger(value) && value >= 1000 && value <= 2000) elements["cal-range"].value = String(value);
+  if (Number.isInteger(value) && value >= minimumUs && value <= maximumUs) {
+    elements["cal-range"].value = String(value);
+  }
   renderCalibration(controller.state, controller.capabilities);
 };
 elements["cal-width"].addEventListener("input", () => {
   if (autoCalibration?.state.active) return;
   discardProposal();
+  const { minimumUs, maximumUs } = displayedCalibrationLimits();
   const width = calibrationValues().width;
-  if (Number.isInteger(width) && width >= 1000 && width <= 2000) elements["cal-range"].value = String(width);
+  if (Number.isInteger(width) && width >= minimumUs && width <= maximumUs) {
+    elements["cal-range"].value = String(width);
+  }
   renderCalibration(controller.state, controller.capabilities);
 });
 elements["cal-range"].addEventListener("input", () => editWidth(Number(elements["cal-range"].value)));
@@ -319,7 +352,10 @@ elements["cal-duration"].addEventListener("input", () => {
 });
 for (const value of [1200, 1500, 1800]) elements[`cal-${value}`].addEventListener("click", () => editWidth(value));
 for (const [id, step] of [["cal-minus", -25], ["cal-plus", 25]]) {
-  elements[id].addEventListener("click", () => editWidth(Math.max(1000, Math.min(2000, calibrationValues().width + step))));
+  elements[id].addEventListener("click", () => {
+    const { minimumUs, maximumUs } = displayedCalibrationLimits();
+    editWidth(Math.max(minimumUs, Math.min(maximumUs, calibrationValues().width + step)));
+  });
 }
 elements["cal-arm"].addEventListener("click", () => { void manualAction(() => controller.arm()); });
 elements["cal-move"].addEventListener("click", () => {
