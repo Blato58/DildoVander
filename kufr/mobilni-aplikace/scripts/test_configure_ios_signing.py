@@ -56,6 +56,18 @@ class ConfigureIosSigningTests(unittest.TestCase):
         self.assertEqual(expected, actual)
         self.assertEqual(untouched, original)
 
+    def test_passkey_domain_applies_only_to_app_release(self):
+        original = project_fixture()
+        settings = MODULE.signing_settings(*METADATA, passkey_domain="kufr.example.invalid")
+        actual = MODULE.configure_project(original, settings)
+        self.assertEqual("kufr.example.invalid", actual["objects"]["app-release"]["buildSettings"]["KUFR_PASSKEY_RP_DOMAIN"])
+        self.assertEqual("https://kufr.example.invalid", actual["objects"]["app-release"]["buildSettings"]["KUFR_ACCOUNT_ORIGIN"])
+        for name in ("app-debug", "project-release", "bundle-release"):
+            self.assertNotIn("KUFR_PASSKEY_RP_DOMAIN", actual["objects"][name]["buildSettings"])
+        for value in ("", "https://example.invalid", "example.invalid/path", "127.0.0.1", "bad_domain.invalid", "-bad.invalid"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                MODULE.signing_settings(*METADATA, passkey_domain=value)
+
     def test_rejects_missing_or_ambiguous_app(self):
         for mutation in ("missing", "ambiguous", "wrong-product", "not-root-target"):
             with self.subTest(mutation=mutation):
@@ -181,6 +193,7 @@ exec /bin/cp "$@"
                     "PATH": os.pathsep.join((str(bin_path), str(Path(bash).parent), environment["PATH"])),
                     "HOME": str(root / "home"), "RUNNER_TEMP": str(root / "runner-temp"),
                     "IOS_BUNDLE_ID": BUNDLE, "IOS_TEAM_ID": TEAM if exit_point != "helper" else "invalid",
+                    "KUFR_PASSKEY_RP_DOMAIN": "kufr.example.invalid",
                     "IOS_SIGNING_KIND": "development", "IOS_BUILD_NUMBER": "42",
                     "IOS_BUILD_CERTIFICATE_BASE64": "test", "IOS_PROVISION_PROFILE_BASE64": "test",
                     "IOS_P12_PASSWORD": "test", "IOS_KEYCHAIN_PASSWORD": "test",
@@ -223,7 +236,8 @@ exec /bin/cp "$@"
                 else:
                     self.assertTrue((root / "archived-project.plist").exists(), result.stdout + result.stderr)
                     archived = plistlib.loads((root / "archived-project.plist").read_bytes())
-                    self.assertEqual(MODULE.configure_project(project_fixture(), MODULE.signing_settings(*METADATA)), archived)
+                    self.assertEqual(MODULE.configure_project(project_fixture(), MODULE.signing_settings(
+                        *METADATA, passkey_domain="kufr.example.invalid")), archived)
                     arguments = (root / "archive-arguments.txt").read_text(encoding="utf-8")
                     for setting in MODULE.signing_settings(*METADATA):
                         self.assertNotIn(setting + "=", arguments)

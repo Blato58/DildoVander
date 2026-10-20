@@ -30,6 +30,8 @@ def select_projects(paths):
             continue
         if path.startswith((".github/", "scripts/ci/")):
             selected["repository"] = True
+        if path in {"scripts/cad.py", "scripts/cad.ps1"}:
+            selected["repository"] = True
         if path in BUILD_WORKFLOWS:
             selected[BUILD_WORKFLOWS[path]] = True
         if path in {"scripts/ci/package.py", "scripts/ci/test_package.py"}:
@@ -53,8 +55,11 @@ def select_projects(paths):
                 "accounts.browser.mjs", "accounts.fixture.browser.mjs"
             }:
                 selected["backend"] = True
-        if path.startswith(("kufr/web/", "kufr/mechanika/", "kufr/design-system/")):
+        if path.startswith(("kufr/web/", "kufr/design-system/")):
             selected["site"] = True
+        if path.startswith("kufr/mechanika/"):
+            # Geometry/model releases do not rebuild the shared application.
+            selected["site" if cad_impact == "viewer" else "repository"] = True
         if path.startswith("kufr/design-system/"):
             selected["repository"] = True
             selected["web"] = True

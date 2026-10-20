@@ -56,22 +56,13 @@ jobs:
         run: python3 scripts/ci/download-artifact.py
       - name: Verify archive checksum and unpack safely
         run: python3 scripts/ci/package.py unpack "$SITE_WORK/package" "$SITE_WORK/verified"
-      - name: Load deployment tools from the exact verified public source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Blato58/DildoVander
-          ref: ${{ needs.verify.outputs.source_sha }}
-          path: application-source-tools
-          sparse-checkout: kufr/web/deploy
-          persist-credentials: false
-          token: ${{ secrets.PUBLIC_SOURCE_READ_TOKEN }}
       - name: Validate schema-2 provenance and a compatible rollback release
         env:
           SOURCE_SHA: ${{ needs.verify.outputs.source_sha }}
           APPLICATION_ORIGIN: ${{ vars.KUFR_APPLICATION_ORIGIN }}
         run: |
           test -n "$APPLICATION_ORIGIN"
-          python3 application-source-tools/kufr/web/deploy/private-pipeline/verify-application.py \
+          python3 kufr/web/deploy/private-pipeline/verify-application.py \
             --local "$SITE_WORK/verified" --expected-sha "$SOURCE_SHA" \
             --preflight-root /var/www/dildovander --base "$APPLICATION_ORIGIN" --github-env "$GITHUB_ENV"
       - name: Recheck public main immediately before activation
@@ -85,27 +76,27 @@ jobs:
         id: publish
         if: env.APP_PRIOR_RELEASE != env.APP_TARGET_RELEASE
         run: |
-          python3 application-source-tools/kufr/web/deploy/release_store.py application publish \
+          python3 kufr/web/deploy/release_store.py application publish \
             --root /var/www/dildovander --source "$SITE_WORK/verified"
       - name: Read back canonical HTTPS application and routing
         env:
           APPLICATION_ORIGIN: ${{ vars.KUFR_APPLICATION_ORIGIN }}
           SOURCE_SHA: ${{ needs.verify.outputs.source_sha }}
         run: |
-          python3 application-source-tools/kufr/web/deploy/private-pipeline/verify-application.py \
+          python3 kufr/web/deploy/private-pipeline/verify-application.py \
             --base "$APPLICATION_ORIGIN" --local "$SITE_WORK/verified" --expected-sha "$SOURCE_SHA"
       - name: Restore compatible previous application after failed readback
         id: rollback
         if: failure() && steps.publish.outcome == 'success'
         run: |
-          python3 application-source-tools/kufr/web/deploy/release_store.py application rollback \
+          python3 kufr/web/deploy/release_store.py application rollback \
             --root /var/www/dildovander
       - name: Verify restored application after rollback
         if: failure() && steps.rollback.outcome == 'success'
         env:
           APPLICATION_ORIGIN: ${{ vars.KUFR_APPLICATION_ORIGIN }}
         run: |
-          python3 application-source-tools/kufr/web/deploy/private-pipeline/verify-application.py \
+          python3 kufr/web/deploy/private-pipeline/verify-application.py \
             --base "$APPLICATION_ORIGIN" --local "/var/www/dildovander/releases/$APP_PRIOR_RELEASE" \
             --expected-sha "$APP_PRIOR_SOURCE_SHA"
       - name: Remove local application staging

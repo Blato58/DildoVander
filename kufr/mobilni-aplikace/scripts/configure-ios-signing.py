@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 
-def signing_settings(team_id, bundle_id, identity, profile_uuid, build_number):
+def signing_settings(team_id, bundle_id, identity, profile_uuid, build_number, passkey_domain=None):
     formats = (
         (team_id, r"[A-Z0-9]{10}", "Team ID"),
         (bundle_id, r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+", "Bundle ID"),
@@ -19,7 +19,7 @@ def signing_settings(team_id, bundle_id, identity, profile_uuid, build_number):
     for value, pattern, label in formats:
         if not isinstance(value, str) or not re.fullmatch(pattern, value):
             raise ValueError(f"Invalid {label}.")
-    return {
+    settings = {
         "CODE_SIGN_STYLE": "Manual",
         "CODE_SIGN_IDENTITY": identity,
         "PROVISIONING_PROFILE_SPECIFIER": profile_uuid,
@@ -27,6 +27,13 @@ def signing_settings(team_id, bundle_id, identity, profile_uuid, build_number):
         "PRODUCT_BUNDLE_IDENTIFIER": bundle_id,
         "CURRENT_PROJECT_VERSION": build_number,
     }
+    if passkey_domain is not None:
+        dns = r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?"
+        if not isinstance(passkey_domain, str) or not re.fullmatch(dns, passkey_domain):
+            raise ValueError("Invalid canonical passkey DNS domain.")
+        settings["KUFR_PASSKEY_RP_DOMAIN"] = passkey_domain
+        settings["KUFR_ACCOUNT_ORIGIN"] = "https://" + passkey_domain
+    return settings
 
 
 def configure_project(project, settings):
@@ -100,10 +107,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for argument in ("project_json", "output_plist", "team_id", "bundle_id", "identity", "profile_uuid", "build_number"):
         parser.add_argument(argument)
+    parser.add_argument("--passkey-domain", help="Canonical DNS domain for the App Associated Domains entitlement")
     arguments = parser.parse_args()
     settings = signing_settings(
         arguments.team_id, arguments.bundle_id, arguments.identity,
-        arguments.profile_uuid, arguments.build_number,
+        arguments.profile_uuid, arguments.build_number, arguments.passkey_domain,
     )
     project = json.loads(Path(arguments.project_json).read_text(encoding="utf-8"))
     configured = configure_project(project, settings)

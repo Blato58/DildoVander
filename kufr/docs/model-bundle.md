@@ -88,7 +88,10 @@ npm run test:components --prefix kufr/mobilni-aplikace -- src/features/workshop
 node --test kufr/mechanika/final/test_twin_media.cjs kufr/mechanika/final/test_twin_viewer.cjs kufr/mechanika/final/test_show_timeline.cjs
 ```
 
-The CAD pipeline's existing `preview.py` exports `exports/model-release/` from
+The generation-only [CAD commands](../mechanika/final/CAD-WORKFLOW.md) build
+`exports/preview/model-release/` and publish to an independent preview store.
+Production accepts only certified bundles. The optional manufacturing pipeline's
+existing `preview.py` exports `exports/model-release/` from
 its actual tessellations; its geometry generation and verification commands remain
 in the mechanical README. `export_model_bundle.py` itself uses only the standard
 library and can package a previously exported JSON payload without CAD imports:

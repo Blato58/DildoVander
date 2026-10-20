@@ -1,0 +1,50 @@
+name: Generate CAD model (manual only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Ignore generation cache reads
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cad-generation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: kufr/mechanika/final/requirements.txt
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: kufr/mobilni-aplikace/.nvmrc
+      - name: Install pinned geometry runtime
+        run: python -m pip install -r kufr/mechanika/final/requirements.txt
+      - name: Generate model data only
+        env:
+          CAD_FORCE: ${{ inputs.force }}
+        shell: bash
+        run: |
+          args=()
+          if [ "$CAD_FORCE" = true ]; then args+=(--force); fi
+          python scripts/cad.py build "${args[@]}"
+      - name: Upload unverified ModelBundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cad-model-preview
+          path: kufr/mechanika/final/exports/preview/model-release/
+          if-no-files-found: error
+          retention-days: 7

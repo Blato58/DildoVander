@@ -95,13 +95,14 @@ class PrivatePipelinePreparationTests(unittest.TestCase):
     def test_template_preserves_trust_gates_and_removes_legacy_runtime_contract(self):
         template = (FOLDER / 'kufr-site-deploy.yml.template').read_text()
         for value in ('artifact: arcane-site', 'uses: ./.github/workflows/reuse-build.yml',
-                      'SOURCE_ARTIFACT_DIGEST:', 'checkMain(', 'ref: ${{ needs.verify.outputs.source_sha }}',
+                      'SOURCE_ARTIFACT_DIGEST:', 'checkMain(', 'ref: ${{ github.sha }}',
                       'environment: backend-production', 'group: kufr-backend-production',
                       'release_store.py application publish', 'release_store.py application rollback',
                       'APP_PRIOR_RELEASE != env.APP_TARGET_RELEASE', 'Verify restored application after rollback'):
             self.assertIn(value, template)
         for value in ('publish-site.py', 'verify-site.py', 'PUBLIC_IPV4', 'prune-releases', 'unlink(',
-                      'distribution_store.py', 'release_store.py model', 'npm ', 'Regenerate', 'build-site.py'):
+                      'distribution_store.py', 'release_store.py model', 'npm ', 'Regenerate', 'build-site.py',
+                      'repository: Blato58/DildoVander', 'application-source-tools'):
             self.assertNotIn(value, template)
 
 

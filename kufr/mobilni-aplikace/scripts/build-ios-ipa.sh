@@ -11,6 +11,7 @@ fi
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${IOS_BUNDLE_ID:?IOS_BUNDLE_ID is required}"
 : "${IOS_TEAM_ID:?IOS_TEAM_ID is required}"
+: "${KUFR_PASSKEY_RP_DOMAIN:?Configure the canonical passkey domain before signing}"
 : "${IOS_SIGNING_KIND:?Signing kind is required}"
 : "${IOS_BUILD_CERTIFICATE_BASE64:?Certificate secret is required}"
 : "${IOS_P12_PASSWORD:?Certificate password is required}"
@@ -190,7 +191,7 @@ plutil -convert json -o "${work_dir}/project.json" "${project_path}"
 python3 scripts/configure-ios-signing.py \
   "${work_dir}/project.json" "${work_dir}/project-signed.pbxproj" \
   "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${sign_identity}" \
-  "${profile_uuid}" "${build_number}"
+  "${profile_uuid}" "${build_number}" --passkey-domain "${KUFR_PASSKEY_RP_DOMAIN}"
 plutil -lint "${work_dir}/project-signed.pbxproj"
 cp "${work_dir}/project-signed.pbxproj" "${project_path}"
 
