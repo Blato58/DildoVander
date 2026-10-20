@@ -89,8 +89,7 @@ hodnoty nastav ve vlastním prostředí mimo git; bez provider klíče server hl
 
 ## Firmware, simulátor a mechanika
 
-Firmware se sestavuje `pio run` z `kufr/firmware/`; pro Arduino Nano je oddělený
-projekt `obludarium/firmware/`. Sestavení nenahrává image do desky. Hostitelské
+Firmware se sestavuje `pio run` z `kufr/firmware/`. Sestavení nenahrává image do desky. Hostitelské
 testy a konkrétní zdroje uvádí [firmware README](../kufr/firmware/README.md).
 
 Simulátor není jen `npm test`: potřebuje nejprve sestavený C++ bridge,

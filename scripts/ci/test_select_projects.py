@@ -32,7 +32,7 @@ class ProjectSelectionTests(unittest.TestCase):
             (["kufr/mobilni-aplikace/tests/native_debug/main.swift"], {"web", "ios", "site"}),
             (["kufr/ai-eval/cases.json"], {"ai-eval"}),
             (["kufr/firmware/src/production/main.cpp", "kufr/backend/Program.cs"], {"firmware", "backend"}),
-            (["kufr/mechanika/final/mechanism.py", "obludarium/docs/a.md"], {"repository"}),
+            (["kufr/mechanika/final/mechanism.py", "docs/a.md"], {"repository"}),
             (["kufr/design-system/tokens/colors.css"], {"repository", "web", "ios", "site"}),
             (["kufr/web/build-site.py"], {"site"}),
         ]:
