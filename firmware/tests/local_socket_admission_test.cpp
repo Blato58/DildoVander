@@ -1,8 +1,10 @@
 #include <cassert>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <future>
+#include <functional>
 #include <thread>
 #include <string>
 
@@ -18,14 +20,18 @@ class MemoryStorage final : public LocalPairingStorage {
     return ProvisioningReadResult::Missing;
   }
   bool Write(const uint8_t*, size_t length) override {
+    if (beforeWrite) beforeWrite();
     return length == LocalPairingCredential::RecordSize;
   }
+  std::function<void()> beforeWrite;
 };
 
 class TestHasher final : public Sha256Port {
  public:
   bool Hash(const uint8_t* data, size_t length,
             std::array<uint8_t, 32>& digest) override {
+    ++calls;
+    if (beforeHash) beforeHash();
     digest.fill(0x73);
     for (size_t index = 0; index < length; ++index) {
       digest[index % digest.size()] = static_cast<uint8_t>(
@@ -33,6 +39,8 @@ class TestHasher final : public Sha256Port {
     }
     return true;
   }
+  std::atomic<unsigned> calls{0};
+  std::function<void()> beforeHash;
 };
 
 class TestRandom final : public PairingRandomPort {
@@ -177,29 +185,99 @@ void TestRecoveryGateLinearizesAuthentication() {
   assert(!admission.RunIfEmpty([&]() { assert(false); }));
   assert(admission.Release(handle) == LocalSocketAdmission::ReleaseResult::Active);
 
-  std::promise<void> attempting;
-  std::promise<void> completed;
-  auto attemptingFuture = attempting.get_future();
-  auto completedFuture = completed.get_future();
-  std::thread handshake;
-  bool accepted = true;
-  assert(admission.RunIfEmpty([&]() {
-    handshake = std::thread([&]() {
-      attempting.set_value();
-      accepted = admission.Reserve(22, originalAuthorization.data(), originalAuthorization.size(), 2, handle);
-      completed.set_value();
-    });
-    attemptingFuture.wait();
-    assert(completedFuture.wait_for(std::chrono::milliseconds(20)) == std::future_status::timeout);
-    random.offset = 1;
-    assert(credential.RotateFromAuthenticatedBle(token));
-  }));
-  handshake.join();
-  assert(!accepted); // The blocked handshake must validate against the new digest.
+  const auto previous = handle;
+  std::promise<void> storageEntered;
+  std::promise<void> releaseStorage;
+  auto storageEnteredFuture = storageEntered.get_future();
+  auto releaseStorageFuture = releaseStorage.get_future();
+  storage.beforeWrite = [&]() { storageEntered.set_value(); releaseStorageFuture.wait(); };
+  random.offset = 1;
+  std::thread rotation([&]() {
+    assert(admission.RunIfEmpty([&]() {
+      assert(credential.RotateFromAuthenticatedBle(token));
+    }));
+  });
+  storageEnteredFuture.wait(); // Rotation now holds the credential lock inside I/O.
+  const unsigned hashesWhileStalled = hasher.calls.load();
+  std::promise<void> transportCompleted;
+  auto transportCompletedFuture = transportCompleted.get_future();
+  std::thread transport([&]() {
+    LocalSocketAdmission::Handle rejected{99, 99};
+    assert(admission.TryReserve(22, originalAuthorization.data(), originalAuthorization.size(), 2, rejected) ==
+        LocalSocketAdmission::ReserveResult::Busy);
+    assert(rejected.socket == -1 && rejected.generation == 0);
+    assert(admission.TryReserve(22, nullptr, 0, 2, rejected) == LocalSocketAdmission::ReserveResult::Busy);
+    assert(!admission.Confirm(previous, 2) && !admission.IsActive(previous));
+    assert(admission.Release(previous) == LocalSocketAdmission::ReleaseResult::None);
+    assert(!admission.ExpirePending(20000, rejected));
+    assert(!admission.RunIfEmpty([&]() { assert(false); }));
+    transportCompleted.set_value();
+  });
+  assert(transportCompletedFuture.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+  assert(hasher.calls.load() == hashesWhileStalled); // No credential/authentication call.
+  transport.join();
+  releaseStorage.set_value();
+  rotation.join();
+  storage.beforeWrite = nullptr;
+
   const std::string recoveredAuthorization = Authorization(token);
-  assert(admission.Reserve(23, recoveredAuthorization.data(), recoveredAuthorization.size(), 3, handle));
+  assert(admission.TryReserve(21, originalAuthorization.data(), originalAuthorization.size(), 3, handle) ==
+      LocalSocketAdmission::ReserveResult::Unauthorized);
+  assert(admission.Reserve(21, recoveredAuthorization.data(), recoveredAuthorization.size(), 3, handle));
+  assert(handle.generation == previous.generation + 1); // Busy never allocates a generation.
+  assert(!admission.Confirm(previous, 4));
+  assert(admission.Release(previous) == LocalSocketAdmission::ReleaseResult::None);
   assert(!admission.RunIfEmpty([&]() { assert(false); }));
   assert(admission.Release(handle) == LocalSocketAdmission::ReleaseResult::Reserved);
+  assert(admission.RunIfEmpty([&]() {}));
+  bool threw = false;
+  try {
+    admission.RunIfEmpty([&]() { throw 7; });
+  } catch (int value) { threw = value == 7; }
+  assert(threw && admission.RunIfEmpty([&]() {}));
+  assert(admission.Reserve(24, recoveredAuthorization.data(), recoveredAuthorization.size(), 5, handle));
+  assert(admission.Release(handle) == LocalSocketAdmission::ReleaseResult::Reserved);
+}
+
+void TestAuthenticationWinsBeforeRecoveryReservation() {
+  MemoryStorage storage;
+  TestHasher hasher;
+  TestRandom random;
+  LocalPairingCredential credential(storage, hasher, random);
+  LocalBearerAuthenticator authenticator(credential);
+  LocalSocketAdmission admission(authenticator);
+  std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
+  assert(credential.InitializeFromAuthenticatedBle(token));
+  const auto authorization = Authorization(token);
+  std::promise<void> hashing;
+  std::promise<void> releaseHash;
+  auto hashingFuture = hashing.get_future();
+  auto releaseHashFuture = releaseHash.get_future();
+  hasher.beforeHash = [&]() { hashing.set_value(); releaseHashFuture.wait(); };
+  LocalSocketAdmission::Handle admitted;
+  std::thread handshake([&]() {
+    assert(admission.Reserve(31, authorization.data(), authorization.size(), 1, admitted));
+  });
+  hashingFuture.wait();
+  std::promise<void> recoveryAttempting;
+  std::promise<void> recoveryCompleted;
+  auto recoveryAttemptingFuture = recoveryAttempting.get_future();
+  auto recoveryCompletedFuture = recoveryCompleted.get_future();
+  bool recovered = true;
+  std::thread recovery([&]() {
+    recoveryAttempting.set_value();
+    recovered = admission.RunIfEmpty([&]() { assert(false); });
+    recoveryCompleted.set_value();
+  });
+  recoveryAttemptingFuture.wait();
+  assert(recoveryCompletedFuture.wait_for(std::chrono::milliseconds(20)) == std::future_status::timeout);
+  releaseHash.set_value();
+  handshake.join();
+  recovery.join();
+  hasher.beforeHash = nullptr;
+  assert(!recovered && admitted.generation == 1);
+  assert(admission.Confirm(admitted, 2));
+  assert(admission.Release(admitted) == LocalSocketAdmission::ReleaseResult::Active);
   assert(admission.RunIfEmpty([&]() {}));
 }
 
@@ -209,5 +287,6 @@ int main() {
   TestExclusiveHandshakeAndDisconnect();
   TestExpiredReservationCannotBecomeOwner();
   TestRecoveryGateLinearizesAuthentication();
+  TestAuthenticationWinsBeforeRecoveryReservation();
   return 0;
 }

@@ -19,7 +19,7 @@ LocalControlInbox::LocalControlInbox(
 bool LocalControlInbox::Open(
     const LocalSocketAdmission::Handle& handle, uint64_t nowMs) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (handle.socket < 0 || handle.generation == 0 || handle_.socket >= 0 ||
+  if (recoveryHeld_ || handle.socket < 0 || handle.generation == 0 || handle_.socket >= 0 ||
       deviceId_.empty() || bootId_.empty()) {
     return false;
   }
@@ -27,6 +27,19 @@ bool LocalControlInbox::Open(
   connectedAtMs_ = nowMs;
   connectedPending_ = true;
   return true;
+}
+
+bool LocalControlInbox::BeginRecovery() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (recoveryHeld_ || handle_.socket >= 0 || handle_.generation != 0 || connectedPending_ ||
+      stopPending_ || disconnectPending_ || count_ != 0) return false;
+  recoveryHeld_ = true;
+  return true;
+}
+
+void LocalControlInbox::EndRecovery() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  recoveryHeld_ = false;
 }
 
 bool LocalControlInbox::Submit(

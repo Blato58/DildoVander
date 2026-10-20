@@ -3,7 +3,6 @@
 #include <array>
 #include <cstring>
 #include <string>
-#include <mutex>
 
 #include "bootloader_random.h"
 #include "esp_log.h"
@@ -18,6 +17,7 @@
 #include "features/device_control/JournalIdentityOwner.h"
 #include "features/device_control/DeviceControl.h"
 #include "features/device_control/DeviceControlRuntime.h"
+#include "features/device_control/ControlMaintenanceGate.h"
 #include "features/device_control/PersistentCommandJournal.h"
 #include "features/show_diagnostics/ShowTraceMailbox.h"
 #include "features/twin_telemetry/EspIdfTwinTelemetry.h"
@@ -83,24 +83,32 @@ struct InitialTlsSetup {
   }
 };
 
-// Owner admissions and a worker's idle reservation share this mutex. Sampling
-// an idle flag without holding it would race a queued voice/servo start.
+// Logical reservations exclude new admission without holding any mutex through
+// a control pass, flash write or worker operation. Stop always keeps its turn.
 struct MaintenanceGate {
-  std::mutex mutex;
-  bool safeIdle = true;
-  bool networkHeld = false;
-  bool otaHeld = false;
+  ControlMaintenanceGate ownership;
+  ControlMaintenanceGate::Ticket network, ota;
+  class PairingReservation final {
+   public:
+    explicit PairingReservation(MaintenanceGate& gate) : gate_(gate) {
+      acquired_ = gate_.ownership.Acquire(ControlMaintenanceGate::Owner::Pairing, ticket_);
+    }
+    ~PairingReservation() {
+      if (acquired_) gate_.ownership.Release(ControlMaintenanceGate::Owner::Pairing, ticket_);
+    }
+    bool Acquired() const { return acquired_; }
+   private:
+    MaintenanceGate& gate_;
+    ControlMaintenanceGate::Ticket ticket_;
+    bool acquired_ = false;
+  };
   static bool AcquireNetwork(void* context) {
     auto& gate = *static_cast<MaintenanceGate*>(context);
-    std::unique_lock<std::mutex> lock(gate.mutex, std::try_to_lock);
-    if (!lock.owns_lock() || !gate.safeIdle || gate.networkHeld || gate.otaHeld) return false;
-    gate.networkHeld = true;
-    return true;
+    return gate.ownership.Acquire(ControlMaintenanceGate::Owner::Network, gate.network);
   }
   static void ReleaseNetwork(void* context) {
     auto& gate = *static_cast<MaintenanceGate*>(context);
-    std::lock_guard<std::mutex> lock(gate.mutex);
-    gate.networkHeld = false;
+    gate.ownership.Release(ControlMaintenanceGate::Owner::Network, gate.network);
   }
 };
 
@@ -167,14 +175,22 @@ struct BleStatusBridge {
 
   static const char* PairLocal(cJSON* response, void* context) {
     auto& bridge = *static_cast<BleStatusBridge*>(context);
+    MaintenanceGate::PairingReservation reservation(bridge.maintenance);
+    if (!reservation.Acquired()) return "busy";
     const char* error = bridge.PairingPrerequisites(false);
     if (error != nullptr) { return error; }
     auto* tokenField = bridge.PreparePairingResponse(response);
     if (tokenField == nullptr) { return "pairing_failed"; }
     std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
-    if (!bridge.pairing.InitializeFromAuthenticatedBle(token)) {
+    bool initialized = false, disconnected = false;
+    const bool empty = bridge.admission.RunIfEmpty([&]() {
+      disconnected = bridge.inbox.RunIfDisconnected([&]() {
+        initialized = bridge.pairing.InitializeFromAuthenticatedBle(token);
+      });
+    });
+    if (!empty || !disconnected || !initialized) {
       NetworkProfiles::Wipe(token.data(), token.size());
-      return "pairing_failed";
+      return !empty || !disconnected ? "busy" : "pairing_failed";
     }
     CompletePairingResponse(tokenField, token);
     return nullptr;
@@ -182,20 +198,16 @@ struct BleStatusBridge {
 
   static const char* RecoverLocal(cJSON* response, void* context) {
     auto& bridge = *static_cast<BleStatusBridge*>(context);
+    MaintenanceGate::PairingReservation reservation(bridge.maintenance);
+    if (!reservation.Acquired()) return "busy";
     const char* error = bridge.PairingPrerequisites(true);
     if (error != nullptr) { return error; }
     auto* tokenField = bridge.PreparePairingResponse(response);
     if (tokenField == nullptr) { return "pairing_failed"; }
     std::array<uint8_t, LocalPairingCredential::TokenSize> token{};
-    // Owner admissions share this lock; never stop the server, control owner
-    // or actuators from BLE. Socket/inbox locks cover pending handshakes and
-    // disconnect events as well as live clients. Lock order is maintenance ->
-    // admission -> inbox -> credential, compatible with handshake authentication.
-    std::unique_lock<std::mutex> lock(bridge.maintenance.mutex, std::try_to_lock);
-    if (!lock.owns_lock() || !bridge.maintenance.safeIdle ||
-        bridge.maintenance.networkHeld || bridge.maintenance.otaHeld) {
-      return "busy";
-    }
+    // The maintenance ticket blocks new interaction while admission/inbox
+    // reserve disconnected recovery in RAM. Their callbacks execute unlocked;
+    // credential I/O never owns a Stop or control-pass mutex.
     bool rotated = false;
     bool disconnected = false;
     const bool empty = bridge.admission.RunIfEmpty([&]() {
@@ -477,12 +489,15 @@ extern "C" void app_main() {
            static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 
   while (true) {
-    std::unique_lock<std::mutex> maintenanceLock(maintenance.mutex);
+    ControlMaintenanceGate::Ticket controlPass;
+    const bool ownsControlPass = maintenance.ownership.BeginControl(controlPass);
+    const auto maintenanceOwner = maintenance.ownership.HeldBy();
+    const bool otaHeld = maintenanceOwner == ControlMaintenanceGate::Owner::Ota;
     const uint64_t nowMs = clock.NowMs();
     TurnProposal pendingProposal;
-    maintenance.safeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
+    const bool safeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
+        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
     // The whole-cycle deadline precedes physical output processing, even when
     // per-phase calibration timeouts would still allow the sequence to run.
@@ -493,18 +508,18 @@ extern "C" void app_main() {
             (!kufr::offline::CompiledBank().complete || offlineAudio.Available()),
         hardware.ProfileSelected(), calibrated, effects);
     firmwareUpdate.Tick(nowMs, station.HasIp(), selfTestReady,
-        maintenance.safeIdle && !maintenance.networkHeld && !sdAssets.Reserved());
-    sdAssets.Tick(maintenance.safeIdle && !maintenance.networkHeld && !firmwareUpdate.Reserved());
+        safeIdle && (ownsControlPass || otaHeld) && !sdAssets.Reserved());
+    sdAssets.Tick(safeIdle && (ownsControlPass || otaHeld) && !firmwareUpdate.Reserved());
     const auto otaStatus = firmwareUpdate.Status();
     // Boot verification freezes new interactions while permitting STA recovery.
-    maintenance.otaHeld = sdAssets.Reserved() ||
+    const bool needsOtaReservation = sdAssets.Reserved() ||
         (firmwareUpdate.Reserved() && otaStatus.state != "verifying-boot");
-    const bool maintaining = journalEstablishmentHeld || maintenance.networkHeld ||
+    const bool maintaining = journalEstablishmentHeld || !ownsControlPass ||
         firmwareUpdate.Reserved() || sdAssets.Reserved();
     owner.SetMaintenance(maintaining);
-    owner.SetDanceAdmission(maintenance.safeIdle && !maintaining);
+    owner.SetDanceAdmission(safeIdle && !maintaining);
     provisioning.Tick(nowMs, station.HasIp());
-    if (!serverStarted &&
+    if (!serverStarted && ownsControlPass &&
         nowMs >= retryServerAtMs &&
         station.HasIp() &&
         identity.IsHealthy() && identity.IsProvisioned() &&
@@ -656,11 +671,21 @@ extern "C" void app_main() {
       twinMailbox.Publish(twinSnapshot);
     }
     // Publish idle only after all admissions in this iteration have completed.
-    maintenance.safeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
+    const bool completedSafeIdle = !deviceControl.HasManualControl() && !controlRuntime.HasStorageWork() && !selectionSequence.IsBusy() &&
         !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.Active() &&
+        !journal.HasPending() && !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
         !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());
-    maintenanceLock.unlock();
+    if (ownsControlPass) {
+      if (needsOtaReservation) {
+        // No idle publication window may admit STA/pairing between enqueueing
+        // an exclusive OTA/SD operation and transferring its reservation.
+        maintenance.ownership.TransferControl(controlPass, ControlMaintenanceGate::Owner::Ota, maintenance.ota);
+      } else {
+        maintenance.ownership.EndControl(controlPass, completedSafeIdle);
+      }
+    } else if (otaHeld && !needsOtaReservation) {
+      maintenance.ownership.Release(ControlMaintenanceGate::Owner::Ota, maintenance.ota);
+    }
     vTaskDelay(pdMS_TO_TICKS(ControlLoopPeriodMs));
   }
 }

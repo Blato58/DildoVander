@@ -86,27 +86,52 @@ int main() {
   assert(!guarded.RunIfNoUrgent([&]() { assert(false); }));
 
   LocalControlInbox recovery("kufr-001", "boot");
-  std::promise<void> openAttempting;
-  std::promise<void> openCompleted;
-  auto openAttemptingFuture = openAttempting.get_future();
-  auto openCompletedFuture = openCompleted.get_future();
-  std::thread connection;
-  assert(recovery.RunIfDisconnected([&]() {
-    connection = std::thread([&]() {
-      openAttempting.set_value();
-      assert(recovery.Open(first, 40));
-      openCompleted.set_value();
-    });
-    openAttemptingFuture.wait();
-    assert(openCompletedFuture.wait_for(std::chrono::milliseconds(20)) ==
-           std::future_status::timeout);
-  }));
-  connection.join();
-  assert(!recovery.RunIfDisconnected([&]() { assert(false); }));
+  std::promise<void> recoveryEntered;
+  std::promise<void> releaseRecovery;
+  auto recoveryEnteredFuture = recoveryEntered.get_future();
+  auto releaseRecoveryFuture = releaseRecovery.get_future();
+  std::thread callback([&]() {
+    assert(recovery.RunIfDisconnected([&]() {
+      recoveryEntered.set_value();
+      releaseRecoveryFuture.wait(); // Represents stalled credential storage.
+    }));
+  });
+  recoveryEnteredFuture.wait();
+  std::promise<void> lifecycleCompleted;
+  auto lifecycleCompletedFuture = lifecycleCompleted.get_future();
+  std::thread lifecycle([&]() {
+    LocalControlEvent empty;
+    assert(!recovery.Open(first, 40));
+    assert(!recovery.Open(reused, 40));
+    assert(!recovery.Submit(first, stop)); // No connection is created to own Stop.
+    recovery.Disconnect(first);
+    assert(!recovery.Take(empty) && !recovery.CanProcess(first));
+    assert(!recovery.RunIfCurrent(first, [&]() { assert(false); }));
+    assert(!recovery.RunIfDisconnected([&]() { assert(false); }));
+    bool ran = false;
+    assert(recovery.RunIfNoUrgent([&]() { ran = true; }) && ran);
+    lifecycleCompleted.set_value();
+  });
+  assert(lifecycleCompletedFuture.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+  lifecycle.join();
+  releaseRecovery.set_value();
+  callback.join();
+  assert(recovery.RunIfDisconnected([&]() {}));
+  assert(recovery.Open(reused, 50));
+  assert(!recovery.Submit(first, stop));
+  recovery.Disconnect(first); // A stale generation cannot disconnect the new one.
   assert(recovery.Take(event) && event.kind == LocalControlEventKind::Connected);
-  assert(!recovery.RunIfDisconnected([&]() { assert(false); }));
-  recovery.Disconnect(first);
+  assert(event.handle.generation == reused.generation);
+  assert(recovery.Submit(reused, stop));
+  assert(recovery.Take(event) && event.kind == LocalControlEventKind::Stop);
+  recovery.Disconnect(reused);
   assert(!recovery.RunIfDisconnected([&]() { assert(false); }));
   assert(recovery.Take(event) && event.kind == LocalControlEventKind::Disconnected);
-  assert(recovery.RunIfDisconnected([&]() {}));
+  assert(!recovery.Take(event));
+  bool threw = false;
+  try {
+    recovery.RunIfDisconnected([&]() { throw 11; });
+  } catch (int value) { threw = value == 11; }
+  assert(threw && recovery.RunIfDisconnected([&]() {}));
+  assert(recovery.Open({8, 3}, 60));
 }

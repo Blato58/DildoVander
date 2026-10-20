@@ -42,19 +42,28 @@ class LocalSocketAdmission final {
   // The transport must close the returned socket before admitting a retry.
   bool ExpirePending(uint64_t nowMs, Handle& expired);
 
-  // Bounded recovery only; no reentrant admission/transport calls. Holding this
-  // mutex linearizes credential rotation against handshake authentication.
+  // Reserve idle recovery under the short admission lock, then release the
+  // lock before credential I/O. Handshakes refuse Busy while the hold exists.
   template <typename Action>
   bool RunIfEmpty(const Action& action) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (state_ != State::Empty) {
-      return false;
-    }
+    if (!BeginRecovery()) return false;
+    RecoveryHold hold(*this);
     action();
     return true;
   }
 
  private:
+  class RecoveryHold final {
+   public:
+    explicit RecoveryHold(LocalSocketAdmission& owner) : owner_(owner) {}
+    ~RecoveryHold() { owner_.EndRecovery(); }
+    RecoveryHold(const RecoveryHold&) = delete;
+    RecoveryHold& operator=(const RecoveryHold&) = delete;
+   private:
+    LocalSocketAdmission& owner_;
+  };
+  bool BeginRecovery();
+  void EndRecovery();
   enum class State {
     Empty,
     Reserved,
@@ -70,4 +79,5 @@ class LocalSocketAdmission final {
   uint64_t generation_ = 0;
   uint64_t nextGeneration_ = 1;
   uint64_t reservedAtMs_ = 0;
+  bool recoveryHeld_ = false;
 };

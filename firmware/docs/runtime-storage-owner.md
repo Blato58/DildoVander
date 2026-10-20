@@ -252,3 +252,27 @@ boots and 33 compactions, retaining old evidence and rejecting replay. Its
 7,844,740 simulated milliseconds do not establish the four-hour media/session
 soak, ESP task scheduling, physical power-cut behavior or hardware acceptance.
 The production worker, admission composition and scoped activation remain open.
+
+## Maintenance does not own the control pass
+
+`ControlMaintenanceGate` reserves a completed idle publication or a control pass
+using fixed RAM tickets. Production no longer holds a maintenance mutex around
+the entire control loop. Network changes and BLE pairing reserve exclusive
+maintenance between passes; a pass that cannot acquire admission ownership still
+processes Stop, disabled outputs and status. OTA/SD work transfers its ticket
+directly from the admitting pass, without publishing an intermediate idle window.
+Finishing maintenance requires a fresh control pass before idle can be reused.
+
+Pairing initialization and credential recovery also reserve the disconnected
+admission/inbox state in RAM. The actual credential write runs with both mutexes
+released. A new handshake receives Busy before entering credential authentication
+while recovery is held; Stop and lifecycle mailbox operations can still proceed.
+RAII releases the hold on every normal return and host exception. The control
+owner defers credential-dependent server startup while maintenance owns admission.
+
+Concurrent host checks stall a real credential write while querying these gates,
+exercise normal-authentication-first races, and race maintenance acquisition with
+control-pass admission. These establish ownership and progress at the tested
+boundaries. Legacy control storage and OTA metadata confirmation still need their
+worker migration; this change alone does not establish the complete Stop latency
+target or eliminate every control-path flash operation.
