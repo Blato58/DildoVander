@@ -10,9 +10,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="BackendTests" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" PrivateAssets="all" />
     <EmbeddedResource Include="../ai-eval/voice-persona.txt" LogicalName="Kufr.Backend.VoicePersona" />
     <EmbeddedResource Include="../ai-eval/ollivander-trunk-persona.txt" LogicalName="Kufr.Backend.OllivanderPersona" />
     <EmbeddedResource Include="../ai-eval/ollivander-trunk-live-persona.txt" LogicalName="Kufr.Backend.OllivanderLivePersona" />
