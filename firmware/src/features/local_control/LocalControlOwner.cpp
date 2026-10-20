@@ -34,6 +34,21 @@ void WipeText(std::string& text) {
   text.clear();
 }
 
+bool OfflineMutation(LocalControlMessageKind kind) {
+  return kind == LocalControlMessageKind::OfflineArm || kind == LocalControlMessageKind::OfflineStart
+      || kind == LocalControlMessageKind::Quiet || kind == LocalControlMessageKind::OfflineAmbient
+      || kind == LocalControlMessageKind::OfflineSyncAck;
+}
+
+bool SameOfflineEnvelope(const LocalControlMessage& left, const LocalControlMessage& right) {
+  return left.kind == right.kind && left.messageId == right.messageId && left.deviceId == right.deviceId
+      && left.bootId == right.bootId && left.controlLeaseId == right.controlLeaseId
+      && left.generation == right.generation && left.expectedRevision == right.expectedRevision
+      && left.hasOperationEpoch == right.hasOperationEpoch && left.operationEpoch == right.operationEpoch
+      && left.compartment == right.compartment && left.shortVariant == right.shortVariant
+      && left.commandId == right.commandId && left.enabled == right.enabled;
+}
+
 }  // namespace
 
 LocalControlOwner::LocalControlOwner(
@@ -66,6 +81,7 @@ void LocalControlOwner::Poll() {
       switch (event.kind) {
         case LocalControlEventKind::Stop: {
           ClearPendingManual();
+          ClearPendingOffline();
           SelectionStep step;
           if (dance_) dance_->StopDance();
           if (voice_) voice_->StopVoice();
@@ -135,6 +151,21 @@ void LocalControlOwner::Tick() {
   if (manualCompleted) {
     FinishManualCommand(completed, receipt, clock_.NowMs());
   }
+  LocalControlMessage offlineCompleted;
+  bool offlineReady = false, offlineResult = false;
+  inbox_.RunIfNoUrgent([&]() {
+    if (!offlinePending_) return;
+    if (!session_ || pendingOfflineSession_ != session_.get() || !SameHandle(pendingOfflineHandle_)) {
+      ClearPendingOffline();
+      return;
+    }
+    offlineResult = AcceptOfflineCommand(pendingOffline_, true);
+    if (offlineCallPending_) return;
+    offlineCompleted = pendingOffline_;
+    ClearPendingOffline();
+    offlineReady = true;
+  });
+  if (offlineReady) FinishOfflineCommand(offlineCompleted, offlineResult, clock_.NowMs());
   bool produced = false;
   inbox_.RunIfNoUrgent([this, &produced]() {
     SelectionStep step;
@@ -166,6 +197,9 @@ void LocalControlOwner::Connected(const LocalControlEvent& event) {
 
 void LocalControlOwner::Disconnect() {
   ClearPendingManual();
+  // The offline producer owns already accepted storage work independently.
+  // Disconnect abandons only this socket's eventual acknowledgement.
+  ClearPendingOffline();
   if (session_) {
     SelectionStep step;
     session_->Disconnect(step);
@@ -256,6 +290,18 @@ void LocalControlOwner::Handle(
   // Stop/cancel/status remain available while network/OTA owns the idle
   // reservation. A queued controller command cannot start new work then.
   const bool dancing = dance_ && kufr::dance::IsDanceActive(dance_->DanceState());
+  if (offlinePending_ && OfflineMutation(message.kind)) {
+    if (SameOfflineEnvelope(message, pendingOffline_)) return;
+    if (!output_.OfflineAck(handle_, message, false, "busy_or_stale", offline_->StatusJson(), "")) Close();
+    return;
+  }
+  if (offlinePending_ && (message.kind == LocalControlMessageKind::Acquire ||
+      message.kind == LocalControlMessageKind::VoiceStart || message.kind == LocalControlMessageKind::Selection ||
+      message.kind == LocalControlMessageKind::Reload || message.kind == LocalControlMessageKind::Reset)) {
+    if (!RefuseBusy(message)) Close();
+    else Snapshot(nowMs);
+    return;
+  }
   if ((maintenance_ || dancing) && (message.kind == LocalControlMessageKind::Acquire ||
       message.kind == LocalControlMessageKind::VoiceStart ||
       message.kind == LocalControlMessageKind::Selection ||
@@ -275,52 +321,9 @@ void LocalControlOwner::Handle(
     case LocalControlMessageKind::Quiet:
     case LocalControlMessageKind::OfflineOutbox:
     case LocalControlMessageKind::OfflineAmbient:
-    case LocalControlMessageKind::OfflineSyncAck: {
-      bool result = offline_ != nullptr;
-      std::string error;
-      inbox_.RunIfCurrent(handle_, [&]() {
-        if (!offline_) return;
-        if (voice_) offline_->SetVoice(voice_->VoiceStatus().voice);
-        if (message.kind == LocalControlMessageKind::OfflineArm) {
-          ConversationRuntimeSnapshot before;
-          const auto voice = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};
-          const bool voiceIdle = voice.phase == "idle" || voice.phase == "unavailable" ||
-              voice.phase == "completed" || voice.phase == "failed";
-          result = !maintenance_ && !dancing &&
-              voiceIdle &&
-              session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) &&
-              runtimeState_.Read(before) && before.generation == message.generation &&
-              before.deviceRevision == message.expectedRevision &&
-              std::string(offline_->Preflight()) == "ready";
-          if (result) {
-            if (voice_) voice_->StopVoice();
-            result = session_->HandoffToOffline(bootId_, message.controlLeaseId, clock_.NowMs());
-            if (result) {
-              ConversationRuntimeSnapshot after;
-              result = runtimeState_.Read(after) && offline_->Arm(after.generation, after.deviceRevision);
-            }
-          }
-        } else if (message.kind == LocalControlMessageKind::OfflineStart) {
-          result = !maintenance_ && !dancing && offline_->Start(message.messageId,
-              message.compartment, message.shortVariant, message.generation,
-              message.expectedRevision, clock_.NowMs(), false, message.operationEpoch);
-        } else if (message.kind == LocalControlMessageKind::Quiet) {
-          result = offline_->Quiet(message.enabled);
-        } else if (message.kind == LocalControlMessageKind::OfflineAmbient) {
-          result = offline_->ConfigureAmbient(message.enabled);
-        } else if (message.kind == LocalControlMessageKind::OfflineSyncAck) {
-          result = offline_->Acknowledge(message.commandId, message.operationEpoch);
-        }
-      });
-      if (!result) {
-        error = offline_ ? offline_->Preflight() : "unsupported";
-        if (error == "ready") error = "busy_or_stale";
-      }
-      accepted = output_.OfflineAck(handle_, message, result, error,
-          offline_ ? offline_->StatusJson() : "null",
-          message.kind == LocalControlMessageKind::OfflineOutbox && offline_ ? offline_->OutboxJson(includeOperationEpoch_) : "");
-      break;
-    }
+    case LocalControlMessageKind::OfflineSyncAck:
+      OfflineCommand(message, nowMs);
+      return;
     case LocalControlMessageKind::StateGet:
       includeOperationEpoch_ = includeOperationEpoch_ || message.includeOperationEpoch;
       Snapshot(nowMs);
@@ -451,6 +454,82 @@ void LocalControlOwner::Handle(
     if (message.kind != LocalControlMessageKind::Heartbeat) {
       Snapshot(nowMs);
     }
+  }
+}
+
+void LocalControlOwner::ClearPendingOffline() {
+  WipeText(pendingOffline_.text);
+  pendingOffline_ = {};
+  pendingOfflineHandle_ = {};
+  pendingOfflineSession_ = nullptr;
+  offlinePending_ = offlineArmHandoff_ = offlineCallPending_ = false;
+  offlineArmGeneration_ = offlineArmRevision_ = 0;
+}
+
+void LocalControlOwner::OfflineCommand(const LocalControlMessage& message, uint64_t nowMs) {
+  bool result = false;
+  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
+    if (!offlinePending_) offlineArmHandoff_ = false;
+    result = AcceptOfflineCommand(message, false);
+    if (!offlineCallPending_) return;
+    pendingOffline_ = message;
+    pendingOfflineHandle_ = handle_;
+    pendingOfflineSession_ = session_.get();
+    offlinePending_ = true;
+  });
+  if (!current || offlineCallPending_) return;
+  FinishOfflineCommand(message, result, nowMs);
+}
+
+bool LocalControlOwner::AcceptOfflineCommand(const LocalControlMessage& message, bool retry) {
+  offlineCallPending_ = false;
+  if (!offline_) return false;
+  if (voice_) offline_->SetVoice(voice_->VoiceStatus().voice);
+  const bool dancing = dance_ && kufr::dance::IsDanceActive(dance_->DanceState());
+  bool result = true;
+  if (message.kind == LocalControlMessageKind::OfflineArm) {
+    if (maintenance_ || dancing) return false;
+    if (!retry || !offlineArmHandoff_) {
+      ConversationRuntimeSnapshot before;
+      const auto voice = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};
+      const bool voiceIdle = voice.phase == "idle" || voice.phase == "unavailable" ||
+          voice.phase == "completed" || voice.phase == "failed";
+      if (!voiceIdle || !session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) ||
+          !runtimeState_.Read(before) || before.generation != message.generation ||
+          before.deviceRevision != message.expectedRevision || std::string(offline_->Preflight()) != "ready") return false;
+      if (voice_) voice_->StopVoice();
+      if (!session_->HandoffToOffline(bootId_, message.controlLeaseId, clock_.NowMs())) return false;
+      ConversationRuntimeSnapshot after;
+      if (!runtimeState_.Read(after)) return false;
+      offlineArmGeneration_ = after.generation;
+      offlineArmRevision_ = after.deviceRevision;
+      offlineArmHandoff_ = true;
+    }
+    result = offline_->Arm(offlineArmGeneration_, offlineArmRevision_);
+  } else if (message.kind == LocalControlMessageKind::OfflineStart) {
+    if (maintenance_ || dancing) return false;
+    result = offline_->Start(message.messageId, message.compartment, message.shortVariant,
+        message.generation, message.expectedRevision, clock_.NowMs(), false, message.operationEpoch);
+  } else if (message.kind == LocalControlMessageKind::Quiet) result = offline_->Quiet(message.enabled);
+  else if (message.kind == LocalControlMessageKind::OfflineAmbient) result = offline_->ConfigureAmbient(message.enabled);
+  else if (message.kind == LocalControlMessageKind::OfflineSyncAck)
+    result = offline_->Acknowledge(message.commandId, message.operationEpoch);
+  offlineCallPending_ = !result && offline_->LastOperationIsPending();
+  return result;
+}
+
+void LocalControlOwner::FinishOfflineCommand(const LocalControlMessage& message, bool result, uint64_t nowMs) {
+  std::string error;
+  if (!result) {
+    error = offline_ ? offline_->Preflight() : "unsupported";
+    if (error == "ready") error = "busy_or_stale";
+  }
+  if (!output_.OfflineAck(handle_, message, result, error, offline_ ? offline_->StatusJson() : "null",
+      message.kind == LocalControlMessageKind::OfflineOutbox && offline_ ? offline_->OutboxJson(includeOperationEpoch_) : "")) {
+    Close();
+  } else if (session_) {
+    gateway_->OnControlTransition();
+    Snapshot(nowMs);
   }
 }
 

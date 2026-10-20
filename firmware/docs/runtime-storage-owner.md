@@ -54,9 +54,10 @@ Run `python firmware/tests/run_show_tests.py` from the repository root. Focused
 checks are `journal_snapshot_test`, `journal_transaction_arbiter_test`,
 `journal_storage_owner_test`, `async_command_journal_test`, `device_control_test`
 and `local_control_owner_test`, selected with repeatable `--only NAME` arguments.
-Autonomous/offline admission and evidence producers still use synchronous ports;
-their migration, worker task/stack composition and complete boot reconciliation
-gate must be integrated before production activation.
+Shared autonomous/offline producers now use the asynchronous ports described
+below. The production entry point still selects the legacy constructors; worker
+task/stack composition and complete boot reconciliation remain necessary before
+production activation.
 
 ## Committed evidence and startup authority
 
@@ -102,8 +103,8 @@ retaining an untimed prepared reference and rejecting old boot/epoch replays.
 The actuator port is a timed simulation. The 8,190,720 ms of simulated workload
 is not the required four-hour media/session soak or hardware evidence. Separate
 fixtures cover source/close ACK loss, missing stores, source-fault Stop and
-reserved result draining. Autonomous/offline producer migration, the actual
-worker task, stack/latency measurements and production orchestration remain open.
+reserved result draining. The actual worker task, stack/latency measurements and
+production orchestration remain open.
 
 ## Autonomous completion acknowledgements
 
@@ -214,5 +215,40 @@ retries normalize that exact source without changing its terminal reason. Tests
 also check eight-slot backpressure, stale handle rejection, zero allocations and
 no storage calls on measured control paths, Stop/write races and proof-winning
 retirement. They do not execute the ESP HTTP task or establish end-to-end
-backend/offline/hardware acceptance. Shared constructors are available, but the
-production composition still selects the legacy path pending offline migration.
+backend/hardware acceptance. Shared constructors are available, but production
+composition still selects the legacy path.
+
+## Shared offline producer and local acknowledgements
+
+The explicit shared `OfflineShow` constructor uses `OfflineEvidenceBridge` and
+the same typed source owner. Its control-owned fixed handles retain original
+outcomes and settings intents; no offline storage call runs on the control path.
+Published outbox contents and settings revisions change only after the actual
+durable result is adopted. Failed or lost acknowledgements poison authority
+until authoritative reopen. Stop keeps a corrective safe settings intent when a
+write has already started; cancelled admission cannot rearm the device.
+
+Start captures the original generation, revision, epoch, selected variant,
+fingerprint and calibration once. It waits for journal reservation and source
+reservation before audio. The 18.5-second preparation deadline and later
+two-second Begin deadline remain absolute across retries. Only the original
+intent may continue while the public snapshot is unavailable. Motion still
+requires the actual Begin acknowledgement, and completion evidence retains its
+first timestamp while awaiting durable publication. Ending audio waits for that
+publication. Uncertain preparation remains pinned without invented completion.
+
+`LocalControlOwner` retains a pending offline command and its original socket
+generation. Arm transfers the lease once; retries keep its post-transfer fence.
+Read-only queries and exact duplicates cannot recreate that lease or consume a
+premature success. Stop abandons the reply while adopting late storage facts;
+disconnect cannot send that reply to a replacement socket. Server settings and
+Stop revisions remain in the show mailbox until their exact durable publication
+is observed, including independently newer settings and Stop revisions.
+
+The default inventory runner includes the actual shared offline producer and
+local-owner fixtures. They use real journal/source codecs and simulated physical,
+audio and storage ports. The offline workload executes 1,008 cycles through 126
+boots and 33 compactions, retaining old evidence and rejecting replay. Its
+7,844,740 simulated milliseconds do not establish the four-hour media/session
+soak, ESP task scheduling, physical power-cut behavior or hardware acceptance.
+The production worker, admission composition and scoped activation remain open.

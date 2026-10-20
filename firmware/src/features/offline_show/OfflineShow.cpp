@@ -83,6 +83,7 @@ const char* OfflineShow::Preflight() const {
 }
 
 bool OfflineShow::Arm(uint64_t generation, uint64_t revision) {
+  if (shared_) return shared_->Arm(generation, revision);
   if (Active() || generation != runtime_.Generation() || revision != control_.Revision() ||
       std::strcmp(Preflight(), "ready") || !runtime_.SetOfflineAuthority(true)) return false;
   if (!outbox_.offlineEnabled) {
@@ -98,6 +99,7 @@ bool OfflineShow::Arm(uint64_t generation, uint64_t revision) {
 
 bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool shortVariant,
     uint64_t generation, uint64_t revision, uint64_t nowMs, bool scripted, uint64_t operationEpoch) {
+  if (shared_) return shared_->Start(operationId, slot, shortVariant, generation, revision, nowMs, scripted, operationEpoch);
   if (operationId.size() != 36 || slot < 1 || slot > 6) return false;
   for (const auto& previous : outbox_.records) {
     if (operationEpoch == previous.operationEpoch && operationId == previous.operationId.data()) return previous.slot == slot &&
@@ -149,6 +151,7 @@ bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool short
 }
 
 bool OfflineShow::StartNext(const std::string& operationId, uint64_t nowMs) {
+  if (shared_) return shared_->StartNext(operationId, nowMs, false);
   for (unsigned count = 0; count < 6; ++count) {
     const uint8_t slot = nextSlot_;
     nextSlot_ = static_cast<uint8_t>(nextSlot_ % 6 + 1);
@@ -159,6 +162,7 @@ bool OfflineShow::StartNext(const std::string& operationId, uint64_t nowMs) {
 }
 
 bool OfflineShow::StartNext(uint64_t nowMs) {
+  if (shared_) return shared_->StartNext("", nowMs, true);
   if (bootId_.size() != 36 || scriptedSequence_ >= 0xffffffffffffull) return false;
   // Boot UUID is generated while hardware entropy is explicitly enabled.
   // A boot-scoped monotonic sequence needs neither RF nor a fresh RNG lease.
@@ -194,6 +198,7 @@ void OfflineShow::CancelAmbient() {
 }
 
 bool OfflineShow::Quiet(bool enabled) {
+  if (shared_) return shared_->Quiet(enabled);
   quiet_ = enabled;
   if (!Active()) CancelAmbient();
   if (!storageHealthy_) { quiet_ = true; return false; }
@@ -204,6 +209,7 @@ bool OfflineShow::Quiet(bool enabled) {
 }
 
 bool OfflineShow::ConfigureAmbient(bool enabled) {
+  if (shared_) return shared_->Ambient(enabled);
   if (enabled && (deviceId_.empty() || !storageHealthy_ || control_.NeedsRecovery() || Active())) return false;
   CancelAmbient();
   ambientEnabled_ = enabled;
@@ -216,6 +222,7 @@ bool OfflineShow::ConfigureAmbient(bool enabled) {
 }
 
 bool OfflineShow::ApplyServerSettings(uint64_t revision, bool quiet, bool ambient) {
+  if (shared_) return shared_->Settings(revision, quiet, ambient);
   if (revision <= outbox_.serverSettingsRevision) return true;
   if (!storageHealthy_) return false;
   const bool blocked = deviceId_.empty() || control_.NeedsRecovery() || Active();
@@ -232,6 +239,7 @@ bool OfflineShow::ApplyServerSettings(uint64_t revision, bool quiet, bool ambien
 }
 
 bool OfflineShow::ApplyServerStop(uint64_t revision) {
+  if (shared_) return shared_->ServerStop(revision);
   if (revision <= outbox_.serverStopRevision) return false;
   Stop(); // Existing sticky physical Stop precedes persistence and network cancellation.
   if (storageHealthy_) {
@@ -243,6 +251,7 @@ bool OfflineShow::ApplyServerStop(uint64_t revision) {
 }
 
 void OfflineShow::Stop() {
+  if (shared_) { shared_->Stop(); return; }
   SelectionStep step;
   runtime_.Stop(step); // Physical outputs stop before audio or NVS work.
   quiet_ = true; armed_ = false; ambientEnabled_ = false;
@@ -262,6 +271,7 @@ void OfflineShow::Stop() {
 }
 
 bool OfflineShow::Leave() {
+  if (shared_) return shared_->Leave();
   if (Active()) return false;
   if (!PrepareInteraction()) return false;
   if (!runtime_.SetOfflineAuthority(false)) return false;
@@ -282,6 +292,7 @@ bool OfflineShow::PrepareInteraction() {
 }
 
 void OfflineShow::Tick(uint64_t nowMs, bool idle) {
+  if (shared_) { shared_->Tick(nowMs, idle); return; }
   // A persisted opt-in can resume only after the existing physical inspection
   // has recovered this boot. A pending journal or sticky Stop remains a gate.
   if (!armed_ && outbox_.offlineEnabled && idle && !control_.NeedsRecovery())
@@ -333,6 +344,10 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
     }
     return;
   }
+  TickAmbient(nowMs, idle);
+}
+
+void OfflineShow::TickAmbient(uint64_t nowMs, bool idle) {
   if (!idle || control_.NeedsRecovery() || quiet_ || !ambientEnabled_ || !storageHealthy_) {
     if (!Active()) CancelAmbient();
     idleAtMs_ = nowMs;
@@ -377,6 +392,7 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
 }
 
 bool OfflineShow::Acknowledge(const std::string& operationId, uint64_t operationEpoch) {
+  if (shared_) return shared_->Ack(operationId, operationEpoch);
   if (!storageHealthy_ || Active()) return false;
   for (size_t index = 0; index < outbox_.records.size(); ++index) {
     if (operationEpoch != outbox_.records[index].operationEpoch

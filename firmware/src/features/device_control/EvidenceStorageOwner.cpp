@@ -136,8 +136,8 @@ bool EvidenceStorageOwner::ValidRequest(const Request& request) {
       return value.completed && value.completedAtMs >= value.startedAtMs;
     }
     case Operation::OfflineSettings:
-      return (request.setQuiet || request.setAmbient || request.serverStopRevision)
-          && !request.setEnabled && (!request.serverSettingsRevision || (request.setQuiet && request.setAmbient));
+      return (request.setQuiet || request.setAmbient || request.setEnabled || request.serverStopRevision)
+          && (!request.serverSettingsRevision || (request.setQuiet && request.setAmbient));
     case Operation::OfflineEnabled:
       return request.setEnabled && !request.setQuiet && !request.setAmbient
           && !request.serverSettingsRevision && !request.serverStopRevision;
@@ -150,7 +150,12 @@ bool EvidenceStorageOwner::TrySubmit(const Request& request, Token& token) {
   if (!ValidRequest(request)) return false;
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
   if (!lock || phase_ != Phase::Idle) return false;
+  const bool relaxingOffline = (request.operation == Operation::OfflineEnabled && request.enabled)
+      || (request.operation == Operation::OfflineSettings && !request.serverStopRevision
+          && ((request.setQuiet && !request.quiet) || (request.setAmbient && request.ambient)
+              || (request.setEnabled && request.enabled)));
   const auto purpose = request.operation == Operation::OnlinePrepare || request.operation == Operation::OfflineReserve
+      || relaxingOffline
       ? JournalTransactionArbiter::Purpose::Admission : JournalTransactionArbiter::Purpose::Evidence;
   if (!GateAllows(purpose)) return false;
   Token accepted;
@@ -333,21 +338,24 @@ bool EvidenceStorageOwner::ExecuteOffline(const Request& request, const Token& t
   kufr::offline::Outbox state;
   if (!ReadOffline(state)) return false;
   const auto& outcome = request.offline;
+  if ((request.operation == Operation::OfflineSettings || request.operation == Operation::OfflineEnabled)
+      && request.fenceStopRevision && request.expectedStopRevision != state.serverStopRevision) return false;
   if (request.operation == Operation::OfflineSettings) {
     if (request.serverSettingsRevision && request.serverSettingsRevision <= state.serverSettingsRevision) return false;
     if (request.serverStopRevision && request.serverStopRevision <= state.serverStopRevision) return false;
     if (request.setQuiet) state.quiet = request.quiet;
     if (request.setAmbient) state.ambientEnabled = request.ambient;
+    if (request.setEnabled) state.offlineEnabled = request.enabled;
     if (request.serverSettingsRevision) state.serverSettingsRevision = request.serverSettingsRevision;
     if (request.serverStopRevision) {
       state.serverStopRevision = request.serverStopRevision;
       state.quiet = true; state.ambientEnabled = false; state.offlineEnabled = false;
     }
-    return CommitOffline(state);
+    return CommitOffline(state, token.purpose == JournalTransactionArbiter::Purpose::Admission ? &token : nullptr);
   }
   if (request.operation == Operation::OfflineEnabled) {
     state.offlineEnabled = request.enabled;
-    return CommitOffline(state);
+    return CommitOffline(state, token.purpose == JournalTransactionArbiter::Purpose::Admission ? &token : nullptr);
   }
   size_t exact = state.records.size(), empty = state.records.size();
   for (size_t index = 0; index < state.records.size(); ++index) {

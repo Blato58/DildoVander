@@ -54,6 +54,10 @@ class LocalControlOwner final {
   void FinishManualCommand(const LocalControlMessage& message,
                            const CommandReceipt& receipt, uint64_t nowMs);
   void ClearPendingManual();
+  void OfflineCommand(const LocalControlMessage& message, uint64_t nowMs);
+  bool AcceptOfflineCommand(const LocalControlMessage& message, bool retry);
+  void FinishOfflineCommand(const LocalControlMessage& message, bool result, uint64_t nowMs);
+  void ClearPendingOffline();
   bool ControlAck(const LocalControlMessage& message, LocalControlError error);
   bool RefuseBusy(const LocalControlMessage& message);
   void Snapshot(uint64_t nowMs);
@@ -83,6 +87,11 @@ class LocalControlOwner final {
   LocalSocketAdmission::Handle pendingManualHandle_;
   LocalControlSession* pendingManualSession_ = nullptr;
   bool manualPending_ = false;
+  LocalControlMessage pendingOffline_;
+  LocalSocketAdmission::Handle pendingOfflineHandle_;
+  LocalControlSession* pendingOfflineSession_ = nullptr;
+  uint64_t offlineArmGeneration_ = 0, offlineArmRevision_ = 0;
+  bool offlinePending_ = false, offlineArmHandoff_ = false, offlineCallPending_ = false;
   bool hello_ = false;
   bool includeOperationEpoch_ = false;
   bool maintenance_ = false;

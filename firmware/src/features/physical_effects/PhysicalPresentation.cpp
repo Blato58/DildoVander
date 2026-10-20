@@ -23,7 +23,7 @@ uint64_t PhysicalPresentation::CurrentOperationFingerprint() const {
 
 bool PhysicalPresentation::SelectVariant(bool shortVariant) {
   if (phase_ != Phase::Idle || claimedAdmission_ || runtime_.HasAutonomousPresentation() ||
-      runtime_.HasDecoration()) return false;
+      runtime_.HasStorageWork() || runtime_.HasDecoration()) return false;
   repeat_ = shortVariant;
   return true;
 }

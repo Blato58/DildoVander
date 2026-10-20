@@ -37,6 +37,8 @@ class EvidenceStorageOwner final {
     bool setQuiet = false, quiet = false, setAmbient = false, ambient = false;
     bool setEnabled = false, enabled = false;
     uint64_t serverSettingsRevision = 0, serverStopRevision = 0;
+    bool fenceStopRevision = false;
+    uint64_t expectedStopRevision = 0;
   };
   struct Completion {
     Token token;

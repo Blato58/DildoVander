@@ -369,6 +369,7 @@ bool DeviceControlRuntime::Tick(uint64_t nowMs, SelectionStep& step) {
 
 bool DeviceControlRuntime::Stop(SelectionStep& step) {
   admission_ = OwnedAdmission();
+  offlinePreparation_ = OfflinePreparation();
   completion_ = AutonomousCompletion();
   const bool hadActivePresentation =
       presentation_ != nullptr &&
@@ -384,7 +385,7 @@ bool DeviceControlRuntime::Stop(SelectionStep& step) {
 }
 
 bool DeviceControlRuntime::PublishCurrent() {
-  if (externalActivity_ || (decorationActive_ && !decorationPreservesSnapshot_) || control_.NeedsRecovery() || control_.HasStorageWork() || control_.HasPendingSelection() ||
+  if (externalActivity_ || offlinePreparation_.active || (decorationActive_ && !decorationPreservesSnapshot_) || control_.NeedsRecovery() || control_.HasStorageWork() || control_.HasPendingSelection() ||
       control_.HasAutonomousPresentation() || selection_.IsBusy() ||
       (presentation_ != nullptr &&
        presentation_->State() != WandPresentationState::Idle)) {
@@ -473,6 +474,68 @@ bool DeviceControlRuntime::StartOfflinePresentation(PendingProposal& pending, ui
   const bool started = presentation_->Start(pending, runtime_, nowMs);
   offlineAdmission_ = false;
   return started;
+}
+
+bool DeviceControlRuntime::StartOfflinePresentationPolled(PendingProposal& pending, uint64_t nowMs) {
+  if (!offlineAuthority_ || offlineAdmission_ || !presentation_ || offlinePreparation_.active) return false;
+  offlineAdmission_ = true;
+  const bool started = presentation_->StartPolled(pending, runtime_, nowMs);
+  offlineAdmission_ = false;
+  return started;
+}
+
+DeviceControlRuntime::PresentationProgress DeviceControlRuntime::ReserveOfflinePreparation(
+    const std::string& id, uint8_t slot, const ConversationRuntimeSnapshot& original,
+    uint64_t fingerprint, uint64_t calibrationRevision, uint64_t requestedAtMs, uint64_t nowMs) {
+  const auto& held = offlinePreparation_;
+  const bool same = !held.active || (held.id == id && held.slot == slot && held.generation == original.generation
+      && held.revision == original.deviceRevision && held.epoch == original.operationEpoch
+      && held.fingerprint == fingerprint && held.calibration == calibrationRevision
+      && held.requestedAt == requestedAtMs && held.snapshotVersion == original.version);
+  // A competing retry cannot cancel or consume this owner's original result.
+  if (!same) return PresentationProgress::Rejected;
+  const bool ownStorage = held.active && control_.HasPendingAutonomousAdmission(id, slot,
+      original.deviceRevision, fingerprint, original.operationEpoch);
+  const bool valid = offlineAuthority_ && !offlineAdmission_ && !externalActivity_ && !decorationActive_
+      && admission_.owner == nullptr && presentation_ && presentation_->State() == WandPresentationState::Idle
+      && !id.empty() && slot >= 1 && slot <= 6 && original.operationEpoch && fingerprint
+      && original.catalogVersion == catalogVersion_ && original.generation == generation_
+      && original.deviceRevision == control_.Revision() && original.operationEpoch == control_.OperationEpoch()
+      && calibrationRevision && calibrationRevision == control_.CalibrationRevision()
+      && (original.readyMask & (1u << (slot - 1))) && (control_.ReadyMask() & (1u << (slot - 1)))
+      && nowMs >= requestedAtMs && nowMs - requestedAtMs <= 18500
+      && !control_.NeedsRecovery() && !control_.HasManualControl() && !control_.HasPendingSelection()
+      && !control_.HasAutonomousPresentation() && !selection_.IsBusy()
+      && (ownStorage || !control_.HasStorageWork()) && (held.active || runtime_.Matches(original));
+  if (!valid) { if (held.active) CancelOfflinePreparation(); return PresentationProgress::Rejected; }
+  if (!held.active) {
+    offlinePreparation_.active = true; offlinePreparation_.id = id; offlinePreparation_.slot = slot;
+    offlinePreparation_.generation = original.generation; offlinePreparation_.revision = original.deviceRevision;
+    offlinePreparation_.epoch = original.operationEpoch; offlinePreparation_.fingerprint = fingerprint;
+    offlinePreparation_.calibration = calibrationRevision; offlinePreparation_.requestedAt = requestedAtMs;
+    offlinePreparation_.snapshotVersion = original.version;
+  }
+  const bool reserved = (!ownStorage && control_.HasAutonomousReservation(id, slot, fingerprint,
+      original.operationEpoch)) || control_.ReserveAutonomousPresentation(id, slot,
+          original.deviceRevision, fingerprint, original.operationEpoch);
+  PublishCurrent();
+  if (reserved) return PresentationProgress::Succeeded;
+  if (control_.LastAutonomousAdmissionProgress() == DeviceControl::AutonomousAdmissionProgress::Pending)
+    return PresentationProgress::Pending;
+  CancelOfflinePreparation();
+  return PresentationProgress::Rejected;
+}
+
+void DeviceControlRuntime::FinishOfflinePreparation() {
+  offlinePreparation_ = OfflinePreparation();
+  PublishCurrent();
+}
+
+void DeviceControlRuntime::CancelOfflinePreparation() {
+  if (!offlinePreparation_.active) return;
+  offlinePreparation_ = OfflinePreparation();
+  control_.CancelAutonomousReservation();
+  PublishCurrent();
 }
 
 bool DeviceControlRuntime::HandoffToOffline(const std::string& leaseId, uint64_t nowMs) {

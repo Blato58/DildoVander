@@ -24,6 +24,8 @@ idf_component_register(
         "features/physical_effects/PresentationDiagnostics.cpp"
         "features/scene_intent/SceneIntentBridge.cpp"
         "features/offline_show/OfflineShow.cpp"
+        "features/offline_show/OfflineShowShared.cpp"
+        "features/offline_show/OfflineEvidenceBridge.cpp"
         "features/offline_show/OfflineOutboxCodec.cpp"
         "features/offline_show/OfflineCommittedInventory.cpp"
         "features/offline_show/ImaAdpcm.cpp"

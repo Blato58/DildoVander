@@ -67,7 +67,9 @@ class DeviceControlRuntime final {
 
   bool PublishCurrent();
   void SetExternalActivity(bool active);
-  bool HasStorageWork() const { return admission_.owner != nullptr || control_.HasStorageWork(); }
+  bool HasStorageWork() const {
+    return admission_.owner != nullptr || offlinePreparation_.active || control_.HasStorageWork();
+  }
   uint64_t Generation() const;
   uint64_t CurrentRevision() const { return control_.Revision(); }
   bool NeedsRecovery() const { return control_.NeedsRecovery(); }
@@ -79,6 +81,12 @@ class DeviceControlRuntime final {
   bool HandoffToOffline(const std::string& leaseId, uint64_t nowMs);
   bool OfflineAuthority() const { return offlineAuthority_; }
   bool StartOfflinePresentation(PendingProposal& pending, uint64_t nowMs);
+  bool StartOfflinePresentationPolled(PendingProposal& pending, uint64_t nowMs);
+  PresentationProgress ReserveOfflinePreparation(const std::string& id, uint8_t slot,
+      const ConversationRuntimeSnapshot& original, uint64_t fingerprint,
+      uint64_t calibrationRevision, uint64_t requestedAtMs, uint64_t nowMs);
+  void FinishOfflinePreparation();
+  void CancelOfflinePreparation();
   bool ReserveDecoration(uint64_t generation, bool preserveConversationSnapshot = false);
   bool ReleaseDecoration(uint64_t generation);
   bool HasDecoration() const { return decorationActive_; }
@@ -103,6 +111,13 @@ class DeviceControlRuntime final {
     uint8_t slot = 0;
     bool offline = false;
   } admission_;
+  struct OfflinePreparation {
+    bool active = false;
+    std::string id;
+    uint8_t slot = 0;
+    uint64_t generation = 0, revision = 0, epoch = 0, fingerprint = 0;
+    uint64_t calibration = 0, requestedAt = 0, snapshotVersion = 0;
+  } offlinePreparation_;
   bool CaptureClaimedAdmission(const PendingProposal::ClaimedProposal& claim,
       uint64_t fingerprint, uint64_t calibrationRevision, uint64_t nowMs);
   enum class CompletionPhase { None, Closing, Validating, Proof };

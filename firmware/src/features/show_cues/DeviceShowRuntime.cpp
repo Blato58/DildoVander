@@ -23,10 +23,16 @@ void DeviceShowRuntime::Finish(DeviceShowMailbox::View& view, const char* outcom
 
 void DeviceShowRuntime::Tick(uint64_t nowMs, bool physicalAvailable, bool audioAvailable) {
   DeviceShowSettings settings;
-  if (mailbox_.TakeSettings(settings)) {
-    if (offline_.ApplyServerStop(settings.stopRevision)) { remoteStop_ = true; mailbox_.Cancel(); }
-    if (offline_.ApplyServerSettings(settings.revision, settings.quiet, settings.ambient) && settings.quiet)
+  if (mailbox_.PeekSettings(settings)) {
+    if (settings.stopRevision > observedStopRevision_ && settings.stopRevision > offline_.ServerStopRevision()) {
+      observedStopRevision_ = settings.stopRevision;
+      remoteStop_ = true; mailbox_.Cancel();
+    }
+    if (settings.stopRevision > offline_.ServerStopRevision()) offline_.ApplyServerStop(settings.stopRevision);
+    const bool stopApplied = settings.stopRevision <= offline_.ServerStopRevision();
+    if (stopApplied && offline_.ApplyServerSettings(settings.revision, settings.quiet, settings.ambient) && settings.quiet)
       mailbox_.Cancel();
+    if (stopApplied && settings.revision <= offline_.ServerSettingsRevision()) mailbox_.ConfirmSettings(settings);
   }
   DeviceShowMailbox::View view = mailbox_.Read();
   if (view.stage == DeviceShowMailbox::Stage::Empty) {

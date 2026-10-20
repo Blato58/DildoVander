@@ -42,10 +42,17 @@ class Storage final : public JournalStorage {
 };
 class Gate final : public JournalAdmissionGate {
  public:
-  bool AllowsAdmission() const override { return admission; }
+  bool AllowsAdmission() const override {
+    ++checks;
+    if (refuseAt && checks == refuseAt) { if (beforeRefusal) beforeRefusal(); return false; }
+    return admission;
+  }
   bool AllowsRecovery() const override { return recovery; }
   bool ReconcileBeforeResume(uint32_t) override { return recovery; }
   bool admission = false, recovery = false;
+  mutable unsigned checks = 0;
+  unsigned refuseAt = 0;
+  std::function<void()> beforeRefusal;
 };
 std::string Id(unsigned ordinal) {
   char value[37];
@@ -198,6 +205,14 @@ void GateIsCheckedAtSubmitAndExecution() {
   enabled.setEnabled = true; enabled.enabled = true;
   assert(!owner.TrySubmit(enabled, token));
   gate.recovery = true;
+  assert(!owner.TrySubmit(enabled, token)); // Recovery alone cannot re-enable a show.
+  gate.admission = true;
+  assert(owner.TrySubmit(enabled, token));
+  gate.admission = false;
+  assert(owner.RunOne());
+  assert(owner.TryReadCompletion(token, completion) && completion.status == Status::Refused);
+  assert(owner.ReleaseCompletion(token));
+  enabled.enabled = false;
   assert(owner.TrySubmit(enabled, token));
   gate.recovery = false;
   assert(owner.RunOne());
@@ -436,6 +451,67 @@ void OnlineUnknownLegacyReferenceIsPreserved() {
   assert(fixture.Run(OnlineRequest(Operation::OnlineComplete, forged)).status == Status::Refused);
   assert(fixture.owner.TryReadOnline(state) && state.prepared.size() == 2);
 }
+
+void OfflineSettingsCannotRearmAcrossStop() {
+  Fixture fixture;
+  Owner::Request enable;
+  enable.operation = Operation::OfflineEnabled; enable.setEnabled = true; enable.enabled = true;
+  enable.fenceStopRevision = true;
+  Token token;
+  assert(fixture.owner.TrySubmit(enable, token));
+  fixture.arbiter.CancelAdmissions();
+  assert(fixture.owner.RunOne());
+  Owner::Completion completion;
+  assert(fixture.owner.TryReadCompletion(token, completion));
+  assert(completion.status == Status::CancelledBeforeWrite && !completion.current);
+  assert(fixture.owner.ReleaseCompletion(token));
+  Owner::Request stop;
+  stop.operation = Operation::OfflineSettings;
+  stop.setQuiet = stop.setAmbient = stop.setEnabled = true;
+  stop.quiet = true; stop.ambient = stop.enabled = false;
+  stop.serverStopRevision = 7;
+  assert(fixture.Run(stop).status == Status::Succeeded);
+  kufr::offline::Outbox saved;
+  assert(fixture.owner.TryReadOffline(saved));
+  assert(saved.quiet && !saved.ambientEnabled && !saved.offlineEnabled && saved.serverStopRevision == 7);
+  assert(fixture.arbiter.ResumeAfterRecovery(fixture.arbiter.Cancellation()));
+  const auto writes = fixture.offlineStorage.writes;
+  assert(fixture.Run(enable).status == Status::Refused); // Original server-Stop fence is immutable.
+  assert(fixture.offlineStorage.writes == writes);
+  enable.expectedStopRevision = 7;
+  fixture.offlineStorage.duringWrite = [&]() { fixture.arbiter.CancelAdmissions(); };
+  const auto late = fixture.Run(enable);
+  assert(late.status == Status::Succeeded && !late.current);
+  fixture.offlineStorage.duringWrite = {};
+  // Already-started writes are adopted as facts, then the retained safe Stop
+  // corrects persisted opt-in before a recovery barrier can admit new work.
+  stop.serverStopRevision = 0;
+  assert(fixture.Run(stop).status == Status::Succeeded);
+  assert(fixture.owner.TryReadOffline(saved) && !saved.offlineEnabled && saved.quiet && !saved.ambientEnabled);
+}
+
+void OfflineRelaxationRechecksTheCommitBoundary() {
+  for (bool enabled : {false, true}) {
+    Fixture fixture;
+    Gate gate; gate.admission = gate.recovery = true; gate.refuseAt = 3;
+    gate.beforeRefusal = [&]() { fixture.arbiter.CancelAdmissions(); };
+    Owner owner(fixture.journal, fixture.online, fixture.offline, fixture.arbiter, &gate);
+    assert(owner.OpenAndPublish());
+    Owner::Request request;
+    request.operation = enabled ? Operation::OfflineEnabled : Operation::OfflineSettings;
+    if (enabled) { request.setEnabled = true; request.enabled = true; }
+    else { request.setQuiet = request.setAmbient = true; request.quiet = false; request.ambient = true; }
+    Token token;
+    assert(owner.TrySubmit(request, token));
+    const auto writes = fixture.offlineStorage.writes;
+    assert(owner.RunOne());
+    Owner::Completion result;
+    assert(owner.TryReadCompletion(token, result));
+    assert(result.status == Status::CancelledBeforeWrite && !result.current);
+    assert(fixture.offlineStorage.writes == writes && gate.checks == 3);
+    assert(owner.ReleaseCompletion(token));
+  }
+}
 }
 
 int main() {
@@ -445,5 +521,7 @@ int main() {
   RetirementPreservesTimedEvidence(); OfflineMergeAndExactAck(); OfflineUnknownRowsAndWriteCuts();
   PermanentRetirementIsOneAtomicTransaction();
   OfflineCapacityCutsAndCancelledReservation(); OnlineUnknownLegacyReferenceIsPreserved();
+  OfflineSettingsCannotRearmAcrossStop();
+  OfflineRelaxationRechecksTheCommitBoundary();
   std::cout << "evidence storage owner tests passed\n";
 }

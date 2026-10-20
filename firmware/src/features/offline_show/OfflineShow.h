@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <string>
 
 #include "../device_control/DeviceControlRuntime.h"
@@ -8,6 +9,7 @@
 #include "../scene_intent/SceneIntentBridge.h"
 
 namespace kufr { namespace offline {
+class OfflineEvidenceBridge;
 enum class ClipFormat { PcmS16Le, ImaAdpcm4, PcmS16Le32k };
 
 struct Clip {
@@ -92,6 +94,11 @@ class OfflineShow final {
       PhysicalPresentation& physical, AudioPort& audio, StoragePort& storage,
       const std::string& deviceId, const std::string& bootId,
       const std::string& localEveningId, const BankView* bank = nullptr);
+  OfflineShow(DeviceControlRuntime& runtime, ConversationRuntimeState& state,
+      DeviceControl& control, WandPresentation& presentation,
+      PhysicalPresentation& physical, AudioPort& audio, OfflineEvidenceBridge& evidence,
+      const std::string& deviceId, const std::string& bootId,
+      const std::string& localEveningId, const BankView* bank = nullptr);
   const char* Preflight() const;
   bool Arm(uint64_t generation, uint64_t revision);
   bool Start(const std::string& operationId, uint8_t slot, bool shortVariant,
@@ -116,15 +123,40 @@ class OfflineShow final {
   bool AmbientActive() const { return ambientAudio_ || (ambientLight_ && !Active() && runtime_.HasDecoration()); }
   bool Acknowledge(const std::string& operationId, uint64_t operationEpoch = 0);
   bool Armed() const { return armed_; }
-  bool Active() const { return activeIndex_ >= 0; }
+  bool Active() const { return activeIndex_ >= 0 || (shared_ && shared_->Active()); }
+  bool LastOperationIsPending() const { return shared_ && shared_->LastPending(); }
+  bool HasPendingStorage() const { return shared_ && shared_->HasWork(); }
   std::string StatusJson() const;
   std::string OutboxJson(bool includeOperationEpoch = false) const;
   static const char* CatalogVersion();
  private:
+  // Virtual dispatch keeps the explicit legacy composition independent of the
+  // shared source owner and its codec/link dependencies.
+  struct SharedState {
+    virtual ~SharedState() = default;
+    virtual bool Arm(uint64_t generation, uint64_t revision) = 0;
+    virtual bool Start(const std::string& id, uint8_t slot, bool shortVariant,
+        uint64_t generation, uint64_t revision, uint64_t now, bool scripted, uint64_t epoch) = 0;
+    virtual bool StartNext(const std::string& id, uint64_t now, bool generate) = 0;
+    virtual void Tick(uint64_t now, bool idle) = 0;
+    virtual bool Quiet(bool enabled) = 0;
+    virtual bool Ambient(bool enabled) = 0;
+    virtual bool Settings(uint64_t revision, bool quiet, bool ambient) = 0;
+    virtual bool ServerStop(uint64_t revision) = 0;
+    virtual void Stop() = 0;
+    virtual bool Leave() = 0;
+    virtual bool Ack(const std::string& id, uint64_t epoch) = 0;
+    virtual bool Active() const = 0;
+    virtual bool LastPending() const = 0;
+    virtual bool HasWork() const = 0;
+  };
+  struct SharedImplementation;
+  std::shared_ptr<SharedState> shared_;
   size_t Count() const;
   const Clip* FindClip(const char* id) const;
   bool CompleteRecord(uint64_t nowMs);
   void CancelAmbient();
+  void TickAmbient(uint64_t nowMs, bool idle);
   DeviceControlRuntime& runtime_;
   ConversationRuntimeState& state_;
   DeviceControl& control_;
