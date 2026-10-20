@@ -1,13 +1,14 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { account, accountOrigin, hasRole } from '../identity/session';
 import { LabError, PersonaLabClient, technicalDiagnostics } from './client';
-import { LabVoice, type VoicePhase } from './voice';
+import { LabVoice, type VoiceObserver, type VoicePhase } from './voice';
+import { isSpokenEndCommand, SpokenEndInput } from './spokenControls';
 import { directorStop, registerDirectorStop, clearDirectorStop } from '../director/directorStop';
 import { prepareLabImage, type LabImage } from './image';
 import { classifyLabFailure, describeLabFailure, type LabFailure } from './errors';
 import { useLabHardware } from './useLabHardware';
 import { systemDiagnosticsBundle } from './systemDiagnostics';
-import { metricLabels, type Analytics, type Catalog, type Evaluation, type LabEngine, type LabSession, type LabSuite, type Metric, type Revision, type Scores, type SystemDiagnostics } from './contracts';
+import { metricLabels, type Analytics, type Catalog, type Evaluation, type LabEngine, type LabSession, type LabSuite, type Metric, type Revision, type Scores, type SessionInput, type SystemDiagnostics } from './contracts';
 
 export function usePersonaLab() {
   const identityKey = () => account.value ? `${account.value.id}:${[...account.value.roles].sort().join(',')}` : '';
@@ -62,25 +63,70 @@ export function usePersonaLab() {
     try { const result = await client.session(session.id); if (epoch === generation && request === selectedReadGeneration) remember(result); }
     catch (cause) { if (epoch === generation && request === selectedReadGeneration && !(cause instanceof DOMException && cause.name === 'AbortError')) error.value = message(cause); }
   }
-  const voice = new LabVoice({
-    phase: phase => { voicePhase.value = phase; },
-    transcript: (role, delta) => { partial.value = { ...partial.value, [role]: (partial.value[role] + delta).slice(-32000) }; },
+  interface VoiceContext { sessionId: string; identity: string; epoch: number; input: SpokenEndInput }
+  let voiceContext: VoiceContext | null = null;
+  let spokenEndTimer: ReturnType<typeof setTimeout> | null = null;
+  let endingSession = '';
+  function cancelSpokenEnd(): void {
+    if (spokenEndTimer) clearTimeout(spokenEndTimer);
+    spokenEndTimer = null;
+  }
+  function currentVoice(context: VoiceContext | null): boolean {
+    return context === voiceContext && !disposed && (!context || context.epoch === generation
+      && context.identity === identityKey() && selected.value?.id === context.sessionId);
+  }
+  function requestSpokenEnd(context: VoiceContext): void {
+    const session = selected.value;
+    if (!currentVoice(context) || !voiceActive.value || !session || session.status !== 'open'
+      || session.ownerId !== account.value?.id || simulationBlocked.value || session.hardware || endingSession) return;
+    // end() tears down local audio synchronously, then uses the authenticated session endpoint.
+    void end().catch(cause => { if (!disposed) error.value = message(cause); });
+  }
+  function scheduleSpokenEnd(context: VoiceContext): void {
+    cancelSpokenEnd();
+    // Wait for adjacent Live deltas before interpreting the whole bounded utterance.
+    spokenEndTimer = setTimeout(() => {
+      spokenEndTimer = null;
+      if (context.input.matches()) requestSpokenEnd(context);
+    }, 500);
+  }
+  function voiceObserver(context: VoiceContext | null): VoiceObserver { return {
+    phase: phase => { if (currentVoice(context)) voicePhase.value = phase; },
+    transcript: (role, delta) => {
+      if (!currentVoice(context)) return;
+      partial.value = { ...partial.value, [role]: (partial.value[role] + delta).slice(-32000) };
+      if (context && role === 'user' && selected.value?.engine === 'gpt-live-1') {
+        context.input.append(delta); scheduleSpokenEnd(context);
+      }
+    },
     turn: turn => {
-      if (!selected.value) return;
+      if (!currentVoice(context) || !selected.value) return;
+      if (context && turn.role === 'user') {
+        cancelSpokenEnd(); context.input.reset();
+        if (selected.value.engine === 'gpt-realtime-2.1' && isSpokenEndCommand(turn.text)) requestSpokenEnd(context);
+      }
+      if (context && turn.role === 'assistant') {
+        cancelSpokenEnd();
+        if (context.input.matches() || turn.decision === 'no_selection') requestSpokenEnd(context);
+        context.input.reset();
+      }
       const turns = selected.value.turns.filter(item => item.id !== turn.id);
       remember({ ...selected.value, turns: [...turns, turn] }); partial.value = { ...partial.value, [turn.role]: '' };
     },
-    session: session => remember(session),
-    interrupted: () => { partial.value = { ...partial.value, assistant: '' }; },
+    session: session => { if (currentVoice(context) && (!context || session.id === context.sessionId)) remember(session); },
+    interrupted: () => { if (!currentVoice(context)) return; partial.value = { ...partial.value, assistant: '' }; },
     error: (code, canRecover) => {
+      if (!currentVoice(context)) return;
+      cancelSpokenEnd();
       const details = classifyLabFailure(code);
       failure.value = details;
       error.value = describeLabFailure(details);
       recoverable.value = canRecover && details.recoverable && online.value && reconnects.value < 2;
       manualVoiceRestart.value = details.manualRestart;
     },
-    closed: () => { muted.value = false; void refreshSelected(); },
-  });
+    closed: () => { if (currentVoice(context)) { cancelSpokenEnd(); muted.value = false; void refreshSelected(); } },
+  }; }
+  let voice = new LabVoice(voiceObserver(null));
   function message(cause: unknown, code = 'unknown_client_error'): string {
     const details = cause instanceof LabError ? cause.failure : classifyLabFailure(code);
     failure.value = cause instanceof LabError || !(cause instanceof Error) ? details : { ...details, message: cause.message };
@@ -119,17 +165,36 @@ export function usePersonaLab() {
     } catch (cause) { if (epoch === generation && request === listGeneration) error.value = message(cause); }
     finally { if (epoch === generation && request === listGeneration) loading.value = false; }
   }
-  async function create(): Promise<void> {
-    if (voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !revisionId.value || !scenarioId.value || !fixtureId.value) return;
+  async function createSession(input: SessionInput): Promise<void> {
+    if (voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !input.revisionId || !input.scenarioId || !input.fixtureId) return;
     await run(async () => {
-      const session = await client.createSession({ revisionId: revisionId.value, engine: engine.value,
-        scenarioId: scenarioId.value, fixtureId: fixtureId.value, label: label.value.trim() || 'Test persony', recordContent: recordContent.value,
-        ...(comparisonId.value.trim() ? { comparisonId: comparisonId.value.trim() } : {}) });
+      const session = await client.createSession(input);
       remember(session); selected.value = session; scores.value = {}; comment.value = ''; turnComments.value = {};
       clearImage();
       partial.value = { user: '', assistant: '' }; voicePhase.value = 'idle'; reconnects.value = 0;
       notice.value = 'Sezení je připravené. Model se spustí odesláním textu nebo spuštěním hlasu.';
     });
+  }
+  async function create(): Promise<void> {
+    await createSession({ revisionId: revisionId.value, engine: engine.value, scenarioId: scenarioId.value,
+      fixtureId: fixtureId.value, label: label.value.trim() || 'Test persony', recordContent: recordContent.value,
+      ...(comparisonId.value.trim() ? { comparisonId: comparisonId.value.trim() } : {}) });
+  }
+  const canCreateVisualTest = computed(() => {
+    const session = selected.value;
+    return !!session && session.status === 'open' && session.engine === 'gpt-live-1'
+      && !busy.value && !voiceActive.value && !recoveryPending.value && !simulationBlocked.value
+      && !session.hardware && online.value && !!catalog.value?.capabilities.realtime && !!catalog.value?.capabilities.imageRealtime
+      && !!catalog.value.versions.some(item => item.id === session.config.id)
+      && !!catalog.value.scenarios.some(item => item.id === session.scenarioId)
+      && !!catalog.value.memoryFixtures.some(item => item.id === session.fixtureId);
+  });
+  async function createVisualTest(): Promise<void> {
+    const session = selected.value;
+    if (!session || !canCreateVisualTest.value) return;
+    await createSession({ revisionId: session.config.id, engine: 'gpt-realtime-2.1', scenarioId: session.scenarioId,
+      fixtureId: session.fixtureId, label: session.label, recordContent: session.recordContent,
+      ...(session.comparisonId ? { comparisonId: session.comparisonId } : {}) });
   }
   async function send(): Promise<void> {
     const session = selected.value; const input = text.value.trim();
@@ -163,33 +228,41 @@ export function usePersonaLab() {
     }
     recoverable.value = false; manualVoiceRestart.value = false; clearFailure(); muted.value = false;
     if (retry) notice.value = 'Nové hlasové spojení vytváří nový modelový kontext. Obnovují se pouze archivované tahy.';
+    cancelSpokenEnd(); voice.dispose();
+    voiceContext = { sessionId: session.id, identity: identityKey(), epoch: generation, input: new SpokenEndInput() };
+    voice = new LabVoice(voiceObserver(voiceContext));
     await voice.connect(() => client.ticket(session.id, retry), session.id, accountOrigin.value || window.location.origin);
   }
   async function end(): Promise<void> {
-    const session = selected.value; if (!session) return;
+    const session = selected.value; if (!session || endingSession === session.id) return;
+    endingSession = session.id; cancelSpokenEnd();
     const hadHardware = hardware.bound.value || hardware.active.value;
     const localStopSubmitted = hardware.stopLocal(); hardware.clear(false, false); hardware.uncertain.value = hadHardware; hardware.mode.value = hadHardware;
-    cancelRecovery(); voice.end(); recoverable.value = false; conversationPending.value = false; clearImage();
+    cancelRecovery();
+    try { voice.end(); } catch { voice.dispose(); }
+    voiceContext = null; voicePhase.value = 'ended'; recoverable.value = false; conversationPending.value = false; clearImage();
     // Stop must not wait behind a slow model response. Cancelling only fences
     // the old request; the explicit end call lets the server retire its worker.
     if (busy.value) { generation++; listGeneration++; client.invalidate(); busy.value = loading.value = false; }
-    await run(async () => { remember(await client.end(session.id)); notice.value = hadHardware
+    try { await run(async () => { remember(await client.end(session.id)); notice.value = hadHardware
       ? `Backend potvrdil ukončení testovací vazby. ${localStopSubmitted ? 'Místní Stop byl předán původnímu spojení.' : 'Místní Stop nemohl potvrdit původní spojení.'} Fyzické zastavení ani poloha tím nejsou ověřené.`
-      : 'Sezení je ukončené. Můžete uložit hodnocení.'; });
+      : 'Sezení je ukončené. Můžete uložit hodnocení.'; }); }
+    finally { if (endingSession === session.id) endingSession = ''; }
   }
   function stopVoice(refresh = true): void {
-    cancelRecovery(); voice.dispose(); voicePhase.value = 'idle'; muted.value = false; recoverable.value = false;
+    cancelSpokenEnd(); cancelRecovery(); voice.dispose(); voiceContext = null; voicePhase.value = 'idle'; muted.value = false; recoverable.value = false;
     notice.value = 'Hlas je vypnutý. V tomto sezení můžete pokračovat textem.';
     if (refresh) void refreshSelected();
   }
   function toggleMute(): void { muted.value = !muted.value; voice.setMuted(muted.value); }
-  function clearImage(): void {
+  function clearImage(clearAttachment = true): void {
     imageGeneration++; imageController.abort(); imageController = new AbortController();
     if (image.value) URL.revokeObjectURL(image.value.previewUrl);
-    image.value = null; imageConsent.value = false; imagePreparing.value = false; imageAttachedSession.value = '';
+    image.value = null; imageConsent.value = false; imagePreparing.value = false; if (clearAttachment) imageAttachedSession.value = '';
   }
   async function chooseImage(file: File): Promise<void> {
-    if (busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || selected.value?.engine !== 'gpt-realtime-2.1') return;
+    if (busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || selected.value?.status !== 'open'
+      || !catalog.value?.capabilities.imageRealtime || selected.value?.engine !== 'gpt-realtime-2.1') return;
     imageController.abort(); imageController = new AbortController();
     const epoch = ++imageGeneration; const sessionId = selected.value?.id; imagePreparing.value = true; imageConsent.value = false; clearFailure();
     try {
@@ -201,14 +274,35 @@ export function usePersonaLab() {
   }
   async function attachImage(): Promise<void> {
     const session = selected.value; const prepared = image.value;
-    if (!session || !prepared || !imageConsent.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || session.engine !== 'gpt-realtime-2.1') return;
+    if (!session || session.status !== 'open' || !prepared || !imageConsent.value || voiceActive.value || recoveryPending.value
+      || simulationBlocked.value || !online.value || !catalog.value?.capabilities.imageRealtime || session.engine !== 'gpt-realtime-2.1') return;
     await run(async () => { remember(await client.attachImage(session.id, prepared.dataBase64)); imageAttachedSession.value = session.id;
       imageConsent.value = false; notice.value = 'Fotografie je dočasně připojená k testu. Model ji dostane při další skutečné odpovědi; na serveru se nearchivuje.'; });
   }
+  function discardImage(): void {
+    clearImage(false);
+    notice.value = 'Místní náhled byl odstraněn.';
+  }
   async function removeImage(): Promise<void> {
-    const session = selected.value; if (!session || busy.value) return;
-    if (voiceActive.value) stopVoice(false);
-    await run(async () => { remember(await client.removeImage(session.id)); clearImage(); notice.value = 'Fotografie byla odebrána z dalšího modelového vstupu.'; });
+    const session = selected.value;
+    if (!session) return;
+    const attached = session.hasImage || imageAttachedSession.value === session.id;
+    clearImage(false);
+    if (!attached) { notice.value = 'Místní náhled byl odstraněn.'; return; }
+    stopVoice(false);
+    // Withdrawing an attached photo must preempt a response using that photo.
+    if (busy.value) {
+      generation++; listGeneration++; selectedReadGeneration++; client.invalidate(); busy.value = loading.value = false;
+      conversationPending.value = false;
+    }
+    if (!online.value) {
+      error.value = 'Místní náhled je odstraněný. Odebrání fotografie ze serveru zatím není potvrzené; zkuste to znovu po obnovení spojení.';
+      return;
+    }
+    await run(async () => { const result = await client.removeImage(session.id);
+      if (result.hasImage !== false) throw new Error('Server nepotvrdil odebrání fotografie. Zkuste odebrání znovu.');
+      remember(result); imageAttachedSession.value = '';
+      notice.value = 'Server potvrdil odebrání fotografie z dalšího modelového vstupu.'; });
   }
   async function saveEvaluation(): Promise<void> {
     const session = selected.value; if (!session || !validEvaluation.value) return;
@@ -293,7 +387,7 @@ export function usePersonaLab() {
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }
   function clear(): void {
-    hardware.clear(); generation++; listGeneration++; selectedReadGeneration++; client.invalidate(); cancelRecovery(); voice.dispose(); clearImage(); conversationPending.value = false;
+    cancelSpokenEnd(); voiceContext = null; hardware.clear(); generation++; listGeneration++; selectedReadGeneration++; client.invalidate(); cancelRecovery(); voice.dispose(); clearImage(); conversationPending.value = false;
     catalog.value = null; sessions.value = []; selected.value = null; analytics.value = null; suites.value = []; suiteScenarioIds.value = []; busy.value = loading.value = false;
     systemDiagnostics.value = null; diagnosticsLoading.value = false;
     scores.value = {}; comment.value = ''; turnComments.value = {}; text.value = ''; partial.value = { user: '', assistant: '' };
@@ -324,7 +418,7 @@ export function usePersonaLab() {
       && (voiceActive.value || conversationPending.value || recoveryPending.value || hardware.active.value),
     busy: () => busy.value && !conversationPending.value,
     stop: () => end(),
-    clear: () => { cancelRecovery(); voice.dispose(); hardware.clear(); },
+    clear: () => { cancelSpokenEnd(); cancelRecovery(); voice.dispose(); voiceContext = null; hardware.clear(); },
   };
   onMounted(() => {
     registerDirectorStop(globalStopParticipant);
@@ -340,8 +434,8 @@ export function usePersonaLab() {
     hardware, simulationBlocked, noticeTone,
     recoveryPending, online, conversationPending, sessionAgeSeconds, manualVoiceRestart,
     muted, recoverable, reconnects, partial, revisionId, engine, engineReady, selectedEngineReady, scenarioId, fixtureId, label, comparisonId, recordContent, text,
-    scores, comment, turnComments, validEvaluation, image, imageConsent, imagePreparing, imageAttachedSession, chooseImage, attachImage, removeImage,
+    scores, comment, turnComments, validEvaluation, image, imageConsent, imagePreparing, imageAttachedSession, chooseImage, attachImage, discardImage, removeImage,
     draftName, draftInstructions, draftVoice, draftEngine, configRevisionId,
-    configRevision, configConfirmed, load, create, selectSession, openSuiteSession, send, startVoice, stopVoice, end, toggleMute, interrupt: () => voice.interrupt(),
+    configRevision, configConfirmed, load, create, createVisualTest, canCreateVisualTest, selectSession, openSuiteSession, send, startVoice, stopVoice, end, toggleMute, interrupt: () => voice.interrupt(),
     saveEvaluation, saveDraft, publish, downloadDiagnostics, systemDiagnostics, diagnosticsLoading, loadSystemDiagnostics, downloadSystemDiagnostics };
 }

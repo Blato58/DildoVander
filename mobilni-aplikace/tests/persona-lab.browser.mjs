@@ -37,7 +37,7 @@ const now = '2026-10-20T12:00:00Z';
 function fixture(admin) {
   const baseline = { id: 'baseline-browser', parentId: null, name: 'Výchozí persona', instructions: 'Syntetická persona pro prohlížečový test.', engine: 'gpt-live-1', voice: 'cedar', status: 'baseline', sha256: 'a'.repeat(64), sourceVersion: 'browser-fixture', createdAt: now, publishedAt: null, revision: 1 };
   return {
-    admin, authenticated: false, versions: [baseline], activeRevisionId: baseline.id, sessions: [], suites: [], evaluations: [], writes: [], requests: [], blocked: [], unknown: [], sockets: 0,
+    admin, authenticated: false, imageRealtime: false, versions: [baseline], activeRevisionId: baseline.id, sessions: [], suites: [], evaluations: [], writes: [], requests: [], blocked: [], unknown: [], sockets: 0,
     scenarios: [{ id: 'first-visit', name: 'První návštěva', description: 'Syntetický host bez produkčního kontextu.', openingText: 'Ahoj, jsem fiktivní tester.',
       scriptSha256: 'c'.repeat(64), script: [{ index: 1, input: 'Ahoj, jsem fiktivní tester.', checks: ['reply'] }, { index: 2, input: 'Oprava: jsem knihovník.', checks: ['reply', 'memory'] }] }],
     memoryFixtures: [{ id: 'returning', name: 'Vrácený host', description: 'Výhradně syntetická paměť.', current: 'Fiktivní knihovník Áda.', evening: 'Testovací večer.', returning: 'Fiktivní zachráněná kniha.' }],
@@ -82,7 +82,7 @@ async function installFixtures(context, state) {
       if (!state.authenticated) return json({ code: 'account_required' }, 401);
       if (method !== 'GET') assert.equal(request.headers()['x-dv-csrf'], 'synthetic-browser-csrf', 'mutations use the normal CSRF transport');
       const suffix = pathname.slice(base.length);
-      if (suffix === '/catalog') return json({ capabilities: { live: true, realtime: true, voice: true, text: true, simulationOnly: false, defaultMode: 'simulation', hardwareContext: true, imageRealtime: false }, activeRevisionId: state.activeRevisionId, versions: state.versions, scenarios: state.scenarios, memoryFixtures: state.memoryFixtures });
+      if (suffix === '/catalog') return json({ capabilities: { live: true, realtime: true, voice: true, text: true, simulationOnly: false, defaultMode: 'simulation', hardwareContext: true, imageRealtime: state.imageRealtime }, activeRevisionId: state.activeRevisionId, versions: state.versions, scenarios: state.scenarios, memoryFixtures: state.memoryFixtures });
       if (suffix === '/diagnostics') {
         if (!state.admin) return json({ code: 'forbidden' }, 403);
         return json({ storage: { sessions: 30, revisions: state.versions.length, sessionsTruncated: true, recentSessions: [{
@@ -94,7 +94,8 @@ async function installFixtures(context, state) {
       if (suffix === '/sessions' && method === 'GET') return json(state.sessions);
       if (suffix === '/suites' && method === 'GET') return json(state.suites);
       if (suffix === '/suites' && method === 'POST') {
-        assert.equal(body.platform, 'web', 'suite carries an observed browser platform claim');
+        assert.equal(body.platform, 'web', 'suite preserves its preparation platform claim');
+        assert.equal(body.executionPlatform, 'web', 'suite separately reports its execution platform claim');
         const scenario = state.scenarios[0];
         const sessionId = `suite-session-${state.sessions.length + 1}`;
         const observations = scenario.script.map(turn => ({ index: turn.index, userTurnId: `${sessionId}-u${turn.index}`, assistantTurnId: `${sessionId}-a${turn.index}`,
@@ -103,7 +104,7 @@ async function installFixtures(context, state) {
           revisionId: body.revisionId, engine: body.engine, results: [{ scenarioId: scenario.id, sessionId, status: 'completed', scenarioSha256: scenario.scriptSha256,
             assertions: [{ name: 'interrupt', passed: false, status: 'not_exercised', detail: 'Textový běh nepoužil hlasové přerušení.' }], turnObservations: observations }] };
         state.sessions.unshift({ id: sessionId, label: 'Syntetické sezení scénářové sady', ownerId: account().id, createdAt: now, endedAt: now,
-          status: 'ended', engine: body.engine, platform: 'web', scenarioId: scenario.id, fixtureId: body.fixtureId, recordContent: body.recordContent,
+          status: 'ended', engine: body.engine, platform: 'web', executionPlatforms: ['web'], scenarioId: scenario.id, fixtureId: body.fixtureId, recordContent: body.recordContent,
           config: structuredClone(state.versions.find(version => version.id === body.revisionId)), memorySnapshot: structuredClone(state.memoryFixtures[0]), scenarioSnapshot: structuredClone(scenario),
           turns: scenario.script.flatMap(turn => [
             { id: `${sessionId}-u${turn.index}`, role: 'user', text: turn.input, createdAt: now },
@@ -113,16 +114,29 @@ async function installFixtures(context, state) {
       }
       if (suffix === '/analytics') return json({ sessions: state.sessions.length, evaluations: state.evaluations.length, metrics: metrics.map(name => ({ name, mean: state.evaluations.length ? 4 : null, count: state.evaluations.length })), comparisons: [] });
       if (suffix === '/sessions' && method === 'POST') {
-        assert.equal(body.platform, 'web', 'session carries an observed browser platform claim');
-        const session = { ...body, id: `session-${state.sessions.length + 1}`, ownerId: account().id, createdAt: now, endedAt: null, status: 'open', config: structuredClone(state.versions.find(version => version.id === body.revisionId)), turns: [], events: [], evaluation: null, memorySnapshot: state.memoryFixtures[0], scenarioSnapshot: state.scenarios[0] };
+        assert.equal(body.platform, 'web', 'session preserves its preparation platform claim');
+        const session = { ...body, executionPlatforms: [], id: `session-${state.sessions.length + 1}`, ownerId: account().id, createdAt: now, endedAt: null, status: 'open', config: structuredClone(state.versions.find(version => version.id === body.revisionId)), turns: [], events: [], evaluation: null, memorySnapshot: state.memoryFixtures[0], scenarioSnapshot: state.scenarios[0] };
         state.sessions.unshift(session); return json(session);
       }
-      const match = suffix.match(/^\/sessions\/([^/]+)(?:\/(turns|evaluation|end|socket-ticket))?$/);
+      const match = suffix.match(/^\/sessions\/([^/]+)(?:\/(turns|evaluation|end|socket-ticket|image))?$/);
       if (match) {
         const session = state.sessions.find(item => item.id === match[1]);
         if (!session) return json({ code: 'lab_session_not_found' }, 404);
         if (!match[2]) return json(session);
+        if (match[2] === 'image') {
+          assert.equal(session.engine, 'gpt-realtime-2.1');
+          assert(['POST', 'DELETE'].includes(method), 'image changes use explicit attachment or withdrawal');
+          if (method === 'POST') {
+            assert.equal(body.consent, true);
+            assert.equal(body.mimeType, 'image/jpeg');
+            assert(body.dataBase64.length <= 60_000);
+          }
+          session.hasImage = method === 'POST';
+          return json(session);
+        }
         if (match[2] === 'turns') {
+          assert.equal(body.platform, 'web', 'resuming a saved test reports the executing browser platform');
+          session.executionPlatforms = [...new Set([...(session.executionPlatforms ?? []), body.platform])].sort();
           session.turns.push({ id: `user-${session.turns.length + 1}`, role: 'user', text: body.text, createdAt: now });
           session.turns.push({ id: `assistant-${session.turns.length + 1}`, role: 'assistant', text: 'Jsem fiktivní odpověď. Jakou knihu zachráníme?', createdAt: now, latencyMs: 125, audioBytes: 4800 });
           session.events.push({ id: `event-${session.events.length}`, type: 'provider_turn', code: 'completed', createdAt: now, latencyMs: 125, costMicroUsd: 100 });
@@ -219,6 +233,34 @@ async function viewerJourney(width) {
     assert.match(await tokens.locator('dd').nth(0).innerText(), /^Neuvedeno/);
     await page.getByLabel('Platforma', { exact: true }).selectOption('web');
     await layout(page, `viewer-${width}-results`);
+    // Simulate a second client executing the same desktop-prepared session.
+    // The preparation claim must neither overwrite nor stand in for execution.
+    const crossClient = state.sessions[0];
+    assert.equal(crossClient.platform, 'web');
+    crossClient.executionPlatforms = ['ios'];
+    await page.getByRole('button', { name: 'Obnovit přehled', exact: true }).click();
+    await page.getByLabel('Platforma', { exact: true }).selectOption('ios');
+    await page.waitForFunction(() => document.querySelector('[aria-labelledby="lab-token-title"] dd')?.textContent?.startsWith('0 · 1'));
+    await page.getByLabel('Platforma', { exact: true }).selectOption('web');
+    assert.match(await tokens.locator('dd').nth(0).innerText(), /^Neuvedeno/, 'preparation Web is not execution Web');
+    await page.getByRole('button', { name: 'Playground', exact: true }).click();
+    const provenance = page.locator('details').filter({ hasText: 'Přesný snímek konfigurace testu' });
+    await provenance.locator('summary').click();
+    assert.equal(await provenance.locator('dt').filter({ hasText: /^Příprava sezení$/ }).locator('..').evaluate(dl => [...dl.querySelectorAll('dt')].find(dt => dt.textContent === 'Příprava sezení')?.nextElementSibling?.textContent), 'Web');
+    assert.match(await provenance.locator('dl').innerText(), /Provedení testu\s+iOS · hlášení klienta/);
+    await layout(page, `viewer-${width}-cross-client-platform`);
+    await provenance.locator('summary').click();
+    await page.getByRole('button', { name: 'Porovnání a přehled', exact: true }).click();
+    for (const [claims, filter] of [[['ios', 'web'], 'mixed'], [undefined, 'unknown']]) {
+      crossClient.executionPlatforms = claims;
+      await page.getByRole('button', { name: 'Obnovit přehled', exact: true }).click();
+      await page.getByLabel('Platforma', { exact: true }).selectOption(filter);
+      await page.waitForFunction(() => document.querySelector('[aria-labelledby="lab-token-title"] dd')?.textContent?.startsWith('0 · 1'));
+      assert.match(await tokens.locator('dd').nth(0).innerText(), /^0 · 1/, `${filter} executions remain visible independently of preparation`);
+    }
+    crossClient.executionPlatforms = ['web'];
+    await page.getByRole('button', { name: 'Obnovit přehled', exact: true }).click();
+    await page.getByLabel('Platforma', { exact: true }).selectOption('web');
     await page.getByRole('button', { name: 'Playground', exact: true }).click();
     await page.getByRole('button', { name: 'Spustit hlas', exact: true }).click();
     await page.getByText('Zvuk a obraz: Mikrofon nebyl povolen. Povolte mikrofon v nastavení prohlížeče a potom hlas znovu spusťte.', { exact: false }).waitFor();
@@ -281,6 +323,61 @@ async function viewerJourney(width) {
     reports.push({ role: 'Viewer', viewport: { width, height: 1000 }, savedEvaluation: state.evaluations[0], requestCount: state.requests.length, microphone: 'deterministic_permission_denial_then_text_recovery', errors });
   } catch (error) {
     if (page && !page.isClosed()) await page.screenshot({ path: path.join(screenshots, `failure-viewer-${width}.png`), fullPage: true }).catch(() => {});
+    throw error;
+  } finally { await context.close(); }
+}
+
+async function imageJourney(width) {
+  const state = fixture(false);
+  state.imageRealtime = true;
+  const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
+  const errors = [];
+  let page;
+  try {
+    await installFixtures(context, state);
+    page = await context.newPage(); activePage = page;
+    page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
+    await signInViaNavigation(page);
+    await page.getByLabel('Název testu', { exact: true }).fill('Vlastní vizuální test');
+    await page.getByRole('button', { name: 'Připravit sezení', exact: true }).click();
+    await page.getByRole('button', { name: 'Připravit nový vizuální test · Realtime 2.1', exact: true }).waitFor();
+    const original = state.sessions[0];
+    assert.equal(original.engine, 'gpt-live-1');
+    await page.getByRole('button', { name: 'Připravit nový vizuální test · Realtime 2.1', exact: true }).click();
+    await page.locator('#lab-image-input').waitFor({ state: 'attached' });
+    assert.equal(state.sessions.length, 2, 'visual action prepares a new owned test');
+    assert.equal(original.engine, 'gpt-live-1', 'the original saved engine is preserved');
+    assert.equal(state.sessions[0].engine, 'gpt-realtime-2.1');
+    const image = page.locator('.lab-image');
+    await image.locator('summary').click();
+    assert.equal(await page.locator('#lab-image-input').getAttribute('capture'), null, 'library choice does not force camera capture');
+    assert.equal(await page.locator('#lab-camera-input').getAttribute('capture'), 'user');
+    const photo = { name: 'synthetic.png', mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFOsAAAAASUVORK5CYII=', 'base64') };
+    await page.locator('#lab-image-input').setInputFiles(photo);
+    await image.locator('figure img').waitFor();
+    assert.equal(state.requests.filter(request => request.path.endsWith('/image')).length, 0, 'choosing a library photo stays local');
+    await page.getByRole('button', { name: 'Odstranit místní náhled', exact: true }).click();
+    await image.locator('figure img').waitFor({ state: 'detached' });
+    assert.equal(state.requests.filter(request => request.path.endsWith('/image')).length, 0, 'discarding an unsubmitted preview needs no server delete');
+    await page.locator('#lab-camera-input').setInputFiles(photo);
+    await image.locator('figure img').waitFor();
+    await layout(page, `viewer-${width}-camera-library-preview`);
+    await image.screenshot({ path: path.join(screenshots, `viewer-${width}-image-controls-detail.png`) });
+    await image.locator('input[type="checkbox"]').check();
+    await page.getByRole('button', { name: 'Připojit fotografii k dalšímu vstupu', exact: true }).click();
+    await page.getByText('Server potvrdil dočasné připojení fotografie k tomuto testu.', { exact: true }).waitFor();
+    assert.equal(state.sessions[0].hasImage, true);
+    await page.getByRole('button', { name: 'Odebrat fotografii z testu', exact: true }).click();
+    await page.getByText('Server potvrdil odebrání fotografie z dalšího modelového vstupu.', { exact: true }).waitFor();
+    assert.equal(state.sessions[0].hasImage, false);
+    await image.locator('figure img').waitFor({ state: 'detached' });
+    assert.equal(state.sockets, 0, 'image selection and withdrawal start no voice connection');
+    assert(!state.requests.some(request => request.path.endsWith('/turns') || request.path.endsWith('/socket-ticket')), 'preparing a visual test and image actions never invoke a model');
+    assert.deepEqual(state.blocked, []); assert.deepEqual(state.unknown, []); assert.deepEqual(errors, []);
+    reports.push({ role: 'Viewer image controls', viewport: { width, height: 1000 }, evidence: 'synthetic_file_and_server_only', errors });
+  } catch (error) {
+    if (page && !page.isClosed()) await page.screenshot({ path: path.join(screenshots, `failure-image-${width}.png`), fullPage: true }).catch(() => {});
     throw error;
   } finally { await context.close(); }
 }
@@ -352,6 +449,8 @@ try {
   }
   await viewerJourney(1440);
   await viewerJourney(390);
+  await imageJourney(1440);
+  await imageJourney(390);
   await adminJourney();
   await writeFile(path.join(screenshots, 'manifest.json'), JSON.stringify({ evidence: 'synthetic_browser_only', origin, reports, limitations: ['No real passkey, microphone, provider, iPhone, device, or audio-acoustic acceptance.', 'Voice success/audio/interrupt socket flow is covered by backend fake runtime tests; this browser harness covers permission denial and text recovery.'] }, null, 2));
   console.log(JSON.stringify({ passed: true, screenshots, reports: reports.map(({ role, viewport }) => ({ role, viewport })) }));

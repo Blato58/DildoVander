@@ -46,6 +46,7 @@ export interface LabSession {
   id: string; label: string; ownerId: string; createdAt: string; endedAt: string | null;
   status: 'open' | 'ended' | 'failed'; engine: LabEngine; scenarioId: string; fixtureId: string;
   platform: LabPlatform;
+  executionPlatforms?: string[];
   comparisonId?: string | null; recordContent: boolean; hasImage?: boolean; config: Revision; turns: Turn[]; events: LabEvent[]; evaluation?: Evaluation | null;
   memorySnapshot?: MemoryFixture | null; scenarioSnapshot?: Scenario | null;
   hardware?: LabHardware | null;
@@ -81,4 +82,4 @@ export interface LabSuite {
       latencyMs: number | null; audioBytes: number | null; assertions: LabAssertion[] }[] }[];
 }
 export interface LabAssertion { name: string; passed: boolean; detail: string; status?: 'passed' | 'failed' | 'not_exercised' }
-export interface SuiteInput { revisionId: string; engine: LabEngine; fixtureId: string; scenarioIds: string[]; label: string; recordContent: boolean; platform?: LabClientPlatform }
+export interface SuiteInput { revisionId: string; engine: LabEngine; fixtureId: string; scenarioIds: string[]; label: string; recordContent: boolean; platform?: LabClientPlatform; executionPlatform?: LabClientPlatform }

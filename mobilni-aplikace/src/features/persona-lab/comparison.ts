@@ -1,5 +1,6 @@
 import type { LabSession } from './contracts';
 import { observedTokens } from './observations';
+import { comparableExecutionPlatform } from './executionPlatforms';
 
 export function chooseComparison(pair: { left: string; right: string }, side: 'left' | 'right', id: string) {
   const next = { ...pair, [side]: id };
@@ -37,8 +38,10 @@ export function compareSessions(left: LabSession, right: LabSession, suiteSessio
   if (left.fixtureId !== right.fixtureId || leftMemory === null || rightMemory === null || leftMemory !== rightMemory)
     reasons.push('Shodný skutečný snímek paměti není potvrzený.');
   if (!!left.hardware !== !!right.hardware) reasons.push('Testy používají odlišné prostředí: simulaci a skutečný kufr.');
-  if (left.platform === 'unknown' || right.platform === 'unknown' || !left.platform || !right.platform || left.platform !== right.platform)
-    reasons.push('Shodná platforma není potvrzená.');
+  const leftExecutionPlatform = comparableExecutionPlatform(left);
+  const rightExecutionPlatform = comparableExecutionPlatform(right);
+  if (!leftExecutionPlatform || !rightExecutionPlatform || leftExecutionPlatform !== rightExecutionPlatform)
+    reasons.push('Shodná platforma skutečného běhu není potvrzená.');
   const scripted = suiteSessionIds.has(left.id) && suiteSessionIds.has(right.id);
   if (!scripted) reasons.push('Oba testy nejsou doložené jako běhy stejného skriptu; ruční vstupy se mohly lišit.');
   if (left.status !== 'ended' || right.status !== 'ended') reasons.push('Oba testy musejí být dokončené bez selhání sezení.');

@@ -2,6 +2,7 @@ import { accountTransport } from '../identity/session';
 import type { Analytics, Catalog, Evaluation, LabHardwareTicket, LabSession, LabSuite, Revision, RevisionInput, SessionInput, SocketTicket, SuiteInput } from './contracts';
 import { classifyLabFailure, describeLabFailure, isNetworkTransportFailure, type LabFailure } from './errors';
 import { labClientPlatform } from './platform';
+import { normalizeExecutionPlatforms } from './executionPlatforms';
 import { sanitizeSystemDiagnostics } from './systemDiagnostics';
 
 const base = '/app/v1/persona-lab';
@@ -64,12 +65,18 @@ export class PersonaLabClient {
     if (!platform) return Promise.reject(new LabError('client_platform_unsupported', 0));
     return this.request<LabSession>('/sessions', 'POST', { ...input, platform });
   }
-  text(id: string, text: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/turns`, 'POST', { text }); }
+  text(id: string, text: string) {
+    const platform = labClientPlatform();
+    if (!platform) return Promise.reject(new LabError('client_platform_unsupported', 0));
+    return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/turns`, 'POST', { text, platform });
+  }
   end(id: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/end`, 'POST', {}); }
   ticket(id: string, recovery = false) {
+    const platform = labClientPlatform();
+    if (!platform) return Promise.reject(new LabError('client_platform_unsupported', 0));
     const socketOrigin = window.location.protocol === 'capacitor:' && window.location.hostname === 'localhost'
       ? 'capacitor://localhost' : window.location.origin;
-    return this.request<SocketTicket>(`/sessions/${encodeURIComponent(id)}/socket-ticket`, 'POST', { socketOrigin, recovery });
+    return this.request<SocketTicket>(`/sessions/${encodeURIComponent(id)}/socket-ticket`, 'POST', { socketOrigin, recovery, platform });
   }
   evaluate(id: string, evaluation: Evaluation) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/evaluation`, 'PUT', evaluation); }
   attachImage(id: string, dataBase64: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/image`, 'POST', { mimeType: 'image/jpeg', dataBase64, consent: true }); }
@@ -79,7 +86,7 @@ export class PersonaLabClient {
   createSuite(input: SuiteInput) {
     const platform = labClientPlatform();
     if (!platform) return Promise.reject(new LabError('client_platform_unsupported', 0));
-    return this.request<LabSuite>('/suites', 'POST', { ...input, platform });
+    return this.request<LabSuite>('/suites', 'POST', { ...input, platform, executionPlatform: platform });
   }
   draft(input: RevisionInput) { return this.request<Revision>('/revisions', 'POST', input, true); }
   publish(id: string, expectedActiveRevisionId: string | null) {
@@ -96,6 +103,7 @@ export function technicalDiagnostics(session: LabSession, hardwareUncertain = fa
   return {
     schemaVersion: 1, simulationOnly: hardwareUncertain ? null : !session.hardware, hardwareUncertain,
     sessionId: session.id, engine: session.engine, platform: session.platform ?? 'unknown',
+    executionPlatforms: normalizeExecutionPlatforms(session.executionPlatforms),
     hardwareBinding: session.hardware ? { deviceId: session.hardware.deviceId, bootId: session.hardware.bootId,
       expectedRevision: session.hardware.expectedRevision, conversationId: session.hardware.conversationId,
       status: session.hardware.status, expiresAt: session.hardware.expiresAt } : null,

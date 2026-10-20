@@ -15,10 +15,25 @@ Responses conversations and STT/dialog/TTS pipelines remain retired.
 - Start voice explicitly and grant microphone permission. Interrupt speech or
   stop voice before switching to text. Stop/end, navigation, logout, backgrounding
   and capture failure retire the microphone, playback graph and socket.
+- During an ordinary simulation voice test, direct commands such as `ukonči test`,
+  `vypni se` or `end the test` use the same authenticated session-end action as
+  the End button. Only the current user's bounded, unambiguous transcription or
+  a validated Realtime terminal decision can trigger this action; assistant
+  quotations, negated requests and stale connection callbacks cannot. This is a
+  client control, not a general language classifier or a physical suitcase Stop.
 - Realtime supports a consented, metadata-free JPEG prepared in the browser,
   at most 640 by 640 pixels and 45,000 bytes. It is volatile, expires after
   15 minutes and is removed on explicit withdrawal/end/deletion. GPT Live image
   input is not advertised by this lab.
+- A Live session offers explicit preparation of a new Realtime visual test;
+  it does not change the saved Live session or call a model. Camera and photo
+  library selection are separate actions. A local preview can be discarded
+  without uploading or deleting anything on the server. Withdrawing an attached
+  image stops local voice immediately and requires server confirmation before
+  reporting that the temporary model input has been removed. Server content
+  commits check their originating execution token under the same admission fence
+  as withdrawal; late replies cannot enter durable or in-memory history after
+  cancellation. Already observed usage remains accounted independently.
 - **SIMULATION** is the default and cannot dispatch to a device. Deliberate
   **REAL SUITCASE** testing requires a paired native connection, the exact device
   operating grant, explicit confirmation and advertised `voiceTestContext`
@@ -63,6 +78,18 @@ Responses conversations and STT/dialog/TTS pipelines remain retired.
   received the simulated failure result; absent delegation is not a pass.
 
 ## Persona publication
+
+`LabSession.platform` preserves the client that prepared the session. It is not
+execution evidence. `executionPlatforms` independently retains the sorted,
+distinct `web`, `ios` and `unknown` observations from admitted text/voice runs,
+even after capped technical events are removed. This is client-reported software
+attribution, not proof of a physical iPhone or firmware execution. Preparation
+and unused socket tickets add no observations. Mixed sessions retain all observed
+platforms; old clients without execution metadata add `unknown` only when admitted.
+Historical sessions with no observations remain empty, without inference from
+their preparation field or user agent. Text requests and socket tickets accept
+optional `platform`; suites accept separate optional `executionPlatform` for each
+child turn. Explicit execution claims accept only `web` or `ios`.
 
 The initial effective production instructions are saved as an immutable baseline.
 Every edit creates a new draft. Testing a draft does not change production.
