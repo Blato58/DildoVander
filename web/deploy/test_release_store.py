@@ -56,6 +56,75 @@ class ReleaseStoreTests(unittest.TestCase):
             self.assertTrue((self.models / 'bundles' / second_manifest['bundleHash']).exists())
             self.assertEqual(first_manifest['bundleHash'], first_pointer['bundleHash'])
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX hosting permission contract')
+    def test_private_upload_modes_are_repaired_before_publication_and_reuse(self):
+        bundle, manifest = self.bundle('private-upload')
+        nested = bundle / 'evidence'
+        nested.mkdir()
+        (nested / 'proof.json').write_text('{"synthetic":true}')
+        for path in (bundle, nested):
+            path.chmod(0o700)
+        for path in bundle.rglob('*'):
+            if path.is_file():
+                path.chmod(0o600)
+        original = store.inventory(bundle)
+        private = self.root / 'private-secret'
+        private.write_text('synthetic secret outside public store')
+        private.chmod(0o600)
+        target = self.models / 'bundles' / manifest['bundleHash']
+
+        def check(pointer):
+            for path in (self.models, self.models / 'bundles', target, target / 'evidence'):
+                self.assertEqual(0o755, path.stat().st_mode & 0o777)
+            for path in (*[p for p in target.rglob('*') if p.is_file()], self.models / 'active.json'):
+                self.assertEqual(0o644, path.stat().st_mode & 0o777)
+            self.assertEqual(original, store.inventory(target))
+
+        old_umask = os.umask(0o077)
+        try:
+            first = store.publish_model(bundle, self.models, validator=self.fake_validator, check=check)
+            target.chmod(0o700)
+            (target / 'model.json').chmod(0o600)
+            (self.models / 'active.json').chmod(0o600)
+            self.assertEqual(first, store.publish_model(bundle, self.models, validator=self.fake_validator, check=check))
+        finally:
+            os.umask(old_umask)
+        self.assertEqual(0o700, bundle.stat().st_mode & 0o777)
+        self.assertEqual(0o600, private.stat().st_mode & 0o777)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX hosting permission contract')
+    def test_rollback_repairs_validated_public_model_modes(self):
+        first, manifest = self.bundle('first')
+        second, _ = self.bundle('second')
+        store.publish_model(first, self.models, validator=self.fake_validator)
+        store.publish_model(second, self.models, validator=self.fake_validator)
+        target = self.models / 'bundles' / manifest['bundleHash']
+        target.chmod(0o700)
+        (target / 'model.json').chmod(0o600)
+        def check(pointer):
+            self.assertEqual(0o755, target.stat().st_mode & 0o777)
+            self.assertEqual(0o644, (target / 'model.json').stat().st_mode & 0o777)
+        store.rollback_model(self.models, validator=self.fake_validator, check=check)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX hosting permission contract')
+    def test_rollback_rejects_symlink_store_before_changing_outside_modes(self):
+        first, _ = self.bundle('first')
+        second, _ = self.bundle('second')
+        store.publish_model(first, self.models, validator=self.fake_validator)
+        store.publish_model(second, self.models, validator=self.fake_validator)
+        external = self.root / 'outside-store'
+        (self.models / 'bundles').rename(external)
+        (self.models / 'bundles').symlink_to(external, target_is_directory=True)
+        paths = (external, *external.rglob('*'))
+        for path in paths:
+            path.chmod(0o700 if path.is_dir() else 0o600)
+        modes = {path: path.stat().st_mode for path in paths}
+        active = (self.models / 'active.json').read_bytes()
+        with self.assertRaisesRegex(ValueError, 'canonical public store'):
+            store.rollback_model(self.models, validator=self.fake_validator)
+        self.assertEqual(modes, {path: path.stat().st_mode for path in paths})
+        self.assertEqual(active, (self.models / 'active.json').read_bytes())
+
     def test_failed_model_validation_preserves_current_reference(self):
         first, _ = self.bundle('first')
         with patch.object(store, 'validate_model', side_effect=self.fake_validator):
