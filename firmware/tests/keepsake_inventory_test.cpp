@@ -188,8 +188,14 @@ void CompleteReferencesAndUnknownLedger() {
       && decoded.quarantined[0].physicalFingerprint == std::numeric_limits<uint64_t>::max());
   auto missing = decoded; missing.quarantined.clear();
   assert(!store.Commit(missing)); // Public updates cannot silently erase bound retirement history.
+  KeepsakeDisposition legacyDisposition{};
+  legacyDisposition.operationId = Id(1);
+  legacyDisposition.outcomeId = Id(1001);
+  legacyDisposition.reason = "outcome_delivered";
+  KeepsakeOutboxState legacyState;
+  legacyState.quarantined.push_back(legacyDisposition);
   Storage legacy;
-  legacy.Set(keepsake_persistence::Encode({{}, {{Id(1), Id(1001), "outcome_delivered", 0}}, {}}));
+  legacy.Set(keepsake_persistence::Encode(legacyState));
   Store unknown(legacy); assert(unknown.Establish(Device, true));
   assert(Read(unknown).ambiguous); // Old dispositions have no invented physical tuple.
   auto conflict = Candidate();
