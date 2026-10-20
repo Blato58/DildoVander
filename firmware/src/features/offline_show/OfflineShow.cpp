@@ -170,11 +170,19 @@ bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool short
   record.scripted = scripted; record.shortVariant = shortVariant;
   record.operationEpoch = operationEpoch; record.deviceRevision = revision;
   record.physicalFingerprint = operationEpoch ? PhysicalPresentation::OperationFingerprint(shortVariant) : 0;
+  if (operationEpoch && !control_.ReserveAutonomousPresentation(operationId, slot,
+      revision, record.physicalFingerprint, operationEpoch)) {
+    runtime_.ReleaseDecoration(generation); return false;
+  }
   if (!storage_.Write(updated)) {
+    if (operationEpoch) control_.CancelAutonomousReservation();
     storageHealthy_ = false; runtime_.ReleaseDecoration(generation); return false;
   }
   outbox_ = updated;
-  if (!audio_.Play(*opening, generation)) { runtime_.ReleaseDecoration(generation); return false; }
+  if (!audio_.Play(*opening, generation)) {
+    if (operationEpoch) control_.CancelAutonomousReservation();
+    runtime_.ReleaseDecoration(generation); return false;
+  }
   activeIndex_ = static_cast<int>(index);
   motionStarted_ = false;
   audioStage_ = shortVariant ? 1 : 0;

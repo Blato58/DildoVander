@@ -35,6 +35,13 @@ class DeviceControlRuntime final {
   CommandReceipt ConfirmReload(const InventoryReloadCommand& command,
                                bool authenticated, uint64_t nowMs);
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
+  bool ReserveAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
+      const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint);
+  bool HasAutonomousReservation(const std::string& id, uint8_t slot,
+      uint64_t fingerprint, uint64_t epoch) const {
+    return control_.HasAutonomousReservation(id, slot, fingerprint, epoch);
+  }
+  void CancelAutonomousReservation() { control_.CancelAutonomousReservation(); }
   bool BeginAutonomousPresentation(
       const std::string& proposalId, uint8_t compartment,
       const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint = 0);

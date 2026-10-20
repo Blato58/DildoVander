@@ -117,6 +117,14 @@ class DeviceControl {
   CommandReceipt ConfirmReload(const InventoryReloadCommand& command,
                                bool authenticated, uint64_t nowMs);
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
+  bool ReserveAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch);
+  bool HasAutonomousReservation() const { return journal_.HasPresentationReservation(); }
+  bool HasAutonomousReservation(const std::string& id, uint8_t slot,
+      uint64_t fingerprint, uint64_t epoch) const {
+    return journal_.HasPresentationReservation(epoch, id, slot, fingerprint);
+  }
+  void CancelAutonomousReservation() { journal_.CancelPresentationReservation(); }
   bool BeginAutonomousPresentation(const std::string& proposalId,
                                    uint8_t compartment,
                                    uint64_t expectedRevision, uint64_t fingerprint = 0,
@@ -154,6 +162,8 @@ class DeviceControl {
                                       uint64_t operationEpoch = 0) const;
 
  private:
+  bool CanAdmitAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) const;
   struct CachedResult {
     bool occupied = false;
     ControlCommandKind kind = ControlCommandKind::Selection;

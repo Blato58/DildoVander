@@ -364,6 +364,22 @@ void TestAtomicRepairAndCompactionWriteCuts() {
   }
 }
 
+void TestLiveReservationBlocksReconciliation() {
+  Durable durable;
+  Provision(durable);
+  Session session(durable);
+  const auto operation = Operation(0);
+  assert(session.journal.ReservePresentation(operation.epoch, operation.operationId,
+      operation.compartment, operation.fingerprint));
+  const auto writes = durable.journal.writes;
+  assert(!session.journal.HasPending());
+  assert(session.reconciliation.Reconcile(View()) == Result::PresentationReserved);
+  assert(durable.journal.writes == writes && Pinned(session.journal, operation));
+  session.journal.CancelPresentationReservation();
+  assert(session.reconciliation.Reconcile(View()) == Result::NotNeeded);
+  assert(durable.journal.writes == writes && Pinned(session.journal, operation));
+}
+
 void TestBatchRejectsStaleSnapshotWithoutWriting() {
   Durable durable;
   Provision(durable);
@@ -508,6 +524,7 @@ int main() {
   TestEpochExhaustionHasNoDestructiveWrites();
   TestAtomicRepairAndCompactionWriteCuts();
   TestBatchRejectsStaleSnapshotWithoutWriting();
+  TestLiveReservationBlocksReconciliation();
   TestCommittedSourcesAndBarrierInterleavings();
   TestMixedOperationsAcrossRestartsAndCompactions();
 }

@@ -125,11 +125,38 @@ The second command verifies the pinned cJSON source hashes before compiling.
 Its local path is populated by the existing PlatformIO dependency resolution;
 CI supplies the same checked source bytes in its temporary directory.
 
+## Scoped preparation before evidence
+
+A scoped presentation first reserves its exact epoch, UUID, compartment and
+fingerprint in the existing v4 history as pinned, untimed evidence. The reserve
+commit does not set physical pending state or produce a motion. Only its
+acknowledged commit publishes a single volatile capability in that journal
+owner. The journal owner cannot be copied or moved to duplicate that authority.
+
+Online preparation captures the selected score fingerprint and reserves through
+the presentation/control owner before the keepsake reference is persisted.
+Offline admission reserves the original selected variant before its technical
+outbox record is persisted, including during the opening audio. Scoped physical
+begin consumes that same reserved entry with a separate durable pending commit;
+it never appends another history entry. It can consume the last history slot.
+The existing post-persist timing and physical safety checks still precede output.
+
+Construction and reopening never restore the volatile capability. A reserved
+entry found after restart is only a replay tombstone, not permission to resume.
+Cancel and Stop clear the capability without removing its durable pin or
+inventing completion proof. Failed preparation/consume acknowledgements require
+the existing authoritative reopen procedure. Active reservations block other
+journal mutations and reconciliation without claiming that physical motion is
+pending. The trusted control owner remains the author of timed completion proof;
+reservation alone cannot provide it.
+
 ## Remaining production integration and evidence
 
 The production stores currently remain unbound. Startup recovery, every live
 producer and persisted-journal reader still need one barrier with the control
 owner, including original-epoch validation and pin ordering for late producers.
+The scoped online/offline admission paths now reserve before their evidence
+commits, but this is not a substitute for the common barrier or boot gate.
 The service/provisioning caller must compose establishment without allowing
 motion or inspection mutations midway. A ready identity witness alone is not
 physical admission: successful committed-source reconciliation is also required.
@@ -141,7 +168,8 @@ work. The host tests do not establish an ESP latency or flash-wear bound.
 
 Host tests inject commit cuts, failed writes and committed writes with lost
 ACKs. The combined test runs 1,152 mixed manual/online/offline journal operations
-through both actual inventory codecs, reopening after every operation and
+through both actual inventory codecs, reserving before online/offline reference
+commits, reopening after every operation and
 retaining delayed evidence across repeated compactions. Its driver calls the
 journal directly; it does not establish production control/actuator integration.
 The actual NVS adapter tests check namespace isolation, bounds and mandatory

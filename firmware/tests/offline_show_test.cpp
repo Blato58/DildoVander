@@ -2,7 +2,10 @@
 #include "../src/features/offline_show/OfflineShow.h"
 #include "../src/features/offline_show/ImaAdpcm.h"
 #include <cstring>
+#include <functional>
 #include <iostream>
+#include <vector>
+#include "../src/features/device_control/PersistentCommandJournal.h"
 
 using namespace kufr::offline;
 namespace {
@@ -51,8 +54,10 @@ struct Audio final : AudioPort {
 struct Storage final : StoragePort {
   Outbox saved{};
   bool fail = false;
+  std::function<void(const Outbox&)> beforeWrite;
   bool Read(Outbox& outbox) override { outbox = saved; return !fail; }
   bool Write(const Outbox& outbox) override {
+    if (beforeWrite) beforeWrite(outbox);
     if (fail) return false;
     saved = outbox; return true;
   }
@@ -266,31 +271,37 @@ void ScriptedStandaloneAndVoiceReadiness() {
   assert(!missing.Arm(f.runtime.Generation(), f.control.Revision()));
 }
 
-class EpochJournal final : public CommandJournal {
+class EpochStorage final : public JournalStorage {
  public:
-  uint64_t epoch = 1;
-  unsigned begins = 0;
-  bool HasPending() const override { return false; }
-  uint8_t PendingCompartment() const override { return 0; }
-  uint8_t ReadyMask() const override { return 63; }
-  uint64_t CurrentEpoch() const override { return epoch; }
-  bool Begin(const std::string&, uint8_t) override { ++begins; return false; }
-  bool BeginScoped(uint64_t, const std::string&, uint8_t, uint64_t) override { ++begins; return false; }
-  Lookup FindScoped(uint64_t originalEpoch, const std::string&, uint8_t, uint64_t) const override {
-    return originalEpoch == epoch ? Lookup::Missing : Lookup::StaleEpoch;
+  JournalReadResult Read(uint8_t* target, size_t capacity, size_t& length) override {
+    length = bytes.size();
+    if (bytes.empty()) return JournalReadResult::Missing;
+    if (length > capacity) return JournalReadResult::Failed;
+    std::copy(bytes.begin(), bytes.end(), target);
+    return JournalReadResult::Found;
   }
-  bool Resolve(uint8_t) override { return false; }
-  bool PersistReadyMask(uint8_t) override { return true; }
+  bool Write(const uint8_t* source, size_t length) override {
+    bytes.assign(source, source + length); return true;
+  }
+  std::vector<uint8_t> bytes;
 };
 void PendingAudioCannotRestampOperationEpoch() {
   FakeIo io; PhysicalEffects effects(io); SafetyAdapter port(effects);
   SafetyController safety(port); SelectionSequence sequence(safety, true);
-  EpochJournal journal;
+  EpochStorage journalStorage;
+  PersistentCommandJournal journal(journalStorage);
+  assert(journal.PersistReadyMask(63) && journal.EstablishScopedIdentity("device", true));
   DeviceControl control("device", Boot, sequence, journal, 1);
   ConversationRuntimeState state(false, 0, "");
   DeviceControlRuntime runtime(control, sequence, state, OfflineShow::CatalogVersion());
   PhysicalPresentation physical(effects, runtime); WandPresentation presentation(physical);
   Audio audio; Storage storage;
+  storage.beforeWrite = [&](const Outbox& next) {
+    for (const auto& record : next.records) if (record.operationId[0]) {
+      assert(journal.IsEvidencePinned(record.operationEpoch, record.operationId.data(),
+          record.slot, record.physicalFingerprint));
+    }
+  };
   std::array<ServoCalibration, 6> calibration; calibration.fill({1100, 1900, 500});
   assert(effects.Configure(calibration, 1));
   assert(runtime.BindPresentation(presentation) && runtime.RecoverAfterInspection());
@@ -302,13 +313,16 @@ void PendingAudioCannotRestampOperationEpoch() {
   assert(offline.Start(id, 1, false, runtime.Generation(), control.Revision(), 30, false, 1));
   assert(storage.saved.records[0].operationEpoch == 1 && storage.saved.records[0].physicalFingerprint
       == PhysicalPresentation::OperationFingerprint(false));
-  journal.epoch = 2;
+  assert(journal.HasPresentationReservation() && !journal.HasPending() && journal.HistoryCount() == 1);
+  journal.CancelPresentationReservation();
+  assert(journal.AdvanceEpochAndCompact());
   runtime.PublishCurrent();
   audio.busy = false;
   offline.Tick(40, true); // Intro may finish, but the saved admission epoch remains one.
   audio.busy = false;
   offline.Tick(50, true);
-  assert(journal.begins == 0 && !offline.Active());
+  assert(!journal.HasPending() && journal.HistoryCount() == 1 && !offline.Active());
+  assert(io.servoWrites == 0);
   assert(storage.saved.records[0].operationEpoch == 1 && !storage.saved.records[0].completed);
   assert(storage.saved.records[0].operationId[0] && offline.OutboxJson() == "[]");
 }

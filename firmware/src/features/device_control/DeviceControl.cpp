@@ -68,6 +68,7 @@ DeviceControl::DeviceControl(const std::string& deviceId,
       calibrationRevision_(calibrationRevision) {}
 
 bool DeviceControl::RecoverAfterInspection() {
+  CancelAutonomousReservation();
   if (selection_.IsBusy() || HasPendingSelection() ||
       HasAutonomousPresentation()) {
     return false;
@@ -96,7 +97,7 @@ bool DeviceControl::AcquireManualControl(const std::string& leaseId,
                                           uint64_t nowMs) {
   if (leaseId.empty() || !manualLeaseId_.empty() ||
       HasAutonomousPresentation() || selection_.IsBusy() ||
-      selection_.NeedsRecovery() || journal_.HasPending()) {
+      selection_.NeedsRecovery() || journal_.HasPending() || HasAutonomousReservation()) {
     return false;
   }
 
@@ -374,27 +375,37 @@ bool DeviceControl::BeginAcceptedSelection(uint64_t nowMs,
   return true;
 }
 
+bool DeviceControl::CanAdmitAutonomousPresentation(
+    const std::string& proposalId, uint8_t compartment,
+    uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) const {
+  return operationEpoch == OperationEpoch() && (operationEpoch == 0 || fingerprint != 0) &&
+      !proposalId.empty() && compartment >= 1 && compartment <= SelectionSequence::CompartmentCount &&
+      expectedRevision == revision_ && calibrationRevision_ != 0 &&
+      !HasManualControl() && !HasPendingSelection() && !HasAutonomousPresentation() &&
+      !selection_.IsBusy() && !selection_.NeedsRecovery() && !journal_.HasPending() &&
+      (readyMask_ & (1u << (compartment - 1))) != 0;
+}
+
+bool DeviceControl::ReserveAutonomousPresentation(
+    const std::string& proposalId, uint8_t compartment,
+    uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) {
+  return operationEpoch != 0 && CanAdmitAutonomousPresentation(proposalId, compartment,
+      expectedRevision, fingerprint, operationEpoch) &&
+      journal_.ReservePresentation(operationEpoch, proposalId, compartment, fingerprint);
+}
+
 bool DeviceControl::BeginAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
     uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) {
-  if (operationEpoch != OperationEpoch() || (operationEpoch != 0 && fingerprint == 0) ||
-      proposalId.empty() || compartment < 1 ||
-      compartment > SelectionSequence::CompartmentCount ||
-      expectedRevision != revision_ || calibrationRevision_ == 0 ||
-      HasManualControl() || HasPendingSelection() ||
-      HasAutonomousPresentation() || selection_.IsBusy() ||
-      selection_.NeedsRecovery() || journal_.HasPending() ||
-      (readyMask_ & (1u << (compartment - 1))) == 0) {
-    return false;
-  }
+  if (!CanAdmitAutonomousPresentation(proposalId, compartment,
+      expectedRevision, fingerprint, operationEpoch)) return false;
 
   // The durable record must exist before a servo port may request motion.
   if (operationEpoch != 0 &&
-      FindOperation(proposalId, compartment, fingerprint, operationEpoch) !=
-          CommandJournal::Lookup::Missing) return false;
+      !HasAutonomousReservation(proposalId, compartment, fingerprint, operationEpoch)) return false;
   const bool recorded = operationEpoch == 0
       ? journal_.BeginWithIdentity(proposalId, compartment, fingerprint)
-      : journal_.BeginScoped(operationEpoch, proposalId, compartment, fingerprint);
+      : journal_.BeginReservedPresentation(operationEpoch, proposalId, compartment, fingerprint);
   if (!recorded) {
     SelectionStep step;
     selection_.ReportFault(step);
@@ -443,6 +454,7 @@ bool DeviceControl::ConfirmTimedPresentation() {
 }
 
 void DeviceControl::FaultAutonomousPresentation() {
+  CancelAutonomousReservation();
   if (autonomousCompartment_ == 0) {
     return;
   }
@@ -490,6 +502,7 @@ bool DeviceControl::Tick(uint64_t nowMs, SelectionStep& step) {
 }
 
 bool DeviceControl::Stop(SelectionStep& step) {
+  CancelAutonomousReservation();
   const uint64_t previousRevision = revision_;
   const bool newlyStopped = selection_.Stop(step);
   FaultAutonomousPresentation();

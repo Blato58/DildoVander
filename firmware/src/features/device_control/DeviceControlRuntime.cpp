@@ -122,6 +122,16 @@ bool DeviceControlRuntime::BeginAcceptedSelection(uint64_t nowMs,
   return started;
 }
 
+bool DeviceControlRuntime::ReserveAutonomousPresentation(
+    const std::string& proposalId, uint8_t compartment,
+    const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint) {
+  if ((offlineAuthority_ && !offlineAdmission_) || externalActivity_ || decorationActive_ ||
+      presentation_ == nullptr || presentation_->State() != WandPresentationState::Idle ||
+      !runtime_.Matches(expectedSnapshot)) return false;
+  return control_.ReserveAutonomousPresentation(proposalId, compartment,
+      expectedSnapshot.deviceRevision, fingerprint, expectedSnapshot.operationEpoch);
+}
+
 bool DeviceControlRuntime::BeginAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
     const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint) {
@@ -260,6 +270,7 @@ bool DeviceControlRuntime::HasAutonomousPresentation() const {
 
 bool DeviceControlRuntime::CanCapturePresentationFingerprint() const {
   return !externalActivity_ && !decorationActive_ && !offlineAuthority_ &&
+      !control_.HasAutonomousReservation() &&
       !control_.NeedsRecovery() && !control_.HasManualControl() &&
       !control_.HasPendingSelection() && !control_.HasAutonomousPresentation() &&
       !selection_.IsBusy() && presentation_ != nullptr &&

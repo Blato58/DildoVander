@@ -97,6 +97,48 @@ SelectionCommand Manual(const ScopedFixture& fixture, uint64_t epoch) {
   return command;
 }
 
+void ScopedReservationPinsBeforeAdmissionAndCannotResumeAfterRestart() {
+  ScopedFixture fixture;
+  PendingProposal pending;
+  const auto snapshot = fixture.Snapshot();
+  const auto proposal = fixture.Proposal(snapshot);
+  const auto fingerprint = fixture.presentation.CurrentOperationFingerprint();
+  assert(pending.Store(proposal, snapshot, fixture.state, 30, 2000));
+  assert(fixture.presentation.ReservePendingOperation(pending, fixture.state, 30));
+  assert(fixture.journal.HasPresentationReservation() && !fixture.journal.HasPending());
+  assert(fixture.journal.HistoryCount() == 1 && fixture.journal.IsEvidencePinned(
+      1, OperationId, 3, fingerprint));
+  assert(!fixture.control.WasTimedPresentationCompleted(OperationId, 3, 1, fingerprint));
+  assert(fixture.io.servoWrites == 0 && fixture.io.vibrationWrites == 0);
+  assert(!fixture.runtime.AcquireManualControl("competing", 31));
+
+  ScopedFixture restarted(fixture.storage);
+  assert(!restarted.journal.HasPresentationReservation() && !restarted.journal.HasPending());
+  const auto current = restarted.Snapshot();
+  PendingProposal repeated;
+  assert(repeated.Store(restarted.Proposal(current), current, restarted.state, 30, 2000));
+  assert(!restarted.presentation.ReservePendingOperation(repeated, restarted.state, 30));
+  assert(!restarted.presentation.Start(repeated, restarted.state, 30));
+  assert(restarted.io.servoWrites == 0 && restarted.io.vibrationWrites == 0);
+
+  assert(fixture.presentation.Start(pending, fixture.state, 31));
+  assert(!fixture.journal.HasPresentationReservation() && fixture.journal.HasPending());
+  assert(fixture.journal.HistoryCount() == 1); // Consume never appends a duplicate history record.
+  SelectionStep step;
+  fixture.runtime.Stop(step);
+  assert(!fixture.journal.HasPresentationReservation());
+
+  ScopedFixture cancelled;
+  const auto before = cancelled.Snapshot();
+  PendingProposal cancelPending;
+  assert(cancelPending.Store(cancelled.Proposal(before), before, cancelled.state, 30, 2000));
+  assert(cancelled.presentation.ReservePendingOperation(cancelPending, cancelled.state, 30));
+  cancelled.runtime.Stop(step);
+  assert(!cancelled.journal.HasPresentationReservation() && !cancelled.journal.HasPending());
+  assert(!cancelled.presentation.Start(cancelPending, cancelled.state, 31));
+  assert(cancelled.io.servoWrites == 0);
+}
+
 void WrongEpochDoesNotConsumeOrMove() {
   ScopedFixture fixture;
   assert(fixture.runtime.AcquireManualControl("lease", 30));
@@ -317,6 +359,7 @@ void DecimalCodecAndPollGuards() {
 }  // namespace
 
 int main() {
+  ScopedReservationPinsBeforeAdmissionAndCannotResumeAfterRestart();
   WrongEpochDoesNotConsumeOrMove();
   ReloadCacheUsesOriginalEpoch();
   ScopedPresentationCompletesAndRejectsOriginalAfterRotation();

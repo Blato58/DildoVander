@@ -111,7 +111,7 @@ bool PersistentCommandJournal::PreviewScopedIdentity(
 }
 
 bool PersistentCommandJournal::CanBeginOperation() const {
-  return !HasPending() && state_.historyCount < HistoryCapacity;
+  return !HasPending() && !HasPresentationReservation() && state_.historyCount < HistoryCapacity;
 }
 
 uint8_t PersistentCommandJournal::PendingCompartment() const {
@@ -163,6 +163,60 @@ bool PersistentCommandJournal::BeginScoped(
     uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
   if (epoch == 0 || epoch != state_.currentEpoch || fingerprint == 0) return false;
   return BeginAtEpoch(epoch, id, compartment, fingerprint);
+}
+
+bool PersistentCommandJournal::ReservePresentation(
+    uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
+  if (!healthy_ || state_.origin != StateOrigin::Scoped || epoch == 0 ||
+      epoch != state_.currentEpoch || !IsCanonicalUuid(id) || compartment < 1 ||
+      compartment > 6 || fingerprint == 0 || HasPending() ||
+      (state_.readyMask & (1u << (compartment - 1))) == 0) return false;
+  if (HasPresentationReservation())
+    return HasPresentationReservation(epoch, id, compartment, fingerprint);
+  if (state_.historyCount == HistoryCapacity ||
+      FindHistorical(epoch, id, compartment, fingerprint) != Lookup::Missing) return false;
+
+  State next = state_;
+  auto& entry = next.history[next.historyCount++];
+  entry.id = id;
+  entry.compartment = compartment;
+  entry.fingerprint = fingerprint;
+  entry.epoch = epoch;
+  entry.evidencePinned = true;
+  entry.timedCompleted = false;
+  if (!Persist(next)) return false;
+  presentationReservation_ = {epoch, id, compartment, fingerprint};
+  return true;
+}
+
+bool PersistentCommandJournal::HasPresentationReservation() const {
+  return presentationReservation_.epoch != 0;
+}
+
+bool PersistentCommandJournal::HasPresentationReservation(
+    uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) const {
+  return HasPresentationReservation() &&
+         SameJournalOperationIdentity(presentationReservation_, {epoch, id, compartment, fingerprint});
+}
+
+bool PersistentCommandJournal::BeginReservedPresentation(
+    uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
+  if (!healthy_ || state_.origin != StateOrigin::Scoped || epoch != state_.currentEpoch ||
+      !HasPresentationReservation(epoch, id, compartment, fingerprint) || HasPending() ||
+      (state_.readyMask & (1u << (compartment - 1))) == 0) return false;
+  const Entry* entry = ExactEntry(epoch, id, compartment, fingerprint);
+  if (!entry || !entry->evidencePinned || entry->timedCompleted) return false;
+  State next = state_;
+  next.pendingCompartment = compartment;
+  next.commandId = id;
+  // The existing reserved entry is consumed even when it fills history. A
+  // failed acknowledgement poisons this instance and cannot retain authority.
+  CancelPresentationReservation();
+  return Persist(next);
+}
+
+void PersistentCommandJournal::CancelPresentationReservation() {
+  presentationReservation_ = {};
 }
 
 bool PersistentCommandJournal::BeginAtEpoch(
@@ -221,7 +275,7 @@ bool PersistentCommandJournal::ConfirmTimedPresentationScoped(
 
 bool PersistentCommandJournal::ConfirmTimedAtEpoch(
     uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
-  if (HasPending() || fingerprint == 0) return false;
+  if (HasPending() || HasPresentationReservation() || fingerprint == 0) return false;
   State next = state_;
   for (size_t index = 0; index < next.historyCount; ++index) {
     auto& entry = next.history[index];
@@ -281,7 +335,7 @@ bool PersistentCommandJournal::WasTimedPresentationCompletedHistorical(
 }
 
 bool PersistentCommandJournal::PersistReadyMask(uint8_t readyMask) {
-  if (HasPending() || readyMask > AllCompartmentsMask) return false;
+  if (HasPending() || HasPresentationReservation() || readyMask > AllCompartmentsMask) return false;
   State next = state_;
   next.readyMask = readyMask;
   return Persist(next);
@@ -289,7 +343,7 @@ bool PersistentCommandJournal::PersistReadyMask(uint8_t readyMask) {
 
 bool PersistentCommandJournal::BuildScopedState(
     const std::string& deviceId, bool factoryProvisioning, State& next) const {
-  if (HasPending() || state_.currentEpoch != 0 || !IsValidDeviceId(deviceId) ||
+  if (HasPending() || HasPresentationReservation() || state_.currentEpoch != 0 || !IsValidDeviceId(deviceId) ||
       (state_.origin == StateOrigin::Missing && !factoryProvisioning)) return false;
   next = state_;
   next.currentEpoch = 1;
@@ -308,7 +362,7 @@ bool PersistentCommandJournal::EstablishScopedIdentity(
 }
 
 bool PersistentCommandJournal::AdvanceEpochAndCompact() {
-  if (HasPending() || state_.origin != StateOrigin::Scoped ||
+  if (HasPending() || HasPresentationReservation() || state_.origin != StateOrigin::Scoped ||
       state_.currentEpoch == std::numeric_limits<uint64_t>::max()) return false;
   State next = state_;
   next.history = {};
@@ -323,7 +377,7 @@ bool PersistentCommandJournal::AdvanceEpochAndCompact() {
 
 bool PersistentCommandJournal::ReleaseEvidencePin(
     uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
-  if (HasPending() || state_.origin != StateOrigin::Scoped) return false;
+  if (HasPending() || HasPresentationReservation() || state_.origin != StateOrigin::Scoped) return false;
   State next = state_;
   for (size_t index = 0; index < next.historyCount; ++index) {
     auto& entry = next.history[index];
@@ -339,7 +393,7 @@ bool PersistentCommandJournal::ReleaseEvidencePin(
 
 bool PersistentCommandJournal::RetainEvidencePin(
     uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
-  if (HasPending() || state_.origin != StateOrigin::Scoped) return false;
+  if (HasPending() || HasPresentationReservation() || state_.origin != StateOrigin::Scoped) return false;
   State next = state_;
   for (size_t index = 0; index < next.historyCount; ++index) {
     auto& entry = next.history[index];
@@ -364,7 +418,7 @@ bool PersistentCommandJournal::CommitEvidenceReconciliation(
     const std::array<JournalHistoryEntry, HistoryCapacity>& expectedHistory,
     size_t expectedCount, const std::array<bool, HistoryCapacity>& referenced,
     bool compact) {
-  if (HasPending() || state_.origin != StateOrigin::Scoped ||
+  if (HasPending() || HasPresentationReservation() || state_.origin != StateOrigin::Scoped ||
       expectedEpoch != state_.currentEpoch || expectedCount != state_.historyCount ||
       expectedCount > HistoryCapacity) return false;
   for (size_t index = 0; index < expectedCount; ++index) {

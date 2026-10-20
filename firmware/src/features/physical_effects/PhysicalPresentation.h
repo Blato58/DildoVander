@@ -20,6 +20,9 @@ class PhysicalPresentation final : public WandPresentationPort {
   // Capture with a newly created operation; retries retain the saved value.
   static uint64_t OperationFingerprint(bool shortVariant = false);
   uint64_t CurrentOperationFingerprint() const override;
+  bool ReserveOperation(uint8_t compartment, const std::string& proposalId,
+      const ConversationRuntimeSnapshot& snapshot) override;
+  void CancelOperationReservation() override { runtime_.CancelAutonomousReservation(); }
   void ObserveOwnerTime(uint64_t nowMs) override { nowMs_ = nowMs; }
   bool AdmissionWasDuplicateOrConflict() const override { return replayRejected_; }
   void BindAudio(PresentationAudioPort& audio) { audio_ = &audio; }

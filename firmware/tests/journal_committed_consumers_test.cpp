@@ -86,8 +86,10 @@ void Provision(Durable& durable) {
   assert(session.journal.PersistReadyMask(63));
 }
 
-void Complete(Journal& journal, const JournalOperationIdentity& operation) {
-  assert(journal.BeginScoped(operation.epoch, operation.operationId, operation.compartment, operation.fingerprint));
+void Complete(Journal& journal, const JournalOperationIdentity& operation, bool reserved = false) {
+  assert(reserved
+      ? journal.BeginReservedPresentation(operation.epoch, operation.operationId, operation.compartment, operation.fingerprint)
+      : journal.BeginScoped(operation.epoch, operation.operationId, operation.compartment, operation.fingerprint));
   assert(journal.ResolveRestored(operation.compartment));
   assert(journal.ConfirmTimedPresentationScoped(operation.epoch, operation.operationId,
       operation.compartment, operation.fingerprint));
@@ -124,8 +126,10 @@ void OnlineOperation(Session& session, const JournalOperationIdentity& operation
     }));
   }
   const auto candidate = Candidate(operation, index);
+  assert(session.journal.ReservePresentation(operation.epoch, operation.operationId,
+      operation.compartment, operation.fingerprint));
   assert(box.Prepare(candidate) && session.online.Commit(box.State()));
-  Complete(session.journal, operation);
+  Complete(session.journal, operation, true);
   assert(box.Queue(candidate) == KeepsakeQueueResult::VolatilePendingPersistence);
   assert(session.online.Commit(box.State()));
 }
@@ -145,8 +149,10 @@ void OfflineOperation(Session& session, const JournalOperationIdentity& operatio
   record.generation = index + 1;
   record.deviceRevision = index + 2;
   record.startedAtMs = index * 100;
+  assert(session.journal.ReservePresentation(operation.epoch, operation.operationId,
+      operation.compartment, operation.fingerprint));
   assert(session.offline.Write(box)); // Real reserved-record codec, before completion.
-  Complete(session.journal, operation);
+  Complete(session.journal, operation, true);
   record.completed = true;
   record.completedAtMs = record.startedAtMs + 50;
   assert(session.offline.Write(box));

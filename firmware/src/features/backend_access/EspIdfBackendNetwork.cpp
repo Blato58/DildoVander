@@ -267,8 +267,10 @@ bool EspIdfBackendNetwork::BeginPendingPresentation(
         keepsakeCandidate_.compartment == proposal.compartment;
     if (candidateMatches && keepsakeCandidate_.physicalFingerprint == 0)
       keepsakeCandidate_.physicalFingerprint = presentation.CurrentOperationFingerprint();
-    if (!candidateMatches || keepsakeCandidate_.physicalFingerprint == 0 ||
-        !keepsake_.Prepare(keepsakeCandidate_)) {
+    const bool reserved = candidateMatches && keepsakeCandidate_.physicalFingerprint != 0 &&
+        presentation.ReservePendingOperation(pendingProposal_, runtimeState_, nowMs);
+    if (!reserved || !keepsake_.Prepare(keepsakeCandidate_)) {
+      if (reserved) presentation.CancelPendingReservation();
       RetireCandidateLocked("proposal_start_rejected");
       pendingProposal_.Clear();
       terminalProposalOutstanding_ = false;
@@ -277,7 +279,8 @@ bool EspIdfBackendNetwork::BeginPendingPresentation(
   }
   // Scoped preparation may persist flash; recheck its original TTL after I/O.
   const uint64_t admissionAtMs = proposal.operationEpoch != 0 ? MonotonicMs() : nowMs;
-  if (!presentation.Start(pendingProposal_, runtimeState_, admissionAtMs)) {
+  if (cancelRequested_.load() || !presentation.Start(pendingProposal_, runtimeState_, admissionAtMs)) {
+    if (proposal.operationEpoch != 0) presentation.CancelPendingReservation();
     RetireCandidateLocked("proposal_start_rejected");
     pendingProposal_.Clear();
     terminalProposalOutstanding_ = false;

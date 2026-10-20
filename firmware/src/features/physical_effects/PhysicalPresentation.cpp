@@ -28,12 +28,19 @@ bool PhysicalPresentation::SelectVariant(bool shortVariant) {
   return true;
 }
 
+bool PhysicalPresentation::ReserveOperation(uint8_t compartment, const std::string& proposalId,
+                                          const ConversationRuntimeSnapshot& snapshot) {
+  return phase_ == Phase::Idle && effects_.Ready(compartment) && effects_.IsResting(compartment) &&
+      runtime_.ReserveAutonomousPresentation(proposalId, compartment, snapshot, ScoreFingerprint(repeat_));
+}
+
 bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposalId,
                                   const ConversationRuntimeSnapshot& snapshot) {
   const uint64_t acceptedAtMs = nowMs_;
   replayRejected_ = runtime_.FindOperation(proposalId, compartment, ScoreFingerprint(repeat_),
                                           snapshot.operationEpoch)
-      != CommandJournal::Lookup::Missing;
+      != CommandJournal::Lookup::Missing && !runtime_.HasAutonomousReservation(
+          proposalId, compartment, ScoreFingerprint(repeat_), snapshot.operationEpoch);
   if (replayRejected_) return false;
   if (proposalId.empty() || proposalId.size() > 96 ||
       phase_ != Phase::Idle || !effects_.Ready(compartment) ||

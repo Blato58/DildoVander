@@ -17,6 +17,7 @@ class JournalReconciliation final {
     IdentityNotReady,
     JournalUnavailable,
     PendingOperation,
+    PresentationReserved,
     InventoryMissing,
     InventoryUnavailable,
     InventoryIncomplete,

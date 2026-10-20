@@ -71,6 +71,7 @@ JournalReconciliation::Result JournalReconciliation::Reconcile(
   if (!journal_.IsHealthy() || journal_.Origin() != PersistentCommandJournal::StateOrigin::Scoped ||
       journal_.ScopedDeviceId() != identity.deviceId || journal_.CurrentEpoch() == 0) return Result::JournalUnavailable;
   if (journal_.HasPending()) return Result::PendingOperation;
+  if (journal_.HasPresentationReservation()) return Result::PresentationReserved;
 
   historyCount_ = journal_.HistoryCount();
   if (historyCount_ > history_.size()) return Result::HistoryUnavailable;

@@ -19,6 +19,11 @@ class PersistentCommandJournal final : public CommandJournal {
   enum class StateOrigin : uint8_t { Missing, Legacy, Scoped, Unavailable };
 
   explicit PersistentCommandJournal(JournalStorage& storage);
+  // This mutable storage owner may hold one-use physical admission authority.
+  PersistentCommandJournal(const PersistentCommandJournal&) = delete;
+  PersistentCommandJournal& operator=(const PersistentCommandJournal&) = delete;
+  PersistentCommandJournal(PersistentCommandJournal&&) = delete;
+  PersistentCommandJournal& operator=(PersistentCommandJournal&&) = delete;
 
   bool IsHealthy() const;
   bool IsStorageMissing() const { return healthy_ && storageMissing_; }
@@ -56,6 +61,14 @@ class PersistentCommandJournal final : public CommandJournal {
   bool AdvanceEpochAndCompact();
   bool BeginScoped(uint64_t epoch, const std::string& id, uint8_t compartment,
                    uint64_t fingerprint) override;
+  bool ReservePresentation(uint64_t epoch, const std::string& id, uint8_t compartment,
+                           uint64_t fingerprint) override;
+  bool HasPresentationReservation() const override;
+  bool HasPresentationReservation(uint64_t epoch, const std::string& id,
+                                  uint8_t compartment, uint64_t fingerprint) const override;
+  bool BeginReservedPresentation(uint64_t epoch, const std::string& id,
+                                 uint8_t compartment, uint64_t fingerprint) override;
+  void CancelPresentationReservation() override;
   Lookup FindScoped(uint64_t epoch, const std::string& id, uint8_t compartment,
                     uint64_t fingerprint) const override;
   Lookup FindHistorical(uint64_t epoch, const std::string& id, uint8_t compartment,
@@ -121,6 +134,9 @@ class PersistentCommandJournal final : public CommandJournal {
 
   JournalStorage& storage_;
   State state_;
+  // Deliberately excluded from Encode/Decode: durable history alone never
+  // grants authority to start a previously reserved physical presentation.
+  JournalOperationIdentity presentationReservation_;
   bool healthy_ = false;
   bool storageMissing_ = false;
 };

@@ -22,6 +22,13 @@ class CommandJournal {
   // epoch on every retry; observing a new epoch never authorizes restamping it.
   virtual uint64_t CurrentEpoch() const { return 0; }
   virtual bool BeginScoped(uint64_t, const std::string&, uint8_t, uint64_t) { return false; }
+  // Reservation persists only a pinned tombstone. Its one-use admission
+  // capability belongs to this instance and must never survive a restart.
+  virtual bool ReservePresentation(uint64_t, const std::string&, uint8_t, uint64_t) { return false; }
+  virtual bool HasPresentationReservation() const { return false; }
+  virtual bool HasPresentationReservation(uint64_t, const std::string&, uint8_t, uint64_t) const { return false; }
+  virtual bool BeginReservedPresentation(uint64_t, const std::string&, uint8_t, uint64_t) { return false; }
+  virtual void CancelPresentationReservation() {}
   virtual Lookup FindScoped(uint64_t, const std::string&, uint8_t, uint64_t) const {
     return Lookup::StaleEpoch;
   }

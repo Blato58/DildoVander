@@ -103,6 +103,16 @@ export function classifyLabFailure(code: string, status = 0): LabFailure {
   if (['lab_audio_limit', 'lab_input_context_limit', 'lab_event_limit', 'lab_transcript_limit', 'lab_turn_limit'].includes(code))
     return failure('ClientLifecycle', 'Sezení dosáhlo technického limitu.', 'Uložte dostupné hodnocení a pro další test připravte nové sezení.');
 
+  if (code === 'lab_realtime_input_transcription_conflict') return failure('Backend',
+    'Přepis řeči neodpovídal právě zpracovávanému tahu.',
+    'Předejte technickou časovou osu správci. Další hlasový test spusťte až po ověření příčiny a opravy.');
+  if (code === 'lab_realtime_input_buffer_limit') return failure('Backend',
+    'Při přerušení odpovědi se další řeč nevešla do omezené vyrovnávací paměti.',
+    'Ukončete tento hlasový test a předejte časovou osu správci. Ztracenou řeč nelze vydávat za obnovenou.');
+  if (['lab_realtime_response_incomplete', 'lab_realtime_session_invalid', 'lab_realtime_output_invalid',
+    'lab_realtime_tool_invalid', 'lab_realtime_event_invalid'].includes(code)) return failure('Backend',
+    'Hlasový tah nesplnil ověření protokolu Realtime.',
+    'Předejte technickou časovou osu správci. Bez opravy nebo vysvětlení stejný test neopakujte.');
   if (['invalid_response', 'invalid_server_event', 'invalid_socket_address', 'connection_protocol_rejected', 'lab_live_event_json_invalid',
     'lab_live_event_format_invalid', 'lab_live_event_field_missing', 'lab_live_event_timing_invalid', 'lab_live_event_unsupported',
     'lab_live_context_correlation', 'lab_live_context_limit', 'lab_live_data_invalid', 'lab_live_audio_invalid',

@@ -16,6 +16,9 @@ class WandPresentationPort {
   virtual bool AdmissionWasDuplicateOrConflict() const { return false; }
   // Control owner only: capture with a new intent immediately before admission.
   virtual uint64_t CurrentOperationFingerprint() const { return 0; }
+  virtual bool ReserveOperation(uint8_t, const std::string&,
+                                const ConversationRuntimeSnapshot&) { return false; }
+  virtual void CancelOperationReservation() {}
   virtual bool IsReady(uint8_t compartment) const = 0;
   virtual bool IsSafeToContinue() const = 0;
   virtual uint64_t RaiseTimeoutMs(uint8_t) const { return 3000; }
@@ -47,6 +50,11 @@ class WandPresentation final {
   bool Start(PendingProposal& pending,
              const ConversationRuntimeState& runtime,
              uint64_t nowMs);
+  // Control owner only. Pin the exact scoped operation before its producer
+  // commits evidence. This reserves no physical motion and consumes no proposal.
+  bool ReservePendingOperation(PendingProposal& pending,
+      const ConversationRuntimeState& runtime, uint64_t nowMs);
+  void CancelPendingReservation() { port_.CancelOperationReservation(); }
   void Tick(uint64_t nowMs);
   // Fault-only guard for the control loop before physical outputs are serviced.
   void CheckDeadline(uint64_t nowMs);

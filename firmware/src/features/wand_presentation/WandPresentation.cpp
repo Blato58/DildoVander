@@ -17,6 +17,21 @@ uint64_t WandPresentation::CurrentOperationFingerprint() const {
   return state_ == WandPresentationState::Idle ? port_.CurrentOperationFingerprint() : 0;
 }
 
+bool WandPresentation::ReservePendingOperation(
+    PendingProposal& pending, const ConversationRuntimeState& runtime, uint64_t nowMs) {
+  TurnProposal proposal;
+  ConversationRuntimeSnapshot snapshot;
+  if (state_ != WandPresentationState::Idle || !pending.Read(proposal, runtime, nowMs) ||
+      !runtime.Read(snapshot) || proposal.proposalId.empty() ||
+      proposal.compartment < 1 || proposal.compartment > 6 ||
+      proposal.generation != snapshot.generation || proposal.deviceRevision != snapshot.deviceRevision ||
+      proposal.catalogVersion != snapshot.catalogVersion || proposal.operationEpoch != snapshot.operationEpoch ||
+      (proposal.proposalId == lastProposalId_ && proposal.operationEpoch == lastProposalEpoch_) ||
+      !port_.IsReady(proposal.compartment) || !port_.IsSafeToContinue() ||
+      !port_.IsResting(proposal.compartment)) return false;
+  return proposal.operationEpoch == 0 || port_.ReserveOperation(proposal.compartment, proposal.proposalId, snapshot);
+}
+
 bool WandPresentation::Start(
     PendingProposal& pending,
     const ConversationRuntimeState& runtime,
@@ -34,6 +49,7 @@ bool WandPresentation::Start(
       !port_.IsResting(preview.compartment)) {
     return false;
   }
+  if (preview.operationEpoch != 0 && !ReservePendingOperation(pending, runtime, nowMs)) return false;
   TurnProposal proposal;
   ConversationRuntimeSnapshot snapshot;
   if (!pending.Consume(proposal, snapshot, runtime, nowMs) ||
@@ -44,6 +60,7 @@ bool WandPresentation::Start(
       proposal.generation != snapshot.generation ||
       proposal.deviceRevision != snapshot.deviceRevision ||
       proposal.operationEpoch != snapshot.operationEpoch) {
+    if (preview.operationEpoch != 0) CancelPendingReservation();
     return false;
   }
   lastProposalId_ = proposal.proposalId;
@@ -54,6 +71,7 @@ bool WandPresentation::Start(
   lastObservedAtMs_ = nowMs;
   port_.ObserveOwnerTime(nowMs);
   if (!port_.Raise(compartment_, proposal.proposalId, snapshot)) {
+    if (proposal.operationEpoch != 0) CancelPendingReservation();
     if (port_.AdmissionWasDuplicateOrConflict()) {
       compartment_ = 0;
       return false;
