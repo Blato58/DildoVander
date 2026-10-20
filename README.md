@@ -38,6 +38,15 @@ Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle 
 ## Vývojové nástroje
 
 - Firmware: PlatformIO Core CLI a jeho závislosti podle `firmware/platformio.ini`; samotný C++ hostitelský test vyžaduje C++ kompilátor. Instalace PlatformIO IDE ve VS Code je volitelná.
+  Ve VS Code lze otevřít přímo kořen `DildoVander-app` (`code .`): kořenový
+  `platformio.ini` načítá stejné firmware environments a zobrazí jejich PlatformIO
+  tasks. Z kořene funguje `pio run` (produkce), například
+  `pio run -e diag-board-memory` (diagnostika). Po přidání konfigurace do již
+  otevřeného okna použij **Developer: Reload Window**. Stávající
+  `pio run -d firmware` zůstává podporované; oba vstupy mají oddělené `.pio`
+  a SDK konfigurace. Kořenový CMake obnovuje ignorovanou kopii partition tabulky
+  ze `firmware/`; upravuj pouze tento zdroj. Dependency lock a managed components
+  zůstávají ve `firmware/`.
 - Mobil: Node.js ve verzi `mobilni-aplikace/.nvmrc`, `npm ci` a `npm run build`. Na Windows lze verzi vybrat pomocí nvm-windows.
 - Backend: .NET 10 SDK podle `global.json` a místní SQLite mimo repozitář. Výchozí fake režim nepotřebuje OpenAI klíč. Nativní iOS build/test potřebuje Xcode na macOS a pro distribuci vlastní Apple identitu.
 - [Společný vývojový workspace](docs/development-workspace.md) popisuje setup obou samostatných checkoutů, `code .`, multi-root PlatformIO, firmware tasks a testy.
