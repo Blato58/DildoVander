@@ -205,10 +205,16 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 result = try await sendPriorityCancellation(request, requestId: requestId)
             } else {
                 let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
+                if path == "/app/v1/session", method == "DELETE" {
+                    try clearOfflineSession(origin: origin)
+                }
                 let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE", requestId: requestId)
                 ordinaryLease = lease
                 try requestScheduler.requireCurrent(lease)
-                if commit { try await requestScheduler.beginCredentialCommit(lease) }
+                if commit {
+                    try clearOfflineSession(origin: configuration().0)
+                    try await requestScheduler.beginCredentialCommit(lease)
+                }
                 restoreCookies(origin: origin)
                 request = AccountSessionResponse.authorizeMutation(request, csrfToken: csrf)
                 try Task.checkCancellation()
@@ -218,6 +224,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             let archiveAsset = path.hasPrefix("/app/v1/archive/associations/") && path.contains("/assets/")
             guard let http = result.1 as? HTTPURLResponse, result.0.count <= (archiveAsset ? 33554432 : 1048576),
                   http.url?.host == origin.host, http.url?.scheme == origin.scheme, http.url?.port == origin.port else { throw AccountError.invalidResponse }
+            if [401, 403].contains(http.statusCode) { try clearOfflineSession(origin: origin) }
             if !priority { try persistAccountCookie(origin: origin) }
             var headers: [String: String] = [:]
             for name in ["Content-Type", "X-Twin-Media-Accepted-Bytes", "Retry-After"] {
@@ -244,6 +251,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @MainActor private func publishSessionResponse(_ object: [String: Any], origin: URL) throws {
+        if object["offline"] as? Bool != true { try persistOfflineSession(object, origin: origin) }
         let response = AccountSessionResponse(object)
         // Anonymous /session has a valid CSRF token for signin/enrollment. It
         // must never create or retain an authenticated priority cookie snapshot.
@@ -422,13 +430,22 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             let method = call.getString("method") ?? "GET"
             guard Self.allowed(path: path, method: method) else { throw AccountError.invalidPath }
             let commit = AccountTransportPolicy.credentialCommit(path: path, method: method)
+            // Clear before FIFO admission: cancellation of a queued logout must
+            // not leave local offline authority behind.
+            if path == "/app/v1/session", method == "DELETE" {
+                try clearOfflineSession(origin: configuration().0)
+            }
             let lease = try await requestScheduler.acquire(ceremony: commit, logout: path == "/app/v1/session" && method == "DELETE", requestId: requestId)
             defer { requestScheduler.release(lease) }
             try requestScheduler.requireCurrent(lease)
-            if commit { try await requestScheduler.beginCredentialCommit(lease) }
+            if commit {
+                try clearOfflineSession(origin: configuration().0)
+                try await requestScheduler.beginCredentialCommit(lease)
+            }
             let result = try await send(path: path, method: method, body: call.getString("body"), confirmed: call.getBool("confirmed") == true)
-            if path == "/app/v1/session", let data = result.1.data(using: .utf8),
+            if path == "/app/v1/session", method == "GET", result.0 == 200, let data = result.1.data(using: .utf8),
                let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                try requestScheduler.requireCurrent(lease)
                 try publishSessionResponse(object, origin: configuration().0)
             }
             call.resolve(["status": result.0, "body": result.1])
@@ -515,6 +532,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                         "authenticatorAttachment": "platform", "clientExtensionResults": [:], "response": [
                             "clientDataJSON": Self.encode(registration.rawClientDataJSON), "attestationObject": Self.encode(attestation), "transports": ["internal"]]]
                 } else { throw AccountError.invalidResponse }
+                try clearOfflineSession(origin: configuration().0)
                 try await requestScheduler.beginCredentialCommit(lease)
                 let result = try await send(path: completionPath, method: "POST", body: encode(["credential": credential]))
                 guard result.0 == 204 else { throw AccountError.verificationFailed }
@@ -561,6 +579,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
               url.host == origin.host, url.scheme == "https", url.port == origin.port else { throw AccountError.invalidPath }
         var request = URLRequest(url: url)
         request.httpMethod = method
+        if path == "/app/v1/session" && method == "GET" { request.timeoutInterval = 5 }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
         request = AccountSessionResponse.authorizeMutation(request, csrfToken: csrf)
@@ -571,10 +590,19 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         try Task.checkCancellation()
-        let (data, response) = try await session.data(for: request)
+        if path == "/app/v1/session" && method == "DELETE" { try clearOfflineSession(origin: origin) }
+        let result: (Data, URLResponse)
+        do { result = try await session.data(for: request) }
+        catch {
+            if path == "/app/v1/session", method == "GET", NativeOfflineAccountSession.permitsFallback(error),
+               let cached = try offlineSession(origin: origin) { return (200, try encode(cached)) }
+            throw error
+        }
+        let (data, response) = result
         try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse, data.count <= 1048576,
               http.url?.host == origin.host else { throw AccountError.invalidResponse }
+        if [401, 403].contains(http.statusCode) { try clearOfflineSession(origin: origin) }
         try persistAccountCookie(origin: origin)
         return (http.statusCode, String(data: data, encoding: .utf8) ?? "")
     }
@@ -595,6 +623,53 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     private static func decode(_ value: String) -> Data? {
         let base = value.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         return Data(base64Encoded: base + String(repeating: "=", count: (4 - base.count % 4) % 4))
+    }
+
+    private func offlineQuery(origin: URL) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: "dildovander.account.offline-local-session",
+         kSecAttrAccount as String: origin.absoluteString]
+    }
+
+    private func clearOfflineSession(origin: URL) throws {
+        let status = SecItemDelete(offlineQuery(origin: origin) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw AccountError.storageFailed }
+    }
+
+    @MainActor private func persistOfflineSession(_ object: [String: Any], origin: URL) throws {
+        guard let binding = try? accountDeviceBinding(),
+              let envelope = NativeOfflineAccountSession.envelope(object, origin: origin.absoluteString,
+                  binding: binding, now: Date().timeIntervalSince1970) else {
+            try clearOfflineSession(origin: origin)
+            return
+        }
+        let data = try JSONSerialization.data(withJSONObject: envelope)
+        let query = offlineQuery(origin: origin)
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var attributes = query
+            attributes[kSecValueData as String] = data
+            attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            guard SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess else { throw AccountError.storageFailed }
+        } else if status != errSecSuccess { throw AccountError.storageFailed }
+    }
+
+    @MainActor private func offlineSession(origin: URL) throws -> [String: Any]? {
+        var query = offlineQuery(origin: origin)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data, data.count <= 8192,
+              let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let binding = try? accountDeviceBinding(),
+              let response = NativeOfflineAccountSession.response(object, origin: origin.absoluteString,
+                  binding: binding, now: Date().timeIntervalSince1970) else {
+            try clearOfflineSession(origin: origin)
+            return nil
+        }
+        return response
     }
 
     private func keychainQuery(origin: URL) -> [String: Any] {

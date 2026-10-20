@@ -276,3 +276,26 @@ describe('authentication generation fences', () => {
     expect(bridge.passkey).toHaveBeenCalledOnce(); expect(identity.signingOut.value).toBe(false);
   });
 });
+
+  it('admits a bounded native offline snapshot and expires it without a network request', async () => {
+    vi.useFakeTimers();
+    try {
+      bridge.native = true;
+      const now = Date.now();
+      bridge.request.mockResolvedValue({status: 200, body: JSON.stringify({ ...user('native-owner'), offline: true, expiresAt: (now + 5000) / 1000 })});
+      const identity = await import('./session');
+      await identity.refreshIdentity();
+      expect(identity.offlineSession.value).toBe(true);
+      expect(identity.account.value?.id).toBe('native-owner');
+      vi.advanceTimersByTime(5001);
+      expect(identity.account.value).toBeNull();
+      expect(identity.offlineSession.value).toBe(false);
+      expect(bridge.request).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('never trusts an offline snapshot supplied to the browser', async () => {
+    request.mockResolvedValue(new Response(JSON.stringify({ ...user('browser'), offline: true, expiresAt: (Date.now() + 5000) / 1000 })));
+    const identity = await import('./session'); await identity.refreshIdentity();
+    expect(identity.offlineSession.value).toBe(false);
+  });

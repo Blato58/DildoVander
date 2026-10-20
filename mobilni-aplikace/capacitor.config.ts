@@ -6,6 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   // Native bridge calls include conversation text. Keep them out of device logs.
   loggingBehavior: 'none',
+  ios: { zoomEnabled: false },
 };
 
 export default config;

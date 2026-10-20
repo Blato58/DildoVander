@@ -47,12 +47,18 @@ try {
   page.on('console', message => {
     if (message.type() === 'error' && /Content Security Policy|unsafe-eval|Refused to|EvalError/i.test(message.text())) errors.push(message.text());
   });
+  let sessionAccount = null;
+  const ownerAccount = { id: 'browser-owner', displayName: 'Testovací vlastník', roles: ['Owner'] };
+  const homeHeading = () => sessionAccount ? `Vítejte, ${sessionAccount.displayName}` : 'Kufr plný příběhů.';
   await context.route('**/*', async route => {
     const request = route.request(); const url = new URL(request.url());
     if (url.origin !== origin) { await route.abort(); return; }
     requests.push({ path: url.pathname, method: request.method(), url: request.url() });
     const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
-    if (url.pathname === '/app/v1/session') return json({ enabled: true, account: null, csrfToken: 'isolated-browser-csrf' });
+    if (url.pathname === '/app/v1/session') return json({ enabled: true, account: sessionAccount, csrfToken: 'isolated-browser-csrf' });
+    if (sessionAccount && url.pathname === '/app/v1/account') return json({ sessions: [], grants: [], associations: [], passkeyCount: 1, passkeys: [], devices: [] });
+    if (sessionAccount && url.pathname === '/app/v1/admin/users') return json({ users: [], grants: [] });
+    if (sessionAccount && url.pathname === '/app/v1/archive/associations') return json({ items: [] });
     if (url.pathname.startsWith('/app/v1/')) return json({ code: 'account_required' }, 401);
     if (url.pathname === '/guest/v1/evening') return json({ schemaVersion: 1, evening: null, items: [], latest: null });
     if (url.pathname === '/guest/v1/bootstrap') return json({ schemaVersion: 1, csrfToken: 'isolated-guest-csrf' });
@@ -63,11 +69,31 @@ try {
   const hasHeading = title => page.getByRole('heading', { name: title, exact: true }).waitFor();
   const fits = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'layout has no horizontal page overflow');
 
-  await page.goto(origin); await hasHeading('Všechno pro jeden večer.');
+  await page.goto(origin); await hasHeading(homeHeading());
   await fits(); await page.screenshot({ path: path.join(screenshots, 'home-desktop.png'), fullPage: true });
   await page.getByLabel('Vzhled aplikace').selectOption('olivander'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
-  await page.reload(); await hasHeading('Všechno pro jeden večer.'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
+  await page.reload(); await hasHeading(homeHeading()); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
   await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await fits();
+    assert(await page.getByRole('link', { name: 'Stáhnout aplikaci pro iPhone', exact: true }).isVisible());
+    assert.equal(await page.locator('.home-readiness').count(), 0, 'public landing has no device status panel');
+    await page.screenshot({ path: path.join(screenshots, `public-landing-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  // Anonymous deep links must not render pairing or operational controls.
+  assert.equal(await page.locator('.home-readiness').count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Stop', exact: true }).count(), 0);
+  for (const protectedPath of ['/suitcase', '/connections', '/suitcase/diagnostics', '/suitcase/director', '/settings/admin']) {
+    await page.goto(origin + protectedPath);
+    await page.waitForURL(url => url.pathname === '/signin');
+    assert.equal(new URL(page.url()).searchParams.get('return'), protectedPath);
+    assert.equal(await page.getByRole('button', { name: 'Vyhledat Bluetooth kufry' }).count(), 0);
+  }
+  // The remainder exercises existing operations with a labelled synthetic owner.
+  sessionAccount = ownerAccount;
+  await page.goto(origin); await hasHeading(homeHeading());
   const preferenceTab = await context.newPage();
   await preferenceTab.goto(origin + '/settings');
   await preferenceTab.getByLabel('Barevné téma', { exact: true }).selectOption('olivander');
@@ -77,7 +103,7 @@ try {
   await preferenceTab.close();
   await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
   const nav = page.getByRole('navigation', { name: 'Sekce aplikace' });
-  for (const [label, heading] of [['Kufr', 'Kufr'], ['Dílna', 'Workshop'], ['Archiv', 'Najdi svoji hůlku.'], ['Nastavení', 'Nastavení'], ['Domov', 'Všechno pro jeden večer.']]) {
+  for (const [label, heading] of [['Kufr', 'Kufr'], ['Dílna', 'Workshop'], ['Archiv', 'Najdi svoji hůlku.'], ['Nastavení', 'Nastavení'], ['Domov', homeHeading()]]) {
     await nav.getByRole('link', { name: label, exact: true }).click(); await hasHeading(heading);
     assert.equal(await page.locator('.application-shell').count(), 1);
   }
@@ -149,7 +175,7 @@ try {
       }
       assert(await page.locator('.primary-navigation a').evaluateAll(links => links.every(link => link.getBoundingClientRect().height >= 44)), 'navigation targets retain 44px height');
     }
-    await page.goto(origin); await hasHeading('Všechno pro jeden večer.');
+    await page.goto(origin); await hasHeading(homeHeading());
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     await fits();
     await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.application-shell')).paddingBottom)
@@ -164,13 +190,14 @@ try {
   // backend, create a passkey or permit any management mutation.
   const ownerRequests = [];
   const owner = { id: 'synthetic-owner', displayName: 'SYNTETICKÝ VLASTNÍK · UI FIXTURE', roles: ['Owner'] };
+  let ownerSessionActive = true;
   await context.route('**/app/v1/**', async route => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
     ownerRequests.push({ path: pathname, method: request.method() });
     const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
     if (request.method() !== 'GET') return json({ code: 'synthetic_fixture_read_only' }, 405);
-    if (pathname === '/app/v1/session') return json({ enabled: true, account: owner, csrfToken: 'synthetic-owner-csrf' });
+    if (pathname === '/app/v1/session') return json({ enabled: true, account: ownerSessionActive ? owner : null, csrfToken: 'synthetic-owner-csrf' });
     if (pathname === '/app/v1/account') return json({
       devices: [], associations: [], grants: [], passkeyCount: 1,
       passkeys: [{ id: 'synthetic-key', name: 'Syntetický přístupový klíč', createdAt: '2026-10-20T00:00:00Z', isBackedUp: true }],
@@ -207,6 +234,15 @@ try {
     }
   }
   assert(ownerRequests.every(request => request.method === 'GET'), 'theme checks never send a management mutation');
+  await page.goto(origin + '/connections');
+  await hasHeading('Připojení kufru');
+  sessionAccount = null;
+  ownerSessionActive = false;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.waitForURL(url => url.pathname === '/signin');
+  assert.equal(await page.locator('.connections-view').count(), 0, 'logout unmounts cached private operations');
+  await page.goBack();
+  assert.notEqual(new URL(page.url()).pathname, '/connections', 'history cannot reopen logged-out operations');
   assert.deepEqual(errors, [], 'no uncaught application errors');
   console.log(`PASS compiled application: all 14 route views (including unauthenticated/invalid-capability gates), synthetic owner settings/admin, management draft preservation with no writes, iPhone links, navigation, deep links, compatibility, claim capture, demo isolation, focus, both themes, keyboard, 1440/390/320 layouts and 200% text. Screenshots: ${screenshots}`);
   await context.close();

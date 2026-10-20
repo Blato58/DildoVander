@@ -6,11 +6,13 @@ import AwButton from '../components/AwButton.vue';
 import AwNotice from '../components/AwNotice.vue';
 import { usePreferences } from './preferences';
 import { notifications, dismissNotice, notify } from './notifications';
-import { account, refreshIdentity, hasRole } from '../features/identity/session';
+import { account, offlineSession, refreshIdentity, hasRole } from '../features/identity/session';
 import { deviceSession } from '../features/suitcase/deviceSession';
 import { nativeDebug } from '../features/suitcase/nativeDebug';
 import { directorStop, clearDirectorStop } from '../features/director/directorStop';
 import { servoBench } from '../features/suitcase/servoBench';
+import { accessDenial, canOperateSuitcase } from './access';
+import { accessRedirect } from './accessGuard';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,13 +23,15 @@ const navigationElement = ref<HTMLElement>();
 const navigationHeight = ref('calc(5rem + env(safe-area-inset-bottom))');
 let navigationObserver: ResizeObserver | undefined;
 const viewError = ref('');
-const navigation = [
+const navigation = computed(() => [
   { to: '/', label: 'Domov', symbol: '⌂' },
   { to: '/suitcase', label: 'Kufr', symbol: '▣' },
   { to: '/workshop', label: 'Dílna', symbol: '◇' },
   { to: '/archive', label: 'Archiv', symbol: '▤' },
   { to: '/settings', label: 'Nastavení', symbol: '⚙' },
-];
+].filter(item => item.to !== '/suitcase' || canOperateSuitcase(account.value)));
+const identityKey = computed(() => account.value ? `${account.value.id}:${account.value.roles.join(',')}` : 'public');
+const routeAccessible = computed(() => accessDenial(route.meta, account.value, offlineSession.value) === null);
 const connected = computed(() => Boolean(deviceSession.snapshot.value && deviceSession.snapshot.value.phase !== 'disconnected'));
 const deviceCanStop = computed(() => connected.value && deviceSession.snapshot.value?.phase !== 'stopped');
 const phoneActive = computed(() => nativeDebug.status.value.running || nativeDebug.status.value.session || nativeDebug.pending.value);
@@ -55,6 +59,12 @@ watch(() => account.value ? `${account.value.id}:${account.value.roles.join(',')
     nativeDebug.invalidatePrivateState();
     void Promise.resolve(deviceSession.clearUserGrants()).catch(() => notify('Oprávnění této instalace se nepodařilo vyčistit. Odpojte ji před změnou uživatele.', 'danger'));
   }
+  const redirect = accessRedirect(route);
+  if (redirect) void router.replace(redirect);
+}, { flush: 'sync' });
+watch(offlineSession, () => {
+  const redirect = accessRedirect(route);
+  if (redirect) void router.replace(redirect);
 }, { flush: 'sync' });
 watch(() => route.path, () => {
   viewError.value = '';
@@ -98,19 +108,21 @@ onBeforeUnmount(() => {
     </aside>
     <div class="application-body">
       <header class="application-header">
-        <div class="connection-context"><RouterLink to="/connections">{{ targetLabel }}</RouterLink><span v-if="servoBench.connected.value" class="context-detail">USB servo servis · Stop vypíná PWM, napájení není měřené</span><span v-else-if="phoneActive" class="context-detail">Aktivní telefonní zkouška · oddělená od hlasu kufru</span><span v-else-if="deviceSession.message.value" class="context-detail">{{ deviceSession.message.value }}</span></div>
+        <div v-if="canOperateSuitcase(account)" class="connection-context"><RouterLink to="/connections">{{ targetLabel }}</RouterLink><span v-if="servoBench.connected.value" class="context-detail">USB servo servis · Stop vypíná PWM, napájení není měřené</span><span v-else-if="phoneActive" class="context-detail">Aktivní telefonní zkouška · oddělená od hlasu kufru</span><span v-else-if="deviceSession.message.value" class="context-detail">{{ deviceSession.message.value }}</span></div>
+        <p v-else class="connection-context">Modely a příběhy · veřejný přístup</p>
         <div class="header-actions">
           <label class="theme-control"><span class="sr-only">Vzhled aplikace</span><select v-model="preferences.theme" aria-label="Vzhled aplikace"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></label>
           <RouterLink v-if="!account" class="account-link" to="/signin">Přihlásit se</RouterLink><RouterLink v-else class="account-link" to="/settings">{{ account.displayName }}</RouterLink>
-          <AwButton variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
+          <AwButton v-if="account || deviceCanStop || phoneActive || directorCanStop || servoBench.connected.value" variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
         </div>
       </header>
       <div class="notification-stack" aria-label="Oznámení"><AwNotice v-for="notice in notifications" :key="notice.id" :tone="notice.tone"><div class="notification-content">{{ notice.message }}<button aria-label="Zavřít oznámení" @click="dismissNotice(notice.id)">×</button></div></AwNotice></div>
       <main id="main-content" ref="main" class="application-main" tabindex="-1">
+        <AwNotice v-if="offlineSession" tone="warning">Offline přihlášení: dostupné je místní ovládání již spárovaného kufru. Cloudové funkce a správa vyžadují nové ověření serverem. Oprávnění se znovu zkontrolují po připojení.</AwNotice>
         <AwNotice v-if="viewError" tone="danger"><p>{{ viewError }}</p><AwButton @click="router.go(0)">Načíst znovu</AwButton></AwNotice>
-        <RouterView v-else v-slot="{ Component, route: renderedRoute }">
-          <KeepAlive><component :is="Component" v-if="renderedRoute.meta.keepAlive" :key="renderedRoute.name" /></KeepAlive>
-          <component :is="Component" v-if="!renderedRoute.meta.keepAlive" :key="renderedRoute.name" />
+        <RouterView v-else-if="routeAccessible" v-slot="{ Component, route: renderedRoute }">
+          <KeepAlive :key="identityKey"><component :is="Component" v-if="renderedRoute.meta.keepAlive" :key="renderedRoute.name" /></KeepAlive>
+          <component :is="Component" v-if="!renderedRoute.meta.keepAlive" :key="renderedRoute.meta.requiresAccount ? `${String(renderedRoute.name)}:${identityKey}` : renderedRoute.name" />
         </RouterView>
       </main>
       <footer class="application-footer"><span>DildoVander</span><a v-if="browserMode" class="application-install-link" href="/ios/">Aplikace pro iPhone</a><span>Model, simulace a fyzický kufr mají vlastní stav ověření.</span></footer>

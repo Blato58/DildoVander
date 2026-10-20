@@ -18,6 +18,9 @@ interface IdentityBridge {
 const nativeIdentity = registerPlugin<IdentityBridge>('KufrIdentity');
 const native = Capacitor.isNativePlatform();
 export const account = ref<Account | null>(null);
+export const offlineSession = ref(false);
+export const offlineSessionExpiresAt = ref(0);
+let offlineExpiryTimer: ReturnType<typeof setTimeout> | undefined;
 export const initialized = ref(false);
 export const loading = ref(false);
 export const signingOut = ref(false);
@@ -65,7 +68,11 @@ function advanceAuthentication(clearAccount = false): number {
   ++authGeneration;
   refreshPending = null;
   loading.value = false;
-  if (clearAccount) { account.value = null; csrfToken = ''; initialized.value = false; }
+  if (clearAccount) {
+    clearTimeout(offlineExpiryTimer); offlineExpiryTimer = undefined;
+    offlineSession.value = false; offlineSessionExpiresAt.value = 0;
+    account.value = null; csrfToken = ''; initialized.value = false;
+  }
   return authGeneration;
 }
 function requireCurrentAuthentication(generation: number) {
@@ -171,18 +178,29 @@ export function refreshIdentity(): Promise<void> {
   loading.value = true;
   const pending = { generation, promise: Promise.resolve() };
   pending.promise = (async () => {
-    const session = await accountRequest<{ enabled: boolean; account: Account | null; csrfToken: string | null; origin?: string }>('/app/v1/session');
+    const session = await accountRequest<{ enabled: boolean; account: Account | null; csrfToken: string | null; origin?: string; offline?: boolean; expiresAt?: number }>('/app/v1/session');
     if (generation !== authGeneration) return;
+    const offline = native && session.offline === true;
+    const expiry = Number(session.expiresAt) * 1000;
+    if (offline && (!session.account || !Number.isFinite(expiry) || expiry <= Date.now())) throw new Error('Offline přihlášení vypršelo. Připojte se a ověřte účet.');
+    clearTimeout(offlineExpiryTimer); offlineExpiryTimer = undefined;
+    offlineSession.value = offline;
+    offlineSessionExpiresAt.value = offline ? expiry : 0;
     account.value = session.account;
     accountsEnabled.value = session.enabled;
-    csrfToken = session.csrfToken ?? '';
+    csrfToken = offline ? '' : session.csrfToken ?? '';
     accountOrigin.value = session.origin ?? '';
     initialized.value = true;
+    if (offline) offlineExpiryTimer = setTimeout(() => {
+      if (generation === authGeneration && offlineSession.value) advanceAuthentication(true);
+    }, Math.min(expiry - Date.now(), 2147483647));
   })().catch(error => {
     // A native queue may retire this refresh before the ceremony promise reaches
     // JavaScript. Its cancelled scope does not establish loss of authentication.
     if (error instanceof AccountContextChangedError && authenticationPending) return;
     if (generation !== authGeneration && !(error instanceof IdentityRequestError && error.rejectedGeneration === authGeneration)) return;
+    clearTimeout(offlineExpiryTimer); offlineExpiryTimer = undefined;
+    offlineSession.value = false; offlineSessionExpiresAt.value = 0;
     account.value = null; csrfToken = ''; initialized.value = false; accountsEnabled.value = false;
     throw error;
   }).finally(() => { if (refreshPending === pending) { loading.value = false; refreshPending = null; } });
