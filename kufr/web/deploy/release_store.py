@@ -57,6 +57,8 @@ def atomic_json(path, value):
             stream.write('\n')
             stream.flush()
             os.fsync(stream.fileno())
+        # These pointers are public static data, even with a private SSH umask.
+        temporary.chmod(0o644)
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
@@ -98,6 +100,22 @@ def store_immutable(source, target):
             shutil.rmtree(staging)
 
 
+def prepare_public_model(root, bundle):
+    """Validated model data must be readable by the separate static-file user."""
+    # Preflight every path before changing any mode, including on rollback.
+    if (bundle.parent != root / 'bundles'
+            or any(path.is_symlink() for path in (root, *root.parents))):
+        raise ValueError('Model permissions require a canonical public store')
+    paths = (root, root / 'bundles', bundle, *bundle.rglob('*'))
+    for path in paths:
+        if (path.is_symlink() or not path.resolve().is_relative_to(root.resolve())
+                or not (path.is_file() or path.is_dir())):
+            raise ValueError('Model permissions require a canonical public store')
+    # Limit mode changes to this public store; never alter source or host parents.
+    for path in paths:
+        path.chmod(0o755 if path.is_dir() else 0o644)
+
+
 def checked_directory(root, relative):
     """Never publish through an existing symlink within the durable store."""
     path = root
@@ -135,12 +153,14 @@ def publish_model(bundle, root, *, validator=None, check=None):
         validator(target)
         if inventory(target) != before:
             raise ValueError('Validated model changed during publication')
+        prepare_public_model(root, target)
         pointer = {'schemaVersion': 1, 'modelId': manifest['modelId'], 'bundleHash': model_hash,
                    'manifestPath': f'bundles/{model_hash}/model-bundle.json'}
         with model_activation_lock(root):
             active = root / 'active.json'
             previous = json.loads(active.read_text()) if active.exists() else None
             if previous == pointer:
+                atomic_json(active, pointer)
                 if check:
                     check(pointer)
                 return pointer
@@ -184,12 +204,15 @@ def rollback_model(root, *, validator=None, check=None):
             manifest = validator(root / 'bundles' / model_hash)
             if manifest['modelId'] != previous['modelId'] or manifest['bundleHash'] != model_hash:
                 raise ValueError('Rollback reference identity differs')
+            prepare_public_model(root, root / 'bundles' / model_hash)
             active = root / 'active.json'
             current = json.loads(active.read_text()) if active.exists() else None
             if previous != current:
                 switch_model(root, previous, current, check)
-            elif check:
-                check(previous)
+            else:
+                atomic_json(active, previous)
+                if check:
+                    check(previous)
         return previous
 
 
