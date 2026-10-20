@@ -1,20 +1,17 @@
-using System.Threading.Channels;
-
 namespace Kufr.Backend.Features.DeviceMedia;
 
-// One sender task, one in-flight receipt and at most one queued receipt. A
-// refused urgent cancel must not create another task behind a blocked sender.
-// Its ledger receipt remains recoverable by an exact retry after ACK credit.
+// One sender, one in-flight receipt and separate single normal/urgent slots.
+// Urgent refusals cannot consume a legal normal control's reserved ACK slot.
 internal sealed class DeviceMediaControlReplies
 {
-    private sealed record Reply(Guid Request, int Status, string? Code);
-    private readonly Channel<Reply> queued = Channel.CreateBounded<Reply>(new BoundedChannelOptions(1)
-    {
-        SingleReader = true,
-        SingleWriter = true,
-        FullMode = BoundedChannelFullMode.Wait
-    });
-    private int pending;
+    private sealed record Reply(Guid Request, int Status, string? Code, bool ReturnsCredit, Action<bool>? Published);
+    private readonly Lock gate = new();
+    private readonly SemaphoreSlim ready = new(0, 1);
+    private Reply? normal;
+    private Reply? urgent;
+    private bool inFlight;
+    private bool credit = true;
+    private bool closed;
 
     internal DeviceMediaControlReplies(DeviceMediaSocket socket, CancellationToken lifetime)
     {
@@ -22,50 +19,100 @@ internal sealed class DeviceMediaControlReplies
     }
 
     internal Task Completion { get; }
-    internal bool HasPending => Volatile.Read(ref pending) != 0;
+    internal bool HasPending { get { lock (gate) { return inFlight || normal is not null || urgent is not null; } } }
 
-    // Only the receive owner calls this method. The sender can only free slots.
-    internal bool TryEnqueue(Guid request, int status, string? code)
+    internal bool TryTakeCredit()
     {
-        if (Volatile.Read(ref pending) >= 2) { return false; }
-        Interlocked.Increment(ref pending);
-        if (queued.Writer.TryWrite(new(request, status, code))) { return true; }
-        Interlocked.Decrement(ref pending);
-        return false;
+        lock (gate)
+        {
+            if (closed || !credit) { return false; }
+            credit = false;
+            return true;
+        }
     }
 
-    internal void Complete() => queued.Writer.TryComplete();
+    // Only the receive owner enqueues. A normal control already consumed its
+    // protocol credit; urgent refusals cannot fill that normal reserved slot.
+    internal bool TryEnqueue(Guid request, int status, string? code, bool returnsCredit = false,
+        Action<bool>? published = null)
+    {
+        lock (gate)
+        {
+            if (closed || (returnsCredit ? normal is not null : urgent is not null)) { return false; }
+            var reply = new Reply(request, status, code, returnsCredit, published);
+            if (returnsCredit) { normal = reply; }
+            else { urgent = reply; }
+            SignalLocked();
+            return true;
+        }
+    }
+
+    internal void Complete()
+    {
+        lock (gate) { closed = true; SignalLocked(); }
+    }
+    private void SignalLocked()
+    {
+        if (ready.CurrentCount == 0) { ready.Release(); }
+    }
 
     private async Task RunAsync(DeviceMediaSocket socket, CancellationToken lifetime)
     {
         try
         {
-            await foreach (var reply in queued.Reader.ReadAllAsync(lifetime))
+            while (true)
             {
-                try
+                await ready.WaitAsync(lifetime);
+                while (true)
                 {
-                    if (reply.Code is null)
+                    Reply? reply;
+                    lock (gate)
                     {
-                        await socket.SendJsonAsync(new { type = "control.ack", requestId = reply.Request,
-                            status = reply.Status }, lifetime);
+                        reply = normal ?? urgent;
+                        if (reply is null) { if (closed) { return; } break; }
+                        if (normal == reply) { normal = null; }
+                        else { urgent = null; }
+                        inFlight = true;
+                        // ACK bytes may reach a peer before SendAsync returns.
+                        // Resource ownership and protocol credit are distinct.
+                        if (reply.ReturnsCredit) { credit = true; }
                     }
-                    else
+                    var delivered = false;
+                    try
                     {
-                        await socket.SendJsonAsync(new { type = "control.ack", requestId = reply.Request,
-                            status = reply.Status, code = reply.Code }, lifetime);
+                        if (reply.Code is null)
+                        {
+                            await socket.SendJsonAsync(new { type = "control.ack", requestId = reply.Request,
+                                status = reply.Status }, lifetime);
+                        }
+                        else
+                        {
+                            await socket.SendJsonAsync(new { type = "control.ack", requestId = reply.Request,
+                                status = reply.Status, code = reply.Code }, lifetime);
+                        }
+                        delivered = true;
+                    }
+                    finally
+                    {
+                        lock (gate) { inFlight = false; }
+                        reply.Published?.Invoke(delivered);
                     }
                 }
-                finally { Interlocked.Decrement(ref pending); }
             }
         }
-        catch
-        {
-            socket.Abort();
-            throw;
-        }
+        catch { socket.Abort(); throw; }
         finally
         {
-            while (queued.Reader.TryRead(out _)) { Interlocked.Decrement(ref pending); }
+            Reply? pendingNormal;
+            Reply? pendingUrgent;
+            lock (gate)
+            {
+                closed = true;
+                pendingNormal = normal; pendingUrgent = urgent;
+                normal = urgent = null;
+            }
+            pendingNormal?.Published?.Invoke(false);
+            pendingUrgent?.Published?.Invoke(false);
         }
     }
 }

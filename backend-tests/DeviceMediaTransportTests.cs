@@ -15,6 +15,7 @@ using Kufr.Backend.Features.Realtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -244,7 +245,7 @@ internal static class DeviceMediaTransportTests
             using var document = JsonDocument.Parse(body);
             try
             {
-                DeviceMediaEndpoints.ApplyControl(document.RootElement, active.Session, sink, store, active.Device, active.Conversation);
+                DeviceMediaEndpoints.ApplyControl(document.RootElement, active.Session, sink, store, active.Device, active.Conversation, out _);
                 throw new InvalidOperationException("Stale cancel unexpectedly applied.");
             }
             catch (DeviceMediaEndpoints.ControlRefusal refusal) { ledger.Complete(request, 409, refusal.Code); }
@@ -256,6 +257,10 @@ internal static class DeviceMediaTransportTests
         }
         Check(admitted == 2 && dropped != Guid.Empty && replies.HasPending && !completion.IsCompleted,
             "blocked replies admit exactly one in-flight and one queued despite urgent cancel flood");
+        var normalRequest = Guid.NewGuid();
+        Check(replies.TryTakeCredit() && !replies.TryTakeCredit()
+            && replies.TryEnqueue(normalRequest, 204, null, returnsCredit: true),
+            "urgent flood cannot consume normal control credit or its reserved reply slot");
         Check(store.GetOperation(active.Device, active.Operation).Operation?.Status == "running"
             && journal.ReadSessionCharge(active.Conversation) == beforeCharge && !active.Provider.Aborted,
             "refused stale cancellation flood changes no journal, session or provider state");
@@ -271,9 +276,11 @@ internal static class DeviceMediaTransportTests
             "exact retry recovers cached refusal after ACK capacity returns");
         replies.Complete();
         await completion.WaitAsync(TimeSpan.FromSeconds(1));
-        Check(!replies.HasPending && transport.Sent.Count == 3
+        Check(!replies.HasPending && transport.Sent.Count == 4
             && transport.Sent.Last().GetProperty("requestId").GetGuid() == dropped
-            && transport.Sent.All(item => item.GetProperty("status").GetInt32() == 409),
+            && transport.Sent.Single(item => item.GetProperty("requestId").GetGuid() == normalRequest).GetProperty("status").GetInt32() == 204
+            && transport.Sent.Where(item => item.GetProperty("requestId").GetGuid() != normalRequest)
+                .All(item => item.GetProperty("status").GetInt32() == 409),
             "single pump drains only admitted receipts and recovered exact refusal");
         await active.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "fixture complete", CancellationToken.None);
         await CheckReleasedAsync(active, services);
@@ -379,6 +386,7 @@ internal static class DeviceMediaTransportTests
         var clock = new MediaClock();
         var providers = new ConcurrentQueue<ActiveProviderSocket>();
         var liveProviders = new ConcurrentQueue<LiveProviderSocket>();
+        var socketGates = new ConcurrentDictionary<Guid, WireGate>();
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         // Clear inherited provider configuration: this fixture never makes paid calls.
@@ -421,6 +429,12 @@ internal static class DeviceMediaTransportTests
             app.UseWebSockets();
             app.Use(async (context, next) =>
             {
+                if (Guid.TryParse(context.Request.Headers["X-Device-Media-Test-Gate"], out var gateId)
+                    && socketGates.TryGetValue(gateId, out var gate))
+                {
+                    var feature = context.Features.Get<IHttpWebSocketFeature>()!;
+                    context.Features.Set<IHttpWebSocketFeature>(new GatedWebSocketFeature(feature, gate));
+                }
                 if (context.Request.Headers.ContainsKey("Cookie"))
                 {
                     context.Items["dv-account-device"] = "media-device";
@@ -432,7 +446,7 @@ internal static class DeviceMediaTransportTests
             await app.StartAsync();
             using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
             var access = app.Services.GetRequiredService<DeviceAccessStore>();
-            VerifyScopedControls(app.Services.GetRequiredService<ConversationStore>());
+            await VerifyScopedControlsAsync(app.Services.GetRequiredService<ConversationStore>());
             var token = access.IssueToken("media-device")!.AccessToken;
             const string route = "/v1/conversations/fixture/device-media";
             await CheckAdmissionAsync(http, route, null, null, false, 401, "access_token_required");
@@ -466,9 +480,14 @@ internal static class DeviceMediaTransportTests
                 await CheckDisconnectedAsync(client);
             }
             await VerifyOrderedFramesAsync(http.BaseAddress!);
+            await VerifyOpeningExpiryAtReceiveAsync(http.BaseAddress!, app.Services, socketGates, providers, clock);
+            token = access.IssueToken("media-device")!.AccessToken;
+            await VerifyAckVisibilityAsync(http.BaseAddress!, app.Services, socketGates, providers);
             await VerifyPrimaryLiveAsync(http.BaseAddress!, app.Services, liveProviders);
             await VerifyControlReplyCapacityAsync(http.BaseAddress!, app.Services, providers);
             await VerifyClaimAdmissionFencesAsync(app.Services);
+            await VerifyPlayedReplyFencesAsync(app.Services);
+            await VerifyMappedPlayedReplyAsync(http.BaseAddress!, app.Services, socketGates, providers);
             await VerifyActiveProviderAsync(http.BaseAddress!, app.Services, providers, clock);
             token = access.IssueToken("media-device")!.AccessToken;
             using (var client = await ConnectAsync(http.BaseAddress!, route, token))
@@ -521,18 +540,262 @@ internal static class DeviceMediaTransportTests
         finally { socket.Abort(); }
     }
 
-    private static void VerifyScopedControls(ConversationStore conversations)
+    private static async Task VerifyOpeningExpiryAtReceiveAsync(Uri address, IServiceProvider services,
+        ConcurrentDictionary<Guid, WireGate> gates, ConcurrentQueue<ActiveProviderSocket> providers, MediaClock clock)
+    {
+        var gateId = Guid.NewGuid();
+        var gate = new WireGate { OpeningReceived = () => clock.Advance(TimeSpan.FromMinutes(2)) };
+        gates[gateId] = gate;
+        var device = "open-expiry-" + Guid.NewGuid().ToString("N");
+        var boot = Guid.NewGuid();
+        var token = services.GetRequiredService<DeviceAccessStore>().IssueToken(device)!.AccessToken;
+        // Keep the conversation fresh independently of the older bearer. An
+        // expired conversation would mask the missing post-upgrade auth check.
+        clock.Advance(TimeSpan.FromMinutes(14));
+        var create = new CreateConversationRequest(device, boot, 1, PartyWandCatalog.Version, "cs-CZ", new(true, false), MaximumEpoch);
+        var store = services.GetRequiredService<ConversationStore>();
+        var created = store.Create(device, Guid.NewGuid(), JsonSerializer.SerializeToUtf8Bytes(create, RealtimeProtocol.JsonOptions), create);
+        Check(created.Status == 201, "opening expiry fixture creates isolated conversation");
+        var conversation = created.Response!.ConversationId;
+        using var client = await ConnectAsync(address, "/v1/conversations/" + conversation + "/device-media", token, gateId);
+        var opening = new RealtimeTurnRequest(Guid.NewGuid(), boot, 1, 63, 7, PartyWandCatalog.Version, true, "", null, "marin", 1, MaximumEpoch);
+        await SendControlAsync(client, JsonSerializer.SerializeToUtf8Bytes(new { type = "open", engine = "realtime", request = opening }, RealtimeProtocol.JsonOptions));
+        await CheckDisconnectedAsync(client);
+        Check(gate.OpeningApplied && created.Response.ExpiresAt > clock.GetUtcNow()
+            && providers.IsEmpty && CountOperationRows(services, conversation) == 0,
+            "bearer expiring exactly at opening receive cannot admit journal operation or provider before watcher tick");
+        gates.TryRemove(gateId, out _);
+    }
+
+    private static async Task VerifyPlayedReplyFencesAsync(IServiceProvider services)
+    {
+        var store = services.GetRequiredService<ConversationStore>();
+        foreach (var ending in new[] { "delivered", "unknown", "cancel" })
+        {
+            var device = "played-fence-" + Guid.NewGuid().ToString("N");
+            var boot = Guid.NewGuid();
+            var create = new CreateConversationRequest(device, boot, 1, PartyWandCatalog.Version, "cs-CZ", new(true, false), MaximumEpoch);
+            var created = store.Create(device, Guid.NewGuid(), JsonSerializer.SerializeToUtf8Bytes(create, RealtimeProtocol.JsonOptions), create);
+            Check(created.Status == 201, "played fence fixture creates actual conversation");
+            var conversation = created.Response!.ConversationId;
+            var request = new RealtimeTurnRequest(Guid.NewGuid(), boot, 1, 63, 7, PartyWandCatalog.Version, true, "", null, "marin", 1, MaximumEpoch);
+            var call = store.BeginRealtimeTurn(device, conversation, Guid.NewGuid(), JsonSerializer.SerializeToUtf8Bytes(request, RealtimeProtocol.JsonOptions),
+                request, true, CancellationToken.None, CancellationToken.None, handsFree: true).Call
+                ?? throw new InvalidOperationException("Played fixture admission failed.");
+            Check(store.StartRealtimeTurn(call)
+                && store.CompleteRealtimeTurn(call, new("", "Jak ti rikaji?", "ask", "", null, 0)) is not null,
+                "played fence fixture completes actual operation A");
+            store.ReleaseRealtimeTurn(call, dispatched: true, completed: true);
+            using var lifetime = new CancellationTokenSource();
+            using var transport = new PublicationSocket(); transport.Release.TrySetResult();
+            var sink = new DeviceMediaEventSink(new DeviceMediaSocket(transport, lifetime), lifetime, _ => { });
+            sink.BindOperation(call.OperationId);
+            await sink.WriteAsync(new ConversationOperationBinding(call.OperationId, 0), lifetime.Token);
+            using var session = new RealtimeLiveSession(device, conversation, new ForbiddenInput(), lifetime);
+            var drained = session.PreparePlayback(call.OperationId);
+            var requestId = Guid.NewGuid();
+            var body = JsonSerializer.SerializeToUtf8Bytes(new { type = "played", requestId, operationId = call.OperationId, responseGeneration = 0 });
+            var ledger = new DeviceMediaControlLedger();
+            Check(!ledger.IsReplay(requestId, body), "first played receipt has unique exact envelope");
+            using var document = JsonDocument.Parse(body);
+            Check(!DeviceMediaEndpoints.ApplyControl(document.RootElement, session, sink, store, device, conversation, out var published)
+                && published is not null && drained.IsCompletedSuccessfully, "played applies RAM drain only after installing reply publication claim");
+            ledger.Complete(requestId, 204);
+            Check(ledger.IsReplay(requestId, body) && sink.ClaimPlayedReply(call.OperationId, 0, Guid.NewGuid(), () => 0) is null,
+                "exact ledger retry does not reapply played or install another release barrier");
+            var admittedB = false;
+            RealtimeCall? callB = null;
+            async Task AdmitBAsync()
+            {
+                await sink.BeforeNextOperationAsync(lifetime.Token);
+                admittedB = true;
+                var next = request with { Opening = false, ClientTurnId = Guid.NewGuid() };
+                callB = store.BeginRealtimeTurn(device, conversation, Guid.NewGuid(), JsonSerializer.SerializeToUtf8Bytes(next, RealtimeProtocol.JsonOptions),
+                    next, true, lifetime.Token, CancellationToken.None, handsFree: true).Call;
+                Check(callB is not null && store.StartRealtimeTurn(callB), "next actual operation starts after exact played ACK publication");
+            }
+            var nextAdmission = AdmitBAsync();
+            Check(!nextAdmission.IsCompleted && !admittedB && CountOperationRows(services, conversation) == 1,
+                "completed drained A cannot admit journal/provider B while exact played ACK is held");
+            if (ending == "cancel")
+            {
+                var cancellation = sink.TryClaimCancellation(call.OperationId, 0, () => 0);
+                Check(cancellation is not null && store.CancelOperation(device, call.OperationId, Guid.NewGuid()).Status == 204,
+                    "urgent current cancellation owns store mutation independently of blocked played ACK");
+                sink.CompleteCancellation(cancellation!, close: true);
+                await ExpectCancellationAsync(nextAdmission.WaitAsync(TimeSpan.FromSeconds(1)));
+                published!(true); // A late socket continuation cannot reopen the settled cancellation.
+            }
+            else
+            {
+                published!(ending == "delivered");
+                if (ending == "delivered")
+                {
+                    await nextAdmission.WaitAsync(TimeSpan.FromSeconds(1));
+                    store.ReleaseRealtimeTurn(callB!, dispatched: true, completed: false);
+                }
+                else { await ExpectCancellationAsync(nextAdmission.WaitAsync(TimeSpan.FromSeconds(1))); }
+            }
+            Check(admittedB == (ending == "delivered") && CountOperationRows(services, conversation) == (ending == "delivered" ? 2 : 1),
+                "only delivered exact played ACK permits next durable operation; unknown/cancel remain closed");
+        }
+    }
+
+    private static async Task VerifyMappedPlayedReplyAsync(Uri address, IServiceProvider services,
+        ConcurrentDictionary<Guid, WireGate> gates, ConcurrentQueue<ActiveProviderSocket> providers)
+    {
+        foreach (var cancel in new[] { false, true })
+        {
+            var gateId = Guid.NewGuid();
+            var gate = new WireGate(); gates[gateId] = gate;
+            using var active = await OpenActiveAsync(address, services, providers, gateId);
+            active.Provider.CompleteResponse();
+            await active.Inbox.JsonAsync("completed");
+            var requestId = Guid.NewGuid();
+            gate.AckType = "control.ack"; gate.AckRequest = requestId;
+            var played = JsonSerializer.SerializeToUtf8Bytes(new { type = "played", requestId, operationId = active.Operation, responseGeneration = 0 });
+            await SendControlAsync(active.Client, played);
+            var ack = await active.Inbox.JsonAsync("control.ack");
+            await gate.Held.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Check(ack.GetProperty("requestId").GetGuid() == requestId && CountOperationRows(services, active.Conversation) == 1,
+                "real played ACK bytes are visible while next operation remains fenced behind send completion");
+            if (cancel)
+            {
+                await SendControlAsync(active.Client, JsonSerializer.SerializeToUtf8Bytes(new
+                { type = "cancel", requestId = Guid.NewGuid(), operationId = active.Operation, responseGeneration = 0 }));
+                await CheckTargetedCancellationAsync(() => ReadAsync(active.Client),
+                    () => active.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "fixture cancellation", CancellationToken.None), "blocked played ACK");
+                await CheckReleasedAsync(active, services);
+                Check(CountOperationRows(services, active.Conversation) == 1
+                    && services.GetRequiredService<OperationJournal>().GetOperation(active.Device, active.Operation).Operation?.Status == "cancelled",
+                    "urgent mapped cancellation closes played waiter and cannot start B while ACK send is blocked");
+            }
+            else
+            {
+                gate.Release.TrySetResult();
+                await active.Inbox.JsonAsync("media.operation");
+                await active.Inbox.JsonAsync("media.input");
+                await active.Inbox.JsonAsync("listening");
+                Check(CountOperationRows(services, active.Conversation) == 2, "actual B admission follows exact played ACK publication");
+                await SendControlAsync(active.Client, played);
+                var replay = await active.Inbox.JsonAsync("control.ack");
+                Check(replay.GetProperty("requestId").GetGuid() == requestId && replay.GetProperty("status").GetInt32() == 204,
+                    "exact old played retry returns cached success without another operation-bound reply claim");
+                await active.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "fixture complete", CancellationToken.None);
+                await CheckReleasedAsync(active, services);
+            }
+            gates.TryRemove(gateId, out _);
+        }
+        using (var active = await OpenActiveAsync(address, services, providers))
+        {
+            await SendControlAsync(active.Client, JsonSerializer.SerializeToUtf8Bytes(new
+            { type = "played", requestId = Guid.NewGuid(), operationId = active.Operation, responseGeneration = 0 }));
+            var refused = await active.Inbox.JsonAsync("control.ack");
+            Check(refused.GetProperty("status").GetInt32() == 409 && refused.GetProperty("code").GetString() == "media_playback_mismatch",
+                "valid but premature played receives typed refusal while original operation stays live");
+            await BeginInputAsync(active); // The refused attempt must leave no stuck release claim.
+            await active.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "fixture complete", CancellationToken.None);
+            await CheckReleasedAsync(active, services);
+        }
+    }
+
+    private static long CountOperationRows(IServiceProvider services, string conversation)
+    {
+        var configuration = services.GetRequiredService<IConfiguration>();
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        { DataSource = configuration["Backend:DatabasePath"] }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM turn_operations WHERE conversation_id = $conversation";
+        command.Parameters.AddWithValue("$conversation", conversation);
+        return (long)command.ExecuteScalar()!;
+    }
+
+    private static async Task VerifyAckVisibilityAsync(Uri address, IServiceProvider services,
+        ConcurrentDictionary<Guid, WireGate> gates, ConcurrentQueue<ActiveProviderSocket> providers)
+    {
+        var pcmGateId = Guid.NewGuid();
+        var pcmGate = new WireGate { AckType = "media.ack", ObserveBinarySequence = 1 };
+        gates[pcmGateId] = pcmGate;
+        using (var active = await OpenActiveAsync(address, services, providers, pcmGateId))
+        {
+            var stream = await BeginInputAsync(active);
+            await active.Client.SendAsync(InputFrame(stream, 0, 4).AsMemory(), WebSocketMessageType.Binary, true, CancellationToken.None);
+            await active.Inbox.JsonAsync("media.ack");
+            await pcmGate.Held.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            await active.Client.SendAsync(InputFrame(stream, 1, 4).AsMemory(), WebSocketMessageType.Binary, true, CancellationToken.None);
+            await pcmGate.Admitted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Check(active.Provider.InputBytes == 4 && !active.Provider.Aborted,
+                "real receive loop admits next credited PCM while prior ACK send continuation is held");
+            pcmGate.Release.TrySetResult();
+            var ack = await active.Inbox.JsonAsync("media.ack");
+            Check(ack.GetProperty("sequence").GetUInt32() == 1 && active.Provider.InputBytes == 8,
+                "queued second PCM reaches actual provider once after first ACK send returns");
+            await active.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "fixture complete", CancellationToken.None);
+            await CheckReleasedAsync(active, services);
+        }
+        gates.TryRemove(pcmGateId, out _);
+
+        var controlGateId = Guid.NewGuid();
+        var controlGate = new WireGate();
+        gates[controlGateId] = controlGate;
+        using (var active = await OpenActiveAsync(address, services, providers, controlGateId))
+        {
+            await BeginInputAsync(active);
+            var playbackId = Guid.NewGuid();
+            var checkpoint = active.Session.PrepareCheckpoint(new(playbackId, 42, 1));
+            var first = Guid.NewGuid();
+            var second = Guid.NewGuid();
+            controlGate.AckType = "control.ack"; controlGate.AckRequest = first; controlGate.ObserveRequest = second;
+            await SendControlAsync(active.Client, JsonSerializer.SerializeToUtf8Bytes(new
+            { type = "playback", requestId = first, playbackId, pcmBytes = 42, drained = true }));
+            var firstAck = await active.Inbox.JsonAsync("control.ack");
+            await controlGate.Held.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Check(firstAck.GetProperty("status").GetInt32() == 204 && checkpoint.IsCompletedSuccessfully,
+                "first normal control applies before visible ACK");
+            await SendControlAsync(active.Client, JsonSerializer.SerializeToUtf8Bytes(new
+            { type = "availability", requestId = second, bootId = active.Boot, generation = 1,
+                readyMask = 63, deviceRevision = 7, operationEpoch = MaximumEpoch }));
+            await controlGate.Admitted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Check(!active.Provider.Aborted, "normal next control admitted before preceding visible ACK send continuation completes");
+            controlGate.Release.TrySetResult();
+            var secondAck = await active.Inbox.JsonAsync("control.ack");
+            Check(secondAck.GetProperty("requestId").GetGuid() == second && secondAck.GetProperty("status").GetInt32() == 204,
+                "actual mapped next control retains its reserved normal reply and applied outcome");
+            await active.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "fixture complete", CancellationToken.None);
+            await CheckReleasedAsync(active, services);
+        }
+        gates.TryRemove(controlGateId, out _);
+        using (var active = await OpenActiveAsync(address, services, providers))
+        {
+            var stream = await BeginInputAsync(active);
+            active.Provider.StallInput = true;
+            await active.Client.SendAsync(InputFrame(stream, 0, 4).AsMemory(), WebSocketMessageType.Binary, true, CancellationToken.None);
+            await active.Provider.InputStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            await active.Client.SendAsync(InputFrame(stream, 1, 4).AsMemory(), WebSocketMessageType.Binary, true, CancellationToken.None);
+            await CheckDisconnectedAsync(active.Client);
+            await CheckReleasedAsync(active, services);
+            Check(active.Provider.InputBytes == 0, "malicious next PCM before any ACK credit still closes before provider acceptance");
+        }
+    }
+
+    private static async Task VerifyScopedControlsAsync(ConversationStore conversations)
     {
         using var lifetime = new CancellationTokenSource();
-        using var transport = new StalledSocket();
+        using var transport = new PublicationSocket();
+        transport.Release.TrySetResult();
         var sink = new DeviceMediaEventSink(new DeviceMediaSocket(transport, lifetime), lifetime, _ => { });
+        sink.BindOperation("current-operation");
+        await sink.WriteAsync(new ConversationOperationBinding("current-operation", 0), lifetime.Token);
         using var session = new RealtimeLiveSession("media-device", "fixture", new ForbiddenInput(), lifetime);
         var playbackId = Guid.NewGuid();
         var checkpoint = session.PrepareCheckpoint(new(playbackId, 42, 1));
         bool Apply(object control)
         {
             using var document = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(control));
-            return DeviceMediaEndpoints.ApplyControl(document.RootElement, session, sink, conversations, "media-device", "fixture");
+            var close = DeviceMediaEndpoints.ApplyControl(document.RootElement, session, sink, conversations, "media-device", "fixture", out var published);
+            published?.Invoke(true); // This unit explicitly models successful exact ACK publication.
+            return close;
         }
         Reject(() => Apply(new { type = "playback", requestId = Guid.NewGuid(), playbackId, pcmBytes = 40, drained = true }),
             "playback PCM count must match issued checkpoint");
@@ -745,7 +1008,7 @@ internal static class DeviceMediaTransportTests
     }
 
     private static async Task<ActiveMedia> OpenActiveAsync(Uri address, IServiceProvider services,
-        ConcurrentQueue<ActiveProviderSocket> providers)
+        ConcurrentQueue<ActiveProviderSocket> providers, Guid? testGate = null)
     {
         var device = "active-media-" + Guid.NewGuid().ToString("N");
         var boot = Guid.NewGuid();
@@ -755,7 +1018,7 @@ internal static class DeviceMediaTransportTests
         Check(created.Status == 201 && created.Response is not null, "active fixture creates actual scoped conversation");
         var conversation = created.Response!.ConversationId;
         var token = services.GetRequiredService<DeviceAccessStore>().IssueToken(device)!.AccessToken;
-        var client = await ConnectAsync(address, "/v1/conversations/" + conversation + "/device-media", token);
+        var client = await ConnectAsync(address, "/v1/conversations/" + conversation + "/device-media", token, testGate);
         var opening = new RealtimeTurnRequest(Guid.NewGuid(), boot, 1, 63, 7, PartyWandCatalog.Version, true, "", null, "marin", 1, MaximumEpoch);
         await SendControlAsync(client, JsonSerializer.SerializeToUtf8Bytes(new { type = "open", engine = "realtime", request = opening }, RealtimeProtocol.JsonOptions));
         var inbox = new MediaInbox(client);
@@ -873,11 +1136,12 @@ internal static class DeviceMediaTransportTests
         catch (WebSocketException) { }
     }
 
-    private static async Task<ClientWebSocket> ConnectAsync(Uri address, string route, string? token)
+    private static async Task<ClientWebSocket> ConnectAsync(Uri address, string route, string? token, Guid? testGate = null)
     {
         var client = new ClientWebSocket();
         client.Options.AddSubProtocol(DeviceMediaProtocol.Subprotocol);
         client.Options.SetRequestHeader("Idempotency-Key", Guid.NewGuid().ToString("D"));
+        if (testGate is { } gate) { client.Options.SetRequestHeader("X-Device-Media-Test-Gate", gate.ToString("D")); }
         if (token is not null) { client.Options.SetRequestHeader("Authorization", "Bearer " + token); }
         await client.ConnectAsync(WebSocketUri(address, route), CancellationToken.None);
         Check(client.SubProtocol == DeviceMediaProtocol.Subprotocol, "negotiated device media protocol");
@@ -1037,6 +1301,105 @@ internal static class DeviceMediaTransportTests
     {
         internal string CurrentOperation { get; set; } = Operation;
         public void Dispose() => Client.Dispose();
+    }
+
+    private sealed class WireGate
+    {
+        internal string? AckType { get; set; }
+        internal Guid? AckRequest { get; set; }
+        internal uint? ObserveBinarySequence { get; set; }
+        internal Guid? ObserveRequest { get; set; }
+        internal Action? OpeningReceived { get; init; }
+        internal bool OpeningApplied { get; private set; }
+        internal TaskCompletionSource Held { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Admitted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly MemoryStream incoming = new();
+        private bool observed;
+        private int held;
+        internal void BeforeReceive()
+        {
+            if (observed) { Admitted.TrySetResult(); }
+        }
+        internal void Received(ReadOnlyMemory<byte> bytes, WebSocketMessageType kind, bool complete)
+        {
+            incoming.Write(bytes.Span);
+            if (!complete) { return; }
+            var body = incoming.ToArray(); incoming.SetLength(0);
+            if (kind == WebSocketMessageType.Binary && body.Length >= 16)
+            {
+                if (ObserveBinarySequence == BinaryPrimitives.ReadUInt32LittleEndian(body.AsSpan(8))) { observed = true; }
+                return;
+            }
+            if (kind != WebSocketMessageType.Text) { return; }
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (root.TryGetProperty("type", out var type) && type.GetString() == "open" && OpeningReceived is not null && !OpeningApplied)
+            {
+                OpeningApplied = true; OpeningReceived();
+            }
+            if (root.TryGetProperty("requestId", out var request) && request.TryGetGuid(out var id) && id == ObserveRequest)
+            {
+                observed = true;
+            }
+        }
+        internal async Task ForwardedAsync(ReadOnlyMemory<byte> bytes, WebSocketMessageType kind, CancellationToken token)
+        {
+            if (kind != WebSocketMessageType.Text || AckType is null || Volatile.Read(ref held) != 0) { return; }
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("type", out var type) || type.GetString() != AckType
+                || AckRequest is { } expected && (!root.TryGetProperty("requestId", out var request) || request.GetGuid() != expected)) { return; }
+            if (Interlocked.Exchange(ref held, 1) != 0) { return; }
+            Held.TrySetResult();
+            await Release.Task.WaitAsync(token);
+        }
+    }
+
+    private sealed class GatedWebSocketFeature(IHttpWebSocketFeature inner, WireGate gate) : IHttpWebSocketFeature
+    {
+        public bool IsWebSocketRequest => inner.IsWebSocketRequest;
+        public async Task<WebSocket> AcceptAsync(WebSocketAcceptContext context) =>
+            new GatedServerSocket(await inner.AcceptAsync(context), gate);
+    }
+
+    // Bytes reach the real client before the server SendAsync continuation is
+    // released. This exercises the production mapped route, not an ACK mock.
+    private sealed class GatedServerSocket(WebSocket inner, WireGate gate) : WebSocket
+    {
+        public override WebSocketCloseStatus? CloseStatus => inner.CloseStatus;
+        public override string? CloseStatusDescription => inner.CloseStatusDescription;
+        public override WebSocketState State => inner.State;
+        public override string? SubProtocol => inner.SubProtocol;
+        public override void Abort() => inner.Abort();
+        public override void Dispose() => inner.Dispose();
+        public override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) =>
+            inner.CloseAsync(closeStatus, statusDescription, cancellationToken);
+        public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) =>
+            inner.CloseOutputAsync(closeStatus, statusDescription, cancellationToken);
+        public override async ValueTask<ValueWebSocketReceiveResult> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            gate.BeforeReceive();
+            var result = await inner.ReceiveAsync(buffer, cancellationToken);
+            if (result.MessageType != WebSocketMessageType.Close)
+            {
+                gate.Received(buffer[..result.Count], result.MessageType, result.EndOfMessage);
+            }
+            return result;
+        }
+        public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        {
+            var result = await ReceiveAsync(buffer.AsMemory(), cancellationToken);
+            return new(result.Count, result.MessageType, result.EndOfMessage);
+        }
+        public override async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, WebSocketMessageType messageType,
+            bool endOfMessage, CancellationToken cancellationToken = default)
+        {
+            await inner.SendAsync(buffer, messageType, endOfMessage, cancellationToken);
+            await gate.ForwardedAsync(buffer, messageType, cancellationToken);
+        }
+        public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage,
+            CancellationToken cancellationToken) => SendAsync(buffer.AsMemory(), messageType, endOfMessage, cancellationToken).AsTask();
     }
 
     private sealed class PublicationSocket : WebSocket

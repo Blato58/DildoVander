@@ -49,9 +49,9 @@ internal static class DeviceMediaEndpoints
         var buffer = new byte[DeviceMediaProtocol.MaxMessageBytes + 1];
         RealtimeLiveSession? session = null;
         Task? run = null;
-        Task? upload = null;
         Task<(WebSocketMessageType Kind, int Count)>? receive = null;
         var replies = new DeviceMediaControlReplies(socket, lifetime.Token);
+        var inputs = new DeviceMediaInputOwner(socket, lifetime.Token);
         var controls = new DeviceMediaControlLedger();
         long inputBytes = 0;
         var authorization = WatchAuthorizationAsync();
@@ -70,6 +70,10 @@ internal static class DeviceMediaEndpoints
             openingDeadline.CancelAfter(TimeSpan.FromSeconds(5));
             var opening = await socket.ReceiveAsync(buffer, openingDeadline.Token);
             if (opening.Kind != WebSocketMessageType.Text) { throw new InvalidDataException("invalid_media_open"); }
+            if (await DeviceAccessEndpoints.AuthenticateCurrentAsync(context, access) != device)
+            {
+                throw new InvalidDataException("access_token_expired");
+            }
             var parsed = DeviceMediaProtocol.ReadOpening(buffer.AsMemory(0, opening.Count));
             CryptographicOperations.ZeroMemory(buffer);
             sink.BindOpening(parsed.Engine, RealtimeProtocol.ReadRequest(parsed.Request)!);
@@ -117,14 +121,17 @@ internal static class DeviceMediaEndpoints
                 {
                     // One credit per input frame. The receiver never waits on a
                     // provider send or socket ACK, so cancel/close remain live.
-                    if (upload is { IsCompleted: false }) { throw new InvalidDataException("media_input_credit_exceeded"); }
-                    if (upload is not null) { await upload; }
+                    if (inputs.Completion.IsCompleted) { await inputs.Completion; }
                     var header = DeviceMediaProtocol.ReadPcmHeader(buffer.AsSpan(0, message.Count));
                     inputBytes = checked(inputBytes + message.Count - DeviceMediaProtocol.HeaderBytes);
                     if (inputBytes > 24_000 * 2 * 180) { throw new InvalidDataException("media_input_capacity"); }
                     var input = sink.AdmitInput(header.Stream, header.Sequence);
                     var pcm = buffer.AsSpan(DeviceMediaProtocol.HeaderBytes, message.Count - DeviceMediaProtocol.HeaderBytes).ToArray();
-                    upload = UploadAsync(current, input.Input, input.Sequence, header.Stream, pcm);
+                    if (!inputs.TrySubmit(current, input.Input, input.Sequence, header.Stream, pcm))
+                    {
+                        CryptographicOperations.ZeroMemory(pcm);
+                        throw new InvalidDataException("media_input_credit_exceeded");
+                    }
                 }
                 else if (message.Kind == WebSocketMessageType.Text && message.Count <= 1024)
                 {
@@ -138,25 +145,27 @@ internal static class DeviceMediaEndpoints
                     }
                     var cancel = root.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
                         && type.GetString() == "cancel";
-                    if (!cancel && replies.HasPending)
+                    if (!cancel && !replies.TryTakeCredit())
                     {
                         throw new InvalidDataException("media_control_credit_exceeded");
                     }
                     if (replies.Completion.IsCompleted) { await replies.Completion; }
                     var replay = controls.IsReplay(request, buffer.AsSpan(0, message.Count));
+                    Action<bool>? published = null;
                     if (!replay)
                     {
                         try
                         {
-                            if (ApplyControl(root, current, sink, conversations, device, id)) { break; }
+                            if (ApplyControl(root, current, sink, conversations, device, id, out published)) { break; }
                             controls.Complete(request, 204);
                         }
                         catch (ControlRefusal refusal) { controls.Complete(request, 409, refusal.Code); }
                     }
                     var receipt = controls.Result(request);
-                    if (!replies.TryEnqueue(request, receipt.Status, receipt.Code) && !cancel)
+                    if (!replies.TryEnqueue(request, receipt.Status, receipt.Code, returnsCredit: !cancel, published))
                     {
-                        throw new InvalidDataException("media_control_credit_exceeded");
+                        published?.Invoke(false);
+                        if (!cancel) { throw new InvalidDataException("media_control_credit_exceeded"); }
                     }
                 }
                 else { throw new InvalidDataException("invalid_media_frame"); }
@@ -174,28 +183,15 @@ internal static class DeviceMediaEndpoints
             if (webSocket.State == WebSocketState.Closed) { lifetime.Cancel(); }
             else { socket.Abort(); }
             replies.Complete();
+            inputs.Complete();
             session?.EndAudioStream();
             // Cancellation/Abort does not release a borrowed Memory buffer.
             // Observe the sole receive owner before scrubbing or disposing it.
             await DeviceMediaSocket.ReleaseReceiveAsync(receive, buffer);
-            await ObserveAsync(upload);
+            await ObserveAsync(inputs.Completion);
             await ObserveAsync(replies.Completion);
             await ObserveAsync(run);
             await ObserveAsync(authorization);
-        }
-
-        async Task UploadAsync(RealtimeLiveSession current, Guid input, int sequence, uint stream, byte[] pcm)
-        {
-            try
-            {
-                if (!await current.UploadAsync(input, sequence, pcm, lifetime.Token, streaming: true))
-                {
-                    throw new InvalidDataException("media_input_mismatch");
-                }
-                await socket.SendJsonAsync(new { type = "media.ack", stream, sequence }, lifetime.Token);
-            }
-            catch { socket.Abort(); throw; }
-            finally { CryptographicOperations.ZeroMemory(pcm); }
         }
 
         async Task WatchAuthorizationAsync()
@@ -220,8 +216,9 @@ internal static class DeviceMediaEndpoints
     // explicit; a stale response or mismatched operation never falls back to a
     // global Stop or an unscoped registry cancellation.
     internal static bool ApplyControl(JsonElement root, RealtimeLiveSession session, DeviceMediaEventSink sink,
-        ConversationStore conversations, string device, string conversation)
+        ConversationStore conversations, string device, string conversation, out Action<bool>? published)
     {
+        published = null;
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("type", out var kind)
             || kind.ValueKind != JsonValueKind.String) { throw new InvalidDataException("invalid_media_control"); }
         switch (kind.GetString())
@@ -265,11 +262,21 @@ internal static class DeviceMediaEndpoints
                 }
                 return false;
             case "played":
-                if (!DeviceMediaProtocol.Fields(root, "type", "requestId", "operationId", "responseGeneration")
-                    || !session.Played(root.GetProperty("operationId").GetString()!, root.GetProperty("responseGeneration").GetInt64()))
+                if (!DeviceMediaProtocol.Fields(root, "type", "requestId", "operationId", "responseGeneration"))
                 {
                     throw new InvalidDataException("media_playback_mismatch");
                 }
+                var playedOperation = root.GetProperty("operationId").GetString()!;
+                var playedGeneration = root.GetProperty("responseGeneration").GetInt64();
+                var replyClaim = sink.ClaimPlayedReply(playedOperation, playedGeneration,
+                    root.GetProperty("requestId").GetGuid(), () => session.OutputGeneration);
+                if (replyClaim is null) { throw new ControlRefusal("media_playback_mismatch"); }
+                if (!session.Played(playedOperation, playedGeneration))
+                {
+                    sink.CompletePlayedReply(replyClaim, delivered: false, refused: true);
+                    throw new ControlRefusal("media_playback_mismatch");
+                }
+                published = delivered => sink.CompletePlayedReply(replyClaim, delivered);
                 return false;
             case "availability":
                 var epochPresent = root.TryGetProperty("operationEpoch", out var epoch);

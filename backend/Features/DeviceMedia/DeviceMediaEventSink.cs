@@ -24,6 +24,7 @@ internal sealed class DeviceMediaEventSink(DeviceMediaSocket socket, Cancellatio
     private string? pendingOperation;
     private long publishedGeneration;
     private CancellationClaim? cancellation;
+    private PlayedReplyClaim? playedReply;
     private bool closing;
     private string? engine;
     private RealtimeTurnRequest? opening;
@@ -44,7 +45,7 @@ internal sealed class DeviceMediaEventSink(DeviceMediaSocket socket, Cancellatio
         lock (inputGate)
         {
             ThrowIfClosing();
-            if (cancellation is not null) { throw new InvalidOperationException("media_operation_transition_claimed"); }
+            if (cancellation is not null || playedReply is not null) { throw new InvalidOperationException("media_operation_transition_claimed"); }
             pendingOperation = operationId;
             activeOperation = null;
         }
@@ -63,6 +64,45 @@ internal sealed class DeviceMediaEventSink(DeviceMediaSocket socket, Cancellatio
         internal string Operation { get; } = operation;
         internal long Generation { get; } = generation;
         internal TaskCompletionSource Settled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    internal sealed class PlayedReplyClaim(DeviceMediaEventSink owner, string operation, long generation, Guid request)
+    {
+        internal DeviceMediaEventSink Owner { get; } = owner;
+        internal string Operation { get; } = operation;
+        internal long Generation { get; } = generation;
+        internal Guid Request { get; } = request;
+        internal TaskCompletionSource Settled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    internal PlayedReplyClaim? ClaimPlayedReply(string operation, long generation, Guid request, Func<long> currentGeneration)
+    {
+        lock (inputGate)
+        {
+            if (closing || lifetime.IsCancellationRequested || cancellation is not null || playedReply is not null
+                || request == Guid.Empty || activeOperation != operation || publishedGeneration != generation
+                || currentGeneration() != generation) { return null; }
+            playedReply = new(this, operation, generation, request);
+            return playedReply;
+        }
+    }
+
+    internal void CompletePlayedReply(PlayedReplyClaim claim, bool delivered, bool refused = false)
+    {
+        lock (inputGate)
+        {
+            if (claim.Owner != this) { throw new InvalidOperationException("media_played_reply_mismatch"); }
+            // Scoped cancellation may already have closed this waiter. A late
+            // socket result cannot reopen it or affect a successor operation.
+            if (playedReply != claim)
+            {
+                if (claim.Settled.Task.IsCompleted) { return; }
+                throw new InvalidOperationException("media_played_reply_mismatch");
+            }
+            closing |= !delivered && !refused;
+            playedReply = null;
+            claim.Settled.SetResult();
+        }
     }
 
     internal CancellationClaim? TryClaimCancellation(string operation, long generation, Func<long> currentGeneration)
@@ -89,6 +129,11 @@ internal sealed class DeviceMediaEventSink(DeviceMediaSocket socket, Cancellatio
                 throw new InvalidOperationException("media_cancel_claim_mismatch");
             }
             closing |= close;
+            if (closing && playedReply is { } blockedReply)
+            {
+                playedReply = null;
+                blockedReply.Settled.SetResult();
+            }
             if (!closing)
             {
                 activeOperation = claim.Operation;
@@ -108,14 +153,14 @@ internal sealed class DeviceMediaEventSink(DeviceMediaSocket socket, Cancellatio
             {
                 token.ThrowIfCancellationRequested();
                 ThrowIfClosing();
-                if (cancellation is null)
+                if (cancellation is null && playedReply is null)
                 {
                     // Retire A BEFORE the core can admit B. Publication gating
                     // alone would leave a new journal row exposed to A's Stop.
                     activeOperation = pendingOperation = null;
                     return;
                 }
-                wait = cancellation.Settled.Task;
+                wait = cancellation?.Settled.Task ?? playedReply!.Settled.Task;
             }
             await wait.WaitAsync(token);
         }

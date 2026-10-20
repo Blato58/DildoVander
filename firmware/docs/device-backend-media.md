@@ -13,6 +13,8 @@ do not authorize this route. Credentials never appear in the URL or frames.
 Every admitted input/control checks current bearer authority and the exact
 device/conversation/session registry binding; hardware authority is checked as
 well. An independent one-second timer also expires an idle or blocked session.
+The first complete opening frame rechecks current bearer authority before any
+shared admission or provider work; upgrade-time authentication is not sufficient.
 
 ## Opening and lifetime
 
@@ -106,6 +108,9 @@ Live retains its existing availability-update semantics. Up to 128 exact
 request/body/status receipts are retained. An identical retry recovers
 the receipt without reapplying the control; a changed body with the same ID
 fails closed. No receipt is an authority to replay a physical action.
+Input/control credit is separate from worker/send-task completion. The owner
+returns the next credit before ACK bytes can become visible, so an immediate
+legal peer response cannot race a still-unwinding send continuation.
 
 Controls use these exact fields:
 
@@ -113,7 +118,11 @@ Controls use these exact fields:
   The issued checkpoint ID and exact PCM frontier must match. Only actual local
   drain completion can supply this evidence; a pause is not provider completion.
 - `played`: `type`, `requestId`, `operationId`, `responseGeneration`. This is the
-  existing scoped completion barrier, never a direct actuator command.
+  existing scoped completion barrier, never a direct actuator command. A typed
+  reply barrier is installed before releasing that playback; next-operation
+  admission waits for successful publication of this exact ACK. Refused played
+  controls return `media_playback_mismatch` without releasing the domain barrier.
+  Replaying an old cached receipt never installs a barrier on a later operation.
 - `availability`: `type`, `requestId`, `bootId`, `generation`, `readyMask`,
   `deviceRevision`, and optional original canonical decimal-string
   `operationEpoch`. Existing immutable availability/epoch rules apply.
@@ -130,6 +139,9 @@ admission share one short RAM gate. The durable cancellation attempt runs
 outside that gate. A known refusal releases the claim; success or an unknown
 mutation outcome permanently closes this stream's admission authority. Claim
 settlement never waits for an ACK or a writer that is waiting on the claim.
+An urgent current cancel also closes a next-admission waiter blocked on a played
+ACK without requiring that ACK to drain. Unknown/failed ACK publication cannot
+admit the next operation.
 
 The device must mute/invalidate local queued output immediately on its own Stop
 or cancellation; it must not wait for a network ACK. Backend technical or Lab
@@ -139,9 +151,12 @@ ACKs do not become production keepsake receipts.
 
 There is one receive owner and one serialized socket sender. Provider events
 remain inside their original write/generation gate until sends complete. There
-is no unbounded output queue. One input upload and one fixed control-reply pump
-run independently. The pump retains at most one in-flight receipt and one queued
-receipt. A refused urgent cancel can still be validated when that queue is full;
+is no unbounded output queue. One input-upload worker and one fixed control-reply
+pump run independently. The input owner permits one provider upload and one
+credited queued frame, clearing uploaded PCM before its ACK. The reply pump
+retains at most one in-flight receipt, one reserved normal reply and one urgent
+refusal reply. Urgent refusals cannot fill the normal reserved slot. A refused
+urgent cancel can still be validated when its slot is full;
 its receipt stays in the bounded ledger and an exact retry can recover it after
 ACK credit becomes available. It creates no additional sender task. Non-cancel
 controls require their single ACK credit before application. A blocked provider
