@@ -29,6 +29,10 @@ class WandPresentationPort {
                      const ConversationRuntimeSnapshot& snapshot) = 0;
   virtual bool Lower(uint8_t compartment) = 0;
   virtual bool Complete(uint8_t compartment) = 0;
+  // A false Complete result is a wait only when the owner retained the exact
+  // close/proof transaction. Waiting never permits additional physical effects.
+  virtual bool CompletionIsPending() const { return false; }
+  virtual bool CompletionTimingValidated() const { return false; }
   virtual void DisableAndFault() = 0;
 };
 
@@ -37,6 +41,7 @@ enum class WandPresentationState : uint8_t {
   Raising,
   Showing,
   Lowering,
+  Completing,
   Fault,
 };
 

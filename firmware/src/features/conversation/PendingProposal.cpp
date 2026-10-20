@@ -1,5 +1,37 @@
 #include "PendingProposal.h"
 
+#include <utility>
+
+PendingProposal::ClaimedProposal::ClaimedProposal(
+    ClaimedProposal&& other) noexcept {
+  *this = std::move(other);
+}
+
+PendingProposal::ClaimedProposal&
+PendingProposal::ClaimedProposal::operator=(ClaimedProposal&& other) noexcept {
+  if (this != &other) {
+    proposal_ = std::move(other.proposal_);
+    snapshot_ = std::move(other.snapshot_);
+    deadlineMs_ = other.deadlineMs_;
+    storedAtMs_ = other.storedAtMs_;
+    claimed_ = other.claimed_;
+    other.Clear();
+  }
+  return *this;
+}
+
+bool PendingProposal::ClaimedProposal::IsLive(uint64_t nowMs) const {
+  return claimed_ && nowMs >= storedAtMs_ && nowMs < deadlineMs_;
+}
+
+void PendingProposal::ClaimedProposal::Clear() {
+  proposal_ = {};
+  snapshot_ = {};
+  deadlineMs_ = 0;
+  storedAtMs_ = 0;
+  claimed_ = false;
+}
+
 bool PendingProposal::Store(
     const TurnProposal& proposal,
     const ConversationRuntimeSnapshot& snapshot,
@@ -54,6 +86,28 @@ bool PendingProposal::Consume(
   }
   proposal = proposal_;
   snapshot = snapshot_;
+  proposal_ = {};
+  snapshot_ = {};
+  deadlineMs_ = 0;
+  storedAtMs_ = 0;
+  pending_ = false;
+  return true;
+}
+
+bool PendingProposal::Claim(
+    ClaimedProposal& claimed,
+    const ConversationRuntimeState& runtimeState,
+    uint64_t nowMs) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (claimed.IsClaimed() || !pending_ || nowMs < storedAtMs_ ||
+      nowMs >= deadlineMs_ || !runtimeState.Matches(snapshot_)) {
+    return false;
+  }
+  claimed.proposal_ = std::move(proposal_);
+  claimed.snapshot_ = std::move(snapshot_);
+  claimed.deadlineMs_ = deadlineMs_;
+  claimed.storedAtMs_ = storedAtMs_;
+  claimed.claimed_ = true;
   proposal_ = {};
   snapshot_ = {};
   deadlineMs_ = 0;

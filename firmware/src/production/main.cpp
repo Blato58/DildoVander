@@ -639,6 +639,7 @@ extern "C" void app_main() {
         case WandPresentationState::Raising: twinSnapshot.state = "raising"; break;
         case WandPresentationState::Showing: twinSnapshot.state = "showing"; break;
         case WandPresentationState::Lowering: twinSnapshot.state = "lowering"; break;
+        case WandPresentationState::Completing: twinSnapshot.state = "lowering"; break;
         case WandPresentationState::Fault: twinSnapshot.state = "fault"; break;
       }
       twinSnapshot.pulse = observedHardware.pulse_;

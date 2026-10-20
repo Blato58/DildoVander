@@ -54,9 +54,9 @@ Run `python firmware/tests/run_show_tests.py` from the repository root. Focused
 checks are `journal_snapshot_test`, `journal_transaction_arbiter_test`,
 `journal_storage_owner_test`, `async_command_journal_test`, `device_control_test`
 and `local_control_owner_test`, selected with repeatable `--only NAME` arguments.
-The standalone autonomous and offline paths still use their synchronous ports;
-their asynchronous state machines, worker task/stack composition and complete
-boot reconciliation gate must be integrated before production activation.
+Autonomous/offline admission and evidence producers still use synchronous ports;
+their migration, worker task/stack composition and complete boot reconciliation
+gate must be integrated before production activation.
 
 ## Committed evidence and startup authority
 
@@ -104,3 +104,38 @@ is not the required four-hour media/session soak or hardware evidence. Separate
 fixtures cover source/close ACK loss, missing stores, source-fault Stop and
 reserved result draining. Autonomous/offline producer migration, the actual
 worker task, stack/latency measurements and production orchestration remain open.
+
+## Autonomous completion acknowledgements
+
+The physical owner now retains a distinct completion wait after disabling all
+outputs at rest. `DeviceControlRuntime::AdvanceAutonomousCompletion` retains the
+original slot, cancellation generation and timing callback through the durable
+close acknowledgement. The exact original journal tuple stays owned through
+both close and timing-proof requests; published snapshots never supply renewed
+authority. A pending acknowledgement is a wait, not an I/O failure or success.
+
+The close ACK must pass the existing fresh physical clock check, including its
+original 250 ms completion window and whole score deadline. Only that successful
+check creates the private live completion seal. The subsequent proof ACK is
+historical bookkeeping: its latency neither rechecks nor extends physical motion
+timing. Wand and physical owners remain in completion wait with outputs disabled,
+while health, calibration, clock order and cancellation gates still apply. They
+report normal completion only after proof acknowledgement. Stop before the seal
+permits no proof; Stop after it clears live success authority even if an already
+started proof write becomes durable. A late close alone never supplies timing
+evidence. Existing control-loop watchdogs remain active throughout the wait.
+
+`PendingProposal::Claim` separately provides an atomic move-only handoff of the
+original proposal, snapshot and absolute local expiry. Runtime invalidation
+cannot rewrite that claimed intent or renew its deadline. Admission callers have
+not yet migrated to the claim; it does not bypass the unavailable public snapshot
+or activate asynchronous autonomous admission by itself.
+
+The default inventory runner includes `autonomous_completion_storage_test`, using
+the actual shared runtime, committed codecs and asynchronous close/proof facade.
+Its explicitly test-only bridge pumps reservation and Begin during setup; it is
+not full asynchronous admission acceptance. It checks cancellation and commit
+cuts on both close/proof boundaries, late receipt adoption, exact source tuples
+and authoritative reopen. A separate physical-owner fixture retains the first
+close time across repeated polls, accepts a close at 249 ms, refuses it at 250 ms,
+and keeps normal control/watchdog ticks running during delayed proof bookkeeping.

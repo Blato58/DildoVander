@@ -44,6 +44,11 @@ class Journal final : public CommandJournal {
   int begins = 0, restores = 0;
   std::string operationId, completedId;
   uint8_t completedSlot = 0;
+  bool holdClose = false, holdProof = false;
+  bool closeOutstanding = false, proofOutstanding = false;
+  StorageState storageState = StorageState::Rejected;
+  StorageState LastStorageState() const override { return storageState; }
+  bool HasPendingStorage() const override { return closeOutstanding || proofOutstanding; }
   bool HasPending() const override { return pending; }
   uint8_t PendingCompartment() const override { return selected; }
   uint8_t ReadyMask() const override { return mask; }
@@ -54,6 +59,13 @@ class Journal final : public CommandJournal {
   bool Resolve(uint8_t value) override { mask = value; pending = false; return !fail; }
   bool ResolveRestored(uint8_t value) override {
     if (fail || !pending || value != selected) return false;
+    if (holdClose) {
+      closeOutstanding = true;
+      storageState = StorageState::Pending;
+      return false;
+    }
+    closeOutstanding = false;
+    storageState = StorageState::Committed;
     ++restores; pending = false; selected = 0; return true;
   }
   bool PersistReadyMask(uint8_t value) override { mask = value; return !fail; }
@@ -62,6 +74,13 @@ class Journal final : public CommandJournal {
   // Their matching signatures still override the current virtual journal hooks.
   bool ConfirmTimedPresentation(const std::string& id, uint8_t slot, uint64_t) {
     if (fail || pending || operationId != id) return false;
+    if (holdProof) {
+      proofOutstanding = true;
+      storageState = StorageState::Pending;
+      return false;
+    }
+    proofOutstanding = false;
+    storageState = StorageState::Committed;
     completedId = id; completedSlot = slot; return true;
   }
   bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot) const {

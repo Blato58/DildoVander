@@ -15,6 +15,7 @@ class PendingProposal;
 // must start unavailable; only this owner publishes it after safe transitions.
 class DeviceControlRuntime final {
  public:
+  enum class PresentationProgress { Pending, Succeeded, Rejected };
   DeviceControlRuntime(DeviceControl& control, SelectionSequence& selection,
                        ConversationRuntimeState& runtime,
                        const std::string& catalogVersion);
@@ -47,6 +48,9 @@ class DeviceControlRuntime final {
       const ConversationRuntimeSnapshot& expectedSnapshot, uint64_t fingerprint = 0);
   bool CompleteAutonomousPresentation(uint8_t compartment,
       bool (*postPersistCheck)(void*) = nullptr, void* context = nullptr);
+  PresentationProgress AdvanceAutonomousCompletion(uint8_t compartment,
+      bool (*postPersistCheck)(void*) = nullptr, void* context = nullptr);
+  bool HasValidatedAutonomousCompletion() const;
   void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
@@ -80,6 +84,15 @@ class DeviceControlRuntime final {
 
  private:
   void RecordLeaseLoss(bool hadManualControl);
+  enum class CompletionPhase { None, Closing, Validating, Proof };
+  struct AutonomousCompletion {
+    CompletionPhase phase = CompletionPhase::None;
+    uint64_t generation = 0;
+    uint8_t compartment = 0;
+    bool (*postPersistCheck)(void*) = nullptr;
+    void* context = nullptr;
+  } completion_;
+  PresentationProgress RejectAutonomousCompletion();
 
   DeviceControl& control_;
   SelectionSequence& selection_;

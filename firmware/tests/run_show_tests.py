@@ -66,6 +66,7 @@ def main():
         ("device_show_cues_test", CORE + ["show_cues/DeviceShowCue", "show_cues/DeviceShowAudio", "show_cues/DeviceShowRuntime", "conversation/ConversationSession", "conversation/ConversationStartCodec"], []),
         ("autonomous_presentation_lifecycle_test", CORE, []),
         ("device_control_runtime_test", CORE, []),
+        ("pending_proposal_test", ["conversation/ConversationRuntimeState", "conversation/PendingProposal"], []),
         ("device_control_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl"], []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
         ("keepsake_durability_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/DeviceControlRuntime", "device_control/PersistentCommandJournal", "conversation/ConversationRuntimeState", "conversation/PendingProposal", "wand_presentation/WandPresentation"], []),

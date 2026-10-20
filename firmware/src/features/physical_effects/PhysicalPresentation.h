@@ -54,9 +54,13 @@ class PhysicalPresentation final : public WandPresentationPort {
              const ConversationRuntimeSnapshot& snapshot) override;
   bool Lower(uint8_t compartment) override;
   bool Complete(uint8_t compartment) override;
+  bool CompletionIsPending() const override { return completionPending_; }
+  bool CompletionTimingValidated() const override {
+    return completionPending_ && runtime_.HasValidatedAutonomousCompletion();
+  }
   void DisableAndFault() override;
  private:
-  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest, Accent, Pulse };
+  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest, Closing, Accent, Pulse };
   void EndPulse(bool cancelled);
   bool EnterScoreStep(uint64_t dueAt);
   void Trace(const char* kind, uint64_t dueAt, const char* evidence,
@@ -88,5 +92,6 @@ class PhysicalPresentation final : public WandPresentationPort {
   uint64_t (*clockNowMs_)(void*) = nullptr;
   void* clockContext_ = nullptr;
   uint64_t completionIoStartedAtMs_ = 0;
+  bool completionPending_ = false;
   const char* faultReason_ = "recovery-required";
 };

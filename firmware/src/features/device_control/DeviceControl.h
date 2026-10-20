@@ -132,6 +132,13 @@ class DeviceControl {
                                    uint64_t operationEpoch = 0);
   bool CompleteAutonomousPresentation(uint8_t compartment);
   bool ConfirmTimedPresentation();
+  bool IsAutonomousCompletionStoragePending() const {
+    return journal_.LastStorageState() == CommandJournal::StorageState::Pending;
+  }
+  bool HasAutonomousCompletionFault() const {
+    // Its own open presentation journal is expected while waiting for close.
+    return selection_.NeedsRecovery() || recoveryInProgress_ || journal_.HasStorageFault();
+  }
   void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
@@ -218,5 +225,6 @@ class DeviceControl {
   uint64_t autonomousFingerprint_ = 0;
   uint64_t autonomousOperationEpoch_ = 0;
   uint8_t lastCompletedAutonomousCompartment_ = 0;
+  bool closingAutonomousPresentation_ = false;
   LastSelectionResult lastResult_;
 };

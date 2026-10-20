@@ -120,12 +120,22 @@ void WandPresentation::Tick(uint64_t nowMs) {
       } else if (port_.IsResting(compartment_)) {
         port_.ObserveOwnerTime(nowMs);
         if (!port_.Complete(compartment_)) {
-          Fault();
+          if (port_.CompletionIsPending()) state_ = WandPresentationState::Completing;
+          else Fault();
           return;
         }
         compartment_ = 0;
         state_ = WandPresentationState::Idle;
       }
+      return;
+    case WandPresentationState::Completing:
+      port_.ObserveOwnerTime(nowMs);
+      if (!port_.Complete(compartment_)) {
+        if (!port_.CompletionIsPending()) Fault();
+        return;
+      }
+      compartment_ = 0;
+      state_ = WandPresentationState::Idle;
       return;
   }
 }
@@ -139,7 +149,8 @@ void WandPresentation::CheckDeadline(uint64_t nowMs) {
   // the whole-cycle budget or permit a late completion to restore availability.
   if (nowMs < presentationStartedAtMs_ || nowMs < phaseStartedAtMs_ ||
       nowMs < lastObservedAtMs_ ||
-      Elapsed(nowMs, presentationStartedAtMs_, MaximumDurationMs)) {
+      (!(state_ == WandPresentationState::Completing && port_.CompletionTimingValidated()) &&
+       Elapsed(nowMs, presentationStartedAtMs_, MaximumDurationMs))) {
     Fault();
     return;
   }

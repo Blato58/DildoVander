@@ -79,7 +79,7 @@ void DeviceControl::PollStorage() {
   // Polling adopts late writes even when their actuation permission was cancelled.
   // A current reload/close owns its revision change when it consumes the result.
   if (readyMask_ != durableMask && deferredKind_ != DeferredKind::Reload &&
-      !closingSelection_ && !recoveryInProgress_) {
+      !closingSelection_ && !closingAutonomousPresentation_ && !recoveryInProgress_) {
     readyMask_ = durableMask;
     ++revision_;
   }
@@ -528,16 +528,20 @@ bool DeviceControl::CompleteAutonomousPresentation(uint8_t compartment) {
       (autonomousOperationEpoch_ != 0 &&
        FindOperation(autonomousOperationId_, compartment, autonomousFingerprint_,
                      autonomousOperationEpoch_) != CommandJournal::Lookup::Same) ||
-      selection_.NeedsRecovery() || !journal_.HasPending() ||
-      journal_.PendingCompartment() != compartment) {
+      selection_.NeedsRecovery() ||
+      (!closingAutonomousPresentation_ &&
+       (!journal_.HasPending() || journal_.PendingCompartment() != compartment))) {
     return false;
   }
   // The wand returned to rest, so its availability is retained atomically.
+  closingAutonomousPresentation_ = true;
   if (!journal_.ResolveRestored(compartment)) {
+    if (IsAutonomousCompletionStoragePending()) return false;
     FaultAutonomousPresentation();
     return false;
   }
   autonomousCompartment_ = 0;
+  closingAutonomousPresentation_ = false;
   lastCompletedAutonomousCompartment_ = compartment;
   ++revision_;
   return true;
@@ -546,17 +550,26 @@ bool DeviceControl::CompleteAutonomousPresentation(uint8_t compartment) {
 bool DeviceControl::ConfirmTimedPresentation() {
   if (lastCompletedAutonomousCompartment_ == 0) return false;
   const uint8_t compartment = lastCompletedAutonomousCompartment_;
-  lastCompletedAutonomousCompartment_ = 0;
-  if (autonomousOperationEpoch_ != OperationEpoch()) return false;
-  return autonomousOperationEpoch_ == 0
+  if (selection_.NeedsRecovery() || autonomousOperationEpoch_ != OperationEpoch()) {
+    lastCompletedAutonomousCompartment_ = 0;
+    return false;
+  }
+  const bool confirmed = autonomousOperationEpoch_ == 0
       ? journal_.ConfirmTimedPresentation(autonomousOperationId_, compartment, autonomousFingerprint_)
       : journal_.ConfirmTimedPresentationScoped(autonomousOperationEpoch_, autonomousOperationId_,
                                                  compartment, autonomousFingerprint_);
+  if (confirmed || !IsAutonomousCompletionStoragePending()) {
+    lastCompletedAutonomousCompartment_ = 0;
+  }
+  return confirmed;
 }
 
 void DeviceControl::FaultAutonomousPresentation() {
   CancelAutonomousReservation();
-  if (autonomousCompartment_ == 0) {
+  const bool hadCompletion = lastCompletedAutonomousCompartment_ != 0;
+  closingAutonomousPresentation_ = false;
+  lastCompletedAutonomousCompartment_ = 0;
+  if (autonomousCompartment_ == 0 && !hadCompletion) {
     return;
   }
   journal_.CancelStorageAdmissions();

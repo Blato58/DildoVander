@@ -14,6 +14,9 @@ class FakePort final : public WandPresentationPort {
   int lowers = 0;
   int completes = 0;
   int faults = 0;
+  bool completionPending = false;
+  bool timingValidated = false;
+  bool completionFailed = false;
   uint64_t raiseTimeoutMs = 3000;
   uint64_t lowerTimeoutMs = 3000;
   mutable int raisedChecks = 0;
@@ -37,8 +40,10 @@ class FakePort final : public WandPresentationPort {
   }
   bool Complete(uint8_t) override {
     ++completes;
-    return true;
+    return !completionPending && !completionFailed;
   }
+  bool CompletionIsPending() const override { return completionPending; }
+  bool CompletionTimingValidated() const override { return timingValidated; }
   void DisableAndFault() override { ++faults; }
 };
 
@@ -171,6 +176,66 @@ void ClockRegressionFaultsWithinAPhase() {
   assert(cycle.port.faults == 1 && cycle.port.completes == 0);
 }
 
+void CompletionWaitPreservesThePhysicalDeadlineAndStop() {
+  for (bool sealed : {false, true}) {
+    Cycle cycle;
+    cycle.Start("await-proof", 1000);
+    cycle.port.raised = true;
+    cycle.presentation.Tick(1100);
+    cycle.presentation.Tick(6100);
+    cycle.port.resting = true;
+    cycle.port.completionPending = true;
+    cycle.presentation.Tick(6200);
+    assert(cycle.presentation.State() == WandPresentationState::Completing);
+    assert(cycle.port.raises == 1 && cycle.port.lowers == 1 && cycle.port.completes == 1);
+    cycle.port.timingValidated = sealed;
+    cycle.presentation.Tick(16000);
+    assert(cycle.presentation.State() == (sealed
+        ? WandPresentationState::Completing : WandPresentationState::Fault));
+    if (!sealed) continue;
+    cycle.presentation.Stop();
+    const int completedCalls = cycle.port.completes;
+    cycle.port.completionPending = false; // Late successful durable proof.
+    cycle.presentation.Tick(16010);
+    assert(cycle.presentation.State() == WandPresentationState::Fault);
+    assert(cycle.port.completes == completedCalls && cycle.port.faults == 1);
+  }
+  Cycle completed;
+  completed.Start("late-proof-ack", 1000);
+  completed.port.raised = true;
+  completed.presentation.Tick(1100);
+  completed.presentation.Tick(6100);
+  completed.port.resting = true;
+  completed.port.completionPending = true;
+  completed.presentation.Tick(6200);
+  completed.port.timingValidated = true;
+  completed.presentation.Tick(30000);
+  assert(completed.presentation.State() == WandPresentationState::Completing);
+  completed.port.completionPending = false;
+  completed.presentation.Tick(30010);
+  assert(completed.presentation.State() == WandPresentationState::Idle);
+  assert(completed.port.raises == 1 && completed.port.lowers == 1 && completed.port.faults == 0);
+}
+
+void CompletionWaitStillRejectsHealthClockAndAckFailure() {
+  for (int fault = 0; fault < 3; ++fault) {
+    Cycle cycle;
+    cycle.Start("closing-fault", 1000);
+    cycle.port.raised = true;
+    cycle.presentation.Tick(1100);
+    cycle.presentation.Tick(6100);
+    cycle.port.resting = true;
+    cycle.port.completionPending = true;
+    cycle.presentation.Tick(6200);
+    cycle.port.timingValidated = true;
+    if (fault == 0) cycle.port.safe = false;
+    if (fault == 1) { cycle.port.completionPending = false; cycle.port.completionFailed = true; }
+    cycle.presentation.Tick(fault == 2 ? 6199 : 6210);
+    assert(cycle.presentation.State() == WandPresentationState::Fault);
+    assert(cycle.port.faults == 1 && cycle.port.raises == 1 && cycle.port.lowers == 1);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -179,6 +244,8 @@ int main() {
   DeadlineGuardDoesNotAdvancePhasesAndDoesNotSlide();
   NewCyclesReceiveANewDeadline();
   ClockRegressionFaultsWithinAPhase();
+  CompletionWaitPreservesThePhysicalDeadlineAndStop();
+  CompletionWaitStillRejectsHealthClockAndAckFailure();
   ConversationRuntimeState runtime(true, 63, "neutral-1");
   ConversationRuntimeSnapshot snapshot;
   assert(runtime.Read(snapshot));

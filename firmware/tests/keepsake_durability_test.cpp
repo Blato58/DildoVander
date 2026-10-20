@@ -124,8 +124,10 @@ void RecoveryRequiresConfirmedPhysicalJournal() {
 void CommittedMarkerDespiteAckFailureIsHistoricalEvidence() {
   Fixture fixture;
   fixture.Begin();
-  assert(fixture.runtime.CompleteAutonomousPresentation(3, AmbiguousMarkerAck, &fixture.storage));
-  // Current owner suppresses DV10 on uncertain storage acknowledgement.
+  assert(!fixture.runtime.CompleteAutonomousPresentation(3, AmbiguousMarkerAck, &fixture.storage));
+  assert(fixture.runtime.NeedsRecovery());
+  // A lost proof ACK cannot report live success. Reopening may still recover
+  // the already-validated historical proof from committed bytes.
   assert(!fixture.journal.IsHealthy() && !fixture.journal.WasTimedPresentationCompleted(PhysicalId, 3));
   // Reboot reads valid committed bytes after the exact already-validated timed completion.
   PersistentCommandJournal rebootedJournal(fixture.storage);
@@ -142,7 +144,7 @@ void LateFailedStoppedAndLegacyNeverRecover() {
     Fixture fixture;
     fixture.Begin();
     if (scenario == 0) assert(!fixture.runtime.CompleteAutonomousPresentation(3, TooLate));
-    if (scenario == 1) assert(fixture.runtime.CompleteAutonomousPresentation(3, FailMarker, &fixture.storage));
+    if (scenario == 1) assert(!fixture.runtime.CompleteAutonomousPresentation(3, FailMarker, &fixture.storage));
     if (scenario == 2) { SelectionStep step; fixture.runtime.Stop(step); }
     assert(!fixture.journal.WasTimedPresentationCompleted(PhysicalId, 3));
     PersistentCommandJournal restarted(fixture.storage);

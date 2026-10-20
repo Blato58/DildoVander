@@ -28,6 +28,7 @@ bool DeviceControlRuntime::RecoverAfterInspection() {
     return false;
   }
   const bool recovered = control_.RecoverAfterInspection();
+  if (recovered) completion_ = AutonomousCompletion();
   if (recovered && presentation_ != nullptr &&
       presentation_->State() == WandPresentationState::Fault &&
       !presentation_->RecoverAfterInspection(true)) {
@@ -149,26 +150,83 @@ bool DeviceControlRuntime::BeginAutonomousPresentation(
 
 bool DeviceControlRuntime::CompleteAutonomousPresentation(
     uint8_t compartment, bool (*postPersistCheck)(void*), void* context) {
-  const bool completed =
-      control_.CompleteAutonomousPresentation(compartment);
-  const bool timely = postPersistCheck == nullptr || postPersistCheck(context);
-  if (!timely) {
-    // The durable close may already have succeeded. Keep its tombstone, but
-    // reject normal completion and retain inspection before publishing state.
-    // Call the control safety owner directly; calling Runtime.Stop here would
-    // recursively reenter WandPresentation while its Complete call is active.
-    SelectionStep step;
-    control_.Stop(step);
-    ++generation_;
-  }
-  // DV10 bookkeeping is historical evidence after the existing physical and
-  // post-persist timing gates. Failure never turns a failed sequence into success.
-  if (completed && timely) control_.ConfirmTimedPresentation();
+  return AdvanceAutonomousCompletion(compartment, postPersistCheck, context) ==
+      PresentationProgress::Succeeded;
+}
+
+bool DeviceControlRuntime::HasValidatedAutonomousCompletion() const {
+  return completion_.phase == CompletionPhase::Proof &&
+      completion_.generation == generation_ && !control_.HasAutonomousCompletionFault();
+}
+
+DeviceControlRuntime::PresentationProgress
+DeviceControlRuntime::RejectAutonomousCompletion() {
+  completion_ = AutonomousCompletion();
+  // Completion may be called from WandPresentation itself. Stop the safety
+  // owner directly so this path cannot recursively enter its caller.
+  SelectionStep step;
+  control_.Stop(step);
+  ++generation_;
   PublishCurrent();
-  return completed && timely;
+  return PresentationProgress::Rejected;
+}
+
+DeviceControlRuntime::PresentationProgress
+DeviceControlRuntime::AdvanceAutonomousCompletion(
+    uint8_t compartment, bool (*postPersistCheck)(void*), void* context) {
+  if (completion_.phase == CompletionPhase::None) {
+    if (!control_.HasAutonomousPresentation() || control_.HasAutonomousCompletionFault())
+      return PresentationProgress::Rejected;
+    completion_.phase = CompletionPhase::Closing;
+    completion_.generation = generation_;
+    completion_.compartment = compartment;
+    completion_.postPersistCheck = postPersistCheck;
+    completion_.context = context;
+  } else if (completion_.compartment != compartment ||
+             completion_.postPersistCheck != postPersistCheck ||
+             completion_.context != context) {
+    // Only the original request may consume its close/proof acknowledgement.
+    return PresentationProgress::Rejected;
+  }
+  if (completion_.generation != generation_ || control_.HasAutonomousCompletionFault())
+    return RejectAutonomousCompletion();
+
+  if (completion_.phase == CompletionPhase::Closing) {
+    if (!control_.CompleteAutonomousPresentation(compartment)) {
+      if (control_.IsAutonomousCompletionStoragePending() && !control_.HasAutonomousCompletionFault()) {
+        PublishCurrent();
+        return PresentationProgress::Pending;
+      }
+      return RejectAutonomousCompletion();
+    }
+    // A timing observation authorizes proof only after durable close. Capture
+    // it once; later proof acknowledgement latency is bookkeeping, not motion.
+    completion_.phase = CompletionPhase::Validating;
+    const uint64_t originalGeneration = completion_.generation;
+    const bool timely = postPersistCheck == nullptr || postPersistCheck(context);
+    if (!timely || generation_ != originalGeneration || control_.HasAutonomousCompletionFault() ||
+        completion_.phase != CompletionPhase::Validating)
+      return RejectAutonomousCompletion();
+    completion_.phase = CompletionPhase::Proof;
+  }
+  if (completion_.phase != CompletionPhase::Proof)
+    return PresentationProgress::Rejected;
+  if (!control_.ConfirmTimedPresentation()) {
+    if (control_.IsAutonomousCompletionStoragePending() &&
+        HasValidatedAutonomousCompletion()) {
+      PublishCurrent();
+      return PresentationProgress::Pending;
+    }
+    return RejectAutonomousCompletion();
+  }
+  if (!HasValidatedAutonomousCompletion()) return RejectAutonomousCompletion();
+  completion_ = AutonomousCompletion();
+  PublishCurrent();
+  return PresentationProgress::Succeeded;
 }
 
 void DeviceControlRuntime::FaultAutonomousPresentation() {
+  completion_ = AutonomousCompletion();
   control_.FaultAutonomousPresentation();
   PublishCurrent();
 }
@@ -205,6 +263,7 @@ bool DeviceControlRuntime::Tick(uint64_t nowMs, SelectionStep& step) {
 }
 
 bool DeviceControlRuntime::Stop(SelectionStep& step) {
+  completion_ = AutonomousCompletion();
   const bool hadActivePresentation =
       presentation_ != nullptr &&
       presentation_->State() != WandPresentationState::Idle &&

@@ -43,8 +43,12 @@ class FakeJournal final : public CommandJournal {
       return false;
     }
     pending = false;
+    closedCompartment = restoredCompartment;
     compartment = 0;
     return true;
+  }
+  bool ConfirmTimedPresentation(const std::string& id, uint8_t slot, uint64_t) override {
+    return !pending && !failResolve && id == commandId && slot == closedCompartment;
   }
   bool PersistReadyMask(uint8_t nextMask) override {
     readyMask = nextMask;
@@ -55,6 +59,7 @@ class FakeJournal final : public CommandJournal {
   bool failBegin = false;
   bool failResolve = false;
   uint8_t compartment = 0;
+  uint8_t closedCompartment = 0;
   uint8_t readyMask = 63;
   std::string commandId;
 };

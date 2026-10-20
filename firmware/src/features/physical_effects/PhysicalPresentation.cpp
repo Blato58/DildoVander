@@ -192,6 +192,19 @@ void PhysicalPresentation::Tick(uint64_t nowMs) {
     if (!TickAccent()) DisableAndFault();
     return;
   }
+  if (phase_ == Phase::Closing) {
+    // The first Complete call disabled outputs. Preserve physical health and
+    // cancellation checks, but only the close-ACK callback may mint timing
+    // evidence; proof ACK latency cannot extend or revalidate physical motion.
+    if (!effects_.Healthy() || !effects_.IsResting(compartment_) ||
+        nowMs < lastObservedAt_ || runtime_.Generation() != diagnostics_.generation ||
+        effects_.CalibrationRevision() != diagnostics_.calibrationId) {
+      DisableAndFault();
+    } else {
+      lastObservedAt_ = nowMs;
+    }
+    return;
+  }
   const uint64_t deadline = repeat_ ? PresentationScore::ShortDeadlineMs : PresentationScore::MainDeadlineMs;
   if (!effects_.Healthy() || nowMs < lastObservedAt_ || nowMs < phaseAt_ ||
       nowMs - startedAt_ >= deadline ||
@@ -203,6 +216,7 @@ void PhysicalPresentation::Tick(uint64_t nowMs) {
     case Phase::Idle:
     case Phase::Accent: return;
     case Phase::Pulse: return;
+    case Phase::Closing: return;
     case Phase::Score:
       if (nowMs - phaseAt_ < CurrentStep().durationMs) return;
       effects_.Disable();
@@ -265,13 +279,23 @@ bool PhysicalPresentation::Lower(uint8_t compartment) {
   return true;
 }
 bool PhysicalPresentation::Complete(uint8_t compartment) {
-  if (!IsResting(compartment)) return false;
-  completionIoStartedAtMs_ = nowMs_;
-  if (!RefreshExecutionClock(completionIoStartedAtMs_)) return false;
-  effects_.Disable();
-  const bool cleared = effects_.Highlight(0, 0, 0, 0);
-  if (!RefreshExecutionClock(completionIoStartedAtMs_) || !cleared || !effects_.Healthy() ||
-      !runtime_.CompleteAutonomousPresentation(compartment, ValidateCompletionClock, this)) return false;
+  if (phase_ != Phase::Closing) {
+    if (!IsResting(compartment)) return false;
+    completionIoStartedAtMs_ = nowMs_;
+    if (!RefreshExecutionClock(completionIoStartedAtMs_)) return false;
+    effects_.Disable();
+    const bool cleared = effects_.Highlight(0, 0, 0, 0);
+    if (!RefreshExecutionClock(completionIoStartedAtMs_) || !cleared || !effects_.Healthy()) return false;
+    phase_ = Phase::Closing;
+  }
+  if (compartment != compartment_ || !effects_.Healthy() || !effects_.IsResting(compartment) ||
+      runtime_.Generation() != diagnostics_.generation) {
+    completionPending_ = false;
+    return false;
+  }
+  const auto progress = runtime_.AdvanceAutonomousCompletion(compartment, ValidateCompletionClock, this);
+  completionPending_ = progress == DeviceControlRuntime::PresentationProgress::Pending;
+  if (progress != DeviceControlRuntime::PresentationProgress::Succeeded) return false;
   Trace("completed", nowMs_, "timed-complete", "calibrated-position-unmeasured");
   diagnostics_.state = "completed";
   diagnostics_.evidence = "timed-complete";
@@ -288,6 +312,7 @@ bool PhysicalPresentation::CancelOperation(const std::string& operationId, uint6
 }
 
 void PhysicalPresentation::DisableAndFault() {
+  completionPending_ = false;
   if (phase_ != Phase::Idle) {
     Trace("fault", nowMs_, "unknown", faultReason_);
     diagnostics_.state = "fault";
@@ -325,7 +350,10 @@ bool PhysicalPresentation::RefreshExecutionClock(uint64_t ioStartedAtMs) {
 
 bool PhysicalPresentation::ValidateCompletionClock(void* context) {
   auto& presentation = *static_cast<PhysicalPresentation*>(context);
-  return presentation.RefreshExecutionClock(presentation.completionIoStartedAtMs_);
+  if (!presentation.RefreshExecutionClock(presentation.completionIoStartedAtMs_)) return false;
+  presentation.Trace("completion-validated", presentation.nowMs_, "timed-complete",
+      "durable-close-clock-checked");
+  return true;
 }
 
 bool PhysicalPresentation::StartAccent(const char* sceneId, const std::string& intentId,
