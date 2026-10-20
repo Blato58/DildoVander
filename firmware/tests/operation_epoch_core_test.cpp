@@ -103,7 +103,7 @@ void WrongEpochDoesNotConsumeOrMove() {
   assert(fixture.presentation.CurrentOperationFingerprint() == 0);
   const uint64_t revision = fixture.control.Revision();
   const unsigned writes = fixture.storage.writes;
-  for (uint64_t epoch : {0ull, 2ull, UINT64_MAX}) {
+  for (uint64_t epoch : {uint64_t{0}, uint64_t{2}, uint64_t{UINT64_MAX}}) {
     const auto command = Manual(fixture, epoch);
     assert(fixture.runtime.AcceptSelection(command, true, 40).error ==
            CommandError::WrongOperationEpoch);
@@ -181,7 +181,7 @@ void ScopedPresentationCompletesAndRejectsOriginalAfterRotation() {
   const uint64_t fingerprint = fixture.presentation.CurrentOperationFingerprint();
   assert(fingerprint == PhysicalPresentation::OperationFingerprint());
   const unsigned writes = fixture.storage.writes;
-  for (uint64_t epoch : {0ull, 2ull, UINT64_MAX}) {
+  for (uint64_t epoch : {uint64_t{0}, uint64_t{2}, uint64_t{UINT64_MAX}}) {
     auto stale = original; stale.operationEpoch = epoch;
     assert(!fixture.adapter.Raise(3, OperationId, stale));
     assert(!fixture.control.BeginAutonomousPresentation(OperationId, 3,
