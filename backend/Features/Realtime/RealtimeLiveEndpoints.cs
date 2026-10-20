@@ -38,7 +38,23 @@ internal static partial class RealtimeLiveEndpoints
             await ApiProblem.Create(context, 400, "invalid_idempotency_key").ExecuteAsync(context);
             return;
         }
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, host.ApplicationStopping);
+        await RunCoreAsync(id, context, device, key, null, new HttpConversationEventSink(context),
+            conversations, provider, registry, host, memory);
+    }
+
+    internal static Task RunWithTransportAsync(string id, HttpContext context, string authenticatedDevice,
+        Guid key, byte[] openingPayload, ConversationEventSink output, ConversationStore conversations,
+        OpenAiRealtimeClient provider, RealtimeLiveRegistry registry, IHostApplicationLifetime host,
+        HybridMemoryService memory) =>
+        RunCoreAsync(id, context, authenticatedDevice, key, openingPayload, output,
+            conversations, provider, registry, host, memory);
+
+    private static async Task RunCoreAsync(string id, HttpContext context, string device, Guid key,
+        byte[]? openingPayload, ConversationEventSink output, ConversationStore conversations,
+        OpenAiRealtimeClient provider, RealtimeLiveRegistry registry, IHostApplicationLifetime host,
+        HybridMemoryService memory)
+    {
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, host.ApplicationStopping, output.Disconnected);
         lifetime.CancelAfter(TimeSpan.FromMinutes(8));
         using var writes = new SemaphoreSlim(1);
         RealtimeCall? call = null;
@@ -53,16 +69,19 @@ internal static partial class RealtimeLiveEndpoints
             await writes.WaitAsync(token);
             try
             {
-                var generation = live!.CancelOutput();
-                await context.Response.WriteAsync(JsonSerializer.Serialize(new { type = "audio_cancel", responseGeneration = generation, visualRevision = revision }, RealtimeProtocol.JsonOptions) + "\n", token);
-                await context.Response.Body.FlushAsync(token);
+                var generation = await output.AdvanceOutputAsync(() => live!.CancelOutput(), token);
+                await output.WriteAsync(new { type = "audio_cancel", responseGeneration = generation, visualRevision = revision }, token);
                 return generation;
             }
             finally { writes.Release(); }
         }
         try
         {
-            var body = await ReadBytesAsync(context, 4096);
+            openingPayload ??= await ReadBytesAsync(context, 4096);
+            if (openingPayload.Length > 4096)
+                throw new BadHttpRequestException("Request too large.", 413);
+            if (key == Guid.Empty) throw new InvalidDataException();
+            var body = openingPayload;
             var request = RealtimeProtocol.ReadRequest(body);
             if (request is null || !request.Opening || !RealtimeProtocol.IsValid(request))
             {
@@ -73,7 +92,7 @@ internal static partial class RealtimeLiveEndpoints
             CryptographicOperations.ZeroMemory(body);
             if (admission.Call is null)
             {
-                await ApiProblem.Create(context, admission.Status, admission.Code!).ExecuteAsync(context);
+                await output.ProblemAsync(admission.Status, admission.Code!);
                 return;
             }
             call = admission.Call;
@@ -84,8 +103,6 @@ internal static partial class RealtimeLiveEndpoints
             registered = true;
             if (call.LabHardware is { } hardwareAdmission) { await hardwareAdmission.EnsureAuthorizedAsync(call.Cancellation.Token); }
             call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token);
-            context.Response.ContentType = "application/x-ndjson";
-            context.Response.Headers["X-Accel-Buffering"] = "no";
             await using var connection = await provider.ConnectAsync(call.Cancellation.Token);
             using var session = new RealtimeLiveSession(device, id, connection, lifetime, labHardware: call.LabHardware);
             live = session;
@@ -93,7 +110,8 @@ internal static partial class RealtimeLiveEndpoints
             {
                 throw new InvalidOperationException();
             }
-            Task WriteAsync(object item, CancellationToken token) => WriteEventAsync(context, writes, item, token);
+            output.Start(session.Id);
+            Task WriteAsync(object item, CancellationToken token) => WriteEventAsync(context, output, writes, item, token);
             await WriteAsync(new { type = "session", streamId = session.Id, audioFormat = "pcm16-mono-24000" }, lifetime.Token);
             heartbeat = HeartbeatAsync(WriteAsync, lifetime);
             visualWatcher = VisualResponseWatcher.RunAsync(conversations, session, WriteAsync, lifetime.Token, CancelOutputAsync);
@@ -107,7 +125,7 @@ internal static partial class RealtimeLiveEndpoints
                     var visual = connection.VisualGeneration;
                     await session.WaitForVisualBarrierAsync(visual, token);
                     var generation = session.OutputGeneration;
-                    await WriteEventAsync(context, writes, item(generation), token,
+                    await WriteEventAsync(context, output, writes, item(generation), token,
                         () => session.OutputGeneration == generation && conversations.ReadVisualResponseRevision(device, id).Generation == visual);
                 }
                 Task ResponseReadyAsync(CancellationToken token)
@@ -120,6 +138,9 @@ internal static partial class RealtimeLiveEndpoints
                 {
                     throw new OperationCanceledException(current.Cancellation.Token);
                 }
+                output.BindOperation(current.OperationId);
+                await session.EnsureHardwareAuthorityAsync(current.Cancellation.Token);
+                await SourceEventAsync(generation => new ConversationOperationBinding(current.OperationId, generation), current.Cancellation.Token);
                 dispatched = true;
                 TurnResult? result = null;
                 Task? played = null;
@@ -140,8 +161,7 @@ internal static partial class RealtimeLiveEndpoints
                     }, async (item, writeToken) =>
                     {
                         ServerLogEvents.Stream(context, item);
-                        await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", writeToken);
-                        await context.Response.Body.FlushAsync(writeToken);
+                        await output.WriteAsync(item, writeToken);
                     }, token);
                 }
                 var response = await connection.GenerateTurnAsync(current.Context, null,
@@ -151,7 +171,7 @@ internal static partial class RealtimeLiveEndpoints
                         var visual = connection.VisualGeneration;
                         await session.WaitForVisualBarrierAsync(visual, token);
                         var generation = session.OutputGeneration;
-                        await WriteEventAsync(context, writes, new { type = "audio", delta = Convert.ToBase64String(pcm), responseGeneration = generation }, token,
+                        await WriteEventAsync(context, output, writes, new { type = "audio", delta = Convert.ToBase64String(pcm), responseGeneration = generation }, token,
                             () => session.OutputGeneration == generation && conversations.ReadVisualResponseRevision(device, id).Generation == visual);
                     },
                     (text, token) => SourceEventAsync(generation => new { type = "visitor", text, responseGeneration = generation }, token),
@@ -187,11 +207,12 @@ internal static partial class RealtimeLiveEndpoints
                 if (result!.Decision != "ask" || turn == 9)
                 {
                     await played!.WaitAsync(TimeSpan.FromSeconds(35), lifetime.Token);
-                    await WriteEventAsync(context, writes, new { type = "closed", reason = "conversation_terminal", responseGeneration = finalizedGeneration }, lifetime.Token,
+                    await WriteEventAsync(context, output, writes, new { type = "closed", reason = "conversation_terminal", responseGeneration = finalizedGeneration }, lifetime.Token,
                         () => session.OutputGeneration == finalizedGeneration && conversations.ReadVisualResponseRevision(device, id).Generation == finalizedVisual);
                     return;
                 }
                 await played!.WaitAsync(TimeSpan.FromSeconds(35), lifetime.Token);
+                await output.BeforeNextOperationAsync(lifetime.Token);
                 request = request with { ClientTurnId = Guid.NewGuid(), Opening = false };
                 var nextBody = JsonSerializer.SerializeToUtf8Bytes(request, RealtimeProtocol.JsonOptions);
                 admission = conversations.BeginRealtimeTurn(device, id, Guid.NewGuid(), nextBody, request,
@@ -207,7 +228,7 @@ internal static partial class RealtimeLiveEndpoints
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            if (!context.Response.HasStarted)
+            if (!output.HasStarted)
             {
                 var invalidInput = call is null && exception is (JsonException or InvalidDataException);
                 var status = exception is BadHttpRequestException badRequest
@@ -216,7 +237,7 @@ internal static partial class RealtimeLiveEndpoints
                 var code = exception is BadHttpRequestException ? "request_too_large"
                     : invalidInput ? "invalid_request"
                     : exception is OperationCanceledException ? "operation_cancelled" : "ai_unavailable";
-                await ApiProblem.Create(context, status, code).ExecuteAsync(context);
+                await output.ProblemAsync(status, code);
             }
             else if (!context.RequestAborted.IsCancellationRequested)
             {
@@ -224,16 +245,17 @@ internal static partial class RealtimeLiveEndpoints
                 try
                 {
                     var code = exception is OperationCanceledException ? "operation_cancelled" : "ai_unavailable";
-                    await WriteEventAsync(context, writes, new { type = "failed", code }, final.Token);
+                    await WriteEventAsync(context, output, writes, new { type = "failed", code }, final.Token);
                 }
                 catch (Exception)
                 {
-                    context.Abort();
+                    output.Abort();
                 }
             }
         }
         finally
         {
+            if (openingPayload is not null) CryptographicOperations.ZeroMemory(openingPayload);
             lifetime.Cancel();
             if (registered)
             {
@@ -377,7 +399,7 @@ internal static partial class RealtimeLiveEndpoints
         }
     }
 
-    private static async Task WriteEventAsync(HttpContext context, SemaphoreSlim writes, object item,
+    private static async Task WriteEventAsync(HttpContext context, ConversationEventSink output, SemaphoreSlim writes, object item,
         CancellationToken token, Func<bool>? current = null)
     {
         await writes.WaitAsync(token);
@@ -385,8 +407,7 @@ internal static partial class RealtimeLiveEndpoints
         {
             if (current?.Invoke() == false) { throw new VisualResponseRevokedException(); }
             ServerLogEvents.Stream(context, item);
-            await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", Encoding.UTF8, token);
-            await context.Response.Body.FlushAsync(token);
+            await output.WriteAsync(item, token);
         }
         finally
         {

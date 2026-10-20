@@ -28,7 +28,23 @@ internal static class GptLiveEndpoints
         if (device is null) { await ApiProblem.Create(context, 401, "access_token_required").ExecuteAsync(context); return; }
         if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out var key) || key == Guid.Empty)
         { await ApiProblem.Create(context, 400, "invalid_idempotency_key").ExecuteAsync(context); return; }
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, host.ApplicationStopping);
+        await RunCoreAsync(id, context, device, key, null, new HttpConversationEventSink(context),
+            conversations, provider, registry, host, decisions, memory, clock);
+    }
+
+    internal static Task RunWithTransportAsync(string id, HttpContext context, string authenticatedDevice,
+        Guid key, byte[] openingPayload, ConversationEventSink output, ConversationStore conversations,
+        GptLiveClient provider, RealtimeLiveRegistry registry, IHostApplicationLifetime host,
+        WandDecisionService decisions, HybridMemoryService memory, TimeProvider clock) =>
+        RunCoreAsync(id, context, authenticatedDevice, key, openingPayload, output,
+            conversations, provider, registry, host, decisions, memory, clock);
+
+    private static async Task RunCoreAsync(string id, HttpContext context, string device, Guid key,
+        byte[]? openingPayload, ConversationEventSink output, ConversationStore conversations,
+        GptLiveClient provider, RealtimeLiveRegistry registry, IHostApplicationLifetime host,
+        WandDecisionService decisions, HybridMemoryService memory, TimeProvider clock)
+    {
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, host.ApplicationStopping, output.Disconnected);
         lifetime.CancelAfter(TimeSpan.FromSeconds(180));
         using var writes = new SemaphoreSlim(1);
         RealtimeCall? call = null;
@@ -47,8 +63,7 @@ internal static class GptLiveEndpoints
                     || visualGeneration is { } visual && conversations.ReadVisualResponseRevision(device, id).Generation != visual)
                 { throw new VisualResponseRevokedException(); }
                 ServerLogEvents.Stream(context, item);
-                await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", token);
-                await context.Response.Body.FlushAsync(token);
+                await output.WriteAsync(item, token);
             }
             finally { writes.Release(); }
         }
@@ -57,29 +72,20 @@ internal static class GptLiveEndpoints
             await writes.WaitAsync(token);
             try
             {
-                var generation = session!.CancelOutput();
+                var generation = await output.AdvanceOutputAsync(() => session!.CancelOutput(), token);
                 object item = revision is { } visual
                     ? new { type = "audio_cancel", responseGeneration = generation, visualRevision = visual }
                     : new { type = "audio_cancel", responseGeneration = generation };
-                await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", token);
-                await context.Response.Body.FlushAsync(token);
+                await output.WriteAsync(item, token);
                 return generation;
             }
             finally { writes.Release(); }
         }
         try
         {
-            var body = new byte[4097];
-            var used = 0;
-            while (used < body.Length)
-            {
-                var count = await context.Request.Body.ReadAsync(body.AsMemory(used), lifetime.Token);
-                if (count == 0) break;
-                used += count;
-            }
-            if (used > 4096) throw new InvalidDataException();
-            var payload = body.AsSpan(0, used).ToArray();
-            CryptographicOperations.ZeroMemory(body);
+            openingPayload ??= await ReadOpeningAsync(context, lifetime.Token);
+            if (openingPayload.Length > 4096 || key == Guid.Empty) throw new InvalidDataException();
+            var payload = openingPayload;
             var request = RealtimeProtocol.ReadRequest(payload);
             // GPT-Live has no speed setting: reject rather than silently ignore it.
             if (request is null || !request.Opening || request.Speed != 1 || !RealtimeProtocol.IsValid(request))
@@ -88,11 +94,12 @@ internal static class GptLiveEndpoints
                 provider.Available, lifetime.Token, host.ApplicationStopping, handsFree: true, gptLive: true);
             CryptographicOperations.ZeroMemory(payload);
             if (admission.Call is null)
-            { await ApiProblem.Create(context, admission.Status, admission.Code!).ExecuteAsync(context); return; }
+            { await output.ProblemAsync(admission.Status, admission.Code!); return; }
             call = admission.Call;
             if (!conversations.RegisterRealtimeLifetime(call, lifetime)) throw new OperationCanceledException();
             registered = true;
             if (!conversations.StartRealtimeTurn(call)) throw new OperationCanceledException();
+            output.BindOperation(call.OperationId);
             if (call.LabHardware is { } hardwareAdmission) { await hardwareAdmission.EnsureAuthorizedAsync(call.Cancellation.Token); }
             var memoryAccess = conversations.LiveMemoryAccess(call);
             call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token);
@@ -102,9 +109,11 @@ internal static class GptLiveEndpoints
             using var live = new RealtimeLiveSession(device, id, connection, lifetime, continuous: true, labHardware: call.LabHardware);
             session = live;
             if (!registry.Add(live)) throw new InvalidOperationException();
-            context.Response.ContentType = "application/x-ndjson";
-            context.Response.Headers["X-Accel-Buffering"] = "no";
+            output.Start(live.Id);
             await Write(new { type = "session", streamId = live.Id, audioFormat = "pcm16-mono-24000" }, lifetime.Token);
+            await live.EnsureHardwareAuthorityAsync(call.Cancellation.Token);
+            await Write(new ConversationOperationBinding(call.OperationId, live.OutputGeneration), call.Cancellation.Token,
+                live.OutputGeneration, connection.VisualGeneration);
             await Write(new { type = "started", operationId = call.OperationId, correlation = call.Correlation, responseGeneration = live.OutputGeneration }, lifetime.Token);
             heartbeat = Heartbeat((item, token) => Write(item, token), lifetime);
             visualWatcher = VisualResponseWatcher.RunAsync(conversations, live, (item, token) => Write(item, token), lifetime.Token, (revision, token) => CancelOutputAsync(revision, token));
@@ -139,8 +148,7 @@ internal static class GptLiveEndpoints
                 }, async (item, writeToken) =>
                 {
                     ServerLogEvents.Stream(context, item);
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(item, RealtimeProtocol.JsonOptions) + "\n", writeToken);
-                    await context.Response.Body.FlushAsync(writeToken);
+                    await output.WriteAsync(item, writeToken);
                 }, token);
             }
             var outcome = await new AutonomousLiveDialogue(connection, decisions, clock, memory,
@@ -200,17 +208,18 @@ internal static class GptLiveEndpoints
                     operationId: call.OperationId, conversationId: id, code: LiveFailureDiagnostics.Code(error));
             var code = error is OperationCanceledException ? "operation_cancelled"
                 : call is null && error is (JsonException or InvalidDataException) ? "invalid_request" : "ai_unavailable";
-            if (!context.Response.HasStarted)
-                await ApiProblem.Create(context, code == "invalid_request" ? 400 : 503, code).ExecuteAsync(context);
+            if (!output.HasStarted)
+                await output.ProblemAsync(code == "invalid_request" ? 400 : 503, code);
             else if (!context.RequestAborted.IsCancellationRequested)
             {
                 using var final = new CancellationTokenSource(TimeSpan.FromSeconds(1));
                 try { await Write(new { type = "failed", code }, final.Token); }
-                catch { context.Abort(); }
+                catch { output.Abort(); }
             }
         }
         finally
         {
+            if (openingPayload is not null) CryptographicOperations.ZeroMemory(openingPayload);
             lifetime.Cancel();
             if (registered) conversations.ReleaseRealtimeLifetime(id);
             if (session is not null) registry.Remove(session.Id);
@@ -218,6 +227,24 @@ internal static class GptLiveEndpoints
             if (visualWatcher is not null) { try { await visualWatcher; } catch (Exception) { } }
             if (heartbeat is not null) { try { await heartbeat; } catch (Exception) { } }
         }
+    }
+
+    private static async Task<byte[]> ReadOpeningAsync(HttpContext context, CancellationToken token)
+    {
+        var buffer = new byte[4097];
+        try
+        {
+            var used = 0;
+            while (used < buffer.Length)
+            {
+                var count = await context.Request.Body.ReadAsync(buffer.AsMemory(used), token);
+                if (count == 0) break;
+                used += count;
+            }
+            if (used > 4096) throw new InvalidDataException();
+            return buffer.AsSpan(0, used).ToArray();
+        }
+        finally { CryptographicOperations.ZeroMemory(buffer); }
     }
 
     private static async Task<IResult> ConfirmPlaybackAsync(string id, Guid streamId, HttpContext context,

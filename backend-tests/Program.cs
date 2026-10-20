@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--device-media"]) { await DeviceMediaTransportTests.RunAsync(); return; }
 if (args is ["--operation-epochs"])
 {
     await OperationEpochTests.RunAsync();
@@ -101,6 +102,7 @@ await AutonomousLiveTests.RunCharacterAsync();
 await CostumeImageTests.RunAsync();
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();
+await DeviceMediaTransportTests.RunAsync();
 await PersonalityTests.RunAsync();
 await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();
