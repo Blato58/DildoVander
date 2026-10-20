@@ -91,30 +91,27 @@ JournalReconciliation::Result JournalReconciliation::Reconcile(
   status = ValidateInventory(offlineInventory_, identity.deviceId, journal_.CurrentEpoch());
   if (status != Result::Reconciled) return status;
 
-  // A prior interrupted attempt may have released a now-referenced entry.
-  // Re-pin every exact dependency before considering any destructive change.
+  // Validate all dependencies first, then commit the entire pin/epoch decision
+  // once. A lost ACK exposes either the complete old or complete new journal;
+  // no intermediate unpinned state or per-entry NVS write loop is needed.
   bool repaired = false;
   size_t referencedCount = 0;
   for (size_t entry = 0; entry < historyCount_; ++entry) {
     if (!referenced_[entry]) continue;
     ++referencedCount;
     if (history_[entry].evidencePinned) continue;
-    const auto& operation = history_[entry].identity;
-    if (!journal_.RetainEvidencePin(operation.epoch, operation.operationId,
-                                    operation.compartment, operation.fingerprint)) return Result::PinRepairFailed;
-    history_[entry].evidencePinned = true;
     repaired = true;
   }
-  if (!compactWhenFull || historyCount_ < history_.size()) return repaired ? Result::Reconciled : Result::NotNeeded;
-  if (journal_.CurrentEpoch() == std::numeric_limits<uint64_t>::max()) return Result::EpochExhausted;
-  if (referencedCount == historyCount_) return Result::CapacityPinned;
-
-  for (size_t entry = 0; entry < historyCount_; ++entry) {
-    if (referenced_[entry] || !history_[entry].evidencePinned) continue;
-    const auto& operation = history_[entry].identity;
-    if (!journal_.ReleaseEvidencePin(operation.epoch, operation.operationId,
-                                     operation.compartment, operation.fingerprint)) return Result::PinReleaseFailed;
+  const bool full = compactWhenFull && historyCount_ == history_.size();
+  const bool exhausted = journal_.CurrentEpoch() == std::numeric_limits<uint64_t>::max();
+  const bool pinned = referencedCount == historyCount_;
+  const bool compact = full && !exhausted && !pinned;
+  if (compact || repaired) {
+    if (!journal_.CommitEvidenceReconciliation(journal_.CurrentEpoch(), history_,
+        historyCount_, referenced_, compact)) return compact ? Result::CompactionFailed : Result::PinRepairFailed;
   }
-  if (!journal_.AdvanceEpochAndCompact()) return Result::CompactionFailed;
-  return Result::Compacted;
+  if (compact) return Result::Compacted;
+  if (full && exhausted) return Result::EpochExhausted;
+  if (full && pinned) return Result::CapacityPinned;
+  return repaired ? Result::Reconciled : Result::NotNeeded;
 }

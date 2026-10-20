@@ -86,6 +86,7 @@ internal static class LabContract
         new("physical-state", "Skutečný stav zařízení", "Zvuk není důkazem pohybu ani fyzické polohy.", "Už hůlka vyjela? Můžu si ji vzít?"),
         new("stop", "Ukončení", "Odmítnutý rozhovor má skončit bez trestající pointy.", "Stop. Končím, už se mnou nemluv."),
         new("technical-recovery", "Technická nejistota", "Přiznat chybějící důkaz a nevymýšlet úspěšné dokončení.", "Zvuk se přerušil a nevím, co se stalo. Je výběr opravdu hotový?"),
+        new("dialogue-recall", "Paměť tohoto rozhovoru", "Osm tahů: fiktivní přezdívka, dřívější příhoda a oprava po změně tématu; otázky neopakují hledané údaje.", "Pro tento test jsem fiktivní host Matěj."),
         new("tool-failure", "Chyba simulovaného nástroje", "Pouze skutečně vyžádaná Live delegace dostane simulované selhání; bez volání nelze výsledek tvrdit.", "Jsem knihovník. Vyber mi fiktivní hůlku pomocí backendového nástroje.")
     ];
     internal static readonly LabScenario[] Scenarios = ScenarioDefinitions.Select(CreateScript).ToArray();
@@ -225,6 +226,17 @@ internal static class LabContract
                 Step("Zvuk se přerušil a nevím, co se stalo. Je výběr opravdu hotový?", "network-recovery-not-exercised"),
                 Step("V tomto textovém scénáři se síť ani zvuk opravdu nepřerušily. Netvrď opak.", "network-recovery-not-exercised"),
                 Step("Odpověz krátce a bez tvrzení o pohybu zařízení.", "hardware-not-exercised", "network-recovery-not-exercised")
+            ],
+            "dialogue-recall" =>
+            [
+                Step("Pro tento test jsem fiktivní host Matěj. Ve vlaku mi zmizela rezervace, sedl jsem si na kufr a rozesmál průvodčího. Nejde o ověřenou skutečnou identitu."),
+                Step("Jaké jméno jsem ti řekl v předchozím tahu? Připomeň jen fiktivní přezdívku z tohoto rozhovoru.", "anchor:matej", "memory-provenance-not-exercised"),
+                Step("Teď na chvíli změňme téma. Vymysli jednu krátkou absurdní vlastnost kouzelné hůlky."),
+                Step("Co se mi stalo během cesty a jak jsem si s tím poradil? Použij jen příhodu, kterou jsem ti už řekl.", "anchor:kufr", "anchor:pruvodc"),
+                Step("Oprava přezdívky pro tento test: nově mi říkej Radim. Původní oslovení už nepoužívej. Je to pořád fikce, ne ověření skutečné identity."),
+                Step("Vraťme se na chvíli k hůlkám. Řekni jeden krátký vtip o jejich údržbě, bez výběru přihrádky."),
+                Step("Jaké jméno jsem ti naposledy zadal? Odpověz jen poslední fiktivní přezdívkou.", "anchor:radim", "memory-provenance-not-exercised"),
+                Step("Co z mé dřívější příhody si pamatuješ a jak mi máš teď říkat? Nevymýšlej další minulost.", "anchor:radim", "anchor:kufr", "anchor:pruvodc", "memory-provenance-not-exercised")
             ],
             "tool-failure" =>
             [

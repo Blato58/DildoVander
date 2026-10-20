@@ -28,7 +28,6 @@ class JournalReconciliation final {
     InvalidReference,
     ReferenceUnavailable,
     PinRepairFailed,
-    PinReleaseFailed,
     CapacityPinned,
     EpochExhausted,
     CompactionFailed,
@@ -45,7 +44,8 @@ class JournalReconciliation final {
   // Only Compacted authorizes publication of the journal's newly committed
   // epoch. Any failed journal write requires authoritative storage/owner reopen.
   // Reconciled, CapacityPinned and EpochExhausted may follow conservative pin
-  // repairs, but only Compacted can release unreferenced history and advance.
+  // repairs. Each attempt performs at most one journal replacement. Only
+  // Compacted can discard unreferenced history and advance.
   Result Reconcile(const JournalIdentityView& identity, bool compactWhenFull = true);
 
  private:

@@ -70,34 +70,81 @@ readers must share `JournalReconciliationBarrier`. Reconciliation acquires it
 without waiting, checks the established identity again, and validates both
 inventories before changing any pin. Pending physical operations block it.
 
-Referenced entries are pinned again if an interrupted attempt left them
-unpinned. Unreferenced pins are released only when attempting a full-history
-compaction under that same barrier. Each release names the original epoch,
-physical UUID, compartment and fingerprint. Any failed release stops the
-attempt. Epoch advancement remains one atomic journal replacement; publication
-must wait for its confirmed commit.
+Referenced entries are pinned again if an earlier owner left them unpinned.
+The complete expected history, including original epoch, physical UUID,
+compartment, fingerprint, completion and pin bits, fences a stale reconciliation.
+Repair-only work uses one atomic replacement. Full-history compaction retains
+the referenced entries with their pins and advances the epoch in one atomic
+replacement, without intermediate pin-release writes. Publication must wait
+for its confirmed commit. A failed acknowledgement still requires reopening.
 
 A late producer must validate its original epoch and pin the referenced entry
 before committing a new durable reference. It must not attach a new reference to
 an entry that an intervening compaction discarded. Old envelopes never acquire
 the current epoch. Full retained backlog and epoch exhaustion refuse new work.
 
+## Committed online and offline inventories
+
+The notifier uses `KeepsakeCommittedInventory` and the offline NVS adapter uses
+`OfflineCommittedInventory`. Their `ReadCommitted` views distinguish an absent
+blob from an explicit empty bound inventory. Ordinary boot, construction and
+legacy writes never establish the binding. Explicit service methods establish
+the existing device ID and generation 1; subsequent bound commits increment the
+uint64 generation. Overflow and failed storage acknowledgements stop authority
+until an authoritative reopen. A RAM draft or retirement mailbox cannot advance
+the committed generation or remove a reference.
+
+Online binding uses a canonical schema-4 JSON envelope with CRC32 and the
+existing schema-3 payload. It allows at most 32 KiB, including the terminator,
+because full physical retirement tuples can exceed the old 16 KiB limit.
+Unbound schemas 1-3 remain readable and unbound writes retain schema 3. Offline
+binding uses a 1,412-byte versioned, little-endian CRC envelope; unbound v1/v2 POD
+layouts and v2 writes remain compatible. Neither CRC is an anti-rollback proof.
+Legacy missing associations remain ambiguous after binding.
+
+Every pending/prepared online candidate and every unacknowledged offline
+reservation or completion is a dependency. New online dispositions retain the
+original complete physical tuple. An exact terminal disposition stops being a
+live dependency only after both candidate removals are committed. Unknown
+physical outcomes and conflicting or incomplete associations remain
+conservative. The bound retirement ledger cannot be dropped by ordinary
+commits. Its explicit pruning operation acquires the common barrier and checks
+the healthy scoped journal's device binding, absence of pending motion, a newer
+epoch, absence of the exact historical entry and absence of live dependencies
+before committing the smaller ledger. Runtime outbox state must then be reloaded
+by its owner; pruning does not update a separate RAM mailbox.
+
+Run the portable host checks from the repository root:
+
+```text
+python firmware/tests/run_show_tests.py
+python firmware/tests/run_inventory_tests.py --cjson-dir firmware/managed_components/espressif__cjson/cJSON
+```
+
+The second command verifies the pinned cJSON source hashes before compiling.
+Its local path is populated by the existing PlatformIO dependency resolution;
+CI supplies the same checked source bytes in its temporary directory.
+
 ## Remaining production integration and evidence
 
-The real notifier and offline stores still need committed inventory origins,
-complete durable reference/retirement representations, startup recovery and a
-shared barrier with the control owner. The service/provisioning caller must
-compose establishment without allowing motion or inspection mutations midway.
-These are required before production activation; a fake committed source is
-test evidence for the port contract, not proof of the existing live stores.
-The synchronous core may perform several durable pin writes in an attempt.
-Production storage scheduling and barrier ownership must keep Stop responsive;
+The production stores currently remain unbound. Startup recovery, every live
+producer and persisted-journal reader still need one barrier with the control
+owner, including original-epoch validation and pin ordering for late producers.
+The service/provisioning caller must compose establishment without allowing
+motion or inspection mutations midway. A ready identity witness alone is not
+physical admission: successful committed-source reconciliation is also required.
+These are required before production activation.
+The synchronous core performs at most one journal write per attempt.
+Production storage scheduling and barrier ownership must still keep Stop responsive;
 these methods must not be dropped into the existing control loop as blocking
 work. The host tests do not establish an ESP latency or flash-wear bound.
 
 Host tests inject commit cuts, failed writes and committed writes with lost
-ACKs, preserve retained identities and exercise repeated operation/restart/
-compaction cycles. The NVS adapter test checks namespace isolation, bounds and
-mandatory reopening after failure. They do not prove physical NVS power-loss
+ACKs. The combined test runs 1,152 mixed manual/online/offline journal operations
+through both actual inventory codecs, reopening after every operation and
+retaining delayed evidence across repeated compactions. Its driver calls the
+journal directly; it does not establish production control/actuator integration.
+The actual NVS adapter tests check namespace isolation, bounds and mandatory
+reopening after failure using simulated NVS. They do not prove physical NVS power-loss
 behavior, actual supply isolation, servo position, flashing or iPhone behavior.
 Those checks remain part of the hardware bench acceptance.

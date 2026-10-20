@@ -73,6 +73,15 @@ class PersistentCommandJournal final : public CommandJournal {
                           uint8_t compartment, uint64_t fingerprint);
   bool RetainEvidencePin(uint64_t epoch, const std::string& id,
                          uint8_t compartment, uint64_t fingerprint);
+  // Owner-only batch under the common barrier. The exact expected snapshot
+  // fences stale reconciliation. Repairs retain existing pins; compaction
+  // atomically retains only referenced entries and advances the epoch. Either
+  // mode performs at most one journal replacement, never per-entry writes.
+  bool CommitEvidenceReconciliation(
+      uint64_t expectedEpoch,
+      const std::array<JournalHistoryEntry, HistoryCapacity>& expectedHistory,
+      size_t expectedCount, const std::array<bool, HistoryCapacity>& referenced,
+      bool compact);
   bool IsEvidencePinned(uint64_t epoch, const std::string& id,
                         uint8_t compartment, uint64_t fingerprint) const;
 

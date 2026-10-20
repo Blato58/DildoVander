@@ -8,6 +8,7 @@ using nvs_handle_t = uint32_t;
 constexpr esp_err_t ESP_OK = 0;
 constexpr esp_err_t ESP_FAIL = -1;
 constexpr esp_err_t ESP_ERR_NVS_NOT_FOUND = -2;
+constexpr int NVS_READONLY = 0;
 constexpr int NVS_READWRITE = 1;
 
 esp_err_t nvs_open(const char* name, int mode, nvs_handle_t* handle);

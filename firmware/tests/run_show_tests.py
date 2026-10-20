@@ -70,6 +70,8 @@ def main():
         ("journal_epoch_test", ["device_control/PersistentCommandJournal"], []),
         ("journal_identity_owner_test", ["device_control/PersistentCommandJournal", "device_control/JournalIdentityOwner"], []),
         ("journal_reconciliation_test", ["device_control/PersistentCommandJournal", "device_control/JournalIdentityOwner", "device_control/JournalReconciliation"], []),
+        ("offline_inventory_test", CORE + ["offline_show/OfflineCommittedInventory"], []),
+        ("offline_inventory_storage_test", CORE + ["offline_show/OfflineCommittedInventory", "offline_show/EspIdfOfflineOutboxStorage"], ["tests/journal_storage_stubs"]),
         ("journal_identity_storage_test", ["device_control/EspIdfJournalIdentityStorage"], ["tests/journal_storage_stubs"]),
         ("operation_epoch_core_test", CORE + ["device_control/PersistentCommandJournal", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession"], []),
         ("dance_coordinator_test", ["dance/DanceCoordinator", "physical_effects/PhysicalEffects"], []),

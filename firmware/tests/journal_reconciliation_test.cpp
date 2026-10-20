@@ -312,7 +312,7 @@ void TestEpochExhaustionHasNoDestructiveWrites() {
   AssertReleased(durable);
 }
 
-void TestEveryRepairReleaseAndCompactWriteCut() {
+void TestAtomicRepairAndCompactionWriteCuts() {
   Durable durable;
   Provision(durable);
   Fill(durable);
@@ -324,20 +324,19 @@ void TestEveryRepairReleaseAndCompactWriteCut() {
   assert(durable.offline.Commit(Inventory({Operation(1)})));
   const Storage baseline = durable.journal;
   const Storage marker = durable.marker;
-  // One repair, thirty exact releases, then one atomic compaction.
-  for (size_t write = 1; write <= Journal::HistoryCapacity; ++write) {
+  // Repair-only and repair+compaction each expose one atomic replacement.
+  for (const bool compact : {false, true}) {
     for (const auto cut : {Storage::Cut::Before, Storage::Cut::After}) {
       durable.journal = baseline;
       durable.marker = marker;
-      durable.journal.failAt = baseline.writes + write;
+      durable.journal.failAt = baseline.writes + 1;
       durable.journal.cut = cut;
       {
         Session session(durable);
-        const Result result = session.reconciliation.Reconcile(View());
-        assert(result == (write == 1 ? Result::PinRepairFailed :
-            write == Journal::HistoryCapacity ? Result::CompactionFailed : Result::PinReleaseFailed));
+        const Result result = session.reconciliation.Reconcile(View(), compact);
+        assert(result == (compact ? Result::CompactionFailed : Result::PinRepairFailed));
         assert(!session.journal.IsHealthy() && session.journal.CurrentEpoch() != 2);
-        assert(durable.journal.writes == baseline.writes + write);
+        assert(durable.journal.writes == baseline.writes + 1);
         const auto failedWrites = durable.journal.writes;
         assert(session.reconciliation.Reconcile(View()) != Result::Compacted);
         assert(durable.journal.writes == failedWrites);
@@ -349,16 +348,53 @@ void TestEveryRepairReleaseAndCompactWriteCut() {
         Session reopened(durable);
         AssertPresent(reopened.journal, Operation(0));
         AssertPresent(reopened.journal, Operation(1));
-        const auto result = reopened.reconciliation.Reconcile(View());
-        assert(result == Result::Compacted || result == Result::NotNeeded);
-        assert(reopened.journal.CurrentEpoch() == 2 && reopened.journal.HistoryCount() == 2);
+        const auto writes = durable.journal.writes;
+        const auto result = reopened.reconciliation.Reconcile(View(), compact);
+        assert(result == Result::Compacted || result == Result::Reconciled || result == Result::NotNeeded);
+        assert(durable.journal.writes <= writes + 1);
+        assert(reopened.journal.CurrentEpoch() == (compact ? 2u : 1u));
+        assert(reopened.journal.HistoryCount() == (compact ? 2u : Journal::HistoryCapacity));
         assert(Pinned(reopened.journal, Operation(0)) && Pinned(reopened.journal, Operation(1)));
-        assert(reopened.journal.FindScoped(1, Id(0), 1, 1000) == CommandJournal::Lookup::StaleEpoch);
+        assert(reopened.journal.FindScoped(1, Id(0), 1, 1000) ==
+            (compact ? CommandJournal::Lookup::StaleEpoch : CommandJournal::Lookup::Same));
         assert(!reopened.journal.BeginScoped(1, Id(0), 1, 1000));
         AssertReleased(durable);
       }
     }
   }
+}
+
+void TestBatchRejectsStaleSnapshotWithoutWriting() {
+  Durable durable;
+  Provision(durable);
+  Fill(durable);
+  Session session(durable);
+  std::array<JournalHistoryEntry, Journal::HistoryCapacity> expected;
+  std::array<bool, Journal::HistoryCapacity> referenced{};
+  referenced[0] = true;
+  for (size_t index = 0; index < expected.size(); ++index)
+    assert(session.journal.ReadHistoryEntry(index, expected[index]));
+  assert(durable.barrier.TryEnter());
+  const auto writes = durable.journal.writes;
+  assert(!session.journal.CommitEvidenceReconciliation(2, expected, expected.size(), referenced, true));
+  assert(!session.journal.CommitEvidenceReconciliation(1, expected, expected.size() - 1, referenced, true));
+  auto changed = expected;
+  changed[0].identity.fingerprint++;
+  assert(!session.journal.CommitEvidenceReconciliation(1, changed, changed.size(), referenced, true));
+  changed = expected;
+  changed[0].timedCompleted = !changed[0].timedCompleted;
+  assert(!session.journal.CommitEvidenceReconciliation(1, changed, changed.size(), referenced, true));
+  changed = expected;
+  changed[0].evidencePinned = !changed[0].evidencePinned;
+  assert(!session.journal.CommitEvidenceReconciliation(1, changed, changed.size(), referenced, true));
+  assert(session.journal.IsHealthy() && durable.journal.writes == writes);
+  assert(session.journal.CommitEvidenceReconciliation(1, expected, expected.size(), referenced, true));
+  assert(durable.journal.writes == writes + 1 && session.journal.CurrentEpoch() == 2);
+  assert(session.journal.HistoryCount() == 1 && Pinned(session.journal, Operation(0)));
+  const auto committedWrites = durable.journal.writes;
+  assert(!session.journal.CommitEvidenceReconciliation(1, expected, expected.size(), referenced, true));
+  assert(durable.journal.writes == committedWrites && session.journal.IsHealthy());
+  durable.barrier.Leave();
 }
 
 void TestCommittedSourcesAndBarrierInterleavings() {
@@ -379,7 +415,7 @@ void TestCommittedSourcesAndBarrierInterleavings() {
     if (!durable.barrier.TryEnter()) ++blockedReads;
   };
   assert(session.reconciliation.Reconcile(View()) == Result::Compacted);
-  assert(blockedCommits == 33 && blockedReads == 33 && blockedReconciliations == 1);
+  assert(blockedCommits == 2 && blockedReads == 2 && blockedReconciliations == 1);
   assert(durable.online.Committed().count == 1 && durable.offline.Committed().count == 0);
   assert(session.journal.HistoryCount() == 1 && Pinned(session.journal, Operation(0)));
   assert(!session.journal.WasTimedPresentationCompletedHistorical(1, Id(0), 1, 1000));
@@ -470,7 +506,8 @@ int main() {
   TestRepairWithoutPrematureReleaseAndCaseIdentity();
   TestFullPinsPendingAndIdentityGuards();
   TestEpochExhaustionHasNoDestructiveWrites();
-  TestEveryRepairReleaseAndCompactWriteCut();
+  TestAtomicRepairAndCompactionWriteCuts();
+  TestBatchRejectsStaleSnapshotWithoutWriting();
   TestCommittedSourcesAndBarrierInterleavings();
   TestMixedOperationsAcrossRestartsAndCompactions();
 }

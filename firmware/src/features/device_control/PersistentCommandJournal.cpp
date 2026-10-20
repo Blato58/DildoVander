@@ -359,6 +359,51 @@ bool PersistentCommandJournal::IsEvidencePinned(
   return entry && entry->evidencePinned;
 }
 
+bool PersistentCommandJournal::CommitEvidenceReconciliation(
+    uint64_t expectedEpoch,
+    const std::array<JournalHistoryEntry, HistoryCapacity>& expectedHistory,
+    size_t expectedCount, const std::array<bool, HistoryCapacity>& referenced,
+    bool compact) {
+  if (HasPending() || state_.origin != StateOrigin::Scoped ||
+      expectedEpoch != state_.currentEpoch || expectedCount != state_.historyCount ||
+      expectedCount > HistoryCapacity) return false;
+  for (size_t index = 0; index < expectedCount; ++index) {
+    const auto& actual = state_.history[index];
+    const auto& expected = expectedHistory[index];
+    if (actual.epoch != expected.identity.epoch ||
+        !SameUuid(actual.id, expected.identity.operationId) ||
+        actual.compartment != expected.identity.compartment ||
+        actual.fingerprint != expected.identity.fingerprint ||
+        actual.timedCompleted != expected.timedCompleted ||
+        actual.evidencePinned != expected.evidencePinned) return false;
+  }
+  if (compact && (expectedCount != HistoryCapacity ||
+      state_.currentEpoch == std::numeric_limits<uint64_t>::max() ||
+      std::all_of(referenced.begin(), referenced.end(), [](bool value) { return value; }))) return false;
+
+  State next = state_;
+  bool changed = false;
+  if (compact) {
+    next.history = {};
+    next.historyCount = 0;
+    for (size_t index = 0; index < expectedCount; ++index) {
+      if (!referenced[index]) continue;
+      auto& retained = next.history[next.historyCount++];
+      retained = state_.history[index];
+      retained.evidencePinned = true;
+    }
+    ++next.currentEpoch;
+    changed = true;
+  } else {
+    for (size_t index = 0; index < expectedCount; ++index) {
+      if (!referenced[index] || next.history[index].evidencePinned) continue;
+      next.history[index].evidencePinned = true;
+      changed = true;
+    }
+  }
+  return !changed || Persist(next);
+}
+
 bool PersistentCommandJournal::Persist(const State& next) {
   std::array<uint8_t, RecordSize> data{};
   Encode(next, data);

@@ -9,6 +9,7 @@
 
 // Shared production NVS codec, exercised by host serialized-crash fixtures.
 namespace keepsake_persistence {
+constexpr size_t MaximumBytes = 32768;
 inline bool Valid(const KeepsakeOutcome& item) {
   return IsConversationUuid(item.operationId) && IsConversationUuid(item.outcomeId)
       && IsConversationUuid(item.proposalId) && IsConversationUuid(item.physicalOperationId)
@@ -54,6 +55,27 @@ inline bool Identity(cJSON* root, KeepsakeOutcome& item) {
       && OptionalIdentityNumber(root, "physicalFingerprint", item.physicalFingerprint);
 }
 
+inline bool UniqueIdentityFields(cJSON* object) {
+  const char* names[] = {"operationEpoch", "physicalFingerprint", "physicalOperationId", "compartment"};
+  for (const char* name : names) {
+    unsigned count = 0;
+    for (auto* item = object ? object->child : nullptr; item; item = item->next)
+      if (item->string && std::strcmp(item->string, name) == 0 && ++count > 1) return false;
+  }
+  return true;
+}
+
+inline bool DispositionIdentity(cJSON* root, KeepsakeDisposition& item) {
+  if (!UniqueIdentityFields(root) || !OptionalIdentityNumber(root, "physicalFingerprint", item.physicalFingerprint)) return false;
+  if (cJSON_GetObjectItemCaseSensitive(root, "physicalOperationId")
+      && (!Text(root, "physicalOperationId", item.physicalOperationId) || !IsConversationUuid(item.physicalOperationId))) return false;
+  uint64_t compartment = 0;
+  if (cJSON_GetObjectItemCaseSensitive(root, "compartment")
+      && (!Number(root, "compartment", compartment) || compartment > 6)) return false;
+  item.compartment = static_cast<uint8_t>(compartment);
+  return true;
+}
+
 inline bool MatchesOutcomeAcknowledgement(const char* bytes, size_t length, const KeepsakeOutcome& outcome) {
   auto* root = cJSON_ParseWithLength(bytes, length);
   std::string locator, resultOutcome, physical;
@@ -80,7 +102,10 @@ inline std::string Encode(const KeepsakeOutboxState& state) {
     const auto& item = state.quarantined[i];
     bytes += "{\"operationId\":\"" + item.operationId + "\",\"outcomeId\":\"" + item.outcomeId
         + "\",\"reason\":\"" + item.reason + "\""
-        + (item.operationEpoch ? ",\"operationEpoch\":\"" + std::to_string(item.operationEpoch) + "\"" : "") + "}";
+        + (item.operationEpoch ? ",\"operationEpoch\":\"" + std::to_string(item.operationEpoch) + "\"" : "")
+        + (item.physicalOperationId.empty() ? "" : ",\"physicalOperationId\":\"" + item.physicalOperationId + "\"")
+        + (!item.physicalOperationId.empty() || item.compartment ? ",\"compartment\":" + std::to_string(item.compartment) : "")
+        + (!item.physicalOperationId.empty() || item.physicalFingerprint ? ",\"physicalFingerprint\":\"" + std::to_string(item.physicalFingerprint) + "\"" : "") + "}";
   }
   bytes += "],\"prepared\":[";
   for (size_t i = 0; i < state.prepared.size(); ++i) {
@@ -92,7 +117,7 @@ inline std::string Encode(const KeepsakeOutboxState& state) {
 }
 
 inline bool Decode(const char* bytes, size_t length, KeepsakeOutboxState& state) {
-  if (!bytes || length == 0 || length > 16384) return false;
+  if (!bytes || length == 0 || length > MaximumBytes) return false;
   auto* root = cJSON_ParseWithLength(bytes, length);
   auto* pending = cJSON_IsArray(root) ? root : cJSON_GetObjectItemCaseSensitive(root, "pending");
   auto* quarantined = cJSON_GetObjectItemCaseSensitive(root, "quarantined");
@@ -106,7 +131,7 @@ inline bool Decode(const char* bytes, size_t length, KeepsakeOutboxState& state)
   for (int i = 0; valid && i < cJSON_GetArraySize(pending); ++i) {
     auto* entry = cJSON_GetArrayItem(pending, i);
     KeepsakeOutcome item;
-    valid = Text(entry, "operationId", item.operationId) && Text(entry, "outcomeId", item.outcomeId)
+    valid = UniqueIdentityFields(entry) && Text(entry, "operationId", item.operationId) && Text(entry, "outcomeId", item.outcomeId)
         && Text(entry, "proposalId", item.proposalId) && Text(entry, "physicalOperationId", item.physicalOperationId)
         && Text(entry, "bootId", item.bootId) && Number(entry, "generation", item.generation)
         && Number(entry, "deviceRevision", item.deviceRevision) && Identity(entry, item) && Valid(item);
@@ -125,6 +150,7 @@ inline bool Decode(const char* bytes, size_t length, KeepsakeOutboxState& state)
     valid = Text(entry, "operationId", disposition.operationId) && IsConversationUuid(disposition.operationId)
         && Text(entry, "outcomeId", disposition.outcomeId) && IsConversationUuid(disposition.outcomeId)
         && OptionalIdentityNumber(entry, "operationEpoch", disposition.operationEpoch)
+        && DispositionIdentity(entry, disposition)
         && Text(entry, "reason", disposition.reason, 64)
         && (PermanentKeepsakeFailure(410, disposition.reason) || PermanentKeepsakeFailure(409, disposition.reason)
             || PermanentKeepsakeFailure(404, disposition.reason) || disposition.reason == "physical_outcome_unknown"
@@ -137,7 +163,7 @@ inline bool Decode(const char* bytes, size_t length, KeepsakeOutboxState& state)
     auto* entry = cJSON_GetArrayItem(prepared, i);
     KeepsakeOutcome item;
     uint64_t compartment = 0;
-    valid = Text(entry, "operationId", item.operationId) && Text(entry, "outcomeId", item.outcomeId)
+    valid = UniqueIdentityFields(entry) && Text(entry, "operationId", item.operationId) && Text(entry, "outcomeId", item.outcomeId)
         && Text(entry, "proposalId", item.proposalId) && Text(entry, "physicalOperationId", item.physicalOperationId)
         && Text(entry, "bootId", item.bootId) && Number(entry, "generation", item.generation)
         && Number(entry, "deviceRevision", item.deviceRevision) && Number(entry, "compartment", compartment)

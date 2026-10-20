@@ -1,5 +1,6 @@
 #include "EspIdfKeepsakeNotifier.h"
 #include "KeepsakePersistenceCodec.h"
+#include "EspIdfKeepsakeInventoryStorage.h"
 
 #include <array>
 #include <cstring>
@@ -150,20 +151,29 @@ bool EspIdfKeepsakeNotifier::ProcessDeliveryAcknowledgements() {
 }
 
 bool EspIdfKeepsakeNotifier::Load() {
-  nvs_handle_t nvs;
-  if (nvs_open("dv10_outbox", NVS_READWRITE, &nvs) != ESP_OK) return false;
-  size_t length = 0;
-  const auto result = nvs_get_blob(nvs, "completed", nullptr, &length);
-  if (result == ESP_ERR_NVS_NOT_FOUND) { nvs_close(nvs); return true; }
-  std::vector<char> bytes(16385, '\0');
-  const bool loaded = result == ESP_OK && length > 0 && length < bytes.size()
-      && nvs_get_blob(nvs, "completed", bytes.data(), &length) == ESP_OK;
-  nvs_close(nvs);
-  if (!loaded) return false;
+  inventoryStorage_ = std::make_unique<EspIdfKeepsakeInventoryStorage>(true);
+  committed_ = std::make_unique<KeepsakeCommittedInventory>(*inventoryStorage_);
   KeepsakeOutboxState state;
-  if (!keepsake_persistence::Decode(bytes.data(), length, state)
-      || !outbox_.Restore(std::move(state.pending), std::move(state.quarantined), std::move(state.prepared))) return false;
-  persisted_ = bytes.data();
+  if (!committed_->ReadState(state)) return false;
+  if (committed_->IsBound()) outbox_.RetainRetirementLedger();
+  return outbox_.Restore(std::move(state.pending), std::move(state.quarantined), std::move(state.prepared));
+}
+
+bool EspIdfKeepsakeNotifier::ReadCommitted(JournalEvidenceInventory& inventory) const {
+  std::lock_guard<std::mutex> lock(persistenceMutex_);
+  inventory = {};
+  if (committed_ && committed_->ReadCommitted(inventory)) return true;
+  healthy_.store(false);
+  return false;
+}
+
+bool EspIdfKeepsakeNotifier::EstablishInventory(const std::string& deviceId, bool serviceAuthorized) {
+  std::lock_guard<std::mutex> lock(persistenceMutex_);
+  KeepsakeOutboxState saved;
+  if (!serviceAuthorized || !committed_ || !committed_->ReadState(saved)
+      || keepsake_persistence::Encode(saved) != keepsake_persistence::Encode(outbox_.State())) return false;
+  if (!committed_->Establish(deviceId, true)) { healthy_.store(false); return false; }
+  outbox_.RetainRetirementLedger();
   return true;
 }
 
@@ -173,15 +183,9 @@ bool EspIdfKeepsakeNotifier::PersistCurrent() {
 }
 
 bool EspIdfKeepsakeNotifier::Persist(const KeepsakeOutboxState& state) {
-  const std::string bytes = keepsake_persistence::Encode(state);
-  if (bytes.size() >= 16384) return false;
-  if (bytes == persisted_) return true;
-  nvs_handle_t nvs;
-  if (nvs_open("dv10_outbox", NVS_READWRITE, &nvs) != ESP_OK) return false;
-  const bool stored = nvs_set_blob(nvs, "completed", bytes.c_str(), bytes.size() + 1) == ESP_OK && nvs_commit(nvs) == ESP_OK;
-  nvs_close(nvs);
-  if (stored) persisted_ = std::move(bytes);
-  return stored;
+  if (committed_ && committed_->Commit(state)) return true;
+  healthy_.store(false);
+  return false;
 }
 
 bool EspIdfKeepsakeNotifier::Deliver(const KeepsakeOutcome& outcome, const char* token, int& status, std::string& errorCode) {
@@ -208,7 +212,7 @@ void EspIdfKeepsakeNotifier::Run() {
     const uint64_t nowMs = NowMs();
     if (persisted && outbox_.NextReady(nowMs, outcome) && nowMs >= disabledUntilMs
         && backendOnline_.load() && station_.HasIp() && tokens.EnsureToken(nowMs)) {
-      if (outbox_.HasDisposition(outcome.outcomeId, outcome.operationEpoch)) {
+      if (outbox_.HasDisposition(outcome)) {
         outbox_.Complete(outcome.outcomeId, outcome.operationEpoch);
         outbox_.RemovePrepared(outcome.outcomeId, outcome.operationEpoch);
         if (!PersistCurrent()) healthy_.store(false);

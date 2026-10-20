@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 #include "../device_control/CommandJournal.h"
+#include "../device_control/JournalEvidence.h"
 
 struct KeepsakeOutcome {
   std::string operationId, outcomeId, proposalId, physicalOperationId, bootId;
@@ -22,6 +23,9 @@ enum class KeepsakeQueueResult : uint8_t { Rejected, VolatilePendingPersistence,
 struct KeepsakeDisposition {
   std::string operationId, outcomeId, reason;
   uint64_t operationEpoch = 0;
+  std::string physicalOperationId;
+  uint8_t compartment = 0;
+  uint64_t physicalFingerprint = 0;
 };
 
 struct KeepsakeRetirement {
@@ -35,6 +39,24 @@ inline bool SameKeepsakeCandidate(const KeepsakeOutcome& left, const KeepsakeOut
       && left.bootId == right.bootId && left.generation == right.generation
       && left.deviceRevision == right.deviceRevision && left.compartment == right.compartment
       && left.operationEpoch == right.operationEpoch && left.physicalFingerprint == right.physicalFingerprint;
+}
+
+inline JournalOperationIdentity KeepsakePhysicalIdentity(const KeepsakeOutcome& item) {
+  return {item.operationEpoch, item.physicalOperationId, item.compartment, item.physicalFingerprint};
+}
+inline JournalOperationIdentity KeepsakePhysicalIdentity(const KeepsakeDisposition& item) {
+  return {item.operationEpoch, item.physicalOperationId, item.compartment, item.physicalFingerprint};
+}
+inline bool ExactKeepsakeDisposition(const KeepsakeDisposition& disposition, const KeepsakeOutcome& outcome) {
+  const auto identity = KeepsakePhysicalIdentity(disposition);
+  return disposition.operationId == outcome.operationId && disposition.outcomeId == outcome.outcomeId
+      && identity.fingerprint && ValidJournalOperationIdentity(identity)
+      && SameJournalOperationIdentity(identity, KeepsakePhysicalIdentity(outcome));
+}
+inline bool SameKeepsakeDisposition(const KeepsakeDisposition& left, const KeepsakeDisposition& right) {
+  return left.operationId == right.operationId && left.outcomeId == right.outcomeId && left.reason == right.reason
+      && left.operationEpoch == right.operationEpoch && left.physicalOperationId == right.physicalOperationId
+      && left.compartment == right.compartment && left.physicalFingerprint == right.physicalFingerprint;
 }
 
 // Epoch zero is immutable legacy evidence; it must never borrow current admission.
@@ -69,6 +91,13 @@ class KeepsakeOutbox final {
  public:
   static constexpr size_t Capacity = 8;
   static constexpr size_t QuarantineCapacity = 32;
+
+  // Enabled only after explicit durable service binding; old unbound behavior
+  // remains compatible. A bound store separately refuses ledger deletion.
+  void RetainRetirementLedger() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    retainRetirementLedger_ = true;
+  }
 
   bool Prepare(const KeepsakeOutcome& outcome) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -158,6 +187,7 @@ class KeepsakeOutbox final {
 
   void CompactPreparationDispositions() {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (retainRetirementLedger_) return;
     quarantined_.erase(std::remove_if(quarantined_.begin(), quarantined_.end(), [&](const KeepsakeDisposition& item) {
       if (!PreparationDisposition(item.reason) && item.reason != "outcome_delivered") return false;
       for (const auto& prepared : prepared_) if (prepared.operationEpoch == item.operationEpoch && prepared.outcomeId == item.outcomeId) return false;
@@ -225,9 +255,10 @@ class KeepsakeOutbox final {
   bool RecordDisposition(const KeepsakeOutcome& outcome, const std::string& reason) {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& entry : quarantined_) if (entry.operationEpoch == outcome.operationEpoch && entry.outcomeId == outcome.outcomeId)
-      return entry.operationId == outcome.operationId;
+      return retainRetirementLedger_ ? ExactKeepsakeDisposition(entry, outcome) : entry.operationId == outcome.operationId;
     if (quarantined_.size() >= QuarantineCapacity) return false;
-    quarantined_.push_back({outcome.operationId, outcome.outcomeId, reason, outcome.operationEpoch});
+    quarantined_.push_back({outcome.operationId, outcome.outcomeId, reason, outcome.operationEpoch,
+        outcome.physicalOperationId, outcome.compartment, outcome.physicalFingerprint});
     return true;
   }
 
@@ -235,6 +266,15 @@ class KeepsakeOutbox final {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& entry : quarantined_)
       if (entry.operationEpoch == operationEpoch && entry.outcomeId == outcomeId) return true;
+    return false;
+  }
+
+  bool HasDisposition(const KeepsakeOutcome& outcome) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& entry : quarantined_) {
+      if (entry.operationEpoch != outcome.operationEpoch || entry.outcomeId != outcome.outcomeId) continue;
+      return !retainRetirementLedger_ || ExactKeepsakeDisposition(entry, outcome);
+    }
     return false;
   }
 
@@ -270,12 +310,14 @@ class KeepsakeOutbox final {
     // A persisted disposition fences replay even if power failed before queue removal.
     entries.erase(std::remove_if(entries.begin(), entries.end(), [&](const KeepsakeOutcome& item) {
       for (const auto& disposition : dispositions)
-        if (disposition.operationEpoch == item.operationEpoch && disposition.outcomeId == item.outcomeId) return true;
+        if (disposition.operationEpoch == item.operationEpoch && disposition.outcomeId == item.outcomeId
+            && (!retainRetirementLedger_ || ExactKeepsakeDisposition(disposition, item))) return true;
       return false;
     }), entries.end());
     prepared.erase(std::remove_if(prepared.begin(), prepared.end(), [&](const KeepsakeOutcome& item) {
       for (const auto& disposition : dispositions)
-        if (disposition.operationEpoch == item.operationEpoch && disposition.outcomeId == item.outcomeId) return true;
+        if (disposition.operationEpoch == item.operationEpoch && disposition.outcomeId == item.outcomeId
+            && (!retainRetirementLedger_ || ExactKeepsakeDisposition(disposition, item))) return true;
       return false;
     }), prepared.end());
     pending_ = std::move(entries);
@@ -316,7 +358,7 @@ class KeepsakeOutbox final {
     // RAM mailbox keeps capacity occupied, including across failed NVS writes.
     if (!persist(State())) return false;
     RemovePrepared(outcome.outcomeId, outcome.operationEpoch);
-    if (HasDisposition(outcome.outcomeId, outcome.operationEpoch)) Complete(outcome.outcomeId, outcome.operationEpoch);
+    if (HasDisposition(outcome)) Complete(outcome.outcomeId, outcome.operationEpoch);
     if (!persist(State())) return false;
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -345,6 +387,7 @@ class KeepsakeOutbox final {
     }
     return count;
   }
+  bool retainRetirementLedger_ = false;
   mutable std::mutex mutex_;
   std::vector<KeepsakeOutcome> pending_;
   std::vector<KeepsakeDisposition> quarantined_;
