@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('vue-router', async () => {
   const { reactive } = await import('vue');
   return {
-    useRoute: () => reactive({ path: '/' }),
+    useRoute: () => reactive({ path: '/', fullPath: '/', meta: {} }),
     useRouter: () => ({ onError: () => () => {}, go: vi.fn() }),
   };
 });
@@ -13,6 +13,8 @@ vi.mock('../src/features/identity/session', async () => {
   const { ref } = await import('vue');
   return {
     account: ref<{ id: string; displayName: string; roles: string[] } | null>(null),
+    offlineSession: ref(false),
+    offlineSessionExpiresAt: ref(0),
     refreshIdentity: vi.fn().mockResolvedValue(undefined),
     hasRole: () => false,
   };

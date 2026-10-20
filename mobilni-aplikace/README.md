@@ -622,3 +622,38 @@ nejsou ověřené. Stávající Bundle ID zachovává identitu aplikace a Keycha
 Původní provozní postupy D128/D145 se současného rozhovorového systému
 netýkají. Aktuální dva enginy, transport, kamera a operátorská paměť jsou
 popsané výše; historické provozní detaily zůstávají v historii Git.
+
+## Public entry and native display
+
+The public home page offers iPhone installation, models and public stories.
+Suitcase, pairing, diagnostics and Director routes require a verified account session
+and an Owner, Administrator or Operator role; administration requires Owner or
+Administrator. Server resource grants and the native device's pairing credentials
+remain independent checks. Logout or role removal unmounts operational views and
+clears their retained UI state. A web route guard is not a substitute for API or
+device authorization.
+
+The browser cannot provide iPhone BLE, Keychain or the pinned local transport.
+Use the installer at `/ios/`; web demo and simulator views remain explicitly
+labelled and do not establish physical-device acceptance. PC control is not
+claimed as supported.
+
+The native iOS shell uses portrait orientation and a fixed page scale, including
+input focus and pinch gestures. This policy is injected only into the native
+main frame; browser zoom is retained. iPad runs full-screen to preserve the
+portrait-only contract. Native changes require a newly signed IPA and device
+update. macOS compilation and synthetic viewport tests do not prove actual
+keyboard/rotation behavior on an installed iPhone.
+
+Offline local control preserves the last verified native account in a
+ThisDeviceOnly Keychain entry, bound to the exact origin and account cookie.
+It expires at the earlier of the server session expiry and twelve hours after
+verification. Connectivity-only failures can reuse that snapshot for local
+suitcase, pairing and diagnostics routes, including after app restart. Fallback
+reads never renew it or publish cloud CSRF authority. TLS, cancellation, HTTP,
+decode errors, confirmed logout/denial and expiry do not admit fallback.
+Director, settings and administration remain online-gated. Role revocation is
+rechecked on reconnection; the independent paired ESP identity remains required
+for local physical control. The additive `/app/v1/session.expiresAt` value is the
+actual database expiry; older clients may ignore it, and older servers cannot
+create a native offline snapshot.

@@ -107,17 +107,23 @@ internal static partial class AccountEndpoints
     private static async Task<IResult> SessionAsync(HttpContext context, AccountConfiguration config, IAntiforgery csrf)
     {
         if (!config.Enabled) { return Results.Ok(new { enabled = false, account = (object?)null, csrfToken = (string?)null }); }
+        var db = context.RequestServices.GetRequiredService<AccountDatabase>();
         AccountUser? user = null;
         if (context.User.Identity?.IsAuthenticated == true)
         {
             user = await context.RequestServices.GetRequiredService<UserManager<AccountUser>>().GetUserAsync(context.User);
         }
         var roles = user is null ? [] : await context.RequestServices.GetRequiredService<UserManager<AccountUser>>().GetRolesAsync(user);
+        var sessionId = context.User.FindFirstValue(AccountIdentity.SessionClaim);
+        var expiresAt = user is null ? (long?)null : await db.Sessions
+            .Where(session => session.Id == sessionId && session.UserId == user.Id)
+            .Select(session => (long?)session.ExpiresAt).SingleOrDefaultAsync();
         return Results.Ok(new
         {
             enabled = true,
             origin = config.AllowedOrigins[0],
             account = user is null ? null : new { user.Id, user.DisplayName, roles },
+            expiresAt,
             csrfToken = csrf.GetAndStoreTokens(context).RequestToken
         });
     }

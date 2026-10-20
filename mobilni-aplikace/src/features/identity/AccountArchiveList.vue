@@ -2,13 +2,13 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
-import { account, accountRequest } from './session';
+import { account, accountRequest, offlineSession } from './session';
 interface LinkedKeepsake {locator:string;linkedAt:number;officialName?:string;storyTitle?:string;hasPortrait?:boolean}
 const items = ref<LinkedKeepsake[]>([]);
 const error = ref(''); const loading = ref(false); let generation = 0;
 async function load() {
   const epoch = ++generation; items.value = []; error.value = '';
-  if (!account.value) return;
+  if (!account.value || offlineSession.value) return;
   loading.value = true;
   try {
     const result = await accountRequest<{items: LinkedKeepsake[]}>('/app/v1/archive/associations');
@@ -16,7 +16,7 @@ async function load() {
   } catch (e) { if (generation === epoch) error.value = (e as Error).message; }
   finally { if (generation === epoch) loading.value = false; }
 }
-watch(() => account.value?.id, () => { ++generation; items.value = []; void load(); }, { flush: 'sync' });
+watch(() => `${account.value?.id ?? ''}:${offlineSession.value}`,  () => { ++generation; items.value = []; void load(); }, { flush: 'sync' });
 onMounted(load); onBeforeUnmount(() => { ++generation; items.value = []; });
 async function remove(locator: string) {
   if (!window.confirm('Odpojit tuto památku od účtu? Návštěvnické vlastnictví ani uložené soubory se tím nemění.')) return;
@@ -25,7 +25,7 @@ async function remove(locator: string) {
 }
 </script>
 <template>
-  <section v-if="account" class="aw-card" aria-labelledby="account-archive-title">
+  <section v-if="account && !offlineSession" class="aw-card" aria-labelledby="account-archive-title">
     <h2 id="account-archive-title">Památky propojené s účtem</h2>
     <p>Propojení vytváříte výslovně z vlastní návštěvnické památky. Umožňuje číst příběh a výsledné portréty; původní fotografie zůstávají mimo přístup účtu.</p>
     <AwNotice v-if="error" tone="warning">{{ error }}</AwNotice>

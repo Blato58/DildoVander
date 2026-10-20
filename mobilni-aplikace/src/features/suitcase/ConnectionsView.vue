@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { offlineSession } from '../identity/session';
 import AwButton from '../../components/AwButton.vue';
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue';
 import { deviceSession as device } from './deviceSession';
@@ -34,7 +35,7 @@ async function confirm(): Promise<void> {
   <div class="connections-view">
     <header class="feature-heading"><p class="aw-eyebrow">Zařízení</p><h1>Připojení kufru</h1><p>Ověřte svůj kufr, nastavte společnou síť a připojte místní ovládání.</p></header>
     <p role="status" class="aw-notice">{{ device.message.value }}</p>
-    <DeviceAssociationPanel />
+    <DeviceAssociationPanel v-if="!offlineSession" />
     <template v-if="device.native">
       <section class="aw-card" aria-labelledby="saved-heading"><h2 id="saved-heading">{{ saved.paired ? 'Uložený kufr' : 'První připojení' }}</h2>
         <template v-if="saved.paired"><p><strong>{{ saved.deviceId }}</strong> · {{ saved.host }}</p><p>Párování je v Keychain. Připojení používá uložený token a ověřený otisk certifikátu; nezačne přebírat řízení.</p><dl class="connection-metrics"><div><dt>Naposledy pozorován místním ovládáním</dt><dd><time v-if="observedDate" :datetime="observedDate.toISOString()">{{ observedText }}</time><span v-else>Dosud nepozorován v této relaci aplikace.</span></dd></div></dl><p>Potvrzený stav nebo odpověď přes místní ovládací spojení. Čas podle hodin tohoto telefonu, od otevření aplikace.</p><div class="connection-actions"><AwButton variant="primary" :disabled="device.pending.value" @click="device.connectSaved">Připojit uložený kufr</AwButton><AwButton :disabled="device.pending.value || !device.connected.value" @click="device.disconnect">Odpojit telefon</AwButton></div><RouterLink v-if="device.connected.value" to="/suitcase" class="aw-button aw-button--primary">Otevřít ovládání kufru</RouterLink></template>
@@ -58,7 +59,7 @@ async function confirm(): Promise<void> {
         <section v-if="destructive" class="aw-notice"><h3>{{ destructive === 'forget-device' ? 'Odebrat místní párování?' : destructive === 'install' ? 'Instalovat firmware do kufru?' : 'Smazat vybraný síťový profil?' }}</h3><p>{{ destructive === 'forget-device' ? 'Přístup tohoto iPhonu zmizí z Keychain. Data a síť kufru zůstanou zachované; nové připojení bude vyžadovat nové párování.' : destructive === 'install' ? 'Instalace změní firmware kufru. Potvrďte až po místní kontrole bezpečného stavu.' : `Odstraníte profil ${profile}. Připojení kufru se může přerušit.` }}</p><div class="connection-actions"><AwButton @click="destructive = null">Zrušit</AwButton><AwButton variant="primary" :disabled="device.pending.value || device.blePending.value" @click="confirm">Potvrdit</AwButton></div></section>
       </details>
     </template>
-    <section v-else class="aw-card"><h2>Webové prostředí</h2><p>Bluetooth, Keychain a připnuté místní spojení vyžadují aplikaci na iPhonu. V prohlížeči se žádný skutečný kufr automaticky nepřipojuje.</p><div class="connection-actions"><AwButton variant="primary" :disabled="device.pending.value" @click="device.useDemo">Otevřít místní ukázku</AwButton><AwButton :disabled="device.pending.value" @click="device.useSimulator">Připojit vývojový E2 simulátor</AwButton></div><p>Ukázka je bez sítě a fyzických efektů. E2 vyžaduje skutečně spuštěný místní vývojový server.</p><RouterLink v-if="device.target.value !== 'unavailable'" to="/suitcase" class="aw-button aw-button--secondary">Otevřít označené ovládání</RouterLink></section>
+    <section v-else class="aw-card"><h2>Webové prostředí</h2><p>Bluetooth, Keychain a připnuté místní spojení vyžadují aplikaci na iPhonu. V prohlížeči se žádný skutečný kufr automaticky nepřipojuje.</p><a class="aw-button aw-button--primary" href="/ios/">Stáhnout aplikaci pro iPhone</a><div class="connection-actions"><AwButton :disabled="device.pending.value" @click="device.useDemo">Otevřít místní ukázku</AwButton><AwButton :disabled="device.pending.value" @click="device.useSimulator">Připojit vývojový E2 simulátor</AwButton></div><p>Ukázka je bez sítě a fyzických efektů. E2 vyžaduje skutečně spuštěný místní vývojový server.</p><RouterLink v-if="device.target.value !== 'unavailable'" to="/suitcase" class="aw-button aw-button--secondary">Otevřít označené ovládání</RouterLink></section>
   </div>
 </template>
 

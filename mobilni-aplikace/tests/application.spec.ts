@@ -11,12 +11,13 @@ import App from '../src/application/App.vue';
 import { safeReturnPath } from '../src/application/navigation';
 import { deviceSession } from '../src/features/suitcase/deviceSession';
 import { nativeDebug } from '../src/features/suitcase/nativeDebug';
-import { refreshIdentity } from '../src/features/identity/session';
+import { account, offlineSession, offlineSessionExpiresAt, refreshIdentity } from '../src/features/identity/session';
+import { installAccessGuard } from '../src/application/accessGuard';
 import type { DeviceSnapshot } from '../src/features/device_connection/FakeDeviceConnection';
 
 vi.mock('../src/features/identity/session', async () => {
   const { ref } = await import('vue');
-  return { account: ref(null), refreshIdentity: vi.fn(async () => {}), hasRole: () => false };
+  return { account: ref(null), offlineSession: ref(false), offlineSessionExpiresAt: ref(0), refreshIdentity: vi.fn(async () => {}), hasRole: () => false };
 });
 
 function snapshot(revision = 1): DeviceSnapshot {
@@ -25,7 +26,7 @@ function snapshot(revision = 1): DeviceSnapshot {
     conversation: { canSubmit: true, canCancel: false, status: '', pending: false } as DeviceSnapshot['conversation'] };
 }
 const wrappers: Array<ReturnType<typeof mount>> = [];
-beforeEach(() => { deviceSession.snapshot.value = null; deviceSession.target.value = 'unavailable'; });
+beforeEach(() => { account.value = null; offlineSession.value = false; offlineSessionExpiresAt.value = 0; deviceSession.snapshot.value = null; deviceSession.target.value = 'unavailable'; });
 afterEach(() => { for (const wrapper of wrappers.splice(0)) wrapper.unmount(); document.body.innerHTML = ''; vi.restoreAllMocks(); });
 function renderSuitcase() {
   const wrapper = mount(SuitcaseView, { attachTo: document.body, global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
@@ -33,6 +34,56 @@ function renderSuitcase() {
 }
 
 describe('application boundaries', () => {
+  it('removes cloud views on offline transition without retiring the paired local session', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/', component: { template: '<p>Landing</p>' } },
+      { path: '/suitcase', component: { template: '<p>Local controls</p>' }, meta: { requiresAccount: true, operation: true, offlineLocal: true } },
+      { path: '/suitcase/director', component: { template: '<input aria-label="Cloud draft" />' }, meta: { requiresAccount: true, operation: true } },
+    ] });
+    installAccessGuard(router);
+    account.value = { id: 'owner', displayName: 'Owner', roles: ['Owner'] };
+    await router.push('/suitcase/director');
+    const cleanup = vi.spyOn(deviceSession, 'clearUserGrants');
+    const wrapper = mount(App, { global: { plugins: [router, createPinia()] } }); wrappers.push(wrapper);
+    expect(wrapper.find('main input').exists()).toBe(true);
+    offlineSessionExpiresAt.value = Date.now() + 60000;
+    offlineSession.value = true;
+    await flushPromises();
+    expect(wrapper.find('main input').exists()).toBe(false);
+    expect(router.currentRoute.value.query.access).toBe('online');
+    expect(cleanup).not.toHaveBeenCalled();
+    vi.mocked(refreshIdentity).mockClear();
+    await router.push('/suitcase'); await flushPromises();
+    expect(wrapper.text()).toContain('Local controls');
+    expect(refreshIdentity).not.toHaveBeenCalled();
+  });
+  it('unmounts cached operations on logout and discards their drafts before another account enters', async () => {
+    let mounts = 0;
+    const operation = { setup() { ++mounts; return { draft: ref('') }; }, template: '<input aria-label="Private draft" v-model="draft" />' };
+    const router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/', component: { template: '<p>Public landing</p>' } },
+      { path: '/signin', component: { template: '<p>Sign in</p>' } },
+      { path: '/suitcase', name: 'private-operation', component: operation, meta: { keepAlive: true, requiresAccount: true, operation: true } },
+    ] });
+    installAccessGuard(router);
+    account.value = { id: 'first', displayName: 'First', roles: ['Operator'] };
+    await router.push('/suitcase');
+    const wrapper = mount(App, { global: { plugins: [router, createPinia()] } });
+    wrappers.push(wrapper);
+    await wrapper.get('main input').setValue('Private first-account draft');
+    account.value = null;
+    await flushPromises();
+    expect(wrapper.find('main input').exists()).toBe(false);
+    expect(router.currentRoute.value.path).toBe('/signin');
+    account.value = { id: 'second', displayName: 'Second', roles: ['Operator'] };
+    await router.push('/suitcase'); await flushPromises();
+    expect((wrapper.get('main input').element as HTMLInputElement).value).toBe('');
+    expect(mounts).toBe(2);
+    account.value = { ...account.value, roles: ['Viewer'] };
+    await flushPromises();
+    expect(wrapper.find('main input').exists()).toBe(false);
+    expect(router.currentRoute.value.query.access).toBe('operator');
+  });
   it.each([false, true])('keeps browser-only install navigation out of native context (native=%s)', async native => {
     vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(native);
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<p>Current operation</p>' } }] });
