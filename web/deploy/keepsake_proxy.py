@@ -63,7 +63,8 @@ def render_compatibility(host):
     for method, template, source in CONTRACT["routes"]:
         grouped.setdefault((template, source), set()).add(method)
     for (template, source), methods in grouped.items():
-        streaming = template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live", "/audio-stream"))
+        streaming = (template == "/v1/conversations/{id}/device-media"
+                     or template.endswith(("/realtime-turns", "/realtime-live", "/gpt-live", "/audio-stream")))
         twin = source.startswith("Features/DigitalTwin/")
         # Only the JPEG upload needs the larger existing Twin media body cap.
         body_limit = "256k;" if template == "/v1/twin/instances/{id}/media/photo" else "32k;" if twin else "4m;"
