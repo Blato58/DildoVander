@@ -1,5 +1,14 @@
 import Foundation
 
+let ambientPreviewId = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+let ambientPreviewRoot = "/v1/show/devices/case.s3/ambient-previews"
+require(AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", query: []), "ambient preview creation unavailable")
+require(AccountTransportPolicy.show(path: "\(ambientPreviewRoot)/\(ambientPreviewId)", method: "GET", query: []), "ambient preview read unavailable")
+require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "GET", query: []), "ambient preview list exposed")
+require(!AccountTransportPolicy.show(path: "\(ambientPreviewRoot)/invalid", method: "GET", query: []), "invalid preview ID accepted")
+require(!AccountTransportPolicy.show(path: "\(ambientPreviewRoot)/\(ambientPreviewId)", method: "POST", query: []), "preview read became mutable")
+require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", query: [URLQueryItem(name: "device", value: "other")]), "preview query scope broadened")
+
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
 let publicHash = String(repeating: "a", count: 64)
@@ -556,8 +565,67 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     }
     gate.release(blocked)
     let logoutLease = try await reservedLogout.value; gate.release(logoutLease)
+
+    // Logout intent invalidates an in-flight session read even if the queued
+    // DELETE is subsequently cancelled and never reaches the server.
+    let sessionRead = try await gate.acquire()
+    let previousEpoch = gate.epoch
+    var offlineSnapshotPresent = true
+    let cancelledLogoutId = UUID()
+    let cancelledLogout = Task<Void, Error> { @MainActor in
+        offlineSnapshotPresent = false
+        let lease = try await gate.acquire(logout: true, requestId: cancelledLogoutId)
+        defer { gate.release(lease) }
+        try gate.requireCurrent(lease)
+        fatalError("cancelled queued logout reached transport")
+    }
+    await eventually { gate.epoch != previousEpoch }
+    gate.cancelWaiting(requestId: cancelledLogoutId)
+    do { try await cancelledLogout.value; fatalError("queued logout cancellation was ignored") }
+    catch { require(AccountRequestRegistry.isCancellation(error), "logout cancellation lost its meaning") }
+    do {
+        try gate.requireCurrent(sessionRead)
+        offlineSnapshotPresent = true
+        fatalError("late session response survived cancelled logout")
+    } catch AccountRequestScheduler.Failure.contextChanged { }
+    gate.release(sessionRead)
+    require(!offlineSnapshotPresent, "late response restored local offline authority")
     print("PASS native account request-scoped cancellation/zero-obsolete-HTTP, delayed URLSession FIFO, ceremony/credential-commit Stop, credential scope fence, stale/logout fencing, cookie isolation and bounded admission")
 }
+
+
+// Deterministic policy checks; Keychain and installed-device behavior are separate.
+let offlineOrigin = "https://dildovander.de"
+let offlineBinding = String(repeating: "a", count: 64)
+let onlineIdentity: [String: Any] = ["enabled": true, "origin": offlineOrigin,
+    "account": ["id": "owner-id", "displayName": "Owner", "roles": ["Owner"]],
+    "expiresAt": 2000, "csrfToken": "online-only-csrf"]
+let offlineEnvelope = NativeOfflineAccountSession.envelope(onlineIdentity, origin: offlineOrigin, binding: offlineBinding, now: 1000)!
+let offlineIdentity = NativeOfflineAccountSession.response(offlineEnvelope, origin: offlineOrigin, binding: offlineBinding, now: 1500)!
+require(offlineIdentity["offline"] as? Bool == true && offlineIdentity["csrfToken"] as? String == "", "offline snapshot published cloud CSRF authority")
+require((offlineIdentity["expiresAt"] as? NSNumber)?.doubleValue == 2000, "fallback renewed server expiry")
+require(NativeOfflineAccountSession.envelope(offlineIdentity, origin: offlineOrigin, binding: offlineBinding, now: 1500) == nil, "fallback can renew itself")
+for time in [999.0, 2000.0, 3000.0] {
+    require(NativeOfflineAccountSession.response(offlineEnvelope, origin: offlineOrigin, binding: offlineBinding, now: time) == nil, "expired or rollback-clock snapshot admitted")
+}
+require(NativeOfflineAccountSession.response(offlineEnvelope, origin: "https://other.invalid", binding: offlineBinding, now: 1500) == nil, "cross-origin cache admitted")
+require(NativeOfflineAccountSession.response(offlineEnvelope, origin: offlineOrigin, binding: String(repeating: "b", count: 64), now: 1500) == nil, "changed cookie cache admitted")
+var invalidIdentity = onlineIdentity
+invalidIdentity["account"] = NSNull()
+require(NativeOfflineAccountSession.envelope(invalidIdentity, origin: offlineOrigin, binding: offlineBinding, now: 1000) == nil, "anonymous identity cached")
+invalidIdentity = onlineIdentity
+invalidIdentity["expiresAt"] = Double.infinity
+require(NativeOfflineAccountSession.envelope(invalidIdentity, origin: offlineOrigin, binding: offlineBinding, now: 1000) == nil, "invalid expiry cached")
+invalidIdentity["expiresAt"] = 1000000
+let limited = NativeOfflineAccountSession.envelope(invalidIdentity, origin: offlineOrigin, binding: offlineBinding, now: 1000)!
+require((limited["expiresAt"] as? NSNumber)?.doubleValue == 1000 + 43200, "offline delegation exceeds twelve hours")
+for code in [URLError.Code.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed] {
+    require(NativeOfflineAccountSession.permitsFallback(URLError(code)), "connectivity outage denied local fallback")
+}
+for code in [URLError.Code.cancelled, .serverCertificateUntrusted, .secureConnectionFailed, .badServerResponse, .cannotDecodeContentData] {
+    require(!NativeOfflineAccountSession.permitsFallback(URLError(code)), "TLS, cancellation or malformed response admitted offline fallback")
+}
+print("PASS bounded origin/cookie/expiry native offline account policy; no cloud CSRF or fallback renewal")
 
 DispatchQueue.global().asyncAfter(deadline: .now() + 20) { fatalError("Native account scheduling regression timed out") }
 Task { @MainActor in

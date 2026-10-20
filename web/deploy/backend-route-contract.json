@@ -397,6 +397,16 @@
       "Features/Show/ShowEndpoints.cs"
     ],
     [
+      "POST",
+      "/v1/show/devices/{deviceId}/ambient-previews",
+      "Features/Show/ShowAmbientPreviewEndpoints.cs"
+    ],
+    [
+      "GET",
+      "/v1/show/devices/{deviceId}/ambient-previews/{operationId:guid}",
+      "Features/Show/ShowAmbientPreviewEndpoints.cs"
+    ],
+    [
       "GET",
       "/v1/show/devices/{deviceId}/identities",
       "Features/Show/ShowArchiveEndpoints.cs"

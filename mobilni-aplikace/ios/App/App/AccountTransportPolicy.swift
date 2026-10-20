@@ -69,10 +69,10 @@ enum AccountTransportPolicy {
                 return !evening.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && evening.count <= 240
                     && !evening.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
             }
-            return query.isEmpty && (suffix.isEmpty || (suffix.count == 2 && suffix[0] == "duels" && UUID(uuidString: suffix[1]) != nil))
+            return query.isEmpty && (suffix.isEmpty || (suffix.count == 2 && ["duels", "ambient-previews"].contains(suffix[0]) && UUID(uuidString: suffix[1]) != nil))
         }
         guard method == "POST", query.isEmpty else { return false }
-        if suffix.count == 1 { return ["commands", "end-evening", "offline-outcomes", "duels"].contains(suffix[0]) }
+        if suffix.count == 1 { return ["commands", "end-evening", "offline-outcomes", "duels", "ambient-previews"].contains(suffix[0]) }
         if suffix.count == 3, suffix[0] == "prophecies", suffix[2] == "reveal" {
             return !suffix[1].isEmpty && suffix[1].count <= 128 && suffix[1].allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
         }
@@ -495,5 +495,48 @@ struct AccountSessionResponse {
         var request = original
         if request.httpMethod != "GET" { request.setValue(csrfToken, forHTTPHeaderField: "X-DV-CSRF") }
         return request
+    }
+}
+
+// This snapshot authorizes only the native local-control UI. Cloud requests
+// still need the server cookie and grants; fallback never publishes CSRF.
+struct NativeOfflineAccountSession {
+    static let maximumAge: TimeInterval = 12 * 60 * 60
+
+    static func envelope(_ object: [String: Any], origin: String, binding: String, now: TimeInterval) -> [String: Any]? {
+        guard object["offline"] as? Bool != true, object["enabled"] as? Bool == true,
+              object["origin"] as? String == origin,
+              let account = object["account"] as? [String: Any],
+              let id = account["id"] as? String, !id.isEmpty, id.utf8.count <= 128,
+              let name = account["displayName"] as? String, name.utf8.count <= 320,
+              let roles = account["roles"] as? [String], !roles.isEmpty, roles.count <= 4,
+              roles.allSatisfy({ ["Owner", "Administrator", "Operator", "Viewer"].contains($0) }),
+              let expiry = object["expiresAt"] as? NSNumber,
+              expiry.doubleValue.isFinite, expiry.doubleValue > now,
+              binding.utf8.count == 64 else { return nil }
+        return ["origin": origin, "binding": binding, "verifiedAt": now,
+                "expiresAt": min(expiry.doubleValue, now + maximumAge),
+                "account": ["id": id, "displayName": name, "roles": roles]]
+    }
+
+    static func response(_ envelope: [String: Any], origin: String, binding: String, now: TimeInterval) -> [String: Any]? {
+        guard envelope["origin"] as? String == origin, envelope["binding"] as? String == binding,
+              let verified = envelope["verifiedAt"] as? NSNumber,
+              let expiry = envelope["expiresAt"] as? NSNumber,
+              verified.doubleValue.isFinite, expiry.doubleValue.isFinite,
+              now >= verified.doubleValue, now < expiry.doubleValue,
+              expiry.doubleValue <= verified.doubleValue + maximumAge,
+              let account = envelope["account"] as? [String: Any] else { return nil }
+        let candidate: [String: Any] = ["enabled": true, "origin": origin,
+            "account": account, "expiresAt": expiry]
+        guard self.envelope(candidate, origin: origin, binding: binding, now: now) != nil else { return nil }
+        return candidate.merging(["csrfToken": "", "offline": true]) { _, new in new }
+    }
+
+    static func permitsFallback(_ error: Error) -> Bool {
+        guard let failure = error as? URLError else { return false }
+        let allowed: Set<URLError.Code> = [.notConnectedToInternet, .networkConnectionLost, .timedOut,
+            .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed]
+        return allowed.contains(failure.code)
     }
 }

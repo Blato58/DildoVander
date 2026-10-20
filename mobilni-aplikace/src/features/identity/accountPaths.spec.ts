@@ -13,6 +13,15 @@ describe('canonical account Twin paths', () => {
 describe('bounded account Show operator paths', () => {
   const root = '/v1/show/devices/case.s3';
   const id = '7fc470e2-e25e-46a2-b51b-97d50275ae77';
+  it('allows only explicit ambient preview creation and one operation read', () => {
+    expect(isShowAccountPath(`${root}/ambient-previews`, 'POST')).toBe(true);
+    expect(isShowAccountPath(`${root}/ambient-previews/${id}`)).toBe(true);
+    for (const path of [`${root}/ambient-previews`, `${root}/ambient-previews/invalid`, `${root}/ambient-previews/${id}?x=1`]) {
+      expect(isShowAccountPath(path)).toBe(false);
+    }
+    expect(isShowAccountPath(`${root}/ambient-previews/${id}`, 'POST')).toBe(false);
+    expect(isShowAccountPath(`${root}/ambient-previews`, 'DELETE')).toBe(false);
+  });
   it('accepts exact reads and commands without firmware cue access', () => {
     expect(isShowAccountPath(root)).toBe(true);
     for (const suffix of ['identities', 'prophecies', 'duels']) expect(isShowAccountPath(`${root}/${suffix}?eveningId=${id}`)).toBe(true);

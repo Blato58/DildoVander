@@ -52,6 +52,7 @@ internal static class AccountIdentityTests
     public static async Task RunAsync()
     {
         ServiceCredentialBoundaries();
+        await DisabledIdentitySessionAsync();
         await PersistentAccountAuthorizationAsync();
         await AdditionalPasskeyRecentAuthenticationAsync();
         await ModelReleaseTests.RunAsync();
@@ -74,6 +75,9 @@ internal static class AccountIdentityTests
         Check((await owner.PutAsJsonAsync($"/app/v1/admin/users/{ownerId}", new { role = "Viewer", disabled = false })).StatusCode == HttpStatusCode.Conflict, "last owner cannot be demoted");
         Check((await owner.PutAsJsonAsync($"/app/v1/admin/users/{ownerId}", new { role = "Owner", disabled = true })).StatusCode == HttpStatusCode.Conflict, "last owner cannot be disabled");
         var ownerDetails = await JsonAsync(await owner.GetAsync("/app/v1/account"));
+        var currentSession = ownerDetails.GetProperty("sessions").EnumerateArray().Single(session => session.GetProperty("current").GetBoolean());
+        Check(ownerSession.GetProperty("expiresAt").GetInt64() == currentSession.GetProperty("expiresAt").GetInt64(),
+            "session response exposes actual database expiry for bounded native offline admission");
         var lastKeyId = ownerDetails.GetProperty("passkeys")[0].GetProperty("id").GetString();
         foreach (var invalidName in new[] { " ", new string('x', 81), "line\nbreak" })
         {
@@ -162,6 +166,27 @@ internal static class AccountIdentityTests
         await CeremonyReplayAndExpiryAsync(fixture, ownerKey);
         await RecoveryAndOwnerRaceAsync(fixture, owner, ownerId, ownerKey);
         Console.WriteLine("PASS account identity HTTPS WebAuthn registration/signin, authz, CSRF/origin, invitation replay/expiry, session revocation, device/workshop grants and last-owner protection");
+    }
+
+    private static async Task DisabledIdentitySessionAsync()
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        builder.Configuration.Sources.Clear();
+        builder.Logging.ClearProviders();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["ApplicationIdentity:Enabled"] = "false" });
+        builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
+        builder.Services.AddAccountIdentity(builder.Configuration);
+        await using var app = builder.Build();
+        app.UseRateLimiter();
+        app.UseAccountIdentity();
+        app.MapAccountEndpoints();
+        await app.StartAsync();
+        using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        using var response = await client.GetAsync("/app/v1/session");
+        Check(response.StatusCode == HttpStatusCode.OK, "disabled identity session endpoint remains available");
+        var session = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Check(!session.GetProperty("enabled").GetBoolean() && session.GetProperty("account").ValueKind == JsonValueKind.Null,
+            "disabled identity does not require an account database or authenticate a user");
     }
 
     private static void ServiceCredentialBoundaries()

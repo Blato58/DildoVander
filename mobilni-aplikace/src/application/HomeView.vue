@@ -3,10 +3,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import { account } from '../features/identity/session';
 import { deviceSession } from '../features/suitcase/deviceSession';
+import { useRoute } from 'vue-router';
+import { canOperateSuitcase } from './access';
+import AwNotice from '../components/AwNotice.vue';
 
+const route = useRoute();
+const canOperate = computed(() => canOperateSuitcase(account.value));
 const source = computed(() => deviceSession.target.value);
 const browserMode = !Capacitor.isNativePlatform();
-const greeting = computed(() => account.value ? `Vítejte, ${account.value.displayName}` : 'Všechno pro jeden večer.');
+const greeting = computed(() => account.value ? `Vítejte, ${account.value.displayName}` : 'Kufr plný příběhů.');
 const evening = ref<{ label: string; latest?: string } | null>(null);
 const eveningState = ref('Načítám přehled večera…');
 const controller = new AbortController();
@@ -32,13 +37,16 @@ onBeforeUnmount(() => controller.abort());
   <div class="home-layout">
     <section class="home-introduction page-stack">
       <p class="eyebrow">DildoVander</p><h1>{{ greeting }}</h1>
-      <p class="home-lead">Připojte kufr, prohlédněte sestavu nebo se vraťte k příběhu své hůlky.</p>
-      <div class="home-primary-actions"><RouterLink class="aw-button aw-button--primary" :to="source === 'unavailable' ? '/connections' : '/suitcase'">{{ source === 'unavailable' ? 'Připojit kufr' : 'Otevřít kufr' }}</RouterLink><RouterLink class="aw-button aw-button--secondary" to="/archive">Najít příběh hůlky</RouterLink></div>
-      <div v-if="browserMode" class="home-download"><p class="aw-muted">Na webu si prohlédnete model, archiv a označenou simulaci. Nativní funkce iPhonu jsou dostupné v instalované aplikaci.</p><a class="aw-button aw-button--secondary" href="/ios/">Stáhnout aplikaci pro iPhone</a></div>
+      <p class="home-lead">Prohlédněte si model kufru a příběhy hůlek. Pro párování a ovládání fyzického kufru použijte aplikaci pro iPhone a přihlaste se k oprávněnému účtu.</p>
+      <AwNotice v-if="['operator', 'administrator'].includes(String(route.query.access))" tone="warning">K této části nemáte potřebnou roli. Oprávnění ke konkrétnímu kufru přiděluje vlastník.</AwNotice>
+      <AwNotice v-if="route.query.access === 'online'" tone="warning">Tato část vyžaduje připojení a ověření účtu serverem. Offline můžete ovládat již spárovaný místní kufr.</AwNotice>
+      <div v-if="canOperate" class="home-primary-actions"><RouterLink class="aw-button aw-button--primary" :to="source === 'unavailable' ? '/connections' : '/suitcase'">{{ source === 'unavailable' ? 'Připojit kufr' : 'Otevřít kufr' }}</RouterLink><RouterLink class="aw-button aw-button--secondary" to="/archive">Najít příběh hůlky</RouterLink></div>
+      <div v-else class="home-primary-actions"><a v-if="browserMode" class="aw-button aw-button--primary" href="/ios/">Stáhnout aplikaci pro iPhone</a><RouterLink class="aw-button" :class="browserMode ? 'aw-button--secondary' : 'aw-button--primary'" :to="account ? '/settings' : { path: '/signin', query: { return: '/suitcase' } }">{{ account ? 'Můj účet' : 'Přihlásit se' }}</RouterLink></div>
+      <div v-if="browserMode" class="home-download"><p class="aw-muted">Na webu si prohlédnete model, archiv a označenou simulaci. Nativní funkce iPhonu jsou dostupné v instalované aplikaci.</p><a v-if="canOperate" class="aw-button aw-button--secondary" href="/ios/">Stáhnout aplikaci pro iPhone</a></div>
       <p v-if="!account" class="aw-muted">Veřejné příběhy a model si můžete prohlédnout rovnou. Účet zpřístupní oprávnění a správu.</p>
       <section class="home-evening" aria-label="Aktivní večer"><p class="eyebrow">{{ eveningState }}</p><template v-if="evening"><h2>{{ evening.label }}</h2><p v-if="evening.latest">Poslední připravená hůlka: {{ evening.latest }}</p><RouterLink to="/archive">Otevřít tento večer →</RouterLink></template></section>
     </section>
-    <section class="home-readiness" aria-labelledby="readiness-title"><span class="eyebrow">Právě teď</span><h2 id="readiness-title">Váš kufr</h2>
+    <section v-if="canOperate" class="home-readiness" aria-labelledby="readiness-title"><span class="eyebrow">Právě teď</span><h2 id="readiness-title">Váš kufr</h2>
       <template v-if="source === 'unavailable'"><p class="readiness-value">Čeká na připojení</p><p>Vyberte uložený kufr nebo ho bezpečně spárujte. Samotné přihlášení přístup k pohonům neuděluje.</p><RouterLink to="/connections">Připojení a párování →</RouterLink></template>
       <template v-else><p class="readiness-value">{{ source === 'demo' ? 'Ukázkový režim' : source === 'simulator' ? 'Simulátor' : 'Místní připojení' }}</p><p>{{ deviceSession.message.value || 'Aktuální stav a dostupné akce najdete u vybraného kufru.' }}</p><RouterLink to="/suitcase">Zobrazit stav →</RouterLink></template>
     </section>
