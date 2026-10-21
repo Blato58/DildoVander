@@ -43,7 +43,9 @@ class ServoReferenceTests(unittest.TestCase):
             self.assertLess(tie.intersect(base).Volume(), 1e-6)
 
     def test_shaft_socket_and_rotating_cam_clear_real_servo(self):
-        servo = mechanism.servo()
+        # The real output shaft turns with the horn; a fixed spline cannot mate
+        # at every intermediate angle. Its zero-angle fit has a separate test.
+        servo = mechanism.servo().cut(cylinder(2.6,3.1,(27.2,112,37),(1,0,0)))
         m = mechanism.M
         for angle in range(0, 161, 5):
             with self.subTest(angle=angle):

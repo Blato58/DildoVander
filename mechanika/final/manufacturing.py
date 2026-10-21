@@ -17,6 +17,11 @@ BASE_PROFILE = Path(__file__).with_name("support-free-petg.ini")
 
 
 def _contract(name):
+    if name in ("servo_horn", "servo_horn_fit_coupon", "servo_horn_495", "servo_horn_500", "servo_horn_505"):
+        return ("REDESIGN", "Flat front arm/cap face down; spline sockets open upward", "experimental",
+                "STEP-derived 20-groove socket; physical fit and torque unverified",
+                "SG90 output shaft; cam rear pocket and M2 holes at +/-9 mm",
+                "Original servo retaining screw: verify head bearing, thread engagement and no bottoming; two M2 cam screws/nuts")
     if name.startswith("frame_panel_"):
         return ("REDESIGN", "Flat frame underside; uprights grow upward", "moderate",
                 "Planar dovetails + M3 screw clamp; bolted to bonded floor anchors",
@@ -96,7 +101,8 @@ def _contract(name):
 
 def is_structural(name):
     return (name.startswith(("frame_panel_", "floor_anchor_", "wand_bed_"))
-            or name in ("lift_base", "dwell_cam", "fit_coupon", "floor_anchor_coupon", "follower_groove_coupon"))
+            or name in ("lift_base", "dwell_cam", "fit_coupon", "floor_anchor_coupon", "follower_groove_coupon",
+                        "servo_horn", "servo_horn_fit_coupon", "servo_horn_495", "servo_horn_500", "servo_horn_505"))
 
 
 def validate_profile(text, contract):

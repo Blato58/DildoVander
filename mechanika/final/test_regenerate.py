@@ -189,7 +189,7 @@ class RegenerationTests(unittest.TestCase):
             "test_printability", "test_slicer_validation", "test_bridge_audit",
             "test_mesh_quality", "test_manufacturing", "test_support_free",
             "test_split_mounts", "test_layout_printing", "test_tray_joint_clearance",
-            "test_flex_routing", "test_inspect_data", "test_harness", "test_f2_cad",
+            "test_flex_routing", "test_servo_reference", "test_servo_horn", "test_inspect_data", "test_harness", "test_f2_cad",
             "test_sliding_follower", "test_floor_anchors", "test_follower_load",
             "test_strength", "test_assembly_access", "test_regeneration_cache", "test_regenerate",
             "test_part_cache", "test_refresh_package",
