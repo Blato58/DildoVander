@@ -92,7 +92,7 @@ class ProxyTests(unittest.TestCase):
 
     def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
         twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
-        self.assertEqual(81, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(86, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(9, sum(source == "Features/DigitalTwin/TwinMediaEndpoints.cs" for method, route, source in proxy.CONTRACT["routes"]))
         paths = [
@@ -154,6 +154,16 @@ class ProxyTests(unittest.TestCase):
                 self.assertIn("proxy_read_timeout 30s;", block)
         self.assertNotIn("location ^~ /v1/twin/", config)
         self.assertNotIn("dildovander-twin.conf", config)
+
+    def test_customer_device_routes_keep_exact_methods_and_backend_authentication(self):
+        for method, suffix in [("GET", "device"), ("POST", "device-challenge"),
+                               ("POST", "device-idle"), ("POST", "redeem"),
+                               ("POST", ID + "/device-state")]:
+            path = "/v1/customer-sessions/" + suffix
+            self.assertTrue(proxy.allowed_backend(method, path))
+            self.assertFalse(proxy.allowed(method, path), "Customer device endpoints never become guest grants")
+            self.assertFalse(proxy.allowed_backend("DELETE", path))
+            self.assertFalse(proxy.allowed_backend(method, path + "/extra"))
 
     def test_checked_in_examples_are_current_generator_outputs(self):
         deploy = Path(__file__).resolve().parent

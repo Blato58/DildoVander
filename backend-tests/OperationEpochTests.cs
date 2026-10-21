@@ -219,6 +219,9 @@ internal static class OperationEpochTests
             using var query = inspect.CreateCommand();
             query.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='keepsake_selection_outbox'";
             Require(Convert.ToInt64(query.ExecuteScalar()) == 0, "Lab-only journal never creates production outbox");
+            // Each epoch fixture is a separate completed device visit. The
+            // shared device lease intentionally rejects overlapping creates.
+            reopened.EndConversation(device, proposal.ConversationId, Guid.NewGuid());
 
             Task<IResult> PublishAsync(KeepsakeOutcomeEndpoints.OutcomeRequest value)
             {
