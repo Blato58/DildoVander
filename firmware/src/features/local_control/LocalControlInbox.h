@@ -58,21 +58,28 @@ class LocalControlInbox final {
     return true;
   }
 
-  // Used under the maintenance and admission locks for BLE token recovery.
-  // A released socket can still have owner events pending; reject until drained.
-  // The callback must not reenter the inbox or transport.
+  // A disconnected recovery hold prevents Open while credential I/O runs
+  // outside the inbox lock. Pending owner events must already be drained.
   template <typename Action>
   bool RunIfDisconnected(const Action& action) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (handle_.socket >= 0 || handle_.generation != 0 || connectedPending_ ||
-        stopPending_ || disconnectPending_ || count_ != 0) {
-      return false;
-    }
+    if (!BeginRecovery()) return false;
+    RecoveryHold hold(*this);
     action();
     return true;
   }
 
  private:
+  class RecoveryHold final {
+   public:
+    explicit RecoveryHold(LocalControlInbox& owner) : owner_(owner) {}
+    ~RecoveryHold() { owner_.EndRecovery(); }
+    RecoveryHold(const RecoveryHold&) = delete;
+    RecoveryHold& operator=(const RecoveryHold&) = delete;
+   private:
+    LocalControlInbox& owner_;
+  };
+  bool BeginRecovery();
+  void EndRecovery();
   bool Matches(const LocalSocketAdmission::Handle& handle) const;
   void ClearQueue();
 
@@ -88,4 +95,5 @@ class LocalControlInbox final {
   std::array<LocalControlMessage, QueueCapacity> queue_;
   size_t head_ = 0;
   size_t count_ = 0;
+  bool recoveryHeld_ = false;
 };

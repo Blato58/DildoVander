@@ -4,7 +4,7 @@
 
 #include "LocalControlTransport.h"
 #include "../conversation/ConversationStartCodec.h"
-#include "../device_control/PersistentCommandJournal.h"
+#include "../device_control/CommandJournal.h"
 #include "../safety/SafetyController.h"
 #include "../../protocol/JsonWriter.h"
 
@@ -51,6 +51,7 @@ const char* ErrorName(CommandError error) {
     case CommandError::None: return "none";
     case CommandError::InvalidMessage: return "invalid_message";
     case CommandError::Unauthorized: return "unauthorized";
+    case CommandError::WrongOperationEpoch: return "wrong_operation_epoch";
     case CommandError::WrongBoot: return "wrong_boot";
     case CommandError::LeaseExpired: return "lease_expired";
     case CommandError::Expired: return "expired";
@@ -89,7 +90,7 @@ const char* ErrorName(ConversationCommandError error) {
 
 LocalControlOutput::LocalControlOutput(
     const std::string& deviceId, const std::string& bootId, DeviceControl& control,
-    PersistentCommandJournal& journal, SafetyController& safety,
+    CommandJournal& journal, SafetyController& safety,
     SelectionSequence& selection, ConversationSession& conversation,
     LocalControlTransport& transport, LocalVoicePort* voice, kufr::dance::LocalDancePort* dance)
     : voice_(voice), dance_(dance), deviceId_(deviceId), bootId_(bootId), control_(control), journal_(journal),
@@ -111,7 +112,7 @@ bool LocalControlOutput::Send(
 }
 
 const char* LocalControlOutput::Phase(bool liveLease) const {
-  if (!journal_.IsHealthy() || safety_.IsFaulted()) {
+  if (journal_.HasStorageFault() || safety_.IsFaulted()) {
     return "fault";
   }
   if (safety_.IsStopped()) {
@@ -172,7 +173,8 @@ bool LocalControlOutput::BuildResult(
 }
 
 bool LocalControlOutput::BuildSnapshot(
-    const std::string& leaseId, uint64_t nowMs, std::string& json) {
+    const std::string& leaseId, uint64_t nowMs, std::string& json,
+    bool includeOperationEpoch) {
   if (!ValidDeviceId(deviceId_) || !IsConversationUuid(bootId_) ||
       !IsConversationUuid(conversation_.ConversationId()) ||
       !OptionalUuid(conversation_.ActiveTurnId()) || !OptionalUuid(leaseId) ||
@@ -183,7 +185,7 @@ bool LocalControlOutput::BuildSnapshot(
     return false;
   }
   const bool liveLease = control_.OwnsLiveManualLease(leaseId, nowMs);
-  const bool recovery = !journal_.IsHealthy() || safety_.NeedsRecovery() ||
+  const bool recovery = journal_.HasStorageFault() || safety_.NeedsRecovery() ||
       (control_.NeedsRecovery() && !control_.HasPendingSelection() &&
        !control_.HasAutonomousPresentation()) ||
       (control_.HasManualControl() && !liveLease) ||
@@ -204,14 +206,15 @@ bool LocalControlOutput::BuildSnapshot(
       deviceId_ + "\",\"bootId\":\"" + bootId_ +
       "\",\"deviceUptimeMs\":" + std::to_string(nowMs) +
       ",\"eventSequence\":" + std::to_string(eventSequence_) +
+      (includeOperationEpoch ? ",\"operationEpoch\":\"" + std::to_string(control_.OperationEpoch()) + "\"" : "") +
       ",\"revision\":" + std::to_string(control_.Revision()) +
       ",\"controlMode\":\"" + (liveLease ? "manual" : recovery ? "recovery" : "standalone") +
       "\",\"controlLeaseId\":" + NullableUuid(liveLease ? leaseId : "") +
       ",\"phase\":\"" + Phase(liveLease) +
       "\",\"activeCommandId\":" + NullableUuid(control_.PendingCommandId()) +
-      ",\"readyMask\":" + std::to_string(journal_.IsHealthy() ? control_.ReadyMask() : 0) +
+      ",\"readyMask\":" + std::to_string(!journal_.HasStorageFault() ? control_.ReadyMask() : 0) +
       ",\"calibrationRevision\":" + std::to_string(control_.CalibrationRevision()) +
-      ",\"faults\":" + (journal_.IsHealthy() ? "[]" : "[\"journal_failed\"]") +
+      ",\"faults\":" + (!journal_.HasStorageFault() ? "[]" : "[\"journal_failed\"]") +
       ",\"microphoneState\":\"" + microphone + "\",\"capabilities\":" +
       LocalControlCapabilities::Json +
       ",\"lastResult\":" + lastResult +
@@ -236,6 +239,12 @@ bool LocalControlOutput::Welcome(
 bool LocalControlOutput::Snapshot(
     const LocalSocketAdmission::Handle& handle, const std::string& leaseId,
     uint64_t nowMs) {
+  return ScopedSnapshot(handle, leaseId, nowMs, false);
+}
+
+bool LocalControlOutput::ScopedSnapshot(
+    const LocalSocketAdmission::Handle& handle, const std::string& leaseId,
+    uint64_t nowMs, bool includeOperationEpoch) {
   std::string json;
   if (ResultChanged()) {
     if (!AdvanceEvent() || !BuildResult(eventSequence_, json) || !Send(handle, json)) {
@@ -243,7 +252,7 @@ bool LocalControlOutput::Snapshot(
     }
     RememberResult();
   }
-  return AdvanceEvent() && BuildSnapshot(leaseId, nowMs, json) && Send(handle, json);
+  return AdvanceEvent() && BuildSnapshot(leaseId, nowMs, json, includeOperationEpoch) && Send(handle, json);
 }
 
 bool LocalControlOutput::Heartbeat(
@@ -263,6 +272,34 @@ bool LocalControlOutput::Heartbeat(
       ",\"controlLeaseId\":\"" + request.controlLeaseId + "\"}");
 }
 
+bool LocalControlOutput::ControlAck(
+    const LocalSocketAdmission::Handle& handle, const LocalControlMessage& request,
+    LocalControlError error) {
+  const char* operation = nullptr;
+  switch (request.kind) {
+    case LocalControlMessageKind::Acquire: operation = "control.acquire"; break;
+    case LocalControlMessageKind::Release: operation = "control.release"; break;
+    case LocalControlMessageKind::Reset: operation = "safety.reset"; break;
+    default: return false;
+  }
+  const char* code = nullptr;
+  switch (error) {
+    case LocalControlError::None: break;
+    case LocalControlError::Busy: code = "busy"; break;
+    case LocalControlError::ControllerBusy: code = "controller_busy"; break;
+    case LocalControlError::RecoveryRequired: code = "recovery_required"; break;
+  }
+  if (!request.acknowledge || !IsConversationUuid(request.messageId) ||
+      control_.Revision() > MaximumInteger || !AdvanceEvent()) return false;
+  return Send(handle,
+      "{\"protocolVersion\":1,\"type\":\"control.ack\",\"bootId\":\"" + bootId_ +
+      "\",\"requestMessageId\":\"" + request.messageId + "\",\"operation\":\"" + operation +
+      "\",\"eventSequence\":" + std::to_string(eventSequence_) +
+      ",\"revision\":" + std::to_string(control_.Revision()) +
+      ",\"accepted\":" + (error == LocalControlError::None ? "true" : "false") +
+      ",\"errorCode\":" + (code ? "\"" + std::string(code) + "\"" : "null") + "}");
+}
+
 bool LocalControlOutput::CommandAck(
     const LocalSocketAdmission::Handle& handle, const LocalControlMessage& request,
     const CommandReceipt& receipt) {
@@ -270,7 +307,9 @@ bool LocalControlOutput::CommandAck(
       !AdvanceEvent()) {
     return false;
   }
-  const bool accepted = receipt.error == CommandError::None;
+  const CommandError error = receipt.error == CommandError::WrongOperationEpoch && !request.hasOperationEpoch
+      ? CommandError::InvalidMessage : receipt.error;
+  const bool accepted = error == CommandError::None;
   return Send(handle,
       "{\"protocolVersion\":1,\"type\":\"command.ack\",\"commandId\":\"" +
       request.commandId + "\",\"bootId\":\"" + bootId_ +
@@ -278,7 +317,7 @@ bool LocalControlOutput::CommandAck(
       ",\"revision\":" + std::to_string(control_.Revision()) +
       ",\"status\":\"" + (accepted ? "accepted" : "rejected") +
       "\",\"errorCode\":" +
-      (accepted ? "null" : "\"" + std::string(ErrorName(receipt.error)) + "\"") + "}");
+      (accepted ? "null" : "\"" + std::string(ErrorName(error)) + "\"") + "}");
 }
 
 bool LocalControlOutput::ConversationAck(

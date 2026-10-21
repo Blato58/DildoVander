@@ -81,6 +81,7 @@ assert.deepEqual(Object.keys(document.paths).sort(), [
   '/v1/evenings',
   '/v1/evenings/{id}/active',
   '/v1/operations/{id}',
+  '/v1/keepsakes/outcomes/{operationId}',
 ].sort());
 assert.deepEqual(document.paths['/v1/device-access/token'].post.security, [{ DeviceCredential: [] }]);
 assert.deepEqual(document.security, [{ DeviceAccess: [] }]);
@@ -148,6 +149,9 @@ assert.deepEqual(imageEndpoint.requestBody.content['image/jpeg'].schema,
 assert.equal(imageEndpoint.responses['202'].content['application/json'].schema.$ref, '#/components/schemas/ImageAccepted');
 assert.equal(correctionEndpoint.responses['200'].content['application/json'].schema.$ref, '#/components/schemas/CostumeOperation');
 for (const endpoint of [imageEndpoint, correctionEndpoint]) {
+  const epochHeader = endpoint.parameters.find(parameter => parameter.name === 'Operation-Epoch');
+  assert.equal(epochHeader.required, false);
+  assert.equal(epochHeader.schema.$ref, '#/components/schemas/OperationEpoch');
   assert(endpoint.parameters.some(parameter => parameter.$ref === '#/components/parameters/ConversationId'));
   assert(endpoint.parameters.some(parameter => parameter.$ref === '#/components/parameters/IdempotencyKey'));
   for (const name of ['Client-Turn-Id', 'Boot-Id', 'Generation', 'Device-Revision', 'Catalog-Version']) {
@@ -207,9 +211,20 @@ validate('CreateConversation', conversation, true);
 validate('CreateConversation', { ...conversation, locale: 'en-US' }, false);
 validate('CreateConversation', { ...conversation, consent: { audio: true } }, false);
 validate('CreateConversation', { ...conversation, accessToken: 'secret' }, false);
+for (const epoch of ['0', '9007199254740993', '18446744073709551615']) {
+  validate('OperationEpoch', epoch, true);
+  validate('CreateConversation', { ...conversation, operationEpoch: epoch }, true);
+  validate('CreateConversation', { ...conversation, operationEpoch: epoch, testContext: 'A'.repeat(43) }, true);
+}
+for (const epoch of [null, 1, '', '01', '+1', '-1', '1.0', '1e1', '1\n', '18446744073709551616']) {
+  validate('OperationEpoch', epoch, false);
+  validate('CreateConversation', { ...conversation, operationEpoch: epoch }, false);
+  validate('CreateConversation', { ...conversation, operationEpoch: epoch, testContext: 'A'.repeat(43) }, false);
+}
 validate('CreateConversation', { ...conversation, testContext: 'A'.repeat(43) }, true);
 for (const testContext of ['', 'A'.repeat(42), 'A'.repeat(44), '<'.repeat(43), null]) {
   validate('CreateConversation', { ...conversation, testContext }, false);
+  validate('CreateConversation', { ...conversation, testContext, operationEpoch: '18446744073709551615' }, false);
 }
 
 const operation = {
@@ -253,6 +268,55 @@ const realtime = { clientTurnId: operation.correlation.clientTurnId, bootId: ope
   generation: 0, readyMask: 63, deviceRevision: 0, catalogVersion: 'ollivander-private-party-v1',
   opening: true, text: '', wav: null, voice: 'marin', speed: 1 };
 validate('RealtimeLiveStart', realtime, true);
+for (const operationEpoch of ['0', '9007199254740993', '18446744073709551615']) {
+  validate('RealtimeLiveStart', { ...realtime, operationEpoch }, true);
+  validate('GptLiveStart', { ...realtime, operationEpoch }, true);
+  validate('TurnCorrelation', { ...operation.correlation, operationEpoch }, true);
+  validate('LiveAvailability', { bootId, generation: 1, readyMask: 63, deviceRevision: 7, operationEpoch }, true);
+}
+const physicalOutcome = { schemaVersion: 1, outcomeId: bootId, proposalId: clientTurnId,
+  physicalOperationId: clientTurnId, bootId, generation: 1, deviceRevision: 7,
+  presentationEvidence: 'completed_by_timing' };
+validate('KeepsakeOutcomeRequest', physicalOutcome, true);
+const scopedOutcome = { ...physicalOutcome, operationEpoch: '18446744073709551615',
+  physicalFingerprint: '9007199254740993' };
+validate('KeepsakeOutcomeRequest', scopedOutcome, true);
+validate('KeepsakeOutcomeRequest', { ...scopedOutcome, physicalFingerprint: '0' }, false);
+validate('KeepsakeOutcomeRequest', { ...physicalOutcome, operationEpoch: '1' }, false);
+validate('KeepsakeOutcomeRequest', { ...scopedOutcome, operationEpoch: null }, false);
+validate('KeepsakeOutcomeAcknowledgement', { schemaVersion: 1, locator: bootId, outcomeId: bootId,
+  sessionEpoch: 1, physicalOperationId: clientTurnId, operationEpoch: scopedOutcome.operationEpoch,
+  physicalFingerprint: scopedOutcome.physicalFingerprint }, true);
+const labOutcomeAck = { schemaVersion: 1, outcomeId: bootId, sessionEpoch: 1,
+  physicalOperationId: clientTurnId };
+const scopedLabOutcomeAck = { ...labOutcomeAck, operationEpoch: scopedOutcome.operationEpoch,
+  physicalFingerprint: scopedOutcome.physicalFingerprint };
+const outcomeAckSchema = document.paths['/v1/keepsakes/outcomes/{operationId}'].post
+  .responses['201'].content['application/json'].schema;
+assert.deepEqual(outcomeAckSchema.oneOf, [
+  { $ref: '#/components/schemas/KeepsakeOutcomeAcknowledgement' },
+  { $ref: '#/components/schemas/LabOutcomeAcknowledgement' },
+]);
+const validateOutcomeAck = ajv.compile(JSON.parse(JSON.stringify(outcomeAckSchema)
+  .replaceAll('#/components/schemas/', 'https://kufr.local/schemas/')));
+for (const acknowledgement of [labOutcomeAck, scopedLabOutcomeAck]) {
+  validate('LabOutcomeAcknowledgement', acknowledgement, true);
+  validate('KeepsakeOutcomeAcknowledgement', acknowledgement, false);
+  assert.equal(validateOutcomeAck(acknowledgement), true);
+  const archived = { ...acknowledgement, locator: bootId };
+  validate('LabOutcomeAcknowledgement', archived, false);
+  validate('KeepsakeOutcomeAcknowledgement', archived, true);
+  assert.equal(validateOutcomeAck(archived), true);
+  assert.equal(validateOutcomeAck({ ...acknowledgement, locator: 'not-a-locator' }), false);
+  assert.equal(validateOutcomeAck({ ...acknowledgement, archive: true }), false);
+}
+for (const field of ['operationEpoch', 'physicalFingerprint']) {
+  for (const invalid of [null, 1, '', '01', '+1', '-1', '1.0', '18446744073709551616']) {
+    const acknowledgement = { ...scopedLabOutcomeAck, [field]: invalid };
+    validate('LabOutcomeAcknowledgement', acknowledgement, false);
+    assert.equal(validateOutcomeAck(acknowledgement), false);
+  }
+}
 validate('RealtimeLiveStart', { ...realtime, opening: false, text: 'Petr' }, false);
 validate('RealtimeLiveStart', { ...realtime, accessToken: 'secret' }, false);
 validate('RealtimePlayback', { operationId: bootId }, true);

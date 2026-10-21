@@ -126,7 +126,7 @@ internal sealed partial class ConversationStore(
                     request.Consent.Audio,
                     personalityId,
                     response.ExpiresAt,
-                    labHardware?.ExpiresAt ?? now.AddMinutes(30))
+                    labHardware?.ExpiresAt ?? now.AddMinutes(30), request.OperationEpoch)
                 { ImageConsented = request.Consent.Image, LivePrompt = labPrompt ?? CreatePersonaSnapshot(personalityId),
                     LabHardware = labHardware, ExpiresAt = labHardware?.ExpiresAt ?? response.ExpiresAt });
             return new CreateResult(201, response);
@@ -1102,11 +1102,13 @@ internal sealed partial class ConversationStore(
         bool audioConsented,
         string selectedPersonalityId,
         DateTimeOffset expiresAt,
-        DateTimeOffset absoluteExpiresAt)
+        DateTimeOffset absoluteExpiresAt,
+        string? operationEpoch = null)
     {
         public string DeviceId { get; } = deviceId;
         public Guid BootId { get; } = bootId;
         public int Generation { get; } = generation;
+        public string? OperationEpoch { get; } = operationEpoch;
         public string CatalogVersion { get; } = catalogVersion;
         public bool AudioConsented { get; } = audioConsented;
         public bool ImageConsented { get; set; }
@@ -1126,6 +1128,7 @@ internal sealed partial class ConversationStore(
         public string LiveGeneration { get; } = Guid.NewGuid().ToString("D");
         public int? LiveReadyMask { get; set; }
         public int? LiveAvailabilityRevision { get; set; }
+        public string? LiveOperationEpoch { get; set; }
         public DateTimeOffset ExpiresAt { get; set; } = expiresAt;
         public DateTimeOffset AbsoluteExpiresAt { get; } = absoluteExpiresAt;
         public int TurnCount { get; set; }
@@ -1150,7 +1153,9 @@ internal sealed record CreateConversationRequest(
     int Generation,
     string CatalogVersion,
     string Locale,
-    ConversationConsent Consent)
+    ConversationConsent Consent,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? OperationEpoch = null)
 {
     public string? TestContext { get; init; }
 }
@@ -1170,7 +1175,9 @@ internal sealed record TurnCorrelation(
     string ConversationId,
     Guid ClientTurnId,
     int Generation,
-    int DeviceRevision);
+    int DeviceRevision,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? OperationEpoch = null);
 internal sealed record TurnResult(string Reply, string Decision, string Reason, object? Proposal);
 internal sealed record SelectionProposal(
     string ProposalId,
@@ -1182,7 +1189,9 @@ internal sealed record SelectionProposal(
     string Reason,
     Guid BootId,
     int Generation,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? OperationEpoch = null);
 internal sealed record TranscriptionResult(string Transcript, string Source);
 internal sealed record SpeechRequest(
     Guid TurnId,

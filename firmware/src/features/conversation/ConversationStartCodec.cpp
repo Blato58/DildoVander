@@ -197,8 +197,10 @@ bool BuildConversationStartRequest(const ConversationStartRequest& request,
   body = "{\"deviceId\":\"" + request.deviceId +
          "\",\"bootId\":\"" + request.bootId +
          "\",\"generation\":" + std::to_string(request.generation) +
-         ",\"catalogVersion\":\"" + request.catalogVersion +
-         "\",\"locale\":\"cs-CZ\",\"consent\":{\"audio\":" +
+         ",\"catalogVersion\":\"" + request.catalogVersion + "\"";
+  if (request.operationEpoch != 0)
+    body += ",\"operationEpoch\":\"" + std::to_string(request.operationEpoch) + "\"";
+  body += std::string(",\"locale\":\"cs-CZ\",\"consent\":{\"audio\":") +
          (request.audioConsent ? "true" : "false") + ",\"image\":" +
          (request.imageConsent ? "true" : "false") + "}}";
   return body.size() <= 4096;

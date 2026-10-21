@@ -7,6 +7,15 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--device-media"]) { await DeviceMediaTransportTests.RunAsync(); return; }
+if (args is ["--operation-epochs"])
+{
+    await OperationEpochTests.RunAsync();
+    await OperationEpochFlowTests.RunAsync();
+    await OperationJournalEpochTests.RunAsync();
+    await OfflineOutcomeEpochTests.RunAsync();
+    return;
+}
 if (args is ["--persona-reliability"]) { await PersonaReliabilityTests.RunAsync(); return; }
 if (args is ["--persona-lab-transport"]) { await PersonaLabTransportTests.RunAsync(); return; }
 if (args is ["--persona-lab-provider-smoke"]) { Environment.ExitCode = await PersonaLabProviderSmoke.RunAsync(); return; }
@@ -72,6 +81,10 @@ if (args is ["--autonomous-memory"])
 }
 
 if (args is ["--image"]) { await CostumeImageTests.RunAsync(); return; }
+await OperationEpochTests.RunAsync();
+await OperationEpochFlowTests.RunAsync();
+await OperationJournalEpochTests.RunAsync();
+await OfflineOutcomeEpochTests.RunAsync();
 ShowDirectorTests.Run();
 OperatorOverrideTests.Run();
 await ShowDeviceCueTests.RunAsync();
@@ -89,6 +102,7 @@ await AutonomousLiveTests.RunCharacterAsync();
 await CostumeImageTests.RunAsync();
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();
+await DeviceMediaTransportTests.RunAsync();
 await PersonalityTests.RunAsync();
 await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();
@@ -431,7 +445,7 @@ using (var migratedConnection = new SqliteConnection($"Data Source={migrationPat
     migratedConnection.Open();
     using var version = migratedConnection.CreateCommand();
     version.CommandText = "PRAGMA user_version";
-    Require((long)version.ExecuteScalar()! == 7, "schema migrated from v1 to v7");
+    Require((long)version.ExecuteScalar()! == 8, "schema migrated from v1 to v8");
 }
 
 var versionTwoPath = Path.Combine(databaseDirectory, "legacy-v2.sqlite");

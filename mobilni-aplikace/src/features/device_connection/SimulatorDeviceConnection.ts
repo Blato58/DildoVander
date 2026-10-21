@@ -5,6 +5,7 @@ import { LocalConversationClient, type ConversationDeviceState } from './LocalCo
 
 interface ProtocolSnapshot extends ConversationDeviceState {
   type: 'state.snapshot';
+  operationEpoch?: string;
   voice?: VoiceSettings;
   dance?: DanceSettings;
   deviceId: string;
@@ -28,6 +29,7 @@ type PendingCommand = {
   revision: number;
   readyMask: number;
   leaseId: string;
+  operationEpoch?: string;
   sentAt: number;
 };
 
@@ -37,6 +39,7 @@ type ActiveCommand = {
   compartment: number;
   revision: number;
   encoded: string;
+  sequence: number;
   sentAt: number;
   retries: number;
 };
@@ -58,7 +61,7 @@ export interface ProtocolConnectionOptions {
 
 export type OfflineCommandKind = 'offline_preflight' | 'offline_arm' | 'offline_start' | 'quiet'
   | 'offline_ambient' | 'offline_outbox' | 'offline_sync_ack';
-export interface OfflineCommandOptions { enabled?: boolean; shortVariant?: boolean }
+export interface OfflineCommandOptions { enabled?: boolean; shortVariant?: boolean; operationEpoch?: string }
 export interface OfflineShowStatus {
   state: 'ready' | 'audio_only' | 'missing_assets' | 'incompatible_catalog' | 'calibration_required' | 'recovery_required';
   armed: boolean; quiet: boolean; generation: number; readyMask: number; outboxCount: number;
@@ -67,9 +70,16 @@ export interface OfflineShowStatus {
 }
 export interface OfflineOutbox { type: 'offline.outbox'; offline: OfflineShowStatus; records: unknown[] }
 
+// Keep uint64 epochs as canonical decimals: JavaScript numbers cannot preserve them.
+function validOperationEpoch(value: unknown): value is string {
+  return typeof value === 'string' && /^(0|[1-9][0-9]{0,19})$/.test(value) &&
+    (value.length < 20 || value <= '18446744073709551615');
+}
+
 // One owner of lease, command retry and uncertain-result reconciliation, shared
 // by the development proxy and the native pinned-TLS transport.
 export class ProtocolDeviceConnection {
+  private operationEpochPending = false;
   private offlineStatus: OfflineShowStatus | null = null;
   private offlinePending: { id: string; kind: OfflineCommandKind; bootId: string; resolve: (value: OfflineShowStatus | OfflineOutbox) => void;
     reject: (error: Error) => void; timer: number } | null = null;
@@ -100,6 +110,13 @@ export class ProtocolDeviceConnection {
     if (kind === 'offline_sync_ack' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(commandId ?? '')) {
       return Promise.reject(new Error('Potvrzení synchronizace vyžaduje přesné ID importovaného výsledku.'));
     }
+    if ((kind === 'offline_start' || kind === 'offline_sync_ack') && !this.operationEpochReady()) {
+      return Promise.reject(new Error('Nejprve vyčkejte na aktuální metadata kufru.'));
+    }
+    if (options.operationEpoch !== undefined && (kind !== 'offline_sync_ack' || !validOperationEpoch(options.operationEpoch) ||
+        (options.operationEpoch !== '0' && !this.device.capabilities?.includes('operationEpoch')))) {
+      return Promise.reject(new Error('Výsledek nemá platnou epochu operace.'));
+    }
     const messageId = crypto.randomUUID();
     const message: Record<string, unknown> = { type: kind, messageId,
       deviceId: this.device.deviceId, bootId: this.device.bootId };
@@ -112,7 +129,15 @@ export class ProtocolDeviceConnection {
       if (typeof options.enabled !== 'boolean') return Promise.reject(new Error('Zadejte výslovné zapnutí nebo vypnutí.'));
       message.enabled = options.enabled;
     }
-    if (kind === 'offline_sync_ack') message.commandId = commandId;
+    if (kind === 'offline_start' && this.device.capabilities?.includes('operationEpoch') &&
+        this.device.operationEpoch !== undefined) {
+      message.operationEpoch = this.device.operationEpoch;
+    }
+    if (kind === 'offline_sync_ack') {
+      message.commandId = commandId;
+      // The imported record owns this epoch. Never replace it with current metadata.
+      if (this.device.capabilities?.includes('operationEpoch')) message.operationEpoch = options.operationEpoch ?? '0';
+    }
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.offlinePending = null; this.offlineStatus = null;
@@ -171,6 +196,8 @@ export class ProtocolDeviceConnection {
   private readonly requests = new Map<string, number>();
   private acquirePending = false;
   private releasePending = false;
+  private pendingControl: { id: string; bootId: string; operation: 'control.acquire' | 'control.release' } | null = null;
+  private controlRefusal: string | null = null;
   private awaitingRevision: number | null = null;
   private reconnectAttempt = 0;
   private suspended = false;
@@ -261,6 +288,8 @@ export class ProtocolDeviceConnection {
         this.activeCommand = null;
         this.acquirePending = false;
         this.releasePending = false;
+        this.pendingControl = null;
+        this.controlRefusal = null;
         this.awaitingRevision = null;
         this.requests.clear();
         this.voice.invalidate();
@@ -305,17 +334,22 @@ export class ProtocolDeviceConnection {
       return false;
     }
     this.acquirePending = true;
+    this.controlRefusal = null;
+    const messageId = crypto.randomUUID();
+    this.pendingControl = { id: messageId, bootId: this.device.bootId, operation: 'control.acquire' };
     this.state.busy = true;
     this.state.status = 'Žádám simulátor o ruční lease…';
     this.publish();
     const sent = this.send({
       type: 'control.acquire',
-      messageId: crypto.randomUUID(),
+      messageId,
       deviceId: this.device.deviceId,
       bootId: this.device.bootId,
+      ...(this.device.capabilities?.includes('controlAck') ? { acknowledge: true } : {}),
     });
     if (!sent) {
       this.acquirePending = false;
+      this.pendingControl = null;
       this.state.busy = false;
       this.state.status = 'Převzetí nebylo odesláno; spojení není dostupné.';
       this.publish();
@@ -356,13 +390,21 @@ export class ProtocolDeviceConnection {
     if (!this.device?.controlLeaseId) {
       return;
     }
-    this.send({
+    const messageId = crypto.randomUUID();
+    this.controlRefusal = null;
+    this.pendingControl = { id: messageId, bootId: this.device.bootId, operation: 'control.release' };
+    const sent = this.send({
       type: 'control.release',
-      messageId: crypto.randomUUID(),
+      messageId,
       deviceId: this.device.deviceId,
       bootId: this.device.bootId,
       controlLeaseId: this.device.controlLeaseId,
+      ...(this.device.capabilities?.includes('controlAck') ? { acknowledge: true } : {}),
     });
+    if (!sent) {
+      this.pendingControl = null;
+      return;
+    }
     this.releasePending = true;
     this.state.controlMode = 'observer';
     this.state.busy = true;
@@ -412,8 +454,13 @@ export class ProtocolDeviceConnection {
     });
   }
 
+  private operationEpochReady(): boolean {
+    return !!this.device && (!this.device.capabilities?.includes('operationEpoch') ||
+      (!this.operationEpochPending && this.device.operationEpoch !== undefined));
+  }
+
   private prepareCommand(kind: PendingCommand['kind'], compartment: number): boolean {
-    if (!this.device?.controlLeaseId || this.pendingCommand !== null ||
+    if (!this.device?.controlLeaseId || !this.operationEpochReady() || this.pendingCommand !== null ||
         this.activeCommand !== null || this.state.busy ||
         this.state.phase !== 'ready' || this.conversation.snapshot().pending || !Number.isInteger(compartment) ||
         compartment < 1 || compartment > 6) {
@@ -431,6 +478,7 @@ export class ProtocolDeviceConnection {
       revision: this.device.revision,
       readyMask: this.device.readyMask,
       leaseId: this.device.controlLeaseId,
+      operationEpoch: this.device.capabilities?.includes('operationEpoch') ? this.device.operationEpoch : undefined,
       sentAt: performance.now(),
     };
     this.state.busy = true;
@@ -492,12 +540,43 @@ export class ProtocolDeviceConnection {
         this.offlineStatus = null;
       }
       this.applySnapshot(candidate);
+      if (candidate.capabilities?.includes('operationEpoch') && candidate.operationEpoch === undefined &&
+          !this.operationEpochPending) {
+        this.operationEpochPending = true;
+        this.sendRequest('state.get', { deviceId: candidate.deviceId, bootId: candidate.bootId });
+      }
       if (this.stableSince === null) { this.stableSince = performance.now(); }
       // A single welcome followed by another immediate close is not recovery.
       if (performance.now() - this.stableSince >= 5000) { this.reconnectAttempt = 0; }
       if (message.type === 'welcome' || acquisitionCompleted) {
         this.clearRequestTimeout();
       }
+    } else if (message.type === 'control.ack') {
+      const pending = this.pendingControl;
+      if (!pending || pending.id !== message.requestMessageId || pending.bootId !== message.bootId ||
+          pending.operation !== message.operation || this.device?.bootId !== pending.bootId ||
+          !Number.isSafeInteger(message.eventSequence) || Number(message.eventSequence) < this.device.eventSequence ||
+          !Number.isSafeInteger(message.revision) || Number(message.revision) < this.device.revision) return;
+      if (message.accepted === true) return; // Authority still comes from the next snapshot.
+      const statuses: Record<string, string> = {
+        busy: 'Kufr je zaneprázdněný. Stav a Stop zůstávají dostupné; zkuste povel po dokončení.',
+        controller_busy: 'Ruční řízení už je obsazené. Obnovte stav kufru.',
+        recovery_required: 'Kufr vyžaduje servisní kontrolu před dalším řízením.',
+      };
+      if (message.accepted !== false || typeof message.errorCode !== 'string' || !Object.hasOwn(statuses, message.errorCode)) {
+        this.closeFailure = 'protocol_error';
+        this.socket?.close();
+        return;
+      }
+      this.pendingControl = null;
+      this.acquirePending = false;
+      this.releasePending = false;
+      this.clearRequestTimeout();
+      this.controlRefusal = statuses[message.errorCode];
+      this.state.controlMode = this.device.controlMode === 'manual' ? 'manual' : 'observer';
+      this.state.busy = this.pendingCommand !== null || this.activeCommand !== null || this.awaitingRevision !== null;
+      if (this.state.phase !== 'stopped') this.state.status = this.controlRefusal;
+      this.publish();
     } else if (message.type === 'offline.ack' || message.type === 'offline.outbox') {
       const pending = this.offlinePending;
       if (!pending || pending.id !== message.requestMessageId || pending.bootId !== message.bootId
@@ -537,6 +616,11 @@ export class ProtocolDeviceConnection {
       this.publish();
       if (message.status === 'accepted') {
         this.armResultTimeout();
+      } else if (message.errorCode === 'wrong_operation_epoch') {
+        // Epoch refusals consume no server sequence. New intent reuses that slot.
+        this.sequence = active.sequence - 1;
+        this.operationEpochPending = true;
+        this.sendRequest('state.get', { deviceId: this.device!.deviceId, bootId: this.device!.bootId });
       } else {
         this.socket?.close();
       }
@@ -603,13 +687,21 @@ export class ProtocolDeviceConnection {
     this.lastObservedAtMs = Date.now();
     const previousMask = this.device?.readyMask ?? snapshot.readyMask;
     const previousLeaseId = this.device?.controlLeaseId;
+    if (this.device && (snapshot.phase !== this.device.phase || snapshot.bootId !== this.device.bootId)) {
+      this.controlRefusal = null;
+    }
     if (this.device && snapshot.bootId !== this.device.bootId) {
       this.lastDeviceUptimeMs = 0;
       this.roundTripMs = Number.POSITIVE_INFINITY;
       this.pendingCommand = null;
       this.clearCommand();
       this.sequence = 0;
+      this.pendingControl = null;
+      this.acquirePending = false;
+      this.releasePending = false;
     }
+    if (snapshot.operationEpoch !== undefined) this.operationEpochPending = false;
+    if (this.device?.bootId !== snapshot.bootId) this.operationEpochPending = false;
     this.device = snapshot;
     if (this.awaitingRevision !== null &&
         snapshot.revision >= this.awaitingRevision) {
@@ -631,8 +723,10 @@ export class ProtocolDeviceConnection {
     }
     if (snapshot.controlMode === 'manual') {
       this.acquirePending = false;
+      if (this.pendingControl?.operation === 'control.acquire') this.pendingControl = null;
     } else {
       this.releasePending = false;
+      if (this.pendingControl?.operation === 'control.release') this.pendingControl = null;
       this.clearCommand();
     }
     if (this.activeCommand?.kind === 'reload' &&
@@ -663,7 +757,7 @@ export class ProtocolDeviceConnection {
         ? this.unresolvedCommand !== null
           ? 'Výsledek předchozího povelu je nejistý. Ovládání vyžaduje servisní kontrolu.'
           : 'Simulátor vyžaduje servisní kontrolu. Obnovení se provádí mimo mobilní UI.'
-        : snapshot.phase === 'dancing'
+        : this.controlRefusal ?? (snapshot.phase === 'dancing'
           ? 'Kufr přehrává skladbu a tančí.'
         : snapshot.activeCommandId
           ? 'Na simulátoru běží výběr; čekám na výsledek.'
@@ -673,7 +767,7 @@ export class ProtocolDeviceConnection {
               ? 'Založení bylo potvrzeno v simulátoru.'
           : snapshot.controlMode === 'manual'
             ? 'Ruční lease na simulátoru je aktivní.'
-            : 'Připojeno k hostitelskému E2 simulátoru v režimu pozorování.',
+            : 'Připojeno k hostitelskému E2 simulátoru v režimu pozorování.'),
     };
     this.voice.update(snapshot);
     this.dance.update(snapshot);
@@ -705,6 +799,7 @@ export class ProtocolDeviceConnection {
       controlLeaseId: snapshot.controlLeaseId,
       sequence: ++this.sequence,
       expectedRevision: snapshot.revision,
+      ...(pending.operationEpoch === undefined ? {} : { operationEpoch: pending.operationEpoch }),
       issuedAtDeviceMs: Math.floor(this.lastDeviceUptimeMs + now - this.lastDeviceSampleAt),
       maxAgeMs: 2000,
       payload: pending.kind === 'select'
@@ -724,6 +819,7 @@ export class ProtocolDeviceConnection {
       compartment: pending.compartment,
       revision: snapshot.revision,
       encoded,
+      sequence: command.sequence,
       sentAt: now,
       retries: 0,
     };
@@ -742,7 +838,8 @@ export class ProtocolDeviceConnection {
       return false;
     }
     const snapshot = value as Partial<ProtocolSnapshot>;
-    return snapshot.type === 'state.snapshot' &&
+    return (snapshot.operationEpoch === undefined || validOperationEpoch(snapshot.operationEpoch)) &&
+      snapshot.type === 'state.snapshot' &&
       typeof snapshot.deviceId === 'string' &&
       typeof snapshot.bootId === 'string' &&
       Number.isSafeInteger(snapshot.deviceUptimeMs) &&
@@ -758,7 +855,10 @@ export class ProtocolDeviceConnection {
 
   private sendRequest(type: string, fields: Record<string, unknown>): boolean {
     const messageId = crypto.randomUUID();
-    const sent = this.send({ type, messageId, ...fields });
+    const sent = this.send({ type, messageId, ...fields,
+      ...(type === 'state.get' && this.device?.capabilities?.includes('operationEpoch')
+        ? { includeOperationEpoch: true } : {}),
+    });
     if (sent && type === 'heartbeat') {
       this.requests.set(messageId, performance.now());
       if (this.requests.size > 4) {

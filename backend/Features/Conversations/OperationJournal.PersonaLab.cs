@@ -69,7 +69,15 @@ internal sealed partial class OperationJournal
         command.CommandText = "SELECT 1 FROM persona_lab_operations WHERE operation_id=$operation";
         command.Parameters.AddWithValue("$operation", operation);
         if (command.ExecuteScalar() is null) { return null; }
-        command.CommandText = "UPDATE turn_operations SET status='completed' WHERE operation_id=$operation AND status IN ('pending','running')";
+        var selection = value as SelectionProposal;
+        if (selection is not null && !OperationEpoch.IsValid(selection.OperationEpoch)) { return false; }
+        command.CommandText = """
+            UPDATE turn_operations SET status='completed'
+            WHERE operation_id=$operation AND status IN ('pending','running')
+                AND ($hasSelection=0 OR COALESCE(operation_epoch,'0')=$operationEpoch);
+            """;
+        command.Parameters.AddWithValue("$hasSelection", selection is null ? 0 : 1);
+        command.Parameters.AddWithValue("$operationEpoch", OperationEpoch.Key(selection?.OperationEpoch));
         if (command.ExecuteNonQuery() != 1) { return false; }
         command.CommandText = "UPDATE persona_lab_operations SET proposal_json=$proposal WHERE operation_id=$operation";
         command.Parameters.AddWithValue("$proposal", value is SelectionProposal proposal

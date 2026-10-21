@@ -41,7 +41,7 @@ OfflineShow::OfflineShow(DeviceControlRuntime& runtime, ConversationRuntimeState
     : runtime_(runtime), state_(state), control_(control), presentation_(presentation),
       physical_(physical), sceneBridge_(physical), audio_(audio), storage_(storage), deviceId_(deviceId),
       bootId_(bootId), localEveningId_(localEveningId), bank_(bank ? *bank : CompiledBank()) {
-  storageHealthy_ = storage_.Read(outbox_) && outbox_.version == 1;
+  storageHealthy_ = storage_.Read(outbox_) && outbox_.version == 2;
   ambientEnabled_ = storageHealthy_ && outbox_.ambientEnabled;
   quiet_ = outbox_.quiet;
   for (const auto& record : outbox_.records) {
@@ -83,6 +83,7 @@ const char* OfflineShow::Preflight() const {
 }
 
 bool OfflineShow::Arm(uint64_t generation, uint64_t revision) {
+  if (shared_) return shared_->Arm(generation, revision);
   if (Active() || generation != runtime_.Generation() || revision != control_.Revision() ||
       std::strcmp(Preflight(), "ready") || !runtime_.SetOfflineAuthority(true)) return false;
   if (!outbox_.offlineEnabled) {
@@ -97,13 +98,15 @@ bool OfflineShow::Arm(uint64_t generation, uint64_t revision) {
 }
 
 bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool shortVariant,
-    uint64_t generation, uint64_t revision, uint64_t nowMs, bool scripted) {
+    uint64_t generation, uint64_t revision, uint64_t nowMs, bool scripted, uint64_t operationEpoch) {
+  if (shared_) return shared_->Start(operationId, slot, shortVariant, generation, revision, nowMs, scripted, operationEpoch);
   if (operationId.size() != 36 || slot < 1 || slot > 6) return false;
   for (const auto& previous : outbox_.records) {
-    if (operationId == previous.operationId.data()) return previous.slot == slot &&
-        previous.shortVariant == shortVariant && previous.generation == generation && previous.scripted == scripted;
+    if (operationEpoch == previous.operationEpoch && operationId == previous.operationId.data()) return previous.slot == slot &&
+        previous.shortVariant == shortVariant && previous.generation == generation && previous.scripted == scripted
+        && previous.deviceRevision == revision;
   }
-  if (runtime_.FindOperation(operationId, slot, 0) != CommandJournal::Lookup::Missing) return false;
+  if (runtime_.FindOperation(operationId, slot, 0, operationEpoch) != CommandJournal::Lookup::Missing) return false;
   if (!armed_ || Active() || generation != runtime_.Generation() || revision != control_.Revision() ||
       std::strcmp(Preflight(), "ready") || !(control_.ReadyMask() & (1u << (slot - 1)))) return false;
   CancelAmbient();
@@ -126,11 +129,21 @@ bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool short
   }
   record.generation = generation; record.startedAtMs = nowMs; record.slot = slot;
   record.scripted = scripted; record.shortVariant = shortVariant;
+  record.operationEpoch = operationEpoch; record.deviceRevision = revision;
+  record.physicalFingerprint = operationEpoch ? PhysicalPresentation::OperationFingerprint(shortVariant) : 0;
+  if (operationEpoch && !control_.ReserveAutonomousPresentation(operationId, slot,
+      revision, record.physicalFingerprint, operationEpoch)) {
+    runtime_.ReleaseDecoration(generation); return false;
+  }
   if (!storage_.Write(updated)) {
+    if (operationEpoch) control_.CancelAutonomousReservation();
     storageHealthy_ = false; runtime_.ReleaseDecoration(generation); return false;
   }
   outbox_ = updated;
-  if (!audio_.Play(*opening, generation)) { runtime_.ReleaseDecoration(generation); return false; }
+  if (!audio_.Play(*opening, generation)) {
+    if (operationEpoch) control_.CancelAutonomousReservation();
+    runtime_.ReleaseDecoration(generation); return false;
+  }
   activeIndex_ = static_cast<int>(index);
   motionStarted_ = false;
   audioStage_ = shortVariant ? 1 : 0;
@@ -138,16 +151,18 @@ bool OfflineShow::Start(const std::string& operationId, uint8_t slot, bool short
 }
 
 bool OfflineShow::StartNext(const std::string& operationId, uint64_t nowMs) {
+  if (shared_) return shared_->StartNext(operationId, nowMs, false);
   for (unsigned count = 0; count < 6; ++count) {
     const uint8_t slot = nextSlot_;
     nextSlot_ = static_cast<uint8_t>(nextSlot_ % 6 + 1);
     if (control_.ReadyMask() & (1u << (slot - 1)))
-      return Start(operationId, slot, false, runtime_.Generation(), control_.Revision(), nowMs, true);
+      return Start(operationId, slot, false, runtime_.Generation(), control_.Revision(), nowMs, true, control_.OperationEpoch());
   }
   return false;
 }
 
 bool OfflineShow::StartNext(uint64_t nowMs) {
+  if (shared_) return shared_->StartNext("", nowMs, true);
   if (bootId_.size() != 36 || scriptedSequence_ >= 0xffffffffffffull) return false;
   // Boot UUID is generated while hardware entropy is explicitly enabled.
   // A boot-scoped monotonic sequence needs neither RF nor a fresh RNG lease.
@@ -183,6 +198,7 @@ void OfflineShow::CancelAmbient() {
 }
 
 bool OfflineShow::Quiet(bool enabled) {
+  if (shared_) return shared_->Quiet(enabled);
   quiet_ = enabled;
   if (!Active()) CancelAmbient();
   if (!storageHealthy_) { quiet_ = true; return false; }
@@ -193,6 +209,7 @@ bool OfflineShow::Quiet(bool enabled) {
 }
 
 bool OfflineShow::ConfigureAmbient(bool enabled) {
+  if (shared_) return shared_->Ambient(enabled);
   if (enabled && (deviceId_.empty() || !storageHealthy_ || control_.NeedsRecovery() || Active())) return false;
   CancelAmbient();
   ambientEnabled_ = enabled;
@@ -205,6 +222,7 @@ bool OfflineShow::ConfigureAmbient(bool enabled) {
 }
 
 bool OfflineShow::ApplyServerSettings(uint64_t revision, bool quiet, bool ambient) {
+  if (shared_) return shared_->Settings(revision, quiet, ambient);
   if (revision <= outbox_.serverSettingsRevision) return true;
   if (!storageHealthy_) return false;
   const bool blocked = deviceId_.empty() || control_.NeedsRecovery() || Active();
@@ -221,6 +239,7 @@ bool OfflineShow::ApplyServerSettings(uint64_t revision, bool quiet, bool ambien
 }
 
 bool OfflineShow::ApplyServerStop(uint64_t revision) {
+  if (shared_) return shared_->ServerStop(revision);
   if (revision <= outbox_.serverStopRevision) return false;
   Stop(); // Existing sticky physical Stop precedes persistence and network cancellation.
   if (storageHealthy_) {
@@ -232,6 +251,7 @@ bool OfflineShow::ApplyServerStop(uint64_t revision) {
 }
 
 void OfflineShow::Stop() {
+  if (shared_) { shared_->Stop(); return; }
   SelectionStep step;
   runtime_.Stop(step); // Physical outputs stop before audio or NVS work.
   quiet_ = true; armed_ = false; ambientEnabled_ = false;
@@ -251,6 +271,7 @@ void OfflineShow::Stop() {
 }
 
 bool OfflineShow::Leave() {
+  if (shared_) return shared_->Leave();
   if (Active()) return false;
   if (!PrepareInteraction()) return false;
   if (!runtime_.SetOfflineAuthority(false)) return false;
@@ -271,6 +292,7 @@ bool OfflineShow::PrepareInteraction() {
 }
 
 void OfflineShow::Tick(uint64_t nowMs, bool idle) {
+  if (shared_) { shared_->Tick(nowMs, idle); return; }
   // A persisted opt-in can resume only after the existing physical inspection
   // has recovered this boot. A pending journal or sticky Stop remains a gate.
   if (!armed_ && outbox_.offlineEnabled && idle && !control_.NeedsRecovery())
@@ -291,10 +313,12 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
       runtime_.ReleaseDecoration(record.generation);
       ConversationRuntimeSnapshot snapshot;
       TurnProposal proposal;
-      if (!state_.Read(snapshot)) { Stop(); return; }
+      if (!state_.Read(snapshot) || snapshot.operationEpoch != record.operationEpoch
+          || snapshot.generation != record.generation || snapshot.deviceRevision != record.deviceRevision) { Stop(); return; }
       proposal.proposalId = record.operationId.data(); proposal.compartment = record.slot;
       proposal.bootId = bootId_; proposal.catalogVersion = snapshot.catalogVersion;
-      proposal.generation = snapshot.generation; proposal.deviceRevision = snapshot.deviceRevision;
+      proposal.generation = record.generation; proposal.deviceRevision = record.deviceRevision;
+      proposal.operationEpoch = record.operationEpoch;
       if (!physical_.SelectVariant(record.shortVariant) ||
           !pending_.Store(proposal, snapshot, state_, nowMs, 2000) ||
           !runtime_.StartOfflinePresentation(pending_, nowMs)) { Stop(); return; }
@@ -305,8 +329,11 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
     if (presentation_.State() != WandPresentationState::Idle) return;
     // The physical owner only returns Idle after its durable, calibrated timing
     // completion gate. Audio completion alone can never produce an outcome.
-    if (!control_.WasTimedPresentationCompleted(record.operationId.data(), record.slot) ||
-        !CompleteRecord(nowMs)) { Stop(); return; }
+    const bool completed = record.operationEpoch
+        ? control_.WasTimedPresentationCompleted(record.operationId.data(), record.slot,
+            record.operationEpoch, record.physicalFingerprint)
+        : control_.WasLegacyTimedPresentationCompleted(record.operationId.data(), record.slot);
+    if (!completed || !CompleteRecord(nowMs)) { Stop(); return; }
     const Clip* ending = FindClip(record.slot % 2 ? "ending-1" : "ending-2");
     activeIndex_ = -1;
     idleAtMs_ = nowMs; ambientLight_ = false;
@@ -317,6 +344,10 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
     }
     return;
   }
+  TickAmbient(nowMs, idle);
+}
+
+void OfflineShow::TickAmbient(uint64_t nowMs, bool idle) {
   if (!idle || control_.NeedsRecovery() || quiet_ || !ambientEnabled_ || !storageHealthy_) {
     if (!Active()) CancelAmbient();
     idleAtMs_ = nowMs;
@@ -360,10 +391,12 @@ void OfflineShow::Tick(uint64_t nowMs, bool idle) {
   }
 }
 
-bool OfflineShow::Acknowledge(const std::string& operationId) {
+bool OfflineShow::Acknowledge(const std::string& operationId, uint64_t operationEpoch) {
+  if (shared_) return shared_->Ack(operationId, operationEpoch);
   if (!storageHealthy_ || Active()) return false;
   for (size_t index = 0; index < outbox_.records.size(); ++index) {
-    if (operationId != outbox_.records[index].operationId.data()) continue;
+    if (operationEpoch != outbox_.records[index].operationEpoch
+        || operationId != outbox_.records[index].operationId.data()) continue;
     if (!outbox_.records[index].completed) return false;
     Outbox updated = outbox_;
     updated.records[index] = {};
@@ -397,15 +430,19 @@ std::string OfflineShow::StatusJson() const {
   return json + "]}";
 }
 
-std::string OfflineShow::OutboxJson() const {
+std::string OfflineShow::OutboxJson(bool includeOperationEpoch) const {
   std::string json = "[";
   bool first = true;
   if (!storageHealthy_) return "[]";
   for (const auto& record : outbox_.records) {
     if (!record.operationId[0] || !record.completed) continue;
+    // An unaware client cannot carry the original epoch back in its ACK.
+    if (record.operationEpoch && !includeOperationEpoch) continue;
     if (!first) json += ',';
     first = false;
-    json += "{\"operationId\":\"" + std::string(record.operationId.data()) + "\",\"deviceId\":";
+    json += "{\"operationId\":\"" + std::string(record.operationId.data()) + "\""
+        + (record.operationEpoch ? ",\"operationEpoch\":\"" + std::to_string(record.operationEpoch) + "\"" : "")
+        + ",\"deviceId\":";
     String(deviceId_, json);
     json += ",\"bootId\":\"" + std::string(record.bootId.data()) + "\",\"localEveningId\":\"" +
         record.localEveningId.data() + "\",\"eveningId\":null,\"generation\":" + std::to_string(record.generation) +

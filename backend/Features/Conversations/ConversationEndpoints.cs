@@ -29,7 +29,7 @@ internal static class ConversationEndpoints
     private static IResult RetiredConversationEngine(HttpContext context) =>
         ApiProblem.Create(context, StatusCodes.Status410Gone, "conversation_engine_upgrade_required");
 
-    private static async Task<IResult> CreateConversationAsync(
+    internal static async Task<IResult> CreateConversationAsync(
         HttpContext context,
         DeviceAccessStore access,
         ConversationStore conversations)
@@ -75,7 +75,11 @@ internal static class ConversationEndpoints
             }
             if (!HasRequiredAndOptionalProperties(
                     document.RootElement,
-                    ["deviceId", "bootId", "generation", "catalogVersion", "locale", "consent"], ["testContext"])
+                    ["deviceId", "bootId", "generation", "catalogVersion", "locale", "consent"],
+                    ["testContext", "operationEpoch"])
+                || document.RootElement.TryGetProperty("operationEpoch", out var operationEpoch)
+                    && (operationEpoch.ValueKind != JsonValueKind.String
+                        || !OperationEpoch.IsValid(operationEpoch.GetString()))
                 || !document.RootElement.TryGetProperty("consent", out var consent)
                 || !HasExpectedProperties(consent, ["audio", "image"])
                 || !document.RootElement.TryGetProperty("generation", out var generation)
@@ -101,6 +105,7 @@ internal static class ConversationEndpoints
             || request.DeviceId is not { Length: > 0 and <= 128 }
             || request.BootId == Guid.Empty
             || request.Generation < 0
+            || !OperationEpoch.IsValid(request.OperationEpoch)
             || request.CatalogVersion is not { Length: > 0 and <= 128 }
             || request.Locale != "cs-CZ"
             || request.Consent is null)

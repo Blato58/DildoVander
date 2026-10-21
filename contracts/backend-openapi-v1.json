@@ -143,6 +143,14 @@
                 "false"
               ]
             }
+          },
+          {
+            "name": "Operation-Epoch",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/OperationEpoch"
+            }
           }
         ],
         "requestBody": {
@@ -304,6 +312,14 @@
                 "false"
               ]
             }
+          },
+          {
+            "name": "Operation-Epoch",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/OperationEpoch"
+            }
           }
         ],
         "responses": {
@@ -385,6 +401,14 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 128
+            }
+          },
+          {
+            "name": "Operation-Epoch",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/OperationEpoch"
             }
           }
         ],
@@ -1909,6 +1933,68 @@
           }
         }
       }
+    },
+    "/v1/keepsakes/outcomes/{operationId}": {
+      "post": {
+        "operationId": "publishKeepsakeOutcome",
+        "summary": "Persist a device timing outcome; scoped acknowledgements echo the original epoch and physical fingerprint.",
+        "security": [
+          {
+            "DeviceAccess": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeepsakeOutcomeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Original outcome confirmed; no physical action.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/KeepsakeOutcomeAcknowledgement" },
+                    { "$ref": "#/components/schemas/LabOutcomeAcknowledgement" }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Device credential required"
+          },
+          "404": {
+            "description": "Keepsakes disabled or unavailable"
+          },
+          "409": {
+            "description": "Original proposal, epoch or outcome conflicts"
+          }
+        }
+      }
     }
 },
   "components": {
@@ -2444,7 +2530,12 @@
           "generation": { "type": "integer", "minimum": 0 },
           "catalogVersion": { "type": "string", "minLength": 1 },
           "locale": { "type": "string", "const": "cs-CZ" },
-          "consent": { "$ref": "#/components/schemas/Consent" },
+          "consent": {
+            "$ref": "#/components/schemas/Consent"
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          },
           "testContext": { "type": "string", "minLength": 43, "maxLength": 43, "pattern": "^[A-Za-z0-9_-]{43}$", "description": "Optional one-use Persona Lab admission ticket, explicitly requested on a capable paired suitcase. Bound to the authenticated tester, exact device, boot and admitted revision; expires after 90 seconds before initial admission. Never logged or persisted. Invalid or unsupported tickets must fail closed, never start a production conversation." }
         }
       },
@@ -2552,7 +2643,13 @@
           "conversationId": { "type": "string", "minLength": 1 },
           "clientTurnId": { "type": "string", "format": "uuid" },
           "generation": { "type": "integer", "minimum": 0 },
-          "deviceRevision": { "type": "integer", "minimum": 0 }
+          "deviceRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          }
         }
       },
       "TurnResult": {
@@ -2602,7 +2699,14 @@
           "reason": { "type": "string", "maxLength": 200 },
           "bootId": { "type": "string", "format": "uuid" },
           "generation": { "type": "integer", "minimum": 0 },
-          "expiresAt": { "type": "string", "format": "date-time", "description": "At most 60 seconds after creation" }
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "At most 60 seconds after creation"
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          }
         }
       },
       "OperationError": {
@@ -2752,6 +2856,9 @@
           },
           "speed": {
             "const": 1
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
           }
         }
       },
@@ -2876,6 +2983,9 @@
             "type": "number",
             "minimum": 0.8,
             "maximum": 1.2
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
           }
         }
       },
@@ -3242,6 +3352,9 @@
           "deviceRevision": {
             "type": "integer",
             "minimum": 0
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
           }
         }
       },
@@ -4269,6 +4382,171 @@
             ]
           }
         }
+      },
+      "OperationEpoch": {
+        "type": "string",
+        "maxLength": 20,
+        "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$",
+        "description": "Original device operation epoch as a canonical uint64 decimal string. Absent means legacy zero; retries never adopt a newer epoch."
+      },
+      "KeepsakeOutcomeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "outcomeId",
+          "proposalId",
+          "physicalOperationId",
+          "bootId",
+          "generation",
+          "deviceRevision",
+          "presentationEvidence"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "outcomeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "physicalOperationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bootId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "deviceRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "presentationEvidence": {
+            "const": "completed_by_timing"
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          },
+          "physicalFingerprint": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          }
+        },
+        "if": {
+          "required": [
+            "operationEpoch"
+          ],
+          "properties": {
+            "operationEpoch": {
+              "not": {
+                "const": "0"
+              }
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "physicalFingerprint"
+          ],
+          "properties": {
+            "physicalFingerprint": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/OperationEpoch"
+                },
+                {
+                  "not": {
+                    "const": "0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "KeepsakeOutcomeAcknowledgement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "locator",
+          "outcomeId",
+          "sessionEpoch",
+          "physicalOperationId"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "locator": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcomeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "physicalOperationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          },
+          "physicalFingerprint": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          }
+        }
+      },
+      "LabOutcomeAcknowledgement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "outcomeId",
+          "sessionEpoch",
+          "physicalOperationId"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "outcomeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "physicalOperationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationEpoch": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          },
+          "physicalFingerprint": {
+            "$ref": "#/components/schemas/OperationEpoch"
+          }
+        },
+        "description": "Technical Persona Lab acknowledgement only. Confirms the original test outcome without creating an archive, issuing archive access or returning a locator; optional operation epoch and physical fingerprint echo the original request."
       }
   }
   }

@@ -1,6 +1,43 @@
 #pragma once
-#include "../ota_stubs/OtaPlatform.h"
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <map>
+#include <string>
 #include <sys/stat.h>
+// SD/dance tests drive their workers explicitly. Keep this deterministic
+// fixture independent of the OTA worker's concurrent scheduler and NVS faults.
+using esp_err_t = int;
+constexpr int ESP_OK = 0, ESP_FAIL = -1, pdPASS = 1;
+constexpr int NVS_READONLY = 0, portMAX_DELAY = -1, pdTRUE = 1;
+using SemaphoreHandle_t = void*;
+using TaskHandle_t = void*;
+using nvs_handle_t = unsigned;
+namespace ota_fake {
+extern uint64_t nowMs;
+extern std::map<std::string, std::string> settings;
+}
+inline SemaphoreHandle_t xSemaphoreCreateMutex() { return reinterpret_cast<void*>(1); }
+inline void xSemaphoreTake(SemaphoreHandle_t, int) {}
+inline void xSemaphoreGive(SemaphoreHandle_t) {}
+inline unsigned& LastCreatedTaskStackBytes() { static unsigned bytes = 0; return bytes; }
+inline int xTaskCreate(void (*)(void*), const char*, unsigned stackBytes, void*, unsigned, TaskHandle_t* handle) {
+  LastCreatedTaskStackBytes() = stackBytes;
+  *handle = reinterpret_cast<void*>(1); return pdPASS;
+}
+inline void xTaskNotifyGive(TaskHandle_t) {}
+inline void ulTaskNotifyTake(int, int) {}
+inline void vTaskDelay(unsigned ticks) { ota_fake::nowMs += ticks; }
+inline int64_t esp_timer_get_time() { return static_cast<int64_t>(ota_fake::nowMs * 1000); }
+inline int nvs_open(const char*, int, nvs_handle_t* handle) { *handle = 1; return ESP_OK; }
+inline void nvs_close(nvs_handle_t) {}
+inline int nvs_get_u8(nvs_handle_t, const char* key, uint8_t* value) {
+  if (std::strlen(key) > 15) return ESP_FAIL;
+  const auto found = ota_fake::settings.find(key);
+  if (found == ota_fake::settings.end()) return ESP_FAIL;
+  *value = found->second == "1" ? 1 : 0;
+  return ESP_OK;
+}
 #if defined(_WIN32) && !defined(S_ISREG)
 #define S_ISREG(mode) (((mode) & _S_IFMT) == _S_IFREG)
 #endif

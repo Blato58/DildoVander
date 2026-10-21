@@ -17,6 +17,7 @@ CORE = [
     "physical_effects/PhysicalPresentation", "physical_effects/PresentationDiagnostics",
     "scene_intent/SceneIntentBridge",
     "offline_show/OfflineShow",
+    "offline_show/OfflineOutboxCodec",
     "offline_show/ImaAdpcm",
 ]
 
@@ -57,27 +58,60 @@ def main():
     args = parser.parse_args()
     compiler, env, msvc = compiler_environment()
     checks = [
+        ("firmware_update_test", ["firmware_update/OtaManifest", "firmware_update/OtaPolicy"], []),
+        ("espidf_firmware_update_test", ["firmware_update/OtaManifest", "firmware_update/OtaPolicy", "firmware_update/EspIdfFirmwareUpdate", "physical_effects/PhysicalEffects", "device_control/PersistentCommandJournal"], ["tests/ota_stubs"]),
         ("physical_effects_test", CORE, []),
         ("show_runtime_test", CORE + ["device_control/PersistentCommandJournal"], []),
-        ("offline_show_test", CORE, []),
+        ("offline_show_test", CORE + ["device_control/PersistentCommandJournal"], []),
         ("device_show_cues_test", CORE + ["show_cues/DeviceShowCue", "show_cues/DeviceShowAudio", "show_cues/DeviceShowRuntime", "conversation/ConversationSession", "conversation/ConversationStartCodec"], []),
         ("autonomous_presentation_lifecycle_test", CORE, []),
         ("device_control_runtime_test", CORE, []),
+        ("pending_proposal_test", ["conversation/ConversationRuntimeState", "conversation/PendingProposal"], []),
+        ("device_control_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl"], []),
+        ("autonomous_admission_control_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl"], []),
         ("persistent_command_journal_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal"], []),
+        ("keepsake_durability_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/DeviceControlRuntime", "device_control/PersistentCommandJournal", "conversation/ConversationRuntimeState", "conversation/PendingProposal", "wand_presentation/WandPresentation"], []),
+        ("journal_epoch_test", ["device_control/PersistentCommandJournal"], []),
+        ("journal_snapshot_test", ["device_control/PersistentCommandJournal"], []),
+        ("journal_transaction_arbiter_test", [], []),
+        ("control_maintenance_gate_test", [], []),
+        ("journal_storage_owner_test", ["device_control/PersistentCommandJournal", "device_control/JournalStorageOwner"], []),
+        ("async_command_journal_test", ["device_control/PersistentCommandJournal", "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal"], []),
+        ("presentation_reservation_test", ["device_control/PersistentCommandJournal"], []),
+        ("journal_identity_owner_test", ["device_control/PersistentCommandJournal", "device_control/JournalIdentityOwner"], []),
+        ("journal_reconciliation_test", ["device_control/PersistentCommandJournal", "device_control/JournalIdentityOwner", "device_control/JournalReconciliation"], []),
+        ("offline_inventory_test", CORE + ["offline_show/OfflineCommittedInventory"], []),
+        ("offline_inventory_storage_test", CORE + ["offline_show/OfflineCommittedInventory", "offline_show/EspIdfOfflineOutboxStorage"], ["tests/journal_storage_stubs"]),
+        ("journal_identity_storage_test", ["device_control/EspIdfJournalIdentityStorage"], ["tests/journal_storage_stubs"]),
+        ("operation_epoch_core_test", CORE + ["device_control/PersistentCommandJournal", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession"], []),
         ("dance_coordinator_test", ["dance/DanceCoordinator", "physical_effects/PhysicalEffects"], []),
         ("show_trace_mailbox_test", ["physical_effects/PresentationDiagnostics"], []),
         ("twin_telemetry_test", CORE, []),
         ("voice_workflow_test", ["voice_turn/VoiceWorkflow", "conversation/ConversationStartCodec"], []),
         ("realtime_session_engine_test", ["voice_turn/RealtimeSessionEngine", "conversation/TurnPollGuard"], []),
+        ("async_realtime_session_engine_test", ["voice_turn/RealtimeSessionEngine", "conversation/TurnPollGuard", "voice_turn/BoundedPlaybackOwner", "voice_turn/BoundedVoicePlayback"], []),
         ("espidf_realtime_transport_test", ["voice_turn/EspIdfRealtimeTransport", "voice_turn/RealtimeSessionEngine", "voice_turn/RealtimeEventCodec", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession", "lib/device_configuration/NetworkSettings"], ["tests/realtime_stubs", "lib/device_configuration/include"]),
+        ("bounded_playback_owner_test", ["voice_turn/BoundedPlaybackOwner"], []),
+        ("bounded_voice_playback_test", ["voice_turn/BoundedPlaybackOwner", "voice_turn/BoundedVoicePlayback"], []),
+        ("device_media_codec_test", ["voice_turn/DeviceMediaCodec", "conversation/ConversationStartCodec"], []),
+        ("device_media_session_test", ["voice_turn/DeviceMediaSession", "voice_turn/DeviceMediaCodec", "voice_turn/RealtimeSessionEngine", "voice_turn/RealtimeEventCodec", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession"], []),
+        ("playback_authority_port_test", [], []),
+        ("device_media_soak_test", ["voice_turn/DeviceMediaSession", "voice_turn/DeviceMediaCodec", "voice_turn/RealtimeSessionEngine", "voice_turn/RealtimeEventCodec", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession", "voice_turn/BoundedPlaybackOwner", "voice_turn/BoundedVoicePlayback", "safety/SafetyController", "wand_selection/SelectionSequence"], []),
+        ("espidf_device_media_socket_test", ["voice_turn/EspIdfDeviceMediaSocket"], ["tests/media_socket_stubs"]),
         ("espidf_voice_audio_test", ["voice_turn/EspIdfVoiceAudio"], ["tests/audio_stubs"]),
         ("local_control_server_test", ["local_control/EspIdfLocalControlServer", "local_control/LocalControlCodec", "local_control/LocalControlInbox", "local_control/LocalSocketAdmission", "local_control/LocalBearerAuthenticator", "provisioning/LocalTlsIdentity", "provisioning/LocalPairingCredential", "conversation/ConversationSession", "conversation/ConversationStartCodec"], ["tests/server_stubs", "lib/device_configuration/include"]),
+        ("espidf_local_service_advertisement_test", ["local_control/EspIdfLocalServiceAdvertisement", "lib/device_configuration/NetworkSettings", "network_provisioning/NetworkProfiles"], ["tests/discovery_stubs", "tests/station_stubs", "lib/device_configuration/include"]),
         ("wand_presentation_test", CORE, []),
-        ("local_control_owner_test", CORE + ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlSession", "local_control/LocalConversationGateway", "local_control/LocalControlInbox", "local_control/LocalControlOwner"], []),
+        ("local_control_owner_test", CORE + ["device_control/PersistentCommandJournal", "device_control/JournalStorageOwner", "device_control/AsyncCommandJournal", "conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlSession", "local_control/LocalConversationGateway", "local_control/LocalControlInbox", "local_control/LocalControlOwner"], []),
+        ("local_control_inbox_test", ["local_control/LocalControlInbox"], []),
+        ("local_socket_admission_test", ["provisioning/LocalPairingCredential", "local_control/LocalBearerAuthenticator", "local_control/LocalSocketAdmission"], ["lib/device_configuration/include"]),
         ("local_control_codec_test", ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlCodec"], []),
         ("local_control_output_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal", "conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlOutput"], []),
         ("show_trace_replay", CORE, []),
     ]
+    unknown_checks = set(args.only or ()) - {name for name, _, _ in checks}
+    if unknown_checks:
+        parser.error("unknown host checks: " + ", ".join(sorted(unknown_checks)))
     # Windows indexing can briefly retain a finished executable. Leaving its
     # bounded OS-temp directory must not turn passing assertions into failure.
     with tempfile.TemporaryDirectory(prefix="dv02-host-", ignore_cleanup_errors=True) as temp:
@@ -96,6 +130,10 @@ def main():
             files.append(str(ROOT / "tests" / (name + ".cpp")))
             if msvc:
                 flags = ["/nologo", "/std:c++14", "/utf-8", "/EHsc", "/W4", "/WX", "/wd4244", "/Fe:" + str(executable)]
+                if name == "espidf_local_service_advertisement_test":
+                    # NetworkProfiles bounds its copies before using standard
+                    # C functions; retain that portable code on the MSVC host.
+                    flags += ["/D_CRT_SECURE_NO_WARNINGS"]
                 flags += ["/I" + str(ROOT / include) for include in includes]
             else:
                 flags = ["-std=c++14", "-Wall", "-Wextra", "-Werror", "-pthread", "-o", str(executable)]

@@ -34,6 +34,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                        const std::string& bootId,
                        EspIdfStationNetwork& station,
                        const CommandJournal& ownerJournal, JournalStorage& journalStorage);
+  EspIdfBackendNetwork(DeviceIdentity& identity, ConversationRuntimeState& runtimeState,
+                       const std::string& bootId, EspIdfStationNetwork& station,
+                       DeviceStorageRuntime& storage);
   bool InitializeVoice(bool nvsInitialized, AudioBoardPort* board = nullptr);
   PresentationAudioPort& PresentationAudio() { return voiceAudio_; }
   VoiceAudioPort& DanceAudio() { return voiceAudio_; }
@@ -83,6 +86,7 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
 
  private:
   void RetireCandidateLocked(const char* reason);
+  void ClearCandidateLocked();
   void QueueCancelLocked();
   void StopVoiceOutput();
   static void TaskEntry(void* argument);
@@ -138,6 +142,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   std::mutex presentationMutex_;
   bool terminalProposalOutstanding_ = false;
   bool presentationActive_ = false;
+  // Protected by presentationMutex_. The original proposal is now owned by
+  // Wand, so network expiry must not reread the consumed PendingProposal.
+  bool presentationClaimed_ = false;
   std::mutex openingMutex_;
   bool openingPending_ = false;
   std::string openingConversationId_;
@@ -148,6 +155,9 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   std::atomic<bool> online_{false};
   EspIdfKeepsakeNotifier keepsake_;
   KeepsakeOutcome keepsakeCandidate_;
+  bool keepsakeCandidatePrepared_ = false;
+  EspIdfKeepsakeNotifier::Handle keepsakeHandle_;
+  std::array<char, 65> keepsakeRetirementReason_{};
   std::atomic<bool> cancelRequested_{false};
   std::string bootId_;
   // Only the network task mutates this binding. Local and backend IDs differ.

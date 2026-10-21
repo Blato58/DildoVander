@@ -5,6 +5,36 @@
 
 #include "physical_effects_test_support.h"
 
+void PassiveHealthKeepsInspectionAndFaultsSeparate() {
+  FakeIo io;
+  PhysicalEffects effects(io);
+  assert(!effects.PassiveHealthy() && !effects.Healthy());
+  std::array<ServoCalibration, 6> calibration;
+  calibration.fill({1100, 1900, 500});
+  assert(effects.Configure(calibration, 1));
+  assert(!effects.PassiveHealthy());  // No successful input observation yet.
+  effects.Tick(0);
+  assert(effects.PassiveHealthy() && !effects.Healthy());
+  assert(!effects.Move(1, true) && !effects.StartVibration(1));
+  assert(!io.run && io.servoWrites == 0 && io.vibrationWrites == 0);
+
+  effects.Tick(250);  // A control-loop failure is real health evidence.
+  assert(!effects.PassiveHealthy() && !effects.Healthy());
+  effects.Tick(260);
+  assert(!effects.PassiveHealthy());  // A good input sample cannot clear a fault.
+  assert(effects.RecoverAfterInspection());
+  assert(effects.PassiveHealthy() && effects.Healthy() && !io.run);
+
+  assert(effects.Configure(calibration, 2));
+  assert(effects.PassiveHealthy() && !effects.Healthy());
+  assert(!effects.Move(1, true) && !effects.StartVibration(1));
+  io.fail = true;
+  effects.Disable();
+  io.fail = false;
+  effects.Tick(270);
+  assert(!effects.PassiveHealthy() && !effects.Healthy() && !io.run);
+}
+
 void LimitsAndFaults() {
   Fixture f;
   assert(!f.effects.Move(0, true) && !f.effects.StartVibration(7));
@@ -297,7 +327,82 @@ void MaximumTravelStillHonorsAbsoluteDeadline() {
   assert(stalled.io.servoWrites == writes && stalled.journal.pending);
 }
 
+void DurableCompletionWaitRetainsTheFirstCloseClock() {
+  for (uint64_t closeDelay : {uint64_t(249), uint64_t(250)}) {
+    Fixture f;
+    uint64_t clock = 30;
+    f.adapter.BindClock([](void* p) { return *static_cast<uint64_t*>(p); }, &clock);
+    f.journal.holdClose = true;
+    f.journal.holdProof = true;
+    assert(f.Start("delayed-close", clock));
+    for (clock = 40; clock < 14000; clock += 10) {
+      f.Tick(clock);
+      if (f.presentation.State() == WandPresentationState::Completing) break;
+    }
+    assert(f.presentation.State() == WandPresentationState::Completing);
+    const uint64_t closeStarted = clock;
+    const int servoWrites = f.io.servoWrites, vibrationWrites = f.io.vibrationWrites;
+    assert(!f.io.run && f.journal.pending && f.journal.restores == 0);
+    assert(!f.runtime.HasValidatedAutonomousCompletion());
+    // Every poll keeps the ORIGINAL first close time. Repeated calls cannot
+    // renew the 250 ms physical completion window.
+    for (++clock; clock < closeStarted + closeDelay; ++clock) f.Tick(clock);
+    f.journal.holdClose = false;
+    f.Tick(clock);
+    assert(f.journal.restores == 1 && !f.journal.pending);
+    if (closeDelay == 250) {
+      assert(f.presentation.State() == WandPresentationState::Fault);
+      assert(!f.runtime.HasValidatedAutonomousCompletion());
+      assert(f.journal.completedId.empty() && !f.effects.Healthy());
+      continue;
+    }
+    assert(f.presentation.State() == WandPresentationState::Completing);
+    assert(f.runtime.HasValidatedAutonomousCompletion());
+    assert(f.journal.completedId.empty());
+    // Already-validated proof bookkeeping can acknowledge after the physical
+    // deadline, with all outputs disabled and no newly sampled timing proof.
+    for (++clock; clock < 20000; ++clock) f.Tick(clock);
+    f.Tick(clock);
+    assert(f.presentation.State() == WandPresentationState::Completing);
+    assert(f.runtime.HasValidatedAutonomousCompletion() && !f.io.run);
+    assert(f.io.servoWrites == servoWrites && f.io.vibrationWrites == vibrationWrites);
+    f.journal.holdProof = false;
+    f.Tick(++clock);
+    assert(f.presentation.State() == WandPresentationState::Idle);
+    assert(f.journal.completedId == "delayed-close");
+    assert(f.effects.Healthy() && !f.runtime.HasValidatedAutonomousCompletion());
+  }
+}
+
+void StopWhileCompletionWaitsNeverReportsSuccess() {
+  for (bool sealFirst : {false, true}) {
+    Fixture f;
+    f.journal.holdClose = !sealFirst;
+    f.journal.holdProof = true;
+    assert(f.Start("stop-closing"));
+    uint64_t at = 40;
+    for (; at < 14000; at += 10) {
+      f.Tick(at);
+      if (f.presentation.State() == WandPresentationState::Completing) break;
+    }
+    assert(f.presentation.State() == WandPresentationState::Completing);
+    assert(f.runtime.HasValidatedAutonomousCompletion() == sealFirst);
+    const int writes = f.io.servoWrites;
+    SelectionStep step;
+    f.runtime.Stop(step);
+    assert(f.presentation.State() == WandPresentationState::Fault);
+    assert(!f.runtime.HasValidatedAutonomousCompletion() && !f.io.run);
+    f.journal.holdClose = false;
+    f.journal.holdProof = false;
+    f.Tick(at + 10);
+    assert(f.presentation.State() == WandPresentationState::Fault);
+    assert(f.journal.completedId.empty() && f.io.servoWrites == writes);
+  }
+}
+
 int main() {
-  LimitsAndFaults(); SingleLedSegmentBoundary(); EveryAuthoredPhaseAndRestCompletion(); SharedScoreAndRepeat(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel(); MaximumTravelStillHonorsAbsoluteDeadline();
+  DurableCompletionWaitRetainsTheFirstCloseClock();
+  StopWhileCompletionWaitsNeverReportsSuccess();
+  PassiveHealthKeepsInspectionAndFaultsSeparate(); LimitsAndFaults(); SingleLedSegmentBoundary(); EveryAuthoredPhaseAndRestCompletion(); SharedScoreAndRepeat(); AutonomousCycle(); ManualCycle(); InterruptedReturn(); LongerCalibratedTravel(); MaximumTravelStillHonorsAbsoluteDeadline();
   std::cout << "Physical limits, calibrated commanded travel, journal, autonomous/manual return and Stop passed\n";
 }

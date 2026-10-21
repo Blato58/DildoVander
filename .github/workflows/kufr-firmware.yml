@@ -82,12 +82,7 @@ jobs:
             https://raw.githubusercontent.com/DaveGamble/cJSON/v1.7.19/cJSON.h -o "$cjson/cJSON.h"
           echo "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d  $cjson/cJSON.c" | sha256sum -c -
           echo "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee  $cjson/cJSON.h" | sha256sum -c -
-          gcc -std=c99 -Wall -Wextra -I "$cjson" -c "$cjson/cJSON.c" -o "$cjson/cJSON.o"
-          g++ -std=c++14 -Wall -Wextra -Werror -I "$cjson" \
-            src/features/conversation/ConversationStartCodec.cpp \
-            tests/keepsake_persistence_codec_test.cpp "$cjson/cJSON.o" \
-            -o "$RUNNER_TEMP/keepsake-codec-test"
-          "$RUNNER_TEMP/keepsake-codec-test"
+          python3 tests/run_inventory_tests.py --cjson-dir "$cjson"
       - name: Optional costume photo consent and HTTPS upload
         working-directory: firmware
         shell: bash
@@ -266,7 +261,7 @@ jobs:
           "$RUNNER_TEMP/network-profile-storage-test"
           g++ -std=c++14 -Wall -Wextra -Werror src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp tests/firmware_update_test.cpp -o "$RUNNER_TEMP/firmware-update-test"
           "$RUNNER_TEMP/firmware-update-test"
-          g++ -std=c++14 -Wall -Wextra -Werror -I tests/ota_stubs src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp src/features/firmware_update/EspIdfFirmwareUpdate.cpp tests/espidf_firmware_update_test.cpp -o "$RUNNER_TEMP/ota-adapter-test"
+          g++ -std=c++14 -Wall -Wextra -Werror -I tests/ota_stubs src/features/firmware_update/OtaManifest.cpp src/features/firmware_update/OtaPolicy.cpp src/features/firmware_update/EspIdfFirmwareUpdate.cpp src/features/physical_effects/PhysicalEffects.cpp src/features/device_control/PersistentCommandJournal.cpp tests/espidf_firmware_update_test.cpp -o "$RUNNER_TEMP/ota-adapter-test"
           "$RUNNER_TEMP/ota-adapter-test"
           python3 -m unittest discover -s tools -p 'test_*.py'
       - name: Local service discovery lifecycle

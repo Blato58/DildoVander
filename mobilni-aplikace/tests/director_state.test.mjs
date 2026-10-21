@@ -174,3 +174,60 @@ test('selected cloud/local mismatch rejects offline dispatch, while independent 
  value.selectedDeviceId='cloud-device';await value.offline('offline_start',1,{shortVariant:true});assert.equal(calls,0);
  value.selectedDeviceId='';value.client.deviceId='';await value.offline('offline_preflight');assert.equal(calls,1);
 });
+
+
+test('offline relay retains the recorded uint64 epoch across server import and legacy records remain epoch zero', async () => {
+  for (const originalEpoch of ['18446744073709551615', '0', undefined]) {
+    const value = panel();
+    value.local.matches = () => true;
+    const outcome = { operationId: 'recorded-operation', deviceId: 'fixture-device',
+      ...(originalEpoch === undefined ? {} : { operationEpoch: originalEpoch }) };
+    const imported = deferred();
+    const acks = [];
+    value.local.offline = async (kind, compartment, commandId, options) => {
+      if (kind === 'offline_outbox') return { records: [outcome] };
+      acks.push({ kind, compartment, commandId, options });
+    };
+    let imports = 0;
+    value.client.request = (suffix, body) => {
+      imports++;
+      assert.equal(suffix, '/offline-outcomes');
+      assert.equal(body.outcome.operationEpoch, originalEpoch);
+      return imported.promise;
+    };
+    const importing = value.syncOffline(true);
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal(imports, 1); assert.equal(acks.length, 0);
+    // Later device/outbox metadata cannot restamp the envelope already imported.
+    outcome.operationEpoch = '9';
+    imported.resolve({ operationId: outcome.operationId,
+      ...(originalEpoch === undefined || originalEpoch === '0' ? {} : { operationEpoch: originalEpoch }) });
+    await importing;
+    assert.deepEqual(acks, [{ kind: 'offline_sync_ack', compartment: undefined,
+      commandId: outcome.operationId, options: { operationEpoch: originalEpoch ?? '0' } }]);
+  }
+});
+
+
+test('scoped offline relay requires an exact canonical backend epoch echo before local acknowledgement', async () => {
+  for (const echoedEpoch of [undefined, null, 2, '0', '1', '02', '2.0', '2e0', '18446744073709551616', '2']) {
+    const value = panel();
+    value.local.matches = () => true;
+    const outcome = { operationId: 'reused-operation', deviceId: 'fixture-device', operationEpoch: '2' };
+    const acks = [];
+    value.local.offline = async (kind, compartment, commandId, options) => {
+      if (kind === 'offline_outbox') return { records: [outcome] };
+      acks.push({ commandId, options });
+    };
+    value.client.request = async () => ({ operationId: outcome.operationId,
+      ...(echoedEpoch === undefined ? {} : { operationEpoch: echoedEpoch }) });
+    await value.syncOffline(true);
+    if (echoedEpoch === '2') {
+      assert.deepEqual(acks, [{ commandId: outcome.operationId, options: { operationEpoch: '2' } }]);
+      assert.match(value.offlineState, /Server přijal 1/);
+    } else {
+      assert.deepEqual(acks, [], `must retain scoped record for backend echo ${String(echoedEpoch)}`);
+      assert.match(value.feedback, /Server nepotvrdil původní epochu/);
+    }
+  }
+});

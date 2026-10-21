@@ -1,5 +1,6 @@
 #pragma once
 using TaskHandle_t=void*;
+inline void vTaskDelay(unsigned) {}
 // Host tests may run bounded iterations of the actual capture entry point.
 // Hardware DMA remains a separate acceptance gate.
 struct AudioCaptureTask { void (*run)(void*) = nullptr; void* context = nullptr; };

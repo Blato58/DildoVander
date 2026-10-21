@@ -14,6 +14,7 @@ struct ConversationTextTurnRequest {
   uint64_t generation = 0;
   uint64_t deviceRevision = 0;
   uint8_t readyMask = 0;
+  uint64_t operationEpoch = 0;
 };
 
 // Constructs the exact JSON body for POST /v1/conversations/{id}/turns.

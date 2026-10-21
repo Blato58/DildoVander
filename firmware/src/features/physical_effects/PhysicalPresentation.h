@@ -17,6 +17,22 @@ class PhysicalPresentation final : public WandPresentationPort {
   // Explicit command selection is idle-only; callers that do not select retain
   // the normal first/main and subsequent/short behavior.
   bool SelectVariant(bool shortVariant);
+  // Capture with a newly created operation; retries retain the saved value.
+  static uint64_t OperationFingerprint(bool shortVariant = false);
+  uint64_t CurrentOperationFingerprint() const override;
+  uint64_t CurrentCalibrationRevision() const override { return effects_.CalibrationRevision(); }
+  WandAdmissionProgress ReserveClaimedOperation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibrationRevision, uint64_t nowMs) override;
+  WandAdmissionProgress BeginClaimedOperation(
+      const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibrationRevision, uint64_t acceptedAtMs, uint64_t nowMs) override;
+  bool ValidateClaimedOperation(const PendingProposal::ClaimedProposal& claim,
+      uint64_t fingerprint, uint64_t calibrationRevision, uint64_t nowMs) const override;
+  void CancelClaimedOperation() override;
+  bool ReserveOperation(uint8_t compartment, const std::string& proposalId,
+      const ConversationRuntimeSnapshot& snapshot) override;
+  void CancelOperationReservation() override { runtime_.CancelAutonomousReservation(); }
   void ObserveOwnerTime(uint64_t nowMs) override { nowMs_ = nowMs; }
   bool AdmissionWasDuplicateOrConflict() const override { return replayRejected_; }
   void BindAudio(PresentationAudioPort& audio) { audio_ = &audio; }
@@ -48,9 +64,13 @@ class PhysicalPresentation final : public WandPresentationPort {
              const ConversationRuntimeSnapshot& snapshot) override;
   bool Lower(uint8_t compartment) override;
   bool Complete(uint8_t compartment) override;
+  bool CompletionIsPending() const override { return completionPending_; }
+  bool CompletionTimingValidated() const override {
+    return completionPending_ && runtime_.HasValidatedAutonomousCompletion();
+  }
   void DisableAndFault() override;
  private:
-  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest, Accent, Pulse };
+  enum class Phase { Idle, Score, Raise, Raised, Lower, Rest, Closing, Accent, Pulse };
   void EndPulse(bool cancelled);
   bool EnterScoreStep(uint64_t dueAt);
   void Trace(const char* kind, uint64_t dueAt, const char* evidence,
@@ -58,6 +78,9 @@ class PhysicalPresentation final : public WandPresentationPort {
   bool TickAccent();
   void EndAccent(bool cancelled);
   bool RefreshExecutionClock(uint64_t ioStartedAtMs);
+  bool StartEffects(uint8_t compartment, const std::string& proposalId,
+      const ConversationRuntimeSnapshot& snapshot, uint64_t acceptedAtMs,
+      uint64_t expiresAtMs = UINT64_MAX);
   static bool ValidateCompletionClock(void* context);
   const PresentationScore::Step& CurrentStep() const;
   unsigned StepCount() const;
@@ -82,5 +105,7 @@ class PhysicalPresentation final : public WandPresentationPort {
   uint64_t (*clockNowMs_)(void*) = nullptr;
   void* clockContext_ = nullptr;
   uint64_t completionIoStartedAtMs_ = 0;
+  bool completionPending_ = false;
+  bool claimedAdmission_ = false;
   const char* faultReason_ = "recovery-required";
 };

@@ -88,12 +88,26 @@ bool DeviceShowMailbox::PollState(DeviceShowSettings& applied, uint64_t& generat
 }
 void DeviceShowMailbox::Settings(const DeviceShowSettings& desired) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (desired.revision > desired_.revision || desired.stopRevision > desired_.stopRevision) { desired_ = desired; desiredPending_ = true; }
+  if (desired.revision > desired_.revision) {
+    desired_.revision = desired.revision; desired_.quiet = desired.quiet; desired_.ambient = desired.ambient;
+    desiredPending_ = true;
+  }
+  if (desired.stopRevision > desired_.stopRevision) {
+    desired_.stopRevision = desired.stopRevision; desiredPending_ = true;
+  }
 }
-bool DeviceShowMailbox::TakeSettings(DeviceShowSettings& desired) {
+bool DeviceShowMailbox::PeekSettings(DeviceShowSettings& desired) const {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!desiredPending_) return false;
-  desired = desired_; desiredPending_ = false; return true;
+  desired = desired_;
+  return true;
+}
+bool DeviceShowMailbox::ConfirmSettings(const DeviceShowSettings& expected) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!desiredPending_ || expected.revision != desired_.revision || expected.stopRevision != desired_.stopRevision
+      || expected.quiet != desired_.quiet || expected.ambient != desired_.ambient) return false;
+  desiredPending_ = false;
+  return true;
 }
 bool DeviceShowMailbox::Offer(const DeviceShowCue& cue, std::shared_ptr<DeviceShowAudio> audio) {
   std::lock_guard<std::mutex> lock(mutex_);

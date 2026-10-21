@@ -43,8 +43,12 @@ class FakeJournal final : public CommandJournal {
       return false;
     }
     pending = false;
+    closedCompartment = restoredCompartment;
     compartment = 0;
     return true;
+  }
+  bool ConfirmTimedPresentation(const std::string& id, uint8_t slot, uint64_t) override {
+    return !pending && !failResolve && id == commandId && slot == closedCompartment;
   }
   bool PersistReadyMask(uint8_t nextMask) override {
     readyMask = nextMask;
@@ -55,6 +59,7 @@ class FakeJournal final : public CommandJournal {
   bool failBegin = false;
   bool failResolve = false;
   uint8_t compartment = 0;
+  uint8_t closedCompartment = 0;
   uint8_t readyMask = 63;
   std::string commandId;
 };
@@ -72,6 +77,21 @@ class FakePresentationPort final : public WandPresentationPort {
   bool IsSafeToContinue() const override {
     return !selection.NeedsRecovery();
   }
+  uint64_t CurrentCalibrationRevision() const override { return control.CalibrationRevision(); }
+  bool ValidateClaimedOperation(const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+      uint64_t calibration, uint64_t nowMs) const override {
+    return runtime.ValidateClaimedAutonomousPresentation(claim, fingerprint, calibration, nowMs);
+  }
+  WandAdmissionProgress BeginClaimedOperation(const PendingProposal::ClaimedProposal& claim,
+      uint64_t fingerprint, uint64_t calibration, uint64_t, uint64_t nowMs) override {
+    const auto progress = runtime.BeginClaimedAutonomousPresentation(claim, fingerprint, calibration, nowMs);
+    if (progress == DeviceControlRuntime::PresentationProgress::Pending) return WandAdmissionProgress::Pending;
+    if (progress == DeviceControlRuntime::PresentationProgress::Rejected) return WandAdmissionProgress::Rejected;
+    ++raises;
+    resting = false;
+    return WandAdmissionProgress::Succeeded;
+  }
+  void CancelClaimedOperation() override { runtime.CancelClaimedAutonomousPresentation(); }
   bool IsRaised(uint8_t) const override { return raised; }
   bool IsResting(uint8_t) const override { return resting; }
   bool Raise(uint8_t compartment, const std::string& proposalId,

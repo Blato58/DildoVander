@@ -1,0 +1,11 @@
+{
+  "protocolVersion": 1,
+  "type": "control.ack",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "requestMessageId": "3d6104de-98c6-40b5-b10d-4f5675a63c51",
+  "operation": "control.acquire",
+  "eventSequence": 2,
+  "revision": 1,
+  "accepted": false,
+  "errorCode": "busy"
+}

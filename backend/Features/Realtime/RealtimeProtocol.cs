@@ -18,7 +18,9 @@ internal sealed record RealtimeTurnRequest(
     string Text,
     string? Wav,
     string Voice,
-    double Speed);
+    double Speed,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? OperationEpoch = null);
 
 internal sealed record RealtimeTurnContext(
     RealtimeTurnRequest Request,
@@ -67,12 +69,28 @@ internal static class RealtimeProtocol
             "clientTurnId", "bootId", "generation", "readyMask", "deviceRevision",
             "catalogVersion", "opening", "text", "wav", "voice", "speed"
         };
-        if (document.RootElement.ValueKind != JsonValueKind.Object
-            || document.RootElement.EnumerateObject().Any(property => !expected.Remove(property.Name))
-            || expected.Count != 0)
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             return null;
         }
+        var epochSeen = false;
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            if (property.Name == "operationEpoch")
+            {
+                if (epochSeen || property.Value.ValueKind != JsonValueKind.String
+                    || !OperationEpoch.IsValid(property.Value.GetString()))
+                {
+                    return null;
+                }
+                epochSeen = true;
+            }
+            else if (!expected.Remove(property.Name))
+            {
+                return null;
+            }
+        }
+        if (expected.Count != 0) { return null; }
         return JsonSerializer.Deserialize<RealtimeTurnRequest>(body, JsonOptions);
     }
 
@@ -81,6 +99,7 @@ internal static class RealtimeProtocol
         && request.BootId != Guid.Empty
         && request.Generation >= 0
         && request.DeviceRevision >= 0
+        && OperationEpoch.IsValid(request.OperationEpoch)
         && request.ReadyMask is >= 0 and <= 63
         && request.CatalogVersion == PartyWandCatalog.Version
         && request.Text is { Length: <= 1000 }

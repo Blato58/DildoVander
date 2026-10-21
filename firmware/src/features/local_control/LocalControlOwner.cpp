@@ -11,12 +11,54 @@
 
 namespace {
 
+bool SameManualEnvelope(const LocalControlMessage& left,
+                        const LocalControlMessage& right) {
+  // messageId is transport correlation; retries still complete the original ACK.
+  return left.kind == right.kind && left.commandId == right.commandId &&
+         left.hasOperationEpoch == right.hasOperationEpoch &&
+         left.operationEpoch == right.operationEpoch &&
+         left.deviceId == right.deviceId && left.bootId == right.bootId &&
+         left.controlLeaseId == right.controlLeaseId &&
+         left.sequence == right.sequence &&
+         left.expectedRevision == right.expectedRevision &&
+         left.issuedAtDeviceMs == right.issuedAtDeviceMs &&
+         left.maxAgeMs == right.maxAgeMs &&
+         left.compartment == right.compartment && left.source == right.source;
+}
+
 void WipeText(std::string& text) {
   volatile char* bytes = text.empty() ? nullptr : &text[0];
   for (size_t index = 0; index < text.size(); ++index) {
     bytes[index] = 0;
   }
   text.clear();
+}
+
+bool OfflineMutation(LocalControlMessageKind kind) {
+  return kind == LocalControlMessageKind::OfflineArm || kind == LocalControlMessageKind::OfflineStart
+      || kind == LocalControlMessageKind::Quiet || kind == LocalControlMessageKind::OfflineAmbient
+      || kind == LocalControlMessageKind::OfflineSyncAck;
+}
+
+bool SameOfflineEnvelope(const LocalControlMessage& left, const LocalControlMessage& right) {
+  return left.kind == right.kind && left.messageId == right.messageId && left.deviceId == right.deviceId
+      && left.bootId == right.bootId && left.controlLeaseId == right.controlLeaseId
+      && left.generation == right.generation && left.expectedRevision == right.expectedRevision
+      && left.hasOperationEpoch == right.hasOperationEpoch && left.operationEpoch == right.operationEpoch
+      && left.compartment == right.compartment && left.shortVariant == right.shortVariant
+      && left.commandId == right.commandId && left.enabled == right.enabled;
+}
+
+bool SameRecoveryEnvelope(const LocalControlMessage& left, const LocalControlMessage& right) {
+  return left.kind == right.kind && left.messageId == right.messageId && left.deviceId == right.deviceId &&
+      left.bootId == right.bootId && left.controlLeaseId == right.controlLeaseId;
+}
+
+bool RecoveryMutation(LocalControlMessageKind kind) {
+  return OfflineMutation(kind) || kind == LocalControlMessageKind::Acquire || kind == LocalControlMessageKind::Reset ||
+      kind == LocalControlMessageKind::Selection || kind == LocalControlMessageKind::Reload ||
+      kind == LocalControlMessageKind::VoiceStart || kind == LocalControlMessageKind::VoiceConfigure ||
+      kind == LocalControlMessageKind::DanceStart;
 }
 
 }  // namespace
@@ -50,11 +92,14 @@ void LocalControlOwner::Poll() {
     } else if (SameHandle(event.handle)) {
       switch (event.kind) {
         case LocalControlEventKind::Stop: {
+          ClearPendingManual();
+          ClearPendingOffline();
           SelectionStep step;
           if (dance_) dance_->StopDance();
           if (voice_) voice_->StopVoice();
           if (offline_) offline_->Stop();
           runtime_.Stop(step);
+          ClearPendingRecovery();
           steps_.OnStep(step);
           if (gateway_) {
             gateway_->OnControlTransition();
@@ -99,6 +144,59 @@ void LocalControlOwner::Poll() {
 
 void LocalControlOwner::Tick() {
   Poll();
+  CommandReceipt receipt;
+  LocalControlMessage completed;
+  bool manualCompleted = false;
+  inbox_.RunIfNoUrgent([&]() {
+    if (!manualPending_) return;
+    if (!session_ || pendingManualSession_ != session_.get() ||
+        !SameHandle(pendingManualHandle_)) {
+      ClearPendingManual();
+      return;
+    }
+    receipt = AcceptManualCommand(pendingManual_);
+    if (!receipt.deferred) {
+      completed = pendingManual_;
+      ClearPendingManual();
+      manualCompleted = true;
+    }
+  });
+  if (manualCompleted) {
+    FinishManualCommand(completed, receipt, clock_.NowMs());
+  }
+  LocalControlMessage offlineCompleted;
+  bool offlineReady = false, offlineResult = false;
+  inbox_.RunIfNoUrgent([&]() {
+    if (!offlinePending_) return;
+    if (!session_ || pendingOfflineSession_ != session_.get() || !SameHandle(pendingOfflineHandle_)) {
+      ClearPendingOffline();
+      return;
+    }
+    offlineResult = AcceptOfflineCommand(pendingOffline_, true);
+    if (offlineCallPending_) return;
+    offlineCompleted = pendingOffline_;
+    ClearPendingOffline();
+    offlineReady = true;
+  });
+  if (offlineReady) FinishOfflineCommand(offlineCompleted, offlineResult, clock_.NowMs());
+  LocalControlMessage resetCompleted;
+  auto recoveryProgress = DeviceControlRuntime::RecoveryProgress::Pending;
+  bool resetReady = false;
+  inbox_.RunIfNoUrgent([&]() {
+    if (!recoveryPending_) return;
+    if (!session_ || pendingRecoverySession_ != session_.get() || !SameHandle(pendingRecoveryHandle_) ||
+        !session_->OwnsLiveLease(bootId_, pendingRecovery_.controlLeaseId, clock_.NowMs())) {
+      ClearPendingRecovery();
+      return;
+    }
+    recoveryProgress = runtime_.PollInspectedRecovery(recoveryHandle_);
+    if (recoveryProgress == DeviceControlRuntime::RecoveryProgress::Pending) return;
+    resetCompleted = pendingRecovery_;
+    runtime_.FinishInspectedRecovery(recoveryHandle_);
+    ClearPendingRecovery();
+    resetReady = true;
+  });
+  if (resetReady) FinishReset(resetCompleted, recoveryProgress, clock_.NowMs());
   bool produced = false;
   inbox_.RunIfNoUrgent([this, &produced]() {
     SelectionStep step;
@@ -129,6 +227,10 @@ void LocalControlOwner::Connected(const LocalControlEvent& event) {
 }
 
 void LocalControlOwner::Disconnect() {
+  ClearPendingManual();
+  // The offline producer owns already accepted storage work independently.
+  // Disconnect abandons only this socket's eventual acknowledgement.
+  ClearPendingOffline();
   if (session_) {
     SelectionStep step;
     session_->Disconnect(step);
@@ -137,10 +239,12 @@ void LocalControlOwner::Disconnect() {
       gateway_->OnControlTransition();
     }
   }
+  ClearPendingRecovery();
   gateway_.reset();
   session_.reset();
   handle_ = {};
   hello_ = false;
+  includeOperationEpoch_ = false;
 }
 
 void LocalControlOwner::Close() {
@@ -157,7 +261,7 @@ bool LocalControlOwner::SameHandle(
 
 void LocalControlOwner::Snapshot(uint64_t nowMs) {
   if (session_ && hello_) {
-    if (!output_.Snapshot(handle_, session_->LeaseId(), nowMs)) {
+    if (!output_.ScopedSnapshot(handle_, session_->LeaseId(), nowMs, includeOperationEpoch_)) {
       Close();
     } else {
       lastSnapshotAtMs_ = nowMs;
@@ -191,17 +295,61 @@ void LocalControlOwner::Handle(
     Close();
     return;
   }
+  // Refusals cannot revive a lease that expired while waiting in the inbox.
+  if (!session_->LeaseId().empty() &&
+      !session_->OwnsLiveLease(bootId_, session_->LeaseId(), nowMs)) {
+    Close();
+    return;
+  }
+  if (message.kind == LocalControlMessageKind::Reset &&
+      !session_->OwnsLiveLease(bootId_, message.controlLeaseId, nowMs)) {
+    Close();
+    return;
+  }
+  if (manualPending_ &&
+      (message.kind == LocalControlMessageKind::Selection ||
+       message.kind == LocalControlMessageKind::Reload)) {
+    if (SameManualEnvelope(message, pendingManual_)) return;
+    const CommandError error = message.commandId == pendingManual_.commandId
+        ? CommandError::IdConflict : CommandError::Busy;
+    if (!output_.CommandAck(handle_, message,
+                            {error, CommandOutcome::Rejected, false})) {
+      Close();
+    }
+    return;
+  }
   bool accepted = true;
   // Stop/cancel/status remain available while network/OTA owns the idle
   // reservation. A queued controller command cannot start new work then.
   const bool dancing = dance_ && kufr::dance::IsDanceActive(dance_->DanceState());
+  if (recoveryPending_ && RecoveryMutation(message.kind)) {
+    if (SameRecoveryEnvelope(message, pendingRecovery_)) return;
+    if (!RefuseBusy(message)) Close();
+    else Snapshot(nowMs);
+    return;
+  }
+  if (offlinePending_ && OfflineMutation(message.kind)) {
+    if (SameOfflineEnvelope(message, pendingOffline_)) return;
+    if (!output_.OfflineAck(handle_, message, false, "busy_or_stale", offline_->StatusJson(), "")) Close();
+    return;
+  }
+  if (offlinePending_ && (message.kind == LocalControlMessageKind::Acquire ||
+      message.kind == LocalControlMessageKind::VoiceStart || message.kind == LocalControlMessageKind::Selection ||
+      message.kind == LocalControlMessageKind::Reload || message.kind == LocalControlMessageKind::Reset)) {
+    if (!RefuseBusy(message)) Close();
+    else Snapshot(nowMs);
+    return;
+  }
   if ((maintenance_ || dancing) && (message.kind == LocalControlMessageKind::Acquire ||
       message.kind == LocalControlMessageKind::VoiceStart ||
-      message.kind == LocalControlMessageKind::Text ||
       message.kind == LocalControlMessageKind::Selection ||
       message.kind == LocalControlMessageKind::Reload ||
-      message.kind == LocalControlMessageKind::Reset)) {
-    Close();
+      (message.kind == LocalControlMessageKind::Reset && !(recoveryAdmission_ && !dancing)))) {
+    if (!RefuseBusy(message)) {
+      Close();
+    } else {
+      Snapshot(nowMs);
+    }
     return;
   }
   switch (message.kind) {
@@ -211,66 +359,44 @@ void LocalControlOwner::Handle(
     case LocalControlMessageKind::Quiet:
     case LocalControlMessageKind::OfflineOutbox:
     case LocalControlMessageKind::OfflineAmbient:
-    case LocalControlMessageKind::OfflineSyncAck: {
-      bool result = offline_ != nullptr;
-      std::string error;
-      inbox_.RunIfCurrent(handle_, [&]() {
-        if (!offline_) return;
-        if (voice_) offline_->SetVoice(voice_->VoiceStatus().voice);
-        if (message.kind == LocalControlMessageKind::OfflineArm) {
-          ConversationRuntimeSnapshot before;
-          const auto voice = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};
-          const bool voiceIdle = voice.phase == "idle" || voice.phase == "unavailable" ||
-              voice.phase == "completed" || voice.phase == "failed";
-          result = !maintenance_ && !dancing &&
-              voiceIdle &&
-              session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) &&
-              runtimeState_.Read(before) && before.generation == message.generation &&
-              before.deviceRevision == message.expectedRevision &&
-              std::string(offline_->Preflight()) == "ready";
-          if (result) {
-            if (voice_) voice_->StopVoice();
-            result = session_->HandoffToOffline(bootId_, message.controlLeaseId, clock_.NowMs());
-            if (result) {
-              ConversationRuntimeSnapshot after;
-              result = runtimeState_.Read(after) && offline_->Arm(after.generation, after.deviceRevision);
-            }
-          }
-        } else if (message.kind == LocalControlMessageKind::OfflineStart) {
-          result = !maintenance_ && !dancing && offline_->Start(message.messageId,
-              message.compartment, message.shortVariant, message.generation,
-              message.expectedRevision, clock_.NowMs());
-        } else if (message.kind == LocalControlMessageKind::Quiet) {
-          result = offline_->Quiet(message.enabled);
-        } else if (message.kind == LocalControlMessageKind::OfflineAmbient) {
-          result = offline_->ConfigureAmbient(message.enabled);
-        } else if (message.kind == LocalControlMessageKind::OfflineSyncAck) {
-          result = offline_->Acknowledge(message.commandId);
-        }
-      });
-      if (!result) {
-        error = offline_ ? offline_->Preflight() : "unsupported";
-        if (error == "ready") error = "busy_or_stale";
-      }
-      accepted = output_.OfflineAck(handle_, message, result, error,
-          offline_ ? offline_->StatusJson() : "null",
-          message.kind == LocalControlMessageKind::OfflineOutbox && offline_ ? offline_->OutboxJson() : "");
-      break;
-    }
+    case LocalControlMessageKind::OfflineSyncAck:
+      OfflineCommand(message, nowMs);
+      return;
     case LocalControlMessageKind::StateGet:
+      includeOperationEpoch_ = includeOperationEpoch_ || message.includeOperationEpoch;
       Snapshot(nowMs);
       return;
-    case LocalControlMessageKind::Acquire:
-      if (voice_) voice_->StopVoice();
-      accepted = (!offline_ || (offline_->PrepareInteraction() &&
-          (!runtime_.OfflineAuthority() || offline_->Leave()))) &&
-          session_->Acquire(bootId_, ids_.NewLeaseId(), nowMs);
+    case LocalControlMessageKind::Acquire: {
+      LocalControlError error = LocalControlError::None;
+      if (!session_->LeaseId().empty()) {
+        error = LocalControlError::ControllerBusy;
+      } else if (runtime_.NeedsRecovery()) {
+        error = LocalControlError::RecoveryRequired;
+      } else {
+        const std::string leaseId = ids_.NewLeaseId();
+        if (leaseId.empty()) {
+          Close();
+          return;
+        }
+        if (voice_) voice_->StopVoice();
+        if ((!offline_ || (offline_->PrepareInteraction() &&
+             (!runtime_.OfflineAuthority() || offline_->Leave()))) &&
+            session_->Acquire(bootId_, leaseId, nowMs)) {
+          error = LocalControlError::None;
+        } else {
+          error = runtime_.NeedsRecovery() ? LocalControlError::RecoveryRequired
+                                           : LocalControlError::Busy;
+        }
+      }
+      accepted = ControlAck(message, error);
       break;
+    }
     case LocalControlMessageKind::Release: {
       SelectionStep step;
       accepted = session_->Release(bootId_, message.controlLeaseId, step);
       if (accepted) {
         steps_.OnStep(step);
+        accepted = ControlAck(message, LocalControlError::None);
       }
       break;
     }
@@ -333,15 +459,10 @@ void LocalControlOwner::Handle(
       accepted = output_.ConversationAck(handle_, message, {error, false});
       break;
     }
-    case LocalControlMessageKind::Reset:
-      accepted = false;
-      inbox_.RunIfCurrent(handle_, [&]() {
-        accepted =
-            session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) &&
-            recovery_.InspectionAllowsRecovery() &&
-            runtime_.RecoverAfterInspection();
-      });
-      break;
+    case LocalControlMessageKind::Reset: {
+      Reset(message, nowMs);
+      return;
+    }
     case LocalControlMessageKind::Selection:
       Selection(message, nowMs);
       return;
@@ -363,9 +484,223 @@ void LocalControlOwner::Handle(
   }
 }
 
+void LocalControlOwner::ClearPendingOffline() {
+  WipeText(pendingOffline_.text);
+  pendingOffline_ = {};
+  pendingOfflineHandle_ = {};
+  pendingOfflineSession_ = nullptr;
+  offlinePending_ = offlineArmHandoff_ = offlineCallPending_ = false;
+  offlineArmGeneration_ = offlineArmRevision_ = 0;
+}
+
+void LocalControlOwner::ClearPendingRecovery() {
+  if (recoveryHandle_.IsBound()) {
+    runtime_.CancelInspectedRecovery(recoveryHandle_);
+    runtime_.FinishInspectedRecovery(recoveryHandle_);
+  }
+  pendingRecovery_ = {};
+  pendingRecoveryHandle_ = {};
+  pendingRecoverySession_ = nullptr;
+  recoveryPending_ = false;
+}
+
+void LocalControlOwner::Reset(const LocalControlMessage& message, uint64_t nowMs) {
+  if (manualPending_ || offlinePending_) {
+    if (!RefuseBusy(message)) Close();
+    return;
+  }
+  auto progress = DeviceControlRuntime::RecoveryProgress::Rejected;
+  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
+    if (!session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) ||
+        !recovery_.InspectionAllowsRecovery()) return;
+    progress = runtime_.BeginInspectedRecovery(recoveryHandle_);
+    if (progress != DeviceControlRuntime::RecoveryProgress::Pending) return;
+    pendingRecovery_ = message;
+    pendingRecoveryHandle_ = handle_;
+    pendingRecoverySession_ = session_.get();
+    recoveryPending_ = true;
+  });
+  if (!current || progress == DeviceControlRuntime::RecoveryProgress::Pending) return;
+  runtime_.FinishInspectedRecovery(recoveryHandle_);
+  FinishReset(message, progress, nowMs);
+}
+
+void LocalControlOwner::FinishReset(const LocalControlMessage& message,
+    DeviceControlRuntime::RecoveryProgress progress, uint64_t nowMs) {
+  if (!ControlAck(message, progress == DeviceControlRuntime::RecoveryProgress::Succeeded
+      ? LocalControlError::None : LocalControlError::RecoveryRequired)) Close();
+  else if (session_) {
+    gateway_->OnControlTransition();
+    Snapshot(nowMs);
+  }
+}
+
+void LocalControlOwner::OfflineCommand(const LocalControlMessage& message, uint64_t nowMs) {
+  bool result = false;
+  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
+    if (!offlinePending_) offlineArmHandoff_ = false;
+    result = AcceptOfflineCommand(message, false);
+    if (!offlineCallPending_) return;
+    pendingOffline_ = message;
+    pendingOfflineHandle_ = handle_;
+    pendingOfflineSession_ = session_.get();
+    offlinePending_ = true;
+  });
+  if (!current || offlineCallPending_) return;
+  FinishOfflineCommand(message, result, nowMs);
+}
+
+bool LocalControlOwner::AcceptOfflineCommand(const LocalControlMessage& message, bool retry) {
+  offlineCallPending_ = false;
+  if (!offline_) return false;
+  if (voice_) offline_->SetVoice(voice_->VoiceStatus().voice);
+  const bool dancing = dance_ && kufr::dance::IsDanceActive(dance_->DanceState());
+  bool result = true;
+  if (message.kind == LocalControlMessageKind::OfflineArm) {
+    if (maintenance_ || dancing) return false;
+    if (!retry || !offlineArmHandoff_) {
+      ConversationRuntimeSnapshot before;
+      const auto voice = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};
+      const bool voiceIdle = voice.phase == "idle" || voice.phase == "unavailable" ||
+          voice.phase == "completed" || voice.phase == "failed";
+      if (!voiceIdle || !session_->OwnsLiveLease(bootId_, message.controlLeaseId, clock_.NowMs()) ||
+          !runtimeState_.Read(before) || before.generation != message.generation ||
+          before.deviceRevision != message.expectedRevision || std::string(offline_->Preflight()) != "ready") return false;
+      if (voice_) voice_->StopVoice();
+      if (!session_->HandoffToOffline(bootId_, message.controlLeaseId, clock_.NowMs())) return false;
+      ConversationRuntimeSnapshot after;
+      if (!runtimeState_.Read(after)) return false;
+      offlineArmGeneration_ = after.generation;
+      offlineArmRevision_ = after.deviceRevision;
+      offlineArmHandoff_ = true;
+    }
+    result = offline_->Arm(offlineArmGeneration_, offlineArmRevision_);
+  } else if (message.kind == LocalControlMessageKind::OfflineStart) {
+    if (maintenance_ || dancing) return false;
+    result = offline_->Start(message.messageId, message.compartment, message.shortVariant,
+        message.generation, message.expectedRevision, clock_.NowMs(), false, message.operationEpoch);
+  } else if (message.kind == LocalControlMessageKind::Quiet) result = offline_->Quiet(message.enabled);
+  else if (message.kind == LocalControlMessageKind::OfflineAmbient) result = offline_->ConfigureAmbient(message.enabled);
+  else if (message.kind == LocalControlMessageKind::OfflineSyncAck)
+    result = offline_->Acknowledge(message.commandId, message.operationEpoch);
+  offlineCallPending_ = !result && offline_->LastOperationIsPending();
+  return result;
+}
+
+void LocalControlOwner::FinishOfflineCommand(const LocalControlMessage& message, bool result, uint64_t nowMs) {
+  std::string error;
+  if (!result) {
+    error = offline_ ? offline_->Preflight() : "unsupported";
+    if (error == "ready") error = "busy_or_stale";
+  }
+  if (!output_.OfflineAck(handle_, message, result, error, offline_ ? offline_->StatusJson() : "null",
+      message.kind == LocalControlMessageKind::OfflineOutbox && offline_ ? offline_->OutboxJson(includeOperationEpoch_) : "")) {
+    Close();
+  } else if (session_) {
+    gateway_->OnControlTransition();
+    Snapshot(nowMs);
+  }
+}
+
+bool LocalControlOwner::ControlAck(
+    const LocalControlMessage& message, LocalControlError error) {
+  // Older strict v1 clients only understand the authoritative snapshot.
+  return !message.acknowledge || output_.ControlAck(handle_, message, error);
+}
+
+bool LocalControlOwner::RefuseBusy(const LocalControlMessage& message) {
+  switch (message.kind) {
+    case LocalControlMessageKind::Acquire:
+    case LocalControlMessageKind::Reset:
+      return ControlAck(message, LocalControlError::Busy);
+    case LocalControlMessageKind::VoiceStart:
+    case LocalControlMessageKind::VoiceConfigure:
+      return output_.VoiceAck(handle_, message, false);
+    case LocalControlMessageKind::DanceStart:
+      return output_.DanceAck(handle_, message, false);
+    case LocalControlMessageKind::OfflineArm:
+    case LocalControlMessageKind::OfflineStart:
+    case LocalControlMessageKind::Quiet:
+    case LocalControlMessageKind::OfflineAmbient:
+    case LocalControlMessageKind::OfflineSyncAck:
+      return output_.OfflineAck(handle_, message, false, "busy_or_stale",
+          offline_ ? offline_->StatusJson() : "null", "");
+    case LocalControlMessageKind::Selection:
+    case LocalControlMessageKind::Reload:
+      return output_.CommandAck(handle_, message,
+          {CommandError::Busy, CommandOutcome::Rejected, false});
+    default:
+      return false;
+  }
+}
+
 void LocalControlOwner::Selection(
     const LocalControlMessage& message, uint64_t nowMs) {
+  ManualCommand(message, nowMs);
+}
+
+void LocalControlOwner::Reload(
+    const LocalControlMessage& message, uint64_t nowMs) {
+  ManualCommand(message, nowMs);
+}
+
+void LocalControlOwner::ClearPendingManual() {
+  WipeText(pendingManual_.text);
+  pendingManual_ = {};
+  pendingManualHandle_ = {};
+  pendingManualSession_ = nullptr;
+  manualPending_ = false;
+}
+
+void LocalControlOwner::ManualCommand(
+    const LocalControlMessage& message, uint64_t nowMs) {
+  CommandReceipt receipt;
+  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
+    receipt = AcceptManualCommand(message);
+    if (receipt.deferred) {
+      pendingManual_ = message;
+      pendingManualHandle_ = handle_;
+      pendingManualSession_ = session_.get();
+      manualPending_ = true;
+    }
+  });
+  if (!current || receipt.deferred) return;
+  FinishManualCommand(message, receipt, nowMs);
+}
+
+CommandReceipt LocalControlOwner::AcceptManualCommand(
+    const LocalControlMessage& message) {
+  // Called only under the inbox guard. Recheck time/lease on every storage retry.
+  const uint64_t acceptedAtMs = clock_.NowMs();
+  const bool ownsLease = session_->OwnsLiveLease(
+      bootId_, message.controlLeaseId, acceptedAtMs);
+  if (maintenance_ || (dance_ && kufr::dance::IsDanceActive(dance_->DanceState()))) {
+    if (manualPending_) {
+      // A trusted maintenance transition must invalidate the runtime intent as
+      // well as its transport retry, even if storage has already committed it.
+      SelectionStep stopped;
+      runtime_.Stop(stopped);
+      steps_.OnStep(stopped);
+    }
+    return {CommandError::Busy, CommandOutcome::Rejected, false};
+  }
+  if (message.kind == LocalControlMessageKind::Reload) {
+    InventoryReloadCommand command;
+    command.operationEpoch = message.operationEpoch;
+    command.commandId = message.commandId;
+    command.deviceId = message.deviceId;
+    command.bootId = message.bootId;
+    command.controlLeaseId = message.controlLeaseId;
+    command.sequence = message.sequence;
+    command.expectedRevision = message.expectedRevision;
+    command.issuedAtDeviceMs = message.issuedAtDeviceMs;
+    command.maxAgeMs = message.maxAgeMs;
+    command.compartment = message.compartment;
+    command.inspectionConfirmed = true;
+    return runtime_.ConfirmReload(command, ownsLease, acceptedAtMs);
+  }
   SelectionCommand command;
+  command.operationEpoch = message.operationEpoch;
   command.commandId = message.commandId;
   command.deviceId = message.deviceId;
   command.bootId = message.bootId;
@@ -376,22 +711,19 @@ void LocalControlOwner::Selection(
   command.maxAgeMs = message.maxAgeMs;
   command.compartment = message.compartment;
   command.source = message.source;
-  CommandReceipt receipt;
-  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
-    const uint64_t acceptedAtMs = clock_.NowMs();
-    receipt = runtime_.AcceptSelection(
-        command,
-        session_->OwnsLiveLease(bootId_, message.controlLeaseId, acceptedAtMs),
-        acceptedAtMs);
-  });
-  if (!current) {
-    return;
-  }
+  return runtime_.AcceptSelection(command, ownsLease, acceptedAtMs);
+}
+
+void LocalControlOwner::FinishManualCommand(
+    const LocalControlMessage& message, const CommandReceipt& receipt,
+    uint64_t nowMs) {
+  // Transport stays outside the guard, and motion still requires its final ACK.
   if (!output_.CommandAck(handle_, message, receipt)) {
     Close();
     return;
   }
-  if (receipt.error == CommandError::None && !receipt.duplicate) {
+  if (message.kind == LocalControlMessageKind::Selection &&
+      receipt.error == CommandError::None && !receipt.duplicate) {
     inbox_.RunIfCurrent(handle_, [&]() {
       SelectionStep step;
       const bool began = runtime_.BeginAcceptedSelection(clock_.NowMs(), step);
@@ -399,38 +731,6 @@ void LocalControlOwner::Selection(
         steps_.OnStep(step);
       }
     });
-  }
-  gateway_->OnControlTransition();
-  Snapshot(nowMs);
-}
-
-void LocalControlOwner::Reload(
-    const LocalControlMessage& message, uint64_t nowMs) {
-  InventoryReloadCommand command;
-  command.commandId = message.commandId;
-  command.deviceId = message.deviceId;
-  command.bootId = message.bootId;
-  command.controlLeaseId = message.controlLeaseId;
-  command.sequence = message.sequence;
-  command.expectedRevision = message.expectedRevision;
-  command.issuedAtDeviceMs = message.issuedAtDeviceMs;
-  command.maxAgeMs = message.maxAgeMs;
-  command.compartment = message.compartment;
-  command.inspectionConfirmed = true;
-  CommandReceipt receipt;
-  const bool current = inbox_.RunIfCurrent(handle_, [&]() {
-    const uint64_t acceptedAtMs = clock_.NowMs();
-    receipt = runtime_.ConfirmReload(
-        command,
-        session_->OwnsLiveLease(bootId_, message.controlLeaseId, acceptedAtMs),
-        acceptedAtMs);
-  });
-  if (!current) {
-    return;
-  }
-  if (!output_.CommandAck(handle_, message, receipt)) {
-    Close();
-    return;
   }
   gateway_->OnControlTransition();
   Snapshot(nowMs);

@@ -1,4 +1,5 @@
 using Kufr.Backend.Features.GptLive;
+using Kufr.Backend.Features.DeviceMedia;
 using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.ModelReleases;
 using Kufr.Backend.Features.Access;
@@ -190,6 +191,7 @@ app.MapCostumeImages();
 app.MapRealtimeTurns();
 app.MapRealtimeLive();
 app.MapGptLive();
+app.MapDeviceMedia();
 app.MapMemoryAdministration();
 app.MapServerModes();
 app.MapServerLogs();

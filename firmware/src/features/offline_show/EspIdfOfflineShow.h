@@ -1,22 +1,11 @@
 #pragma once
 #include <atomic>
-#include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "OfflineShow.h"
+#include "EspIdfOfflineOutboxStorage.h"
 #include "../voice_turn/VoiceAudioPort.h"
 
 namespace kufr { namespace offline {
-class EspIdfOutboxStorage final : public StoragePort {
- public:
-  explicit EspIdfOutboxStorage(bool initialized);
-  bool Read(Outbox& outbox) override;
-  bool Write(const Outbox& outbox) override;
- private:
-  nvs_handle_t handle_ = 0;
-  bool opened_ = false;
-};
-
 // One bounded worker streams bank or owned online PCM through the existing owner.
 // The control owner retains each requested Clip and its bytes until Busy clears.
 class EspIdfOfflineAudio final : public AudioPort {

@@ -62,7 +62,7 @@ TurnPollHttpResult EspIdfTurnPollTransport::Poll(
     uint64_t currentGeneration, uint64_t currentDeviceRevision,
     const std::string& currentCatalogVersion, uint8_t currentReadyMask,
     uint64_t nowUtcSeconds,
-    const char* accessToken) {
+    const char* accessToken, uint64_t currentOperationEpoch) {
   TurnPollHttpResult response;
   if (!IsConfigured() || !IsConversationUuid(operationId) ||
       !IsSafeAccessToken(accessToken)) {
@@ -110,7 +110,7 @@ TurnPollHttpResult EspIdfTurnPollTransport::Poll(
       response.decision = EvaluateTurnOperationWithProposal(
           operationId, expected, currentGeneration,
           currentDeviceRevision, currentCatalogVersion, currentReadyMask,
-          nowUtcSeconds, observed);
+          nowUtcSeconds, observed, currentOperationEpoch);
       if (response.decision == TurnPollDecision::ReplyReady ||
           response.decision == TurnPollDecision::ProposalReady) {
         response.reply = observed.reply;

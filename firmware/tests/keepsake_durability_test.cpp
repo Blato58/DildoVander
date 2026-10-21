@@ -124,8 +124,10 @@ void RecoveryRequiresConfirmedPhysicalJournal() {
 void CommittedMarkerDespiteAckFailureIsHistoricalEvidence() {
   Fixture fixture;
   fixture.Begin();
-  assert(fixture.runtime.CompleteAutonomousPresentation(3, AmbiguousMarkerAck, &fixture.storage));
-  // Current owner suppresses DV10 on uncertain storage acknowledgement.
+  assert(!fixture.runtime.CompleteAutonomousPresentation(3, AmbiguousMarkerAck, &fixture.storage));
+  assert(fixture.runtime.NeedsRecovery());
+  // A lost proof ACK cannot report live success. Reopening may still recover
+  // the already-validated historical proof from committed bytes.
   assert(!fixture.journal.IsHealthy() && !fixture.journal.WasTimedPresentationCompleted(PhysicalId, 3));
   // Reboot reads valid committed bytes after the exact already-validated timed completion.
   PersistentCommandJournal rebootedJournal(fixture.storage);
@@ -142,7 +144,7 @@ void LateFailedStoppedAndLegacyNeverRecover() {
     Fixture fixture;
     fixture.Begin();
     if (scenario == 0) assert(!fixture.runtime.CompleteAutonomousPresentation(3, TooLate));
-    if (scenario == 1) assert(fixture.runtime.CompleteAutonomousPresentation(3, FailMarker, &fixture.storage));
+    if (scenario == 1) assert(!fixture.runtime.CompleteAutonomousPresentation(3, FailMarker, &fixture.storage));
     if (scenario == 2) { SelectionStep step; fixture.runtime.Stop(step); }
     assert(!fixture.journal.WasTimedPresentationCompleted(PhysicalId, 3));
     PersistentCommandJournal restarted(fixture.storage);
@@ -153,13 +155,21 @@ void LateFailedStoppedAndLegacyNeverRecover() {
     assert(outbox.State().quarantined.front().reason == "physical_outcome_unknown");
   }
   Storage legacy;
-  PersistentCommandJournal journal(legacy);
-  assert(journal.PersistReadyMask(63));
-  assert(journal.BeginWithIdentity(PhysicalId, 3, 1234));
-  assert(journal.ResolveRestored(3));
+  // A genuine completed v2 record has no timed-completion marker. Keep this
+  // fixed historical layout independent of the current journal encoder.
+  legacy.bytes.assign(44 + 32 * 45, 0);
+  const uint8_t magic[] = {'K', 'J', 'R', '1'};
+  std::copy(magic, magic + sizeof(magic), legacy.bytes.begin());
   legacy.bytes[4] = 2;
+  legacy.bytes[5] = 63;
+  legacy.bytes[7] = 1;
+  std::copy(PhysicalId, PhysicalId + 36, legacy.bytes.begin() + 44);
+  legacy.bytes[44 + 36] = 3;
+  for (unsigned byte = 0; byte < 8; ++byte)
+    legacy.bytes[44 + 37 + byte] = static_cast<uint8_t>(UINT64_C(1234) >> (8 * byte));
   PersistentCommandJournal old(legacy);
   assert(old.IsHealthy() && !old.WasTimedPresentationCompleted(PhysicalId, 3));
+  assert(old.Find(PhysicalId, 3, 1234) == CommandJournal::Lookup::Same);
   KeepsakeOutbox outbox;
   assert(outbox.Restore({}, {}, {Prepared()}));
   assert(outbox.RecoverPrepared(old) && outbox.Snapshot().empty());

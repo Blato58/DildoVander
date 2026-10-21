@@ -287,6 +287,11 @@
       "Features/Realtime/RealtimeLiveEndpoints.cs"
     ],
     [
+      "GET",
+      "/v1/conversations/{id}/device-media",
+      "Features/DeviceMedia/DeviceMediaEndpoints.cs"
+    ],
+    [
       "POST",
       "/v1/conversations/{id}/gpt-live",
       "Features/GptLive/GptLiveEndpoints.cs"

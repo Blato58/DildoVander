@@ -18,6 +18,10 @@ internal sealed partial class OperationJournal
         {
             return MarkCompleted(operationId);
         }
+        if (!OperationEpoch.IsValid(proposal.OperationEpoch))
+        {
+            return false;
+        }
         using var connection = Open();
         EnsureKeepsakeOutbox(connection);
         using var transaction = connection.BeginTransaction();
@@ -25,9 +29,11 @@ internal sealed partial class OperationJournal
         command.Transaction = transaction;
         command.CommandText = """
             UPDATE turn_operations SET status = 'completed'
-            WHERE operation_id = $operation AND status IN ('pending', 'running');
+            WHERE operation_id = $operation AND status IN ('pending', 'running')
+              AND COALESCE(operation_epoch, '0') = $operationEpoch;
             """;
         command.Parameters.AddWithValue("$operation", operationId);
+        command.Parameters.AddWithValue("$operationEpoch", OperationEpoch.Key(proposal.OperationEpoch));
         if (command.ExecuteNonQuery() != 1)
         {
             return false;

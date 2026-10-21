@@ -45,7 +45,10 @@ class PhysicalEffects final {
                          uint8_t level);
   bool StartVibration(uint8_t compartment);
   bool Move(uint8_t compartment, bool raise);
-  bool Healthy() const { return configured_ && !fault_; }
+  // Passive boot evidence never authorizes motion or confirms tray positions.
+  // Actual I/O and control-loop failures remain latched until service recovery.
+  bool PassiveHealthy() const { return configured_ && observed_ && !fault_; }
+  bool Healthy() const { return PassiveHealthy() && !inspectionRequired_; }
   bool Ready(uint8_t compartment) const;
   uint32_t MotionTimeoutMs(uint8_t compartment) const;
   bool IsRaised(uint8_t compartment) const;
@@ -62,5 +65,6 @@ class PhysicalEffects final {
   uint8_t restingMask_ = 0, raisedMask_ = 0;
   uint64_t revision_ = 0, nowMs_ = 0, lastPass_ = 0, activeAt_ = 0;
   uint8_t active_ = 0;
-  bool configured_ = false, fault_ = true, observed_ = false, servo_ = false, raising_ = false;
+  bool configured_ = false, fault_ = false, inspectionRequired_ = true;
+  bool observed_ = false, servo_ = false, raising_ = false;
 };

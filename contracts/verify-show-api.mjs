@@ -60,6 +60,14 @@ const outcome = { operationId: '11111111-1111-4111-8111-111111111111', deviceId:
   startedAtDeviceMs: 1000, completedAtDeviceMs: 12000,
   timeConfidence: 'boot_monotonic', outcome: 'completed_by_timing' };
 validate('OfflineOutcomeRequest', { schemaVersion: 1, outcome }, true);
+for (const operationEpoch of ['0', '9007199254740993', '18446744073709551615']) {
+  validate('OfflineOutcomeRequest', { schemaVersion: 1, outcome: { ...outcome, operationEpoch } }, true);
+  validate('ImportedOfflineOutcome', { schemaVersion: 1, operationId: outcome.operationId,
+    eveningId: outcome.localEveningId, locator: outcome.operationId, duplicate: true, operationEpoch }, true);
+}
+for (const operationEpoch of [null, 1, '', '01', '+1', '1.0', '18446744073709551616']) {
+  validate('OfflineOutcomeRequest', { schemaVersion: 1, outcome: { ...outcome, operationEpoch } }, false);
+}
 validate('OfflineOutcomeRequest', { schemaVersion: 1, outcome: { ...outcome, outcome: 'pending' } }, false);
 validate('OfflineOutcomeRequest', { schemaVersion: 1, outcome: { ...outcome, eveningId: 'active' } }, false);
 console.log('Show HTTP contract: source routes, scopes, bounded commands, duel moves and offline outcomes passed.');

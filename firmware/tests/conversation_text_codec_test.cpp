@@ -30,6 +30,13 @@ int main() {
          "\"generation\":0,\"text\":\"Ahoj\",\"readyMask\":63,"
          "\"deviceRevision\":4,\"catalogVersion\":\"demo-v1\"}");
 
+  request.operationEpoch = UINT64_MAX;
+  assert(BuildConversationTextTurnRequest(request, body));
+  assert(body.find("\"operationEpoch\":\"18446744073709551615\"") != std::string::npos);
+  std::string scopedReplay;
+  assert(BuildConversationTextTurnRequest(request, scopedReplay) && scopedReplay == body);
+  request.operationEpoch = 0;
+
   request.text.clear();
   assert(BuildConversationOpeningRequest(request, body));
   assert(body ==
@@ -37,6 +44,11 @@ int main() {
          "\"bootId\":\"c85743d5-1b72-41b8-8500-ae3c102b27d6\","
          "\"generation\":0,\"readyMask\":63,"
          "\"deviceRevision\":4,\"catalogVersion\":\"demo-v1\"}");
+  request.operationEpoch = UINT64_MAX;
+  assert(BuildConversationOpeningRequest(request, body));
+  assert(body.find("\"operationEpoch\":\"18446744073709551615\"") != std::string::npos);
+  assert(BuildConversationOpeningRequest(request, scopedReplay) && scopedReplay == body);
+  request.operationEpoch = 0;
   request.text = "invented visitor text";
   assert(!BuildConversationOpeningRequest(request, body));
   request = Request();

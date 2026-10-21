@@ -17,11 +17,14 @@ LocalSocketAdmission::ReserveResult LocalSocketAdmission::TryReserve(
     int socket, const char* authorization, size_t length, uint64_t nowMs,
     Handle& handle) {
   handle = {};
+  std::lock_guard<std::mutex> lock(mutex_);
+  // Do not enter the credential mutex while rotation may be stalled in NVS.
+  // The same lock linearizes normal authentication with acquiring this hold.
+  if (recoveryHeld_) return ReserveResult::Busy;
   if (socket < 0) {
     return ReserveResult::Unauthorized;
   }
 
-  std::lock_guard<std::mutex> lock(mutex_);
   if (!authenticator_.Authenticate(authorization, length)) {
     return ReserveResult::Unauthorized;
   }
@@ -35,6 +38,18 @@ LocalSocketAdmission::ReserveResult LocalSocketAdmission::TryReserve(
   reservedAtMs_ = nowMs;
   handle = {socket_, generation_};
   return ReserveResult::Accepted;
+}
+
+bool LocalSocketAdmission::BeginRecovery() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (state_ != State::Empty || recoveryHeld_) return false;
+  recoveryHeld_ = true;
+  return true;
+}
+
+void LocalSocketAdmission::EndRecovery() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  recoveryHeld_ = false;
 }
 
 bool LocalSocketAdmission::Confirm(const Handle& handle, uint64_t nowMs) {

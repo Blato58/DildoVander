@@ -107,6 +107,7 @@ internal sealed partial class ConversationStore
     internal SubmitTurnResult SubmitImage(string deviceId, string id, Guid key, CostumeImageUpload upload)
     {
         if (IsLabConversation(deviceId, id)) { return new(403, null, "lab_hardware_image_forbidden"); }
+        if (!OperationEpoch.IsValid(upload.OperationEpoch)) { return new(400, null, "invalid_request"); }
         if (!CostumeJpeg.IsValid(upload.Jpeg) || !CanDecodeImage(upload.Jpeg))
         { return new(400, null, "invalid_image"); }
         var route = $"/v1/conversations/{id}/image";
@@ -140,7 +141,7 @@ internal sealed partial class ConversationStore
             try
             {
                 var correlation = new TurnCorrelation(deviceId, upload.BootId, id, upload.ClientTurnId,
-                    upload.Generation, upload.DeviceRevision);
+                    upload.Generation, upload.DeviceRevision, upload.OperationEpoch);
                 var reservation = journal.Reserve(deviceId, route, key, hash, correlation, kind: "image",
                     consumesTurn: false, estimatedCostMicroUsd: paid ? CostumeImageClient.ReservationMicroUsd : 0);
                 if (reservation.Conflict) { return new(409, null, "idempotency_conflict"); }
@@ -208,7 +209,8 @@ internal sealed partial class ConversationStore
             var conversation = conversations[id];
             if (conversation.CostumeCorrectionCount >= 8) { return new(429, null); }
             var reservation = journal.Reserve(deviceId, route, key, hash,
-                new(deviceId, correlation.BootId, id, correlation.ClientTurnId, correlation.Generation, correlation.DeviceRevision),
+                new(deviceId, correlation.BootId, id, correlation.ClientTurnId, correlation.Generation,
+                    correlation.DeviceRevision, correlation.OperationEpoch),
                 kind: "costume", consumesTurn: false);
             if (reservation.Conflict) { return new(409, null); }
             conversation.ManualCostume = true;
@@ -233,7 +235,8 @@ internal sealed partial class ConversationStore
                 }
             }
             var operation = new TurnOperation(reservation.OperationId, "costume", "completed",
-                new(deviceId, correlation.BootId, id, correlation.ClientTurnId, correlation.Generation, correlation.DeviceRevision), context, null);
+                new(deviceId, correlation.BootId, id, correlation.ClientTurnId, correlation.Generation,
+                    correlation.DeviceRevision, correlation.OperationEpoch), context, null);
             operations.Add(operation.OperationId, operation);
             journal.MarkCompleted(operation.OperationId);
             return new(200, operation);
@@ -243,8 +246,11 @@ internal sealed partial class ConversationStore
     private SubmitTurnResult? ValidateCostumeAccess(string device, string id, CostumeImageUpload upload, bool requireConsent)
     {
         if (IsLabConversation(device, id)) { return new(403, null, "lab_hardware_image_forbidden"); }
+        if (!OperationEpoch.IsValid(upload.OperationEpoch)) { return new(400, null, "invalid_request"); }
         if (!conversations.TryGetValue(id, out var conversation)) { return new(404, null, "conversation_not_found"); }
         if (conversation.DeviceId != device) { return new(403, null, "device_scope_mismatch"); }
+        if (!OperationEpoch.Same(conversation.OperationEpoch, upload.OperationEpoch))
+        { return new(409, null, "conversation_version_mismatch"); }
         if (requireConsent && !conversation.ImageConsented && !upload.ExplicitConsent) { return new(403, null, "image_consent_required"); }
         if (conversation.BootId != upload.BootId || conversation.Generation != upload.Generation
             || conversation.CatalogVersion != upload.CatalogVersion)
@@ -259,6 +265,14 @@ internal sealed partial class ConversationStore
         hash.AppendData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {
             upload.ClientTurnId, upload.BootId, upload.Generation, upload.DeviceRevision, upload.CatalogVersion,
             upload.ImageId, upload.Source, upload.CapturedAt, upload.Revision, upload.ExplicitConsent })));
+        // Preserve historical hashes for absent/explicit zero. A scoped retry
+        // cannot resolve an epoch-zero journal entry before access validation.
+        if (OperationEpoch.Key(upload.OperationEpoch) != "0")
+        {
+            hash.AppendData("\0operationEpoch\0"u8);
+            hash.AppendData(Encoding.UTF8.GetBytes(upload.OperationEpoch!));
+            hash.AppendData("\0"u8);
+        }
         hash.AppendData(bytes);
         return Convert.ToHexString(hash.GetHashAndReset());
     }

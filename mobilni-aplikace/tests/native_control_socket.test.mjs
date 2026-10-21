@@ -140,6 +140,41 @@ test('native manual path uses strict shared schema and matching identity before 
   assert.equal(connection.snapshot().phase, 'disconnected');
 });
 
+test('native strict decoder accepts negotiated control refusal and keeps Stop available', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+    parseFrame: (frame) => validateControlMessage(new TextEncoder().encode(frame)),
+  });
+  await settle();
+  native.emit('open');
+  await settle();
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  native.emit('frame', JSON.stringify({
+    protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId,
+    snapshot: { ...fixture, capabilities: [...fixture.capabilities, 'controlAck'], controlMode: 'standalone', controlLeaseId: null },
+  }));
+  assert.equal(connection.acquire(), true);
+  await settle();
+  const request = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(request.acknowledge, true);
+  native.emit('frame', JSON.stringify({
+    protocolVersion: 1, type: 'control.ack', bootId: fixture.bootId,
+    requestMessageId: request.messageId, operation: request.type,
+    revision: fixture.revision, eventSequence: fixture.eventSequence + 1,
+    accepted: false, errorCode: 'busy',
+  }));
+  assert.equal(connection.snapshot().busy, false);
+  assert.equal(connection.snapshot().phase, 'ready');
+  assert.match(connection.snapshot().status, /zaneprázdněný/);
+  assert.equal(native.closed.length, 0);
+  connection.stop();
+  await settle();
+  assert.equal(validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame)).type, 'safety.stop');
+  connection.suspend();
+});
+
 test('malformed, duplicate, oversized and wrong-device snapshots close native control', async () => {
   for (const bad of [
     '{"protocolVersion":1,"protocolVersion":1,"type":"state.snapshot"}',
@@ -465,5 +500,43 @@ test('old socket close cannot invalidate a pending offline command on its replac
     requestMessageId: ambientCommand.messageId, bootId: fixture.bootId, accepted: true,
     errorCode: null, offline: offlineFixture({ quiet: false, ambientEnabled: true, generation: 2 }) }) });
   assert.equal((await ambient).ambientEnabled, true);
+  connection.suspend();
+});
+
+
+test('native epoch negotiation waits for validated metadata and scopes only new physical intent', async () => {
+  const native = bridge();
+  const connection = new ProtocolDeviceConnection(() => {}, {
+    source: 'native-device', deviceId: fixture.deviceId,
+    createSocket: () => new NativeControlSocket(native),
+    parseFrame: frame => validateControlMessage(new TextEncoder().encode(frame)),
+  });
+  await settle(); native.emit('open'); await settle();
+  const hello = JSON.parse(native.sent.at(-1).frame);
+  const leaseId = randomUUID();
+  const state = { ...fixture, capabilities: [...fixture.capabilities, 'operationEpoch'],
+    controlMode: 'manual', controlLeaseId: leaseId };
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId, snapshot: state }));
+  await settle();
+  const metadata = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(metadata.type, 'state.get'); assert.equal(metadata.includeOperationEpoch, true);
+  assert.equal(connection.select(1), false);
+  native.emit('frame', JSON.stringify({ ...state, eventSequence: fixture.eventSequence + 1, operationEpoch: '18446744073709551615' }));
+  assert.equal(connection.select(1), true); await settle();
+  const heartbeat = JSON.parse(native.sent.at(-1).frame);
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'heartbeat.ack', requestMessageId: heartbeat.messageId,
+    bootId: fixture.bootId, controlLeaseId: leaseId, revision: fixture.revision, deviceUptimeMs: 100 }));
+  await settle();
+  const command = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(command.operationEpoch, '18446744073709551615');
+  native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'command.ack', commandId: command.commandId,
+    bootId: fixture.bootId, eventSequence: fixture.eventSequence + 2, revision: fixture.revision,
+    status: 'rejected', errorCode: 'wrong_operation_epoch' }));
+  await settle();
+  assert.equal(native.closed.length, 0);
+  assert.equal(JSON.parse(native.sent.at(-1).frame).includeOperationEpoch, true);
+  connection.stop(); await settle();
+  const stop = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+  assert.equal(stop.type, 'safety.stop'); assert.equal(Object.hasOwn(stop, 'operationEpoch'), false);
   connection.suspend();
 });

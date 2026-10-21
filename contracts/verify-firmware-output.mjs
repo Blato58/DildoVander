@@ -10,6 +10,11 @@ const messages = lines.map((line) => validateControlMessage(Buffer.from(line)));
 const snapshots = messages.flatMap((message) => message.type === 'welcome'
   ? [message.snapshot] : message.type === 'state.snapshot' ? [message] : []);
 
+assert.ok(snapshots.some(state => state.operationEpoch === '0'));
+assert.ok(snapshots.some(state => state.operationEpoch === '18446744073709551615'));
+assert.ok(snapshots.some(state => !Object.hasOwn(state, 'operationEpoch')));
+assert.ok(messages.filter(message => message.type === 'welcome').every(message => !Object.hasOwn(message.snapshot, 'operationEpoch')));
+assert.ok(messages.some(message => message.type === 'command.ack' && message.errorCode === 'wrong_operation_epoch'));
 assert.ok(snapshots.some((state) => state.calibrationRevision === 0 &&
   state.readyMask === 0 && state.phase === 'recoveryRequired'));
 assert.ok(snapshots.some((state) => state.faults.includes('journal_failed') &&
@@ -31,6 +36,15 @@ for (const result of results) {
   assert.equal(result.requiresReload, true);
 }
 const voiceAcks = messages.filter(message => message.type === 'voice.ack');
+const controlAcks = messages.filter(message => message.type === 'control.ack');
+assert.equal(controlAcks.length, 12);
+for (const operation of ['control.acquire', 'control.release', 'safety.reset']) {
+  const acks = controlAcks.filter(message => message.operation === operation);
+  assert.equal(acks.length, 4);
+  assert.ok(acks.some(message => message.accepted && message.errorCode === null));
+  assert.deepEqual(acks.filter(message => !message.accepted).map(message => message.errorCode).sort(),
+    ['busy', 'controller_busy', 'recovery_required']);
+}
 assert.ok(messages.some(message => message.type === 'dance.ack' && message.accepted && message.dance.track === 'song.wav'));
 assert.ok(snapshots.some(snapshot => snapshot.phase === 'dancing' && snapshot.dance.bpm === 120));
 assert.equal(voiceAcks.length, 2);

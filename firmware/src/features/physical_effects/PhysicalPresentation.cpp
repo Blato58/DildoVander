@@ -11,24 +11,108 @@ uint64_t ScoreFingerprint(bool repeat) {
 }
 }
 
+uint64_t PhysicalPresentation::OperationFingerprint(bool shortVariant) {
+  return ScoreFingerprint(shortVariant);
+}
+
+uint64_t PhysicalPresentation::CurrentOperationFingerprint() const {
+  if (phase_ != Phase::Idle || !runtime_.CanCaptureOwnedPresentationFingerprint() ||
+      !effects_.Healthy()) return 0;
+  return ScoreFingerprint(repeat_);
+}
 
 bool PhysicalPresentation::SelectVariant(bool shortVariant) {
-  if (phase_ != Phase::Idle || runtime_.HasAutonomousPresentation() ||
-      runtime_.HasDecoration()) return false;
+  if (phase_ != Phase::Idle || claimedAdmission_ || runtime_.HasAutonomousPresentation() ||
+      runtime_.HasStorageWork() || runtime_.HasDecoration()) return false;
   repeat_ = shortVariant;
   return true;
+}
+
+bool PhysicalPresentation::ValidateClaimedOperation(
+    const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+    uint64_t calibrationRevision, uint64_t nowMs) const {
+  return phase_ == Phase::Idle && claim.IsLive(nowMs) &&
+      fingerprint == ScoreFingerprint(repeat_) &&
+      calibrationRevision == effects_.CalibrationRevision() &&
+      effects_.Healthy() && effects_.Ready(claim.Proposal().compartment) &&
+      effects_.IsResting(claim.Proposal().compartment) &&
+      runtime_.ValidateClaimedAutonomousPresentation(claim, fingerprint, calibrationRevision, nowMs);
+}
+
+WandAdmissionProgress PhysicalPresentation::ReserveClaimedOperation(
+    const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+    uint64_t calibrationRevision, uint64_t nowMs) {
+  if (!ValidateClaimedOperation(claim, fingerprint, calibrationRevision, nowMs))
+    return WandAdmissionProgress::Rejected;
+  claimedAdmission_ = true;
+  const auto result = runtime_.ReserveClaimedAutonomousPresentation(
+      claim, fingerprint, calibrationRevision, nowMs);
+  if (result == DeviceControlRuntime::PresentationProgress::Pending)
+    return WandAdmissionProgress::Pending;
+  return result == DeviceControlRuntime::PresentationProgress::Succeeded
+      ? WandAdmissionProgress::Succeeded : WandAdmissionProgress::Rejected;
+}
+
+WandAdmissionProgress PhysicalPresentation::BeginClaimedOperation(
+    const PendingProposal::ClaimedProposal& claim, uint64_t fingerprint,
+    uint64_t calibrationRevision, uint64_t acceptedAtMs, uint64_t nowMs) {
+  replayRejected_ = false;
+  if (!ValidateClaimedOperation(claim, fingerprint, calibrationRevision, nowMs))
+    return WandAdmissionProgress::Rejected;
+  claimedAdmission_ = true;
+  nowMs_ = nowMs;
+  const auto result = runtime_.BeginClaimedAutonomousPresentation(
+      claim, fingerprint, calibrationRevision, nowMs);
+  if (result == DeviceControlRuntime::PresentationProgress::Pending)
+    return WandAdmissionProgress::Pending;
+  if (result == DeviceControlRuntime::PresentationProgress::Rejected)
+    return WandAdmissionProgress::Rejected;
+  // The durable ACK can arrive after the call's input timestamp. No output may
+  // use an expired claim, changed calibration, or a renewed physical start time.
+  if (clockNowMs_) nowMs_ = clockNowMs_(clockContext_);
+  if (!claim.IsLive(nowMs_) || nowMs_ < nowMs || nowMs_ < acceptedAtMs ||
+      calibrationRevision != effects_.CalibrationRevision() ||
+      fingerprint != ScoreFingerprint(repeat_) ||
+      !effects_.Healthy() || !effects_.Ready(claim.Proposal().compartment) ||
+      !effects_.IsResting(claim.Proposal().compartment)) {
+    DisableAndFault();
+    return WandAdmissionProgress::Rejected;
+  }
+  claimedAdmission_ = false;
+  return StartEffects(claim.Proposal().compartment, claim.Proposal().proposalId,
+      claim.Snapshot(), acceptedAtMs, claim.DeadlineMs())
+      ? WandAdmissionProgress::Succeeded : WandAdmissionProgress::Rejected;
+}
+
+void PhysicalPresentation::CancelClaimedOperation() {
+  claimedAdmission_ = false;
+  runtime_.CancelClaimedAutonomousPresentation();
+}
+
+bool PhysicalPresentation::ReserveOperation(uint8_t compartment, const std::string& proposalId,
+                                          const ConversationRuntimeSnapshot& snapshot) {
+  return phase_ == Phase::Idle && effects_.Ready(compartment) && effects_.IsResting(compartment) &&
+      runtime_.ReserveAutonomousPresentation(proposalId, compartment, snapshot, ScoreFingerprint(repeat_));
 }
 
 bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposalId,
                                   const ConversationRuntimeSnapshot& snapshot) {
   const uint64_t acceptedAtMs = nowMs_;
-  replayRejected_ = runtime_.FindOperation(proposalId, compartment, ScoreFingerprint(repeat_))
-      != CommandJournal::Lookup::Missing;
+  replayRejected_ = runtime_.FindOperation(proposalId, compartment, ScoreFingerprint(repeat_),
+                                          snapshot.operationEpoch)
+      != CommandJournal::Lookup::Missing && !runtime_.HasAutonomousReservation(
+          proposalId, compartment, ScoreFingerprint(repeat_), snapshot.operationEpoch);
   if (replayRejected_) return false;
   if (proposalId.empty() || proposalId.size() > 96 ||
       phase_ != Phase::Idle || !effects_.Ready(compartment) ||
       !effects_.IsResting(compartment) ||
       !runtime_.BeginAutonomousPresentation(proposalId, compartment, snapshot, ScoreFingerprint(repeat_))) return false;
+  return StartEffects(compartment, proposalId, snapshot, acceptedAtMs);
+}
+
+bool PhysicalPresentation::StartEffects(uint8_t compartment,
+    const std::string& proposalId, const ConversationRuntimeSnapshot& snapshot,
+    uint64_t acceptedAtMs, uint64_t expiresAtMs) {
   diagnostics_ = PresentationDiagnostics{};
   diagnostics_.operationId = proposalId;
   diagnostics_.bootId = bootId_;
@@ -48,7 +132,7 @@ bool PhysicalPresentation::Raise(uint8_t compartment, const std::string& proposa
   faultReason_ = "recovery-required";
   const bool fresh = RefreshExecutionClock(acceptedAtMs);
   Trace("accepted", nowMs_, "commanded", "journal-persisted");
-  if (!fresh) { DisableAndFault(); return false; }
+  if (!fresh || nowMs_ >= expiresAtMs) { DisableAndFault(); return false; }
   if (nowMs_ - phaseAt_ >= CurrentStep().durationMs) {
     faultReason_ = "journal-expired-first-cue";
     DisableAndFault(); return false;
@@ -175,6 +259,19 @@ void PhysicalPresentation::Tick(uint64_t nowMs) {
     if (!TickAccent()) DisableAndFault();
     return;
   }
+  if (phase_ == Phase::Closing) {
+    // The first Complete call disabled outputs. Preserve physical health and
+    // cancellation checks, but only the close-ACK callback may mint timing
+    // evidence; proof ACK latency cannot extend or revalidate physical motion.
+    if (!effects_.Healthy() || !effects_.IsResting(compartment_) ||
+        nowMs < lastObservedAt_ || runtime_.Generation() != diagnostics_.generation ||
+        effects_.CalibrationRevision() != diagnostics_.calibrationId) {
+      DisableAndFault();
+    } else {
+      lastObservedAt_ = nowMs;
+    }
+    return;
+  }
   const uint64_t deadline = repeat_ ? PresentationScore::ShortDeadlineMs : PresentationScore::MainDeadlineMs;
   if (!effects_.Healthy() || nowMs < lastObservedAt_ || nowMs < phaseAt_ ||
       nowMs - startedAt_ >= deadline ||
@@ -186,6 +283,7 @@ void PhysicalPresentation::Tick(uint64_t nowMs) {
     case Phase::Idle:
     case Phase::Accent: return;
     case Phase::Pulse: return;
+    case Phase::Closing: return;
     case Phase::Score:
       if (nowMs - phaseAt_ < CurrentStep().durationMs) return;
       effects_.Disable();
@@ -248,13 +346,23 @@ bool PhysicalPresentation::Lower(uint8_t compartment) {
   return true;
 }
 bool PhysicalPresentation::Complete(uint8_t compartment) {
-  if (!IsResting(compartment)) return false;
-  completionIoStartedAtMs_ = nowMs_;
-  if (!RefreshExecutionClock(completionIoStartedAtMs_)) return false;
-  effects_.Disable();
-  const bool cleared = effects_.Highlight(0, 0, 0, 0);
-  if (!RefreshExecutionClock(completionIoStartedAtMs_) || !cleared || !effects_.Healthy() ||
-      !runtime_.CompleteAutonomousPresentation(compartment, ValidateCompletionClock, this)) return false;
+  if (phase_ != Phase::Closing) {
+    if (!IsResting(compartment)) return false;
+    completionIoStartedAtMs_ = nowMs_;
+    if (!RefreshExecutionClock(completionIoStartedAtMs_)) return false;
+    effects_.Disable();
+    const bool cleared = effects_.Highlight(0, 0, 0, 0);
+    if (!RefreshExecutionClock(completionIoStartedAtMs_) || !cleared || !effects_.Healthy()) return false;
+    phase_ = Phase::Closing;
+  }
+  if (compartment != compartment_ || !effects_.Healthy() || !effects_.IsResting(compartment) ||
+      runtime_.Generation() != diagnostics_.generation) {
+    completionPending_ = false;
+    return false;
+  }
+  const auto progress = runtime_.AdvanceAutonomousCompletion(compartment, ValidateCompletionClock, this);
+  completionPending_ = progress == DeviceControlRuntime::PresentationProgress::Pending;
+  if (progress != DeviceControlRuntime::PresentationProgress::Succeeded) return false;
   Trace("completed", nowMs_, "timed-complete", "calibrated-position-unmeasured");
   diagnostics_.state = "completed";
   diagnostics_.evidence = "timed-complete";
@@ -271,6 +379,8 @@ bool PhysicalPresentation::CancelOperation(const std::string& operationId, uint6
 }
 
 void PhysicalPresentation::DisableAndFault() {
+  if (claimedAdmission_) CancelClaimedOperation();
+  completionPending_ = false;
   if (phase_ != Phase::Idle) {
     Trace("fault", nowMs_, "unknown", faultReason_);
     diagnostics_.state = "fault";
@@ -308,7 +418,10 @@ bool PhysicalPresentation::RefreshExecutionClock(uint64_t ioStartedAtMs) {
 
 bool PhysicalPresentation::ValidateCompletionClock(void* context) {
   auto& presentation = *static_cast<PhysicalPresentation*>(context);
-  return presentation.RefreshExecutionClock(presentation.completionIoStartedAtMs_);
+  if (!presentation.RefreshExecutionClock(presentation.completionIoStartedAtMs_)) return false;
+  presentation.Trace("completion-validated", presentation.nowMs_, "timed-complete",
+      "durable-close-clock-checked");
+  return true;
 }
 
 bool PhysicalPresentation::StartAccent(const char* sceneId, const std::string& intentId,

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <cstdio>
 #include <memory>
 #include <new>
 #include "esp_app_desc.h"
@@ -27,6 +28,17 @@ namespace kufr { namespace ota {
 namespace {
 constexpr uint64_t DownloadDeadlineMs = 180000;
 constexpr size_t TransferBufferSize = 4096;
+uint32_t GuardCrc(const uint8_t* bytes, size_t length) {
+  uint32_t crc = 0xffffffffu;
+  for (size_t i = 0; i < length; ++i) {
+    crc ^= bytes[i];
+    for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
+  }
+  return ~crc;
+}
+void StoreLe32(uint8_t* bytes, uint32_t value) {
+  for (unsigned n = 0; n < 4; ++n) bytes[n] = static_cast<uint8_t>(value >> (n * 8));
+}
 uint64_t NowMs() { return static_cast<uint64_t>(esp_timer_get_time() / 1000); }
 
 class Lock final {
@@ -123,23 +135,75 @@ bool EspIdfFirmwareUpdate::LoadSettings() {
   return found && IsApprovedOrigin(origin_) && (channel_ == "stable" || channel_ == "development") && key.Parse(trustPem_);
 }
 
+EspIdfFirmwareUpdate::GuardRead EspIdfFirmwareUpdate::LoadConfirmationGuard() {
+  const auto* running = esp_ota_get_running_partition();
+  const auto* description = esp_app_get_description();
+  if (!running || !description) return GuardRead::Unavailable;
+  // Fixed canonical bytes, never a native struct: retain the exact image/slot
+  // identity across SDK VALID and a reset before the authorized guard erase.
+  confirmationGuard_[0] = 'K'; confirmationGuard_[1] = 'O';
+  confirmationGuard_[2] = 'C'; confirmationGuard_[3] = 'G';
+  confirmationGuard_[4] = 1;
+  StoreLe32(confirmationGuard_.data() + 8, running->address);
+  std::copy_n(description->app_elf_sha256, 32, confirmationGuard_.data() + 12);
+  StoreLe32(confirmationGuard_.data() + 44, GuardCrc(confirmationGuard_.data(), 44));
+  std::snprintf(confirmationGuardKey_.data(), confirmationGuardKey_.size(), "c%08lx",
+      static_cast<unsigned long>(running->address));
+  nvs_handle_t nvs = 0;
+  const auto opened = nvs_open("wand_ota", NVS_READONLY, &nvs);
+  if (opened == ESP_ERR_NVS_NOT_FOUND) return GuardRead::Missing;
+  if (opened != ESP_OK) return GuardRead::Unavailable;
+  size_t length = 0;
+  auto read = nvs_get_blob(nvs, confirmationGuardKey_.data(), nullptr, &length);
+  if (read == ESP_ERR_NVS_NOT_FOUND) { nvs_close(nvs); return GuardRead::Missing; }
+  if (read != ESP_OK) { nvs_close(nvs); return GuardRead::Unavailable; }
+  if (length != confirmationGuard_.size()) { nvs_close(nvs); return GuardRead::Invalid; }
+  std::array<uint8_t, 48> stored{};
+  read = nvs_get_blob(nvs, confirmationGuardKey_.data(), stored.data(), &length);
+  nvs_close(nvs);
+  if (read != ESP_OK) return GuardRead::Unavailable;
+  return length == stored.size() && stored == confirmationGuard_ ? GuardRead::Present : GuardRead::Invalid;
+}
+bool EspIdfFirmwareUpdate::PersistConfirmationGuard(bool erase) {
+  nvs_handle_t nvs = 0;
+  if (nvs_open("wand_ota", NVS_READWRITE, &nvs) != ESP_OK) return false;
+  const auto changed = erase ? nvs_erase_key(nvs, confirmationGuardKey_.data())
+      : nvs_set_blob(nvs, confirmationGuardKey_.data(), confirmationGuard_.data(), confirmationGuard_.size());
+  const bool stored = changed == ESP_OK && nvs_commit(nvs) == ESP_OK;
+  nvs_close(nvs);
+  return stored;
+}
+
 bool EspIdfFirmwareUpdate::Begin() {
-  if (mutex_) return false;
+  if (beginAttempted_) return false;
+  beginAttempted_ = true;
   mutex_ = xSemaphoreCreateMutex();
-  if (!mutex_) return false;
+  if (!mutex_) { reserved_ = true; return false; }
+  const uint64_t startedAt = NowMs();
   status_.version = KUFR_FIRMWARE_VERSION;
   const esp_partition_t* running = esp_ota_get_running_partition();
   esp_ota_img_states_t bootState;
   bootPending_ = running && esp_ota_get_state_partition(running, &bootState) == ESP_OK && bootState == ESP_OTA_IMG_PENDING_VERIFY;
+  const auto guard = LoadConfirmationGuard();
+  confirmationBlocked_ = guard != GuardRead::Missing;
+  rollbackAllowed_ = bootPending_ || guard == GuardRead::Present;
+  bootPending_ = bootPending_ || confirmationBlocked_;
+  rollbackRequested_ = confirmationBlocked_ && rollbackAllowed_;
   reserved_ = bootPending_;
-  policy_.Start(NowMs(), bootPending_);
+  bootDeadlineMs_ = startedAt + OtaPolicy::BootDeadlineMs;
+  policy_.Start(startedAt, bootPending_);
   configured_ = LoadSettings();
   status_.state = bootPending_ ? "verifying-boot" : configured_ ? "idle" : "disabled";
   if (!configured_) status_.error = "ota-trust-or-origin-not-provisioned";
-  if (!configured_) return true;  // Rollback health still runs without settings.
+  if (confirmationBlocked_) {
+    status_.state = "service-required";
+    status_.error = guard == GuardRead::Present ? "boot-confirmation-interrupted"
+        : guard == GuardRead::Invalid ? "boot-confirmation-guard-invalid" : "boot-confirmation-guard-unavailable";
+  }
+  if (!configured_ && !bootPending_) return true;
   if (xTaskCreate(WorkerEntry, "kufr-ota", 8192, this, 3, &task_) != pdPASS) {
     configured_ = false;
-    status_.state = "disabled";
+    status_.state = bootPending_ ? "verifying-boot" : "disabled";
     status_.error = "ota-worker-unavailable";
     return false;
   }
@@ -147,12 +211,13 @@ bool EspIdfFirmwareUpdate::Begin() {
 }
 
 StatusSnapshot EspIdfFirmwareUpdate::Status() const {
-  if (!mutex_) return {"disabled", KUFR_FIRMWARE_VERSION, {}, "ota-not-started", false};
+  if (!mutex_) return {beginAttempted_ ? "service-required" : "disabled", KUFR_FIRMWARE_VERSION, {},
+      beginAttempted_ ? "ota-mutex-unavailable" : "ota-not-started", false};
   Lock lock(mutex_);
   return status_;
 }
 bool EspIdfFirmwareUpdate::Reserved() const {
-  if (!mutex_) return false;
+  if (!mutex_) return reserved_;
   Lock lock(mutex_);
   return reserved_;
 }
@@ -173,44 +238,88 @@ bool EspIdfFirmwareUpdate::RequestInstall() {
   return true;
 }
 bool EspIdfFirmwareUpdate::SetAutomaticInstall(bool enabled) {
-  if (!mutex_) return false;
-  Lock lock(mutex_);
-  if (!configured_) return false;
-  nvs_handle_t nvs = 0;
-  if (nvs_open("wand_ota", NVS_READWRITE, &nvs) != ESP_OK) return false;
-  const bool stored = nvs_set_u8(nvs, "auto_install", enabled ? 1 : 0) == ESP_OK && nvs_commit(nvs) == ESP_OK;
-  nvs_close(nvs);
-  if (stored) status_.automaticInstall = enabled;
-  return stored;
+  return SetSetting(Setting::AutomaticInstall, enabled ? 1u : 0u);
 }
 bool EspIdfFirmwareUpdate::SetCheckIntervalSeconds(uint32_t seconds) {
-  if (!mutex_ || seconds < 60 || seconds > 86400) return false;
+  if (seconds < 60 || seconds > 86400) {
+    if (mutex_) { Lock lock(mutex_); lastOperationPending_ = false; }
+    return false;
+  }
+  return SetSetting(Setting::CheckInterval, seconds);
+}
+bool EspIdfFirmwareUpdate::LastOperationIsPending() const {
+  if (!mutex_) return false;
   Lock lock(mutex_);
-  if (!configured_) return false;
+  return lastOperationPending_;
+}
+bool EspIdfFirmwareUpdate::SetSetting(Setting kind, uint32_t value) {
+  if (!mutex_) return false;
+  {
+    Lock lock(mutex_);
+    lastOperationPending_ = false;
+    if (settings_.active) {
+      if (settings_.kind != kind || settings_.value != value) return false;
+      if (settings_.result == SettingResult::Pending) { lastOperationPending_ = true; return false; }
+      const bool stored = settings_.result == SettingResult::Succeeded;
+      settings_ = {};
+      return stored;
+    }
+    if (!configured_ || !task_ || bootPending_ || reserved_ || work_ != Work::None) return false;
+    settings_.active = true;
+    settings_.kind = kind;
+    settings_.value = value;
+    work_ = Work::Settings;
+    lastOperationPending_ = true;
+  }
+  xTaskNotifyGive(task_);
+  return false;
+}
+void EspIdfFirmwareUpdate::StoreSettings() {
+  SettingsIntent intent;
+  { Lock lock(mutex_); intent = settings_; }
   nvs_handle_t nvs = 0;
-  if (nvs_open("wand_ota", NVS_READWRITE, &nvs) != ESP_OK) return false;
-  const bool stored = nvs_set_u32(nvs, "check_interval", seconds) == ESP_OK && nvs_commit(nvs) == ESP_OK;
-  nvs_close(nvs);
-  if (stored) { policy_.SetCheckIntervalSeconds(seconds); policy_.Checked(NowMs(), true); }
-  return stored;
+  bool stored = nvs_open("wand_ota", NVS_READWRITE, &nvs) == ESP_OK;
+  if (stored) {
+    stored = (intent.kind == Setting::AutomaticInstall
+        ? nvs_set_u8(nvs, "auto_install", static_cast<uint8_t>(intent.value))
+        : nvs_set_u32(nvs, "check_interval", intent.value)) == ESP_OK && nvs_commit(nvs) == ESP_OK;
+    nvs_close(nvs);
+  }
+  Lock lock(mutex_);
+  settings_.result = stored ? SettingResult::Succeeded : SettingResult::Failed;
+  if (!stored) status_.error = "ota-settings-write-failed";
+  else {
+    if (status_.error == "ota-settings-write-failed") status_.error.clear();
+    if (intent.kind == Setting::AutomaticInstall) status_.automaticInstall = intent.value != 0;
+    else { policy_.SetCheckIntervalSeconds(intent.value); policy_.Checked(NowMs(), true); }
+  }
 }
 
 void EspIdfFirmwareUpdate::Tick(uint64_t nowMs, bool networkReady, bool selfTestReady, bool safeIdle) {
   if (!mutex_) return;
-  bool reboot = false, rollback = false, confirm = false, notify = false;
+  bool notify = false;
   {
     Lock lock(mutex_);
-    const auto decision = policy_.BootHealth(nowMs, networkReady && selfTestReady);
-    if (decision == BootDecision::Rollback) { rollback = true; reserved_ = true; status_.state = "rollback"; }
-    if (decision == BootDecision::Confirm) confirm = true;
-    if (!bootPending_ && configured_ && work_ == Work::None) {
-      if (status_.state == "ready-to-reboot" && safeIdle) reboot = true;
-      else if ((status_.state == "available" || status_.state == "waiting-idle") &&
+    // Keep the original deadline even after BootHealth consumes its Confirm
+    // decision. A slow/failed flash ACK must never start another health window.
+    if (bootPending_ && !finalizationAuthorized_) {
+      const auto decision = confirmationBlocked_ ? BootDecision::Wait : policy_.BootHealth(nowMs, selfTestReady);
+      if (rollbackAllowed_ && !rollbackAttempted_ && (decision == BootDecision::Rollback || nowMs >= bootDeadlineMs_ ||
+          (work_ == Work::ConfirmBoot && !selfTestReady))) rollbackRequested_ = true;
+      if (task_ && work_ == Work::None) {
+        if (rollbackRequested_) { work_ = Work::Rollback; status_.state = "rollback"; notify = true; }
+        else if (decision == BootDecision::Confirm) { work_ = Work::ConfirmBoot; notify = true; }
+      }
+    }
+    if (!bootPending_ && configured_ && task_ && work_ == Work::None) {
+      if (status_.state == "ready-to-reboot" && safeIdle) {
+        work_ = Work::Reboot;
+        status_.state = "rebooting";
+        notify = true;
+      } else if ((status_.state == "available" || status_.state == "waiting-idle") &&
           (installRequested_ || status_.automaticInstall)) {
         status_.state = "waiting-idle";
         if (networkReady && safeIdle) {
-          // Publication and admission checks share the control owner's loop.
-          // No other task may start a conversation/effect while Reserved.
           reserved_ = true;
           status_.state = "downloading";
           installRequested_ = false;
@@ -227,36 +336,83 @@ void EspIdfFirmwareUpdate::Tick(uint64_t nowMs, bool networkReady, bool selfTest
       }
     }
   }
-  if (confirm) {
-    const bool valid = esp_ota_mark_app_valid_cancel_rollback() == ESP_OK;
+  if (notify) xTaskNotifyGive(task_);
+}
+void EspIdfFirmwareUpdate::ConfirmBoot() {
+  const auto reject = [this](const char* error) {
     Lock lock(mutex_);
-    bootPending_ = !valid;
-    if (valid) { reserved_ = false; status_.state = configured_ ? "idle" : "disabled"; status_.error.clear(); }
-    else {
-      // A failed flash metadata commit must retain a live rollback deadline.
-      status_.error = "boot-confirmation-failed";
-      policy_.Start(nowMs - OtaPolicy::BootDeadlineMs, true);
+    confirmationBlocked_ = true;
+    rollbackRequested_ = true;
+    status_.state = "rollback";
+    status_.error = error;
+  };
+  bool attempt;
+  { Lock lock(mutex_); attempt = !confirmationBlocked_ && !rollbackRequested_ && NowMs() < bootDeadlineMs_; }
+  if (!attempt) { reject("boot-confirmation-expired"); return; }
+  // A failure ACK can still hide a durable write. Never call SDK VALID unless
+  // the guard is confirmed; any retained/unknown guard is rollback/service only.
+  if (!PersistConfirmationGuard(false)) { reject("boot-confirmation-guard-write-failed"); return; }
+  { Lock lock(mutex_); attempt = !rollbackRequested_ && NowMs() < bootDeadlineMs_; }
+  if (!attempt) { reject("boot-confirmation-expired"); return; }
+  const bool valid = esp_ota_mark_app_valid_cancel_rollback() == ESP_OK;
+  bool authorized = false;
+  {
+    Lock lock(mutex_);
+    if (valid && !rollbackRequested_ && NowMs() < bootDeadlineMs_) {
+      finalizationAuthorized_ = authorized = true;
+      status_.state = "finalizing-boot";
     }
   }
-  if (rollback) {
-    esp_ota_mark_app_invalid_rollback_and_reboot();
-    // No fallback silently confirms a broken image when rollback has no slot.
-    Lock lock(mutex_);
-    status_.error = "rollback-unavailable";
+  if (!authorized) { reject(valid ? "boot-confirmation-expired" : "boot-confirmation-failed"); return; }
+  // The seal above is final. Rechecking health after an authorized erase could
+  // leave SDK VALID with no durable guard and an authority that exists only RAM.
+  const bool erased = PersistConfirmationGuard(true);
+  Lock lock(mutex_);
+  if (erased) {
+    bootPending_ = false;
+    reserved_ = false;
+    status_.state = configured_ ? "idle" : "disabled";
+    status_.error.clear();
+  } else {
+    confirmationBlocked_ = true;
+    status_.state = "service-required";
+    status_.error = "boot-confirmation-guard-clear-failed";
   }
-  if (notify) xTaskNotifyGive(task_);
-  if (reboot) esp_restart();
 }
-
+void EspIdfFirmwareUpdate::Rollback() {
+  { Lock lock(mutex_); rollbackAttempted_ = true; }
+  esp_ota_mark_app_invalid_rollback_and_reboot();
+  // Returning means the device did not reboot. Never retry or silently confirm.
+  Lock lock(mutex_);
+  rollbackRequested_ = false;
+  status_.state = "rollback";
+  status_.error = "rollback-unavailable";
+}
 void EspIdfFirmwareUpdate::WorkerEntry(void* owner) { static_cast<EspIdfFirmwareUpdate*>(owner)->Worker(); }
+void EspIdfFirmwareUpdate::ProcessWork() {
+  Work work;
+  { Lock lock(mutex_); work = work_; }
+  switch (work) {
+    case Work::Check: Check(); break;
+    case Work::Install: Install(); break;
+    case Work::ConfirmBoot: ConfirmBoot(); break;
+    case Work::Rollback: Rollback(); break;
+    case Work::Reboot: esp_restart(); break;
+    case Work::Settings: StoreSettings(); break;
+    case Work::None: break;
+  }
+  bool rollback;
+  {
+    Lock lock(mutex_);
+    rollback = bootPending_ && rollbackRequested_ && work != Work::Rollback;
+    work_ = rollback ? Work::Rollback : Work::None;
+  }
+  if (rollback) xTaskNotifyGive(task_);
+}
 void EspIdfFirmwareUpdate::Worker() {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    Work work;
-    { Lock lock(mutex_); work = work_; }
-    if (work == Work::Check) Check();
-    if (work == Work::Install) Install();
-    { Lock lock(mutex_); work_ = Work::None; }
+    ProcessWork();
   }
 }
 void EspIdfFirmwareUpdate::Fail(const char* error) {

@@ -86,6 +86,11 @@ class RecordingJournal final : public CommandJournal {
     return result;
   }
   bool PersistReadyMask(uint8_t mask) override { return actual.PersistReadyMask(mask); }
+  // The historical base has no proof hook. Forward it when the current core
+  // requests proof acknowledgement, without adding a physical output event.
+  bool ConfirmTimedPresentation(const std::string& id, uint8_t slot, uint64_t fingerprint) {
+    return actual.ConfirmTimedPresentation(id, slot, fingerprint);
+  }
  private:
   OutputLog& log_;
 };

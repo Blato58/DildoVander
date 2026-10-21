@@ -25,12 +25,18 @@ int main() {
   };
   ports.photo = [&](const TurnCorrelation& correlation) {
     assert(correlation.conversationId == id && correlation.clientTurnId == fresh);
+    assert(correlation.operationEpoch == request.snapshot.operationEpoch);
     order.push_back("photo-once"); return PhotoOutcome::Failed;
   };
   ports.beginAudio = [&]() { order.push_back("audio"); };
   ports.realtime = [&](const std::string& body, const std::string& key, const TurnCorrelation& correlation,
       const std::function<bool(const TurnOperationObservation&)>& completed) {
     order.push_back("realtime"); assert(key == fresh && correlation.conversationId == fresh);
+    assert(correlation.operationEpoch == request.snapshot.operationEpoch);
+    assert((body.find("\"operationEpoch\":\"18446744073709551615\"") != std::string::npos) ==
+           (request.snapshot.operationEpoch == UINT64_MAX));
+    if (request.snapshot.operationEpoch == 0)
+      assert(body.find("operationEpoch") == std::string::npos);
     assert(body.find("\"opening\":true,\"text\":\"\",\"wav\":null,\"voice\":\"cedar\",\"speed\":1}") != std::string::npos);
     assert(body.find("\"readyMask\":63,\"deviceRevision\":37") != std::string::npos);
     TurnOperationObservation operation;
@@ -40,6 +46,15 @@ int main() {
   const auto result = RunVoiceWorkflow(request, ports);
   assert(result.succeeded && result.photo == PhotoOutcome::Failed && result.final.decision == "no_selection");
   assert(order == std::vector<std::string>({"close", "create-photo", "photo-once", "close", "create-no-photo", "audio", "realtime"}));
+  creates = 0; order.clear();
+  request.snapshot.operationEpoch = UINT64_MAX;
+  request.correlation.operationEpoch = UINT64_MAX;
+  assert(RunVoiceWorkflow(request, ports).succeeded);
+  assert(order == std::vector<std::string>({"close", "create-photo", "photo-once", "close", "create-no-photo", "audio", "realtime"}));
+  creates = 0; order.clear();
+  request.correlation.operationEpoch = 0;
+  assert(!RunVoiceWorkflow(request, ports).succeeded && order.empty());
+  request.correlation.operationEpoch = UINT64_MAX;
   creates = 0; order.clear();
   ports.photo = [&](const TurnCorrelation&) { current = false; return PhotoOutcome::Cancelled; };
   assert(!RunVoiceWorkflow(request, ports).succeeded);

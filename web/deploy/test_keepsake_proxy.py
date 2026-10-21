@@ -92,7 +92,7 @@ class ProxyTests(unittest.TestCase):
 
     def test_twin_ingress_keeps_its_isolated_listener_and_exact_methods(self):
         twin_source = "Features/DigitalTwin/TwinEndpoints.cs"
-        self.assertEqual(80, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
+        self.assertEqual(81, sum(not source.startswith("Features/DigitalTwin/") for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(11, sum(source == twin_source for method, route, source in proxy.CONTRACT["routes"]))
         self.assertEqual(9, sum(source == "Features/DigitalTwin/TwinMediaEndpoints.cs" for method, route, source in proxy.CONTRACT["routes"]))
         paths = [
@@ -161,6 +161,43 @@ class ProxyTests(unittest.TestCase):
                          (deploy / "keepsake-compatibility.conf.example").read_text(encoding="utf-8"))
         self.assertEqual(proxy.render_http_map(),
                          (deploy / "keepsake-upgrade.conf.example").read_text(encoding="utf-8"))
+
+    def test_device_media_is_an_exact_backend_only_streaming_get(self):
+        template = "/v1/conversations/{id}/device-media"
+        route = f"/v1/conversations/{ID}/device-media"
+        contract_rows = [row for row in proxy.CONTRACT["routes"] if row[1] == template]
+        self.assertEqual([["GET", template, "Features/DeviceMedia/DeviceMediaEndpoints.cs"]], contract_rows)
+        self.assertTrue(proxy.allowed_backend("GET", route))
+        for method in ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"):
+            with self.subTest(method=method):
+                self.assertFalse(proxy.allowed(method, route), "Device bearer access must not become a guest grant")
+                self.assertFalse(proxy.allowed(method, "/guest" + route))
+                if method != "GET":
+                    self.assertFalse(proxy.allowed_backend(method, route))
+        for path in (route + "/", route + "/extra", route.replace(ID, "not-a-guid"),
+                     route.replace(ID, ID.upper()), route.replace("device-media", "device-media-extra"),
+                     route.replace("device-media", "device%2dmedia"), "/guest" + route):
+            with self.subTest(path=path):
+                self.assertFalse(proxy.allowed_backend("GET", path))
+                self.assertFalse(proxy.allowed("GET", path))
+
+        config = proxy.render_compatibility("keepsake.example.invalid")
+        location = 'location ~ "^' + proxy.route_pattern(template) + '$" {'
+        self.assertEqual(1, config.count(location))
+        block = config.split(location, 1)[1].split("\n}", 1)[0]
+        for directive in (
+            'if ($request_uri ~ "^[^?]*%") { return 404; }',
+            'if ($request_method !~ "^(?:GET)$") { return 405; }',
+            "proxy_pass http://127.0.0.1:5080;", "proxy_http_version 1.1;",
+            "proxy_set_header Upgrade $http_upgrade;",
+            "proxy_set_header Connection $keepsake_connection_upgrade;",
+            "proxy_read_timeout 900s;", "proxy_send_timeout 65s;",
+            "proxy_buffering off;", "proxy_request_buffering off;", "proxy_cache off;",
+        ):
+            self.assertIn(directive, block)
+        self.assertNotIn("try_files", block)
+        self.assertNotIn("5082", block)
+        self.assertNotIn(location, proxy.render("keepsake.example.invalid"))
 
     def test_persistent_audio_and_memory_routes_keep_exact_boundaries(self):
         config = proxy.render_compatibility("keepsake.example.invalid")

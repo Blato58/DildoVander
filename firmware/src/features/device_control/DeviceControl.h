@@ -32,6 +32,7 @@ enum class CommandError : uint8_t {
   NotCalibrated,
   SafetyLatched,
   JournalFailed,
+  WrongOperationEpoch,
 };
 
 enum class ControlCommandKind : uint8_t {
@@ -57,6 +58,7 @@ struct SelectionCommand {
   uint32_t maxAgeMs = 0;
   uint8_t compartment = 0;
   SelectionSource source = SelectionSource::Manual;
+  uint64_t operationEpoch = 0;
 
   bool SameContentAs(const SelectionCommand& other) const;
 };
@@ -72,6 +74,7 @@ struct InventoryReloadCommand {
   uint32_t maxAgeMs = 0;
   uint8_t compartment = 0;
   bool inspectionConfirmed = false;
+  uint64_t operationEpoch = 0;
 
   bool SameContentAs(const InventoryReloadCommand& other) const;
 };
@@ -79,12 +82,13 @@ struct InventoryReloadCommand {
 struct CommandReceipt {
   CommandReceipt(CommandError error = CommandError::None,
                  CommandOutcome outcome = CommandOutcome::Rejected,
-                 bool duplicate = false)
-      : error(error), outcome(outcome), duplicate(duplicate) {}
+                 bool duplicate = false, bool deferred = false)
+      : error(error), outcome(outcome), duplicate(duplicate), deferred(deferred) {}
 
   CommandError error;
   CommandOutcome outcome;
   bool duplicate;
+  bool deferred;
 };
 
 struct LastSelectionResult {
@@ -96,6 +100,7 @@ struct LastSelectionResult {
 
 class DeviceControl {
  public:
+  enum class AutonomousAdmissionProgress { Rejected, Pending, Succeeded };
   static constexpr uint64_t ManualLeaseDurationMs = 6000;
   static constexpr size_t ResultCacheSize = 64;
 
@@ -104,6 +109,11 @@ class DeviceControl {
                 uint64_t calibrationRevision);
 
   bool RecoverAfterInspection();
+  using RecoveryProgress = InspectedRecoveryProgress;
+  RecoveryProgress BeginInspectedRecovery();
+  RecoveryProgress PollInspectedRecovery();
+  void CancelInspectedRecovery();
+  bool HasRecoveryWork() const { return recoveryInProgress_ || journal_.HasRecoveryStorageWork(); }
   bool AcquireManualControl(const std::string& leaseId, uint64_t nowMs);
   bool RenewManualLease(const std::string& leaseId, uint64_t nowMs);
   bool DisconnectManualControl(SelectionStep& step);
@@ -114,34 +124,80 @@ class DeviceControl {
   CommandReceipt ConfirmReload(const InventoryReloadCommand& command,
                                bool authenticated, uint64_t nowMs);
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
+  bool ReserveAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch);
+  AutonomousAdmissionProgress LastAutonomousAdmissionProgress() const {
+    return autonomousAdmissionProgress_;
+  }
+  bool HasPendingAutonomousAdmission(const std::string& proposalId, uint8_t compartment,
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) const;
+  bool HasAutonomousReservation() const { return journal_.HasPresentationReservation(); }
+  bool HasAutonomousReservation(const std::string& id, uint8_t slot,
+      uint64_t fingerprint, uint64_t epoch) const {
+    return journal_.HasPresentationReservation(epoch, id, slot, fingerprint);
+  }
+  void CancelAutonomousReservation();
   bool BeginAutonomousPresentation(const std::string& proposalId,
                                    uint8_t compartment,
-                                   uint64_t expectedRevision, uint64_t fingerprint = 0);
+                                   uint64_t expectedRevision, uint64_t fingerprint = 0,
+                                   uint64_t operationEpoch = 0);
   bool CompleteAutonomousPresentation(uint8_t compartment);
   bool ConfirmTimedPresentation();
+  bool IsAutonomousCompletionStoragePending() const {
+    return journal_.LastStorageState() == CommandJournal::StorageState::Pending;
+  }
+  bool HasAutonomousCompletionFault() const {
+    // Its own open presentation journal is expected while waiting for close.
+    return selection_.NeedsRecovery() || recoveryInProgress_ || journal_.HasStorageFault();
+  }
   void FaultAutonomousPresentation();
   bool Tick(uint64_t nowMs, SelectionStep& step);
   bool Stop(SelectionStep& step);
 
   uint64_t Revision() const;
   uint64_t CalibrationRevision() const;
+  uint64_t OperationEpoch() const { return journal_.CurrentEpoch(); }
   const std::string& PendingCommandId() const;
   const LastSelectionResult& LastResult() const;
   uint8_t ReadyMask() const;
   bool NeedsRecovery() const;
   bool HasPendingSelection() const;
+  bool HasStorageWork() const;
   bool HasManualControl() const;
   bool OwnsManualLease(const std::string& leaseId) const;
   bool OwnsLiveManualLease(const std::string& leaseId, uint64_t nowMs) const;
   bool HasAutonomousPresentation() const;
-  bool CanRecordOperation() const { return journal_.CanBeginOperation(); }
+  bool CanRecordOperation() const { return !HasStorageWork() && journal_.CanBeginOperation(); }
   bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
     return journal_.WasTimedPresentationCompleted(id, slot);
   }
+  bool WasLegacyTimedPresentationCompleted(const std::string& id, uint8_t slot) const {
+    return journal_.WasLegacyTimedPresentationCompleted(id, slot);
+  }
+  bool WasTimedPresentationCompleted(const std::string& id, uint8_t slot,
+                                    uint64_t operationEpoch,
+                                    uint64_t fingerprint) const;
   CommandJournal::Lookup FindOperation(const std::string& id, uint8_t slot,
-                                      uint64_t fingerprint) const { return journal_.Find(id, slot, fingerprint); }
+                                      uint64_t fingerprint,
+                                      uint64_t operationEpoch = 0) const;
 
  private:
+  bool CanAdmitAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch,
+      bool ownContinuation = false) const;
+  enum class AutonomousAdmissionKind { None, Reserve, Begin };
+  struct DeferredAutonomousAdmission {
+    AutonomousAdmissionKind kind = AutonomousAdmissionKind::None;
+    std::string proposalId;
+    uint8_t compartment = 0;
+    uint64_t expectedRevision = 0, fingerprint = 0, operationEpoch = 0;
+    uint64_t calibrationRevision = 0;
+  } deferredAutonomousAdmission_;
+  AutonomousAdmissionProgress autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Rejected;
+  bool AdvanceAutonomousAdmission(AutonomousAdmissionKind kind,
+      const std::string& proposalId, uint8_t compartment, uint64_t expectedRevision,
+      uint64_t fingerprint, uint64_t operationEpoch);
+  void CancelDeferredAutonomousAdmission(bool reportFault = true);
   struct CachedResult {
     bool occupied = false;
     ControlCommandKind kind = ControlCommandKind::Selection;
@@ -154,9 +210,24 @@ class DeviceControl {
                         bool consumeSequence);
   void Remember(const SelectionCommand& command, CommandReceipt receipt);
   void Remember(const InventoryReloadCommand& command, CommandReceipt receipt);
-  CachedResult* FindCached(const std::string& commandId);
+  CachedResult* FindCached(uint64_t operationEpoch, const std::string& commandId);
   CommandOutcome FinishCurrent(CommandOutcome outcome);
   bool LoseManualControl(SelectionStep& step);
+  void PollStorage();
+  void CancelDeferredCommand();
+  CommandReceipt RejectDeferred(CommandError error);
+
+  enum class DeferredKind : uint8_t { None, Selection, Reload };
+  DeferredKind deferredKind_ = DeferredKind::None;
+  SelectionCommand deferredSelection_;
+  InventoryReloadCommand deferredReload_;
+  uint8_t deferredReadyMask_ = 0;
+  bool closingSelection_ = false;
+  bool recoveryInProgress_ = false;
+  bool recoveryResolvePending_ = false;
+  RecoveryProgress recoveryProgress_ = RecoveryProgress::Rejected;
+  RecoveryProgress FinishRecovery(RecoveryProgress progress);
+  uint8_t recoveryReadyMask_ = 0;
 
   std::string deviceId_;
   std::string bootId_;
@@ -172,10 +243,15 @@ class DeviceControl {
   size_t nextResultIndex_ = 0;
   std::string pendingCommandId_;
   uint8_t pendingCompartment_ = 0;
+  uint64_t pendingOperationEpoch_ = 0;
+  uint64_t pendingIssuedAtMs_ = 0;
+  uint32_t pendingMaxAgeMs_ = 0;
   bool executionStarted_ = false;
   uint8_t autonomousCompartment_ = 0;
   std::string autonomousOperationId_;
   uint64_t autonomousFingerprint_ = 0;
+  uint64_t autonomousOperationEpoch_ = 0;
   uint8_t lastCompletedAutonomousCompartment_ = 0;
+  bool closingAutonomousPresentation_ = false;
   LastSelectionResult lastResult_;
 };

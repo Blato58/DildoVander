@@ -13,7 +13,7 @@ bool PhysicalEffects::Configure(const std::array<ServoCalibration, 6>& calibrati
   calibration_ = calibration;
   revision_ = revision;
   configured_ = true;
-  fault_ = true;  // Every boot still needs a deliberate local inspection.
+  inspectionRequired_ = true;  // Every boot still needs a deliberate local inspection.
   return true;
 }
 
@@ -57,11 +57,12 @@ bool PhysicalEffects::RecoverAfterInspection() {
   if (!configured_ || !observed_ || active_)
     return false;
   Disable();
-  if (!io_.FullOff()) return false;
+  if (!io_.FullOff()) { fault_ = true; return false; }
   // The local inspection confirms that all trays were manually put at rest.
   restingMask_ = 63;
   raisedMask_ = 0;
   fault_ = false;
+  inspectionRequired_ = false;
   return true;
 }
 

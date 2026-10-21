@@ -15,6 +15,7 @@
     { "$ref": "#/$defs/stateGet" },
     { "$ref": "#/$defs/controlAcquire" },
     { "$ref": "#/$defs/controlRelease" },
+    { "$ref": "#/$defs/controlAck" },
     { "$ref": "#/$defs/heartbeat" },
     { "$ref": "#/$defs/heartbeatAck" },
     { "$ref": "#/$defs/selectionStart" },
@@ -40,6 +41,7 @@
     {"$ref": "#/$defs/offlineambient"}
   ],
   "$defs": {
+    "operationEpoch": {"type": "string", "maxLength": 20, "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$"},
     "danceStart": {
       "type": "object", "additionalProperties": false,
       "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId", "expectedRevision"],
@@ -299,6 +301,7 @@
         "expired",
         "stale_revision",
         "sequence_gap",
+        "wrong_operation_epoch",
         "already_seen_result_unavailable",
         "id_conflict",
         "busy",
@@ -347,6 +350,7 @@
       "additionalProperties": false,
       "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId"],
       "properties": {
+        "includeOperationEpoch": {"const": true},
         "protocolVersion": { "const": 1 },
         "type": { "const": "state.get" },
         "messageId": { "$ref": "#/$defs/uuid" },
@@ -359,6 +363,7 @@
       "additionalProperties": false,
       "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId"],
       "properties": {
+        "acknowledge": { "const": true },
         "protocolVersion": { "const": 1 },
         "type": { "const": "control.acquire" },
         "messageId": { "$ref": "#/$defs/uuid" },
@@ -371,6 +376,7 @@
       "additionalProperties": false,
       "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId", "controlLeaseId"],
       "properties": {
+        "acknowledge": { "const": true },
         "protocolVersion": { "const": 1 },
         "type": { "const": "control.release" },
         "messageId": { "$ref": "#/$defs/uuid" },
@@ -378,6 +384,25 @@
         "bootId": { "$ref": "#/$defs/uuid" },
         "controlLeaseId": { "$ref": "#/$defs/uuid" }
       }
+    },
+    "controlAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "type", "bootId", "requestMessageId", "operation", "eventSequence", "revision", "accepted", "errorCode"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "type": { "const": "control.ack" },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "requestMessageId": { "$ref": "#/$defs/uuid" },
+        "operation": { "enum": ["control.acquire", "control.release", "safety.reset"] },
+        "eventSequence": { "$ref": "#/$defs/safeInteger" },
+        "revision": { "$ref": "#/$defs/safeInteger" },
+        "accepted": { "type": "boolean" },
+        "errorCode": { "enum": [null, "busy", "controller_busy", "recovery_required"] }
+      },
+      "if": { "properties": { "accepted": { "const": true } } },
+      "then": { "properties": { "errorCode": { "type": "null" } } },
+      "else": { "properties": { "errorCode": { "type": "string" } } }
     },
     "heartbeat": {
       "type": "object",
@@ -423,6 +448,7 @@
         "payload"
       ],
       "properties": {
+        "operationEpoch": {"$ref": "#/$defs/operationEpoch"},
         "protocolVersion": { "const": 1 },
         "type": { "const": "selection.start" },
         "commandId": { "$ref": "#/$defs/uuid" },
@@ -461,6 +487,7 @@
         "maxAgeMs", "payload"
       ],
       "properties": {
+        "operationEpoch": {"$ref": "#/$defs/operationEpoch"},
         "protocolVersion": { "const": 1 },
         "type": { "const": "inventory.confirmReload" },
         "commandId": { "$ref": "#/$defs/uuid" },
@@ -670,6 +697,7 @@
         "conversation"
       ],
       "properties": {
+        "operationEpoch": {"$ref": "#/$defs/operationEpoch"},
         "voice": { "$ref": "#/$defs/voiceStatus" },
         "dance": { "$ref": "#/$defs/danceStatus" },
         "protocolVersion": { "const": 1 },
@@ -766,6 +794,7 @@
         "inspectionConfirmed"
       ],
       "properties": {
+        "acknowledge": { "const": true },
         "protocolVersion": { "const": 1 },
         "type": { "const": "safety.reset" },
         "messageId": { "$ref": "#/$defs/uuid" },
@@ -918,6 +947,7 @@
         "shortVariant"
       ],
       "properties": {
+        "operationEpoch": {"$ref": "#/$defs/operationEpoch"},
         "protocolVersion": {
           "const": 1
         },
@@ -961,6 +991,7 @@
         "commandId"
       ],
       "properties": {
+        "operationEpoch": {"$ref": "#/$defs/operationEpoch"},
         "protocolVersion": {
           "const": 1
         },
@@ -1091,6 +1122,7 @@
         "outcome"
       ],
       "properties": {
+        "operationEpoch": {"$ref": "#/$defs/operationEpoch"},
         "operationId": {
           "$ref": "#/$defs/uuid"
         },

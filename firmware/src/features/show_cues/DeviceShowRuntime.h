@@ -30,6 +30,7 @@ class DeviceShowRuntime final {
   std::string voice_ = "marin";
   Phase phase_ = Phase::Idle;
   uint64_t ownedGeneration_ = 0;
+  uint64_t observedStopRevision_ = 0;
   bool ownsReservation_ = false, remoteStop_ = false;
   std::shared_ptr<DeviceShowAudio> playingAudio_;
   kufr::offline::Clip clip_{};

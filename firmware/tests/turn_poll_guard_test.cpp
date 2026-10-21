@@ -73,4 +73,13 @@ int main() {
   actual.hasProposal = true;
   actual.decision = "propose";
   assert(Evaluate(expected, actual) == TurnPollDecision::Discard);
+  auto scoped = expected;
+  scoped.operationEpoch = UINT64_MAX;
+  actual = Completed(scoped);
+  assert(EvaluateTurnOperation(actual.operationId, scoped, 2, 4, actual, UINT64_MAX) ==
+         TurnPollDecision::ReplyReady);
+  assert(EvaluateTurnOperation(actual.operationId, scoped, 2, 4, actual, 1) ==
+         TurnPollDecision::Discard);
+  assert(EvaluateTurnOperation(actual.operationId, scoped, 2, 4, actual) ==
+         TurnPollDecision::Discard);
 }

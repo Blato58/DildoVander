@@ -7,6 +7,7 @@
 #include "LocalControlSession.h"
 #include "LocalConversationGateway.h"
 #include "../dance/DancePlayerPort.h"
+#include "../device_control/DeviceControlRuntime.h"
 
 class LocalVoicePort;
 class LocalControlTransport;
@@ -37,6 +38,7 @@ class LocalControlOwner final {
   void Poll();
   void Tick();
   void SetMaintenance(bool active) { maintenance_ = active; }
+  void SetRecoveryAdmission(bool allowed) { recoveryAdmission_ = allowed; }
   void SetDanceAdmission(bool allowed) { danceAdmission_ = allowed; }
   void BindOffline(kufr::offline::OfflineShow& offline) { offline_ = &offline; }
   void PumpReply(LocalConversationReplyPort& replies);
@@ -49,6 +51,20 @@ class LocalControlOwner final {
   void Handle(const LocalControlMessage& message, uint64_t nowMs);
   void Selection(const LocalControlMessage& message, uint64_t nowMs);
   void Reload(const LocalControlMessage& message, uint64_t nowMs);
+  void ManualCommand(const LocalControlMessage& message, uint64_t nowMs);
+  CommandReceipt AcceptManualCommand(const LocalControlMessage& message);
+  void FinishManualCommand(const LocalControlMessage& message,
+                           const CommandReceipt& receipt, uint64_t nowMs);
+  void ClearPendingManual();
+  void OfflineCommand(const LocalControlMessage& message, uint64_t nowMs);
+  bool AcceptOfflineCommand(const LocalControlMessage& message, bool retry);
+  void FinishOfflineCommand(const LocalControlMessage& message, bool result, uint64_t nowMs);
+  void ClearPendingOffline();
+  void Reset(const LocalControlMessage& message, uint64_t nowMs);
+  void FinishReset(const LocalControlMessage& message, DeviceControlRuntime::RecoveryProgress progress, uint64_t nowMs);
+  void ClearPendingRecovery();
+  bool ControlAck(const LocalControlMessage& message, LocalControlError error);
+  bool RefuseBusy(const LocalControlMessage& message);
   void Snapshot(uint64_t nowMs);
   bool SameHandle(const LocalSocketAdmission::Handle& handle) const;
 
@@ -72,7 +88,22 @@ class LocalControlOwner final {
   std::unique_ptr<LocalConversationGateway> gateway_;
   uint64_t connectedAtMs_ = 0;
   uint64_t lastSnapshotAtMs_ = 0;
+  LocalControlMessage pendingManual_;
+  LocalSocketAdmission::Handle pendingManualHandle_;
+  LocalControlSession* pendingManualSession_ = nullptr;
+  bool manualPending_ = false;
+  LocalControlMessage pendingOffline_;
+  LocalSocketAdmission::Handle pendingOfflineHandle_;
+  LocalControlSession* pendingOfflineSession_ = nullptr;
+  uint64_t offlineArmGeneration_ = 0, offlineArmRevision_ = 0;
+  bool offlinePending_ = false, offlineArmHandoff_ = false, offlineCallPending_ = false;
+  DeviceControlRuntime::RecoveryHandle recoveryHandle_;
+  LocalControlMessage pendingRecovery_;
+  LocalSocketAdmission::Handle pendingRecoveryHandle_;
+  LocalControlSession* pendingRecoverySession_ = nullptr;
+  bool recoveryPending_ = false, recoveryAdmission_ = false;
   bool hello_ = false;
+  bool includeOperationEpoch_ = false;
   bool maintenance_ = false;
   bool danceAdmission_ = false;
   kufr::offline::OfflineShow* offline_ = nullptr;

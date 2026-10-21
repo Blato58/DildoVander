@@ -74,7 +74,7 @@ TurnPollDecision EvaluateTurnOperation(
     const TurnCorrelation& expected,
     uint64_t currentGeneration,
     uint64_t currentDeviceRevision,
-    const TurnOperationObservation& observed) {
+    const TurnOperationObservation& observed, uint64_t currentOperationEpoch) {
   const TurnCorrelation& actual = observed.correlation;
   if (expectedOperationId.empty() ||
       observed.operationId != expectedOperationId ||
@@ -85,7 +85,9 @@ TurnPollDecision EvaluateTurnOperation(
       actual.clientTurnId != expected.clientTurnId ||
       actual.generation != expected.generation ||
       actual.deviceRevision != expected.deviceRevision ||
+      actual.operationEpoch != expected.operationEpoch ||
       currentGeneration != expected.generation ||
+      currentOperationEpoch != expected.operationEpoch ||
       currentDeviceRevision != expected.deviceRevision) {
     return TurnPollDecision::Discard;
   }
@@ -118,10 +120,10 @@ TurnPollDecision EvaluateTurnOperationWithProposal(
     const std::string& currentCatalogVersion,
     uint8_t currentReadyMask,
     uint64_t nowUtcSeconds,
-    const TurnOperationObservation& observed) {
+    const TurnOperationObservation& observed, uint64_t currentOperationEpoch) {
   const TurnPollDecision basic = EvaluateTurnOperation(
       expectedOperationId, expected, currentGeneration,
-      currentDeviceRevision, observed);
+      currentDeviceRevision, observed, currentOperationEpoch);
   if (basic != TurnPollDecision::Discard ||
       observed.status != TurnOperationStatus::Completed ||
       observed.decision != "propose" || !observed.hasProposal ||
@@ -138,13 +140,16 @@ TurnPollDecision EvaluateTurnOperationWithProposal(
       actual.clientTurnId != expected.clientTurnId ||
       actual.generation != expected.generation ||
       actual.deviceRevision != expected.deviceRevision ||
+      actual.operationEpoch != expected.operationEpoch ||
       currentGeneration != expected.generation ||
+      currentOperationEpoch != expected.operationEpoch ||
       currentDeviceRevision != expected.deviceRevision ||
       proposal.conversationId != expected.conversationId ||
       proposal.turnId != expected.clientTurnId ||
       proposal.bootId != expected.bootId ||
       proposal.generation != expected.generation ||
       proposal.deviceRevision != expected.deviceRevision ||
+      proposal.operationEpoch != expected.operationEpoch ||
       currentCatalogVersion.empty() ||
       proposal.catalogVersion != currentCatalogVersion ||
       proposal.compartment < 1 || proposal.compartment > 6 ||

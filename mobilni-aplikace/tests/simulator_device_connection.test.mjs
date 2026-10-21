@@ -196,6 +196,96 @@ function acquire(connection, socket, leaseId = randomUUID(), eventSequence = 2) 
   return leaseId;
 }
 
+function controlAck(request, overrides = {}) {
+  return {
+    protocolVersion: 1, type: 'control.ack', bootId,
+    requestMessageId: request.messageId, operation: request.type,
+    eventSequence: 2, revision: 1, accepted: false, errorCode: 'busy', ...overrides,
+  };
+}
+
+test('typed control refusals clear exact pending intent and preserve status, Stop and retry', () => {
+  const { connection, socket } = startConnection();
+  socket.message(snapshot({ eventSequence: 2, capabilities: ['controlAck'] }));
+  assert.equal(connection.acquire(), true);
+  const request = socket.sent.at(-1);
+  assert.equal(request.acknowledge, true);
+  validateControlMessage(Buffer.from(JSON.stringify(request)));
+  const refusal = controlAck(request, { eventSequence: 3 });
+  validateControlMessage(Buffer.from(JSON.stringify(refusal)));
+  socket.message(refusal);
+  assert.equal(connection.snapshot().busy, false);
+  assert.match(connection.snapshot().status, /zaneprázdněný/);
+  assert.equal(socket.readyState, FakeSocket.OPEN);
+  socket.message(snapshot({ eventSequence: 4, capabilities: ['controlAck'] }));
+  assert.match(connection.snapshot().status, /zaneprázdněný/);
+  assert.equal(connection.acquire(), true);
+  const retry = socket.sent.at(-1);
+  socket.message(refusal); // The first request cannot clear a newer wait.
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(controlAck(retry, { bootId: randomUUID() }));
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(controlAck(retry, { accepted: true, errorCode: null, eventSequence: 5 }));
+  assert.equal(connection.snapshot().controlMode, 'observer');
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(snapshot({ eventSequence: 6, capabilities: ['controlAck'], controlMode: 'manual', controlLeaseId: randomUUID() }));
+  assert.equal(connection.snapshot().controlMode, 'manual');
+  connection.release();
+  const release = socket.sent.at(-1);
+  assert.equal(release.type, 'control.release');
+  assert.equal(release.acknowledge, true);
+  socket.message(controlAck(release, { eventSequence: 7, errorCode: 'recovery_required' }));
+  assert.equal(connection.snapshot().busy, false);
+  assert.equal(connection.snapshot().controlMode, 'manual');
+  assert.match(connection.snapshot().status, /servisní kontrolu/);
+  connection.stop();
+  assert.equal(socket.sent.at(-1).type, 'safety.stop');
+  connection.suspend();
+});
+
+test('old firmware receives unchanged control requests and completes through snapshots', () => {
+  const { connection, socket } = startConnection();
+  acquire(connection, socket);
+  assert.equal(socket.sent.find(message => message.type === 'control.acquire').acknowledge, undefined);
+  connection.release();
+  assert.equal(socket.sent.at(-1).acknowledge, undefined);
+  socket.message(snapshot({ eventSequence: 3 }));
+  assert.equal(connection.snapshot().controlMode, 'observer');
+  assert.equal(connection.snapshot().busy, false);
+  connection.suspend();
+});
+
+test('control refusal cannot override a newer revision or a safety state', () => {
+  const { connection, socket } = startConnection();
+  socket.message(snapshot({ eventSequence: 2, revision: 4, capabilities: ['controlAck'] }));
+  assert.equal(connection.acquire(), true);
+  const request = socket.sent.at(-1);
+  socket.message(controlAck(request, { eventSequence: 3, revision: 3 }));
+  assert.equal(connection.snapshot().busy, true);
+  socket.message(controlAck(request, { eventSequence: 4, revision: 4 }));
+  assert.equal(connection.snapshot().busy, false);
+  socket.message(snapshot({ eventSequence: 5, revision: 4, capabilities: ['controlAck'], faults: ['journal_failed'] }));
+  assert.equal(connection.snapshot().phase, 'stopped');
+  assert.match(connection.snapshot().status, /servisní kontrolu/);
+  assert.doesNotMatch(connection.snapshot().status, /zaneprázdněný/);
+  connection.suspend();
+});
+
+test('strict control acknowledgement schema rejects malformed results and limits opt-in requests', () => {
+  const request = { protocolVersion: 1, type: 'control.acquire', messageId: randomUUID(), deviceId, bootId, acknowledge: true };
+  const ack = controlAck(request);
+  const validate = value => validateControlMessage(Buffer.from(JSON.stringify(value)));
+  for (const invalid of [
+    { ...ack, accepted: true }, { ...ack, errorCode: null }, { ...ack, errorCode: 'arbitrary' },
+    { ...ack, operation: 'safety.stop' }, { ...ack, requestMessageId: 'invalid' },
+    { ...ack, eventSequence: -1 }, { ...ack, arbitrary: true },
+    { ...request, acknowledge: false }, { ...request, type: 'state.get' },
+  ]) assert.throws(() => validate(invalid));
+  validate({ ...ack, accepted: true, errorCode: null });
+  validate({ ...request, type: 'control.release', controlLeaseId: randomUUID() });
+  validate({ ...request, type: 'safety.reset', controlLeaseId: randomUUID(), inspectionConfirmed: true });
+});
+
 test('debug telemetry reflects accepted samples, reboot and disconnect without exposing a lease', () => {
   const { connection, socket } = startConnection();
   const initial = connection.snapshot().diagnostics;
@@ -511,4 +601,91 @@ test('last observed local time changes only on accepted snapshots or matched hea
     socket.message(reply);
     assert.equal(connection.snapshot().diagnostics.lastObservedAtMs, wallClock);
   } finally { connection.suspend(); Date.now = dateNow; }
+});
+
+
+test('operation epoch negotiation gates physical intent and preserves the captured retry envelope', () => {
+  const { connection, socket } = startConnection();
+  const leaseId = acquire(connection, socket);
+  socket.message(snapshot({ eventSequence: 3, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'] }));
+  const metadataRequest = socket.sent.at(-1);
+  assert.equal(metadataRequest.type, 'state.get');
+  assert.equal(metadataRequest.includeOperationEpoch, true);
+  validateControlMessage(Buffer.from(JSON.stringify(metadataRequest)));
+  assert.equal(connection.select(1), false);
+  socket.message(snapshot({ eventSequence: 4, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'], operationEpoch: '18446744073709551615' }));
+  const first = preflight(connection, socket, 1);
+  assert.equal(first.operationEpoch, '18446744073709551615');
+  validateControlMessage(Buffer.from(JSON.stringify(first)));
+  socket.message(snapshot({ eventSequence: 5, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'], operationEpoch: '7' }));
+  advance(500);
+  assert.deepEqual(socket.sent.at(-1), first);
+  socket.message({ protocolVersion: 1, type: 'command.ack', commandId: first.commandId,
+    bootId, status: 'rejected', errorCode: 'wrong_operation_epoch', revision: 1, eventSequence: 6 });
+  assert.equal(socket.readyState, FakeSocket.OPEN);
+  assert.equal(socket.sent.at(-1).includeOperationEpoch, true);
+  assert.equal(connection.select(1), false);
+  socket.message(snapshot({ eventSequence: 7, controlMode: 'manual', controlLeaseId: leaseId,
+    capabilities: ['operationEpoch'], operationEpoch: '7' }));
+  const fresh = preflight(connection, socket, 1);
+  assert.equal(fresh.operationEpoch, '7');
+  assert.notEqual(fresh.commandId, first.commandId);
+  assert.equal(fresh.sequence, first.sequence);
+  connection.stop();
+  assert.equal(socket.sent.at(-1).type, 'safety.stop');
+  assert.equal(socket.sent.at(-1).operationEpoch, undefined);
+  connection.suspend();
+});
+
+test('epoch validation rejects lossy or noncanonical metadata while old firmware payloads stay unchanged', () => {
+  for (const operationEpoch of ['00', '-1', '+1', '1e0', '18446744073709551616', 1]) {
+    const { connection, socket } = startConnection();
+    socket.message(snapshot({ eventSequence: 2, operationEpoch }));
+    assert.equal(socket.readyState, FakeSocket.CLOSED);
+    connection.suspend();
+  }
+  const { connection, socket } = startConnection();
+  acquire(connection, socket);
+  const command = preflight(connection, socket, 1);
+  assert.equal(Object.hasOwn(command, 'operationEpoch'), false);
+  connection.suspend();
+});
+
+test('offline acknowledgement keeps imported epoch rather than current device metadata', async () => {
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });
+  socket.open();
+  socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot({ capabilities: ['operationEpoch'] }) });
+  await assert.rejects(connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '4' }), /metadata/);
+  socket.message(snapshot({ eventSequence: 2, capabilities: ['operationEpoch'], operationEpoch: '8' }));
+  const ack = connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '4' });
+  const request = socket.sent.at(-1);
+  assert.equal(request.operationEpoch, '4');
+  validateControlMessage(Buffer.from(JSON.stringify(request)));
+  socket.message(snapshot({ eventSequence: 3, capabilities: ['operationEpoch'], operationEpoch: '9' }));
+  assert.equal(request.operationEpoch, '4');
+  offlineAck(socket, request);
+  await ack;
+  const legacy = connection.requestOffline('offline_sync_ack', undefined, randomUUID());
+  const legacyRequest = socket.sent.at(-1);
+  assert.equal(legacyRequest.operationEpoch, '0');
+  offlineAck(socket, legacyRequest); await legacy;
+  connection.suspend();
+});
+
+
+test('an explicit scoped offline acknowledgement cannot downgrade to old firmware', async () => {
+  const socket = new FakeSocket();
+  const connection = new ProtocolDeviceConnection(() => {}, { source: 'native-device', deviceId, createSocket: () => socket });
+  socket.open(); socket.message({ protocolVersion: 1, type: 'welcome', snapshot: snapshot() });
+  const before = socket.sent.length;
+  await assert.rejects(connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '4' }), /epochu/);
+  assert.equal(socket.sent.length, before);
+  const legacy = connection.requestOffline('offline_sync_ack', undefined, randomUUID(), { operationEpoch: '0' });
+  const request = socket.sent.at(-1); assert.equal(Object.hasOwn(request, 'operationEpoch'), false);
+  offlineAck(socket, request); await legacy;
+  connection.suspend();
 });

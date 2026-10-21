@@ -203,9 +203,33 @@ void StrictWireAndSafeMetadata() {
   wrongPath.replace(at, 16, "\"audioPath\":\"https://untrusted/audio\"");
   assert(!ParseDeviceShowEnvelope(base + wrongPath + "}", parsed));
 }
+
+void SettingsAreRetainedUntilExactConfirmation() {
+  DeviceShowMailbox mailbox;
+  DeviceShowSettings first;
+  first.revision = 5; first.stopRevision = 9; first.quiet = true; first.ambient = false;
+  mailbox.Settings(first);
+  DeviceShowSettings read;
+  assert(mailbox.PeekSettings(read) && read.revision == 5 && read.stopRevision == 9);
+  assert(mailbox.PeekSettings(read)); // A pending durable write does not consume the request.
+  DeviceShowSettings newer;
+  newer.revision = 6; newer.stopRevision = 8; newer.quiet = false; newer.ambient = true;
+  mailbox.Settings(newer);
+  assert(!mailbox.ConfirmSettings(first)); // Late completion cannot discard the newer request.
+  assert(mailbox.PeekSettings(read) && read.revision == 6 && read.stopRevision == 9);
+  assert(!read.quiet && read.ambient); // Settings and Stop revisions advance independently.
+  DeviceShowSettings stopOnly;
+  stopOnly.revision = 4; stopOnly.stopRevision = 10;
+  mailbox.Settings(stopOnly);
+  assert(!mailbox.ConfirmSettings(read));
+  assert(mailbox.PeekSettings(read) && read.revision == 6 && read.stopRevision == 10);
+  assert(!read.quiet && read.ambient);
+  assert(mailbox.ConfirmSettings(read) && !mailbox.PeekSettings(read));
+}
 }
 int main() {
   TypedAdaptersAndRealPlaybackBoundary(); CancellationEpochSettingsAndBounds();
   LivePhysicalCuesAndBorrowedCredentials(); StrictWireAndSafeMetadata();
+  SettingsAreRetainedUntilExactConfirmation();
   std::cout << "Device cue codec, typed adapters, duel playback drain, cancellation, settings and bounds passed\n";
 }

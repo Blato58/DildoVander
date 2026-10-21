@@ -61,6 +61,26 @@ assert.throws(() => validateControlMessage(ninthOutcome));
 const pendingOutcomes = Buffer.from(JSON.stringify({ ...boundedOutbox, records: boundedOutbox.records.map(record => ({ ...record, outcome: 'pending' })) }));
 compare(pendingOutcomes, 'offline outbox accepts no pending or inferred outcome');
 assert.throws(() => validateControlMessage(pendingOutcomes));
+// Epochs are uint64 decimal strings, including values beyond JS safe integers.
+const epochSelection = JSON.parse(await readFile(new URL('./fixtures/valid/selection-start.json', import.meta.url), 'utf8'));
+for (const epoch of ['0', '1', '9007199254740993', '18446744073709551615']) {
+  const bytes = Buffer.from(JSON.stringify({ ...epochSelection, operationEpoch: epoch }));
+  compare(bytes, `valid operation epoch ${epoch}`); validateControlMessage(bytes);
+  const outcomeBytes = Buffer.from(JSON.stringify({ ...boundedOutbox, records: [{ ...completedOutcome, operationEpoch: epoch }] }));
+  compare(outcomeBytes, `valid recorded outcome epoch ${epoch}`); validateControlMessage(outcomeBytes);
+}
+for (const epoch of ['', '00', '01', '-1', '+1', '1.0', '1e0', '18446744073709551616', '99999999999999999999', 1]) {
+  const bytes = Buffer.from(JSON.stringify({ ...epochSelection, operationEpoch: epoch }));
+  compare(bytes, `invalid operation epoch ${epoch}`); assert.throws(() => validateControlMessage(bytes));
+  const outcomeBytes = Buffer.from(JSON.stringify({ ...boundedOutbox, records: [{ ...completedOutcome, operationEpoch: epoch }] }));
+  compare(outcomeBytes, `invalid recorded outcome epoch ${epoch}`); assert.throws(() => validateControlMessage(outcomeBytes));
+}
+const epochStateGet = { protocolVersion: 1, type: 'state.get', messageId: epochSelection.commandId,
+  deviceId: epochSelection.deviceId, bootId: epochSelection.bootId, includeOperationEpoch: true };
+validateControlMessage(Buffer.from(JSON.stringify(epochStateGet)));
+for (const message of [{ ...epochStateGet, includeOperationEpoch: false }, { ...epochStateGet, type: 'safety.stop' }]) {
+  assert.throws(() => validateControlMessage(Buffer.from(JSON.stringify(message))));
+}
 // Exercise lexical and UTF-8 safety independently of schema validity.
 for (const bytes of [Buffer.from('{"x":1,"x":2}'), Buffer.from('{"x":1e0}'), Buffer.from('{"x":1.0}'),
   Buffer.from('{/* comment */"x":1}'), Buffer.from([0xc3, 0x28]), Buffer.alloc(8193, 0x20)]) compare(bytes, 'strict raw bytes');

@@ -88,6 +88,12 @@ internal static class CostumeImageEndpoints
     {
         upload = null;
         key = default;
+        string? operationEpoch = null;
+        if (context.Request.Headers.TryGetValue("Operation-Epoch", out var epochs))
+        {
+            if (epochs.Count != 1 || string.IsNullOrEmpty(epochs[0]) || !OperationEpoch.IsValid(epochs[0])) { return false; }
+            operationEpoch = epochs[0];
+        }
         if (!Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out key)
             || key == Guid.Empty
             || !Guid.TryParseExact(context.Request.Headers["Client-Turn-Id"], "D", out var turn) || turn == Guid.Empty
@@ -107,7 +113,7 @@ internal static class CostumeImageEndpoints
             || imageRevision.Length > 0 && (!int.TryParse(imageRevision, NumberStyles.None,
                 CultureInfo.InvariantCulture, out var parsedRevision) || parsedRevision < 1))
         { return false; }
-        upload = new(turn, boot, generation, revision, catalog, [])
+        upload = new(turn, boot, generation, revision, catalog, [], operationEpoch)
         {
             ImageId = imageId.Length == 0 ? null : imageId,
             Source = source.Length == 0 ? "phone" : source,

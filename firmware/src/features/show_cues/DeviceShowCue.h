@@ -41,7 +41,8 @@ class DeviceShowMailbox final {
   void PublishState(bool allowed, const DeviceShowSettings& applied, uint64_t generation, uint64_t revision);
   bool PollState(DeviceShowSettings& applied, uint64_t& generation, uint64_t& revision) const;
   void Settings(const DeviceShowSettings& desired);
-  bool TakeSettings(DeviceShowSettings& desired);
+  bool PeekSettings(DeviceShowSettings& desired) const;
+  bool ConfirmSettings(const DeviceShowSettings& expected);
   bool Offer(const DeviceShowCue& cue, std::shared_ptr<DeviceShowAudio> audio = {});
   bool IsActive() const;
   void Cancel(const std::string& cueId = "");

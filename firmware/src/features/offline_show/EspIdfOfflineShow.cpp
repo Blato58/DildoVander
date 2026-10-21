@@ -8,20 +8,6 @@
 #include "../voice_turn/PcmRateConverter.h"
 
 namespace kufr { namespace offline {
-EspIdfOutboxStorage::EspIdfOutboxStorage(bool initialized) {
-  opened_ = initialized && nvs_open("offline_show", NVS_READWRITE, &handle_) == ESP_OK;
-}
-bool EspIdfOutboxStorage::Read(Outbox& outbox) {
-  if (!opened_) return false;
-  size_t size = sizeof(outbox);
-  const esp_err_t result = nvs_get_blob(handle_, "outbox", &outbox, &size);
-  if (result == ESP_ERR_NVS_NOT_FOUND) { outbox = {}; return true; }
-  return result == ESP_OK && size == sizeof(outbox);
-}
-bool EspIdfOutboxStorage::Write(const Outbox& outbox) {
-  return opened_ && nvs_set_blob(handle_, "outbox", &outbox, sizeof(outbox)) == ESP_OK && nvs_commit(handle_) == ESP_OK;
-}
-
 bool EspIdfOfflineAudio::Begin() {
   const auto& bank = CompiledBank();
   if (task_ || bank.totalBytes > bank.capacityBytes || !audio_.Available()) return false;

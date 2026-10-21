@@ -1,0 +1,6 @@
+#pragma once
+#include "esp_transport.h"
+extern "C" {
+esp_transport_handle_t esp_transport_ssl_init();
+void esp_transport_ssl_crt_bundle_attach(esp_transport_handle_t, esp_err_t (*)(void*));
+}
