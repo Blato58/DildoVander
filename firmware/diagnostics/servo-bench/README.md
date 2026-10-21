@@ -3,7 +3,7 @@
 Samostatný ESP-IDF 6.1 firmware pro doručené ESP32-S3 N16R8 (PlatformIO
 `espressif32@7.1.3`). Používá jen UART a I2C, **bez ovládání OE**; bez Wi-Fi, AI, kamery,
 LED, vibrací a zápisu NVS. Nemění provozní kalibraci ani její bezpečnostní
-brány. Je určený **výhradně pro volné servo odpojené od mechanismu**.
+brány. Je určený **výhradně pro volná serva odpojená od mechanismu**.
 První povel do středu může znamenat velký pohyb z neznámé výchozí polohy.
 Není to test zdvihu přihrádky ani fyzická přejímka E5.
 
@@ -119,49 +119,78 @@ přihrádky vyžaduje samostatnou kalibraci až po dokončení testu volného se
 
 ### Hudba a tanec podle místní skladby
 
-V panelu **Hudba a tanec** vyber místní MP3/WAV (nejvýše 32 MiB a 10 minut).
-Pro tento test byl zadán soubor `song.mp3`; soubor zůstává mimo repozitář.
-Prohlížeč jej lokálně dekóduje a analyzuje energii v 20ms oknech a odhad rytmu
-z nárůstů energie. BPM je pouze odhad, nikoli anotovaný hudební takt.
-Není potřeba AI, síť, mikrofon ani posílání zvuku na server.
+V panelu **Waveform a tanec serv** vyber místní MP3/WAV (nejvýše 32 MiB a
+10 minut). Skladba zůstává v prohlížeči, neposílá se na server ani do Git.
+**Play / Pause / Stop** společně řídí poslech a vybrané taneční kanály;
+Stop vrací skladbu na začátek a vyžádá PWM FULL_OFF. Samotný poslech neposílá
+pohybové povely. Soubor `C:/Development/song.mp3` je místní vstup majitele,
+nikoli součást repozitáře.
 
-**Play** bez zaškrtnutého tance slouží k poslechu a nepohne USB servem.
-Pro tanec připoj právě jedno volné servo na vybraný kanál, vyčkej na potvrzený
-Stop a firmware s podporou celého rozsahu 600–2300 µs. Zaškrtni **Servo tančí
-se zvukem** a potvrzení přípravy pro toto Play. V aplikaci je navíc potřeba
-společné potvrzení připraveného volného serva. Rozsah tance začíná na 40 %;
-100 % může využít celých 600–2300 µs kolem středu 1450 µs. Energie skladby
-řídí výchylku; ticho neposílá nový pulz. Střed je odvozený z potvrzeného rozsahu,
-nikoli změřený úhel nebo uložená kalibrace mechanismu.
+Analýza dekóduje stereo na 16 kHz a počítá výkon FFT s Hannovým oknem 512
+vzorků po 10 ms; kanály se vyhodnocují odděleně, aby se protifázový zvuk
+nevyrušil. Z basů 40–220 Hz, středů 220–2000 Hz, výšek 2000–7500 Hz,
+energie, spektrálních nástupů a pomalých změn barvy vznikají odlišné tlumené
+trajektorie. Odhad BPM je informační; pohyb sleduje průběh skladby, nestřídá
+jen dvě polohy po odhadnutém rytmu. Graf ukazuje waveform a plánovanou dráhu
+zvoleného kanálu, nikoli změřenou polohu serva.
 
-Časovým zdrojem je přehrávaný zvuk. Každý cíl používá samostatné Arm,
-potvrzení, 500ms `cal` a skutečné DONE. Cíle střídají směr po rytmických
-krocích nejméně 600 ms od sebe; rychlý rytmus se zpomalí na násobek dob.
-Zpožděné kroky se přeskočí, nehromadí se fronta a nepotvrzený povel se
-neopakuje. USB/prohlížeč i mechanická odezva přidávají latenci; nejde
-o garantovanou synchronizaci fyzického pohybu na vzorek zvuku.
+Zaškrtni jeden až šest kanálů 0–5 a každému přiřaď vlastní složku skladby:
+**Basy, Středy, Výšky, Akcenty, Dynamika nebo Fráze**. Výchozí je pouze kanál 0.
+Připoj jen volná nezatížená serva, ověř jejich zapojení a napájecí zdroj pro
+současný odběr vybraných serv. Před každým tanečním Play potvrď připravenost,
+USB a potvrzený Stop; při přehrávání jsou výběr a přiřazení uzamčené.
+Majitel fyzicky potvrdil **600–2300 µs pro všech šest serv 21. 10. 2026**.
+To neprokazuje úhly, proudy ani bezpečné limity zabudované mechaniky.
+Síla 40 % zmenšuje plánovanou výchylku kolem 1450 µs.
 
-**Pause** zastaví zvuk na místě a vyžádá PWM Stop. Nové Play pokračuje
-od stejného času a tanec vyžaduje nové potvrzení obsluhy a firmware Stop.
-**Stop hudby a tance** i hlavní **Stop USB** zastaví obojí a vrátí zvuk
-na začátek. Konec skladby, buffering během přehrávání, chyba zvuku, skrytí
-stránky, odpojení či chyba USB tanec přeruší bez automatického obnovení.
-Při hardwarové chybě se I2C neopakuje. Stav potvrzeného PWM sleduj v USB
-diagnostice; Stop neodpojuje 5 V ani nepotvrzuje skutečnou polohu.
+Tanec používá spojitý režim `dance=v1`: **jeden společný snímek každých 40 ms
+(25 Hz), bez 500ms délky nebo minimálního kroku**. Vybrané kanály se zapisují
+atomicky jedním 24bytovým I2C zápisem; ostatní mají FULL_OFF. Firmware omezuje
+každý kanál na 600–2300 µs a změnu požadovaného pulzu na 4000 µs/s, počínaje
+referencí 1450 µs. Jde o softwarové omezení změny pulzu; počáteční fyzická poloha
+ani skutečná rychlost serva nejsou měřené. Ruční `pulse` a `cal` jsou oddělené
+zkoušky a zachovávají své původní minimální trvání 500 ms.
 
-Ověření bez hardwaru:
+Časování vychází z pozice audia a dostupného výstupního timestampu Web Audio.
+Nastavitelný předstih 0–300 ms (výchozí 100 ms) a polovina vyhlazené USB RTT
+kompenzují odhad latence. Panel ukazuje RTT, frekvenci potvrzených snímků a
+firmwarem potvrzené šířky pulzů. Ani timestamp, RTT/2 či potvrzený pulz
+neprokazují okamžik fyzického pohybu; předstih dolaď poslechem a měřením.
 
-```powershell
-node --test firmware/diagnostics/servo-bench/web/tests/*.test.mjs
-node firmware/diagnostics/servo-bench/web/tests/music.browser.mjs
+Host čeká na dokončení zápisu i odpovídající ACK, nikdy neřadí staré snímky
+ani nedohání zpoždění. Přerušení audia/výstupního kontextu, hledání v čase,
+změna rychlosti, ztráta USB, skrytí panelu, reset a chybná nebo pozdní odpověď
+zastaví tanec. Při úvodním rozběhu zvuku se neposílá Arm, dokud nezačne postupovat
+pozice skladby (nejvýše 1 s). Za běhu se při zpoždění audia/smyčky či ACK nad
+150 ms vyžádá Stop. Návrat audia sám tanec neobnoví: je třeba nové Play a potvrzení.
+
+Firmware vydává v READY náhodný `dance_boot` a při každém Arm jednorázový
+`dance_token`. Příkazy mají pevnou délku, malá hexadecimální čísla a LF:
+
+```text
+dance 05 1234abcd 00000001
+target 00000001 00001 145000001600000000000000
 ```
 
-Browser test používá uzamčený Playwright z `mobilni-aplikace` a Chrome
-(volitelně `PLAYWRIGHT_CHANNEL`), generovaný místní WAV a falešný UART.
-`SERVO_MUSIC_FILE` může ukazovat na vlastní místní MP3. `SERVO_SCREENSHOTS`
-určuje existující složku pro snímky. Ověří skutečné dekódování, přehrávání,
-Pause/Stop, příkazy a desktop/mobil v obou tématech; neotevírá reálné USB
-a neprokazuje skutečný tanec serva.
+`dance` nese masku 01–3f, aktuální boot a právě vydaný token Arm. Maska 05
+vybírá kanály 0 a 2. ACK je `DANCE READY token=00000001 mask=05 watchdog_ms=250`;
+samo zahájení PWM nezapíná. `target` nese token, rostoucí pětimístné pořadí
+00001–99999 a šest čtyřmístných šířek: aktivní kanály 0600–2300, neaktivní 0000.
+ACK `DANCE APPLIED token=00000001 seq=00001 us=...` obsahuje skutečně zapsané
+nominální šířky po omezení rychlosti. Token nelze znovu použít; pořadí nesmí
+opakovat ani přetéct. Nové Play vyžaduje nové Arm.
+
+Nominální watchdog **250 ms** se obnoví až po ověřeném čerstvém snímku;
+session končí nejpozději po 10 minutách. Stop, chybný povel, deadline nebo
+porucha session zneplatní a vyžádají FULL_OFF. Zablokované I2C/ESP může vypnutí
+zpozdit nebo znemožnit; nejde o garantovaný fyzický deadline. Při potížích vypni
+zelenou 5V kolébku. FULL_OFF neodpojuje napájení a není měření polohy.
+
+Opakovatelný browser test používá skutečný audio dekodér a falešné UART:
+`node firmware/diagnostics/servo-bench/web/tests/music.browser.mjs`.
+Volitelná proměnná `SERVO_MUSIC_FILE` vybere skutečný místní MP3 místo WAV fixture.
+Ověřuje několik přiřazených kanálů, Play/Pause/Stop, graf a desktop/mobil v obou
+tématech. Neotevírá reálné USB a neprokazuje skutečný tanec nebo napájecí rezervu.
 
 ### Asistovaný automatický průchod
 
@@ -300,8 +329,9 @@ potvrdí až měření. Viz [datasheet NXP](https://www.nxp.com/docs/en/data-she
 držet poslední polohu; jistotu odpojení dá vypínač 5 V. Timeout 500 ms u `pulse`
 nebo zvolených 500–3000 ms u `cal` řídí
 jedna smyčka (UART čtení po 10 ms); přičítá se obsluha smyčky a I2C zápisu
-(timeout zápisu 50 ms). Po povolení kanálu proběhne sedm kontrolních čtení,
-každé s nakonfigurovaným timeoutem 20 ms; během nich se UART Stop neobsluhuje.
+(timeout zápisu 50 ms). Po povolení kanálu proběhnou tři čtení konfigurace a jedno souvislé čtení
+čtyř PWM registrů (v tanečním režimu všech 24 registrů kanálů 0–5), každé
+s nakonfigurovaným timeoutem 20 ms; během nich se UART Stop neobsluhuje.
 Při 100Hz ticku ESP-IDF jde o dva ticky místo původního jednoho. Timeout
 se používá v interních čekáních ovladače, nejde o zaručený celkový čas čtení.
 Deadline se

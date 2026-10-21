@@ -31,13 +31,17 @@ generator before its build; do not replace personal calibration or credentials.
 ## Servo bench and confirmed pulse range
 
 The standalone [servo-bench diagnostic](diagnostics/servo-bench/README.md)
-controls one free, unloaded servo over local USB. The owner physically
+controls free, unloaded servos over local USB. The owner physically
 confirmed **600–2300 us for all six servos on 2026-10-21**; `cal` advertises
 and enforces that range. The narrow `pulse` test remains 1400–1600 us.
 This evidence does not establish measured angles, installed mechanism limits
 or production calibration. Stop writes PWM FULL_OFF and does not remove 5 V.
 The browser panel also supports local music analysis and synchronized dance
-with Play, Pause and Stop; it requires explicit operator preparation.
+with Play, Pause and Stop. Its continuous 25 Hz dance has no 500 ms pulse
+cycle; select channels 0–5 and assign each its own bass, mid, treble, onset,
+energy or phrase trajectory. It requires explicit operator preparation and
+adequate power for the selected servos. Physical synchronization and
+multi-servo load acceptance remain separate from software validation.
 ## Provision, inspect and recover
 
 Device credentials live in NVS, not the image. Provider keys stay on the backend.

@@ -12,6 +12,10 @@ struct FakeOutputs : ServoBench::Outputs {
   unsigned pulses = 0;
   unsigned channel = 99;
   unsigned ticks = 0;
+  unsigned streams = 0;
+  unsigned frameMask = 0;
+  unsigned frameTicks[6]{};
+  uint64_t completionDelay = 0;
   bool Disable() override {
     if (failDisable) return false;
     enabled = false;
@@ -26,6 +30,20 @@ struct FakeOutputs : ServoBench::Outputs {
     enabled = !failPulse;
     return !failPulse;
   }
+  bool Frame(unsigned mask, const unsigned widths[6]) override {
+    ++streams;
+    frameMask = mask;
+    for (unsigned selected = 0; selected < 6; ++selected) {
+      frameTicks[selected] = widths[selected];
+      if ((mask & (1U << selected)) != 0) {
+        channel = selected;
+        ticks = widths[selected];
+      }
+    }
+    enabled = !failPulse;
+    return !failPulse;
+  }
+  uint64_t NowUs(uint64_t fallback) override { return fallback + completionDelay; }
   void Report(const char* message) override { lastReport = message; }
 };
 
@@ -38,10 +56,13 @@ struct FakeRegisterBus : ServoBench::RegisterBus {
   unsigned operations = 0;
   unsigned failAt = 0;
   bool corruptReadback = false;
+  unsigned corruptRegister = 256;
   unsigned fullOffWrites = 0;
+  unsigned frameWrites = 0;
   bool Write(uint8_t reg, const uint8_t* values, std::size_t size) override {
     if (++operations == failAt) return false;
     if (reg == 0xfd && size == 1 && values[0] == 0x10) ++fullOffWrites;
+    if (reg == 0x06 && size == 24) ++frameWrites;
     assert(reg + size <= 256);
     const bool autoIncrement = (registers[0] & 0x20) != 0;
     for (std::size_t i = 0; i < size; ++i) {
@@ -58,6 +79,7 @@ struct FakeRegisterBus : ServoBench::RegisterBus {
   bool Read(uint8_t reg, uint8_t& value) override {
     if (++operations == failAt) return false;
     value = corruptReadback ? 0xff : registers[reg];
+    if (reg == corruptRegister) value ^= 1;
     return true;
   }
   void WaitOscillator() override {}
@@ -144,6 +166,10 @@ struct RegisterOutputs : ServoBench::Outputs {
   bool Pulse(unsigned channel, unsigned ticks) override {
     ServoBench::PwmSnapshot snapshot;
     return ServoBench::SetVerifiedPulse(bus, channel, ticks, snapshot) ==
+        ServoBench::PulseReadbackResult::Match;
+  }
+  bool Frame(unsigned mask, const unsigned ticks[6]) override {
+    return ServoBench::SetVerifiedFrame(bus, mask, ticks) ==
         ServoBench::PulseReadbackResult::Match;
   }
   void Report(const char* message) override { lastReport = message; }
@@ -403,6 +429,247 @@ static void CheckCalibrationStopAndFault() {
   }
 }
 
+static void StartDance(ServoBench::Controller& controller, uint64_t now = 0) {
+  Send(controller, "arm\ndance 08 1234abcd 00000001\n", now);
+}
+
+static void CheckDanceSession() {
+  FakeOutputs outputs;
+  ServoBench::Controller controller(outputs, 0x1234abcd);
+  StartDance(controller, 100);
+  assert(!outputs.enabled && outputs.streams == 0);
+  assert(outputs.lastReport == "DANCE READY token=00000001 mask=08 watchdog_ms=250");
+  Send(controller, "target 00000001 00001 000000000000230000000000\n", 40100);
+  assert(outputs.enabled && outputs.channel == 3 && outputs.ticks == ServoBench::PulseTicks(1610));
+  assert(outputs.lastReport == "DANCE APPLIED token=00000001 seq=00001 us=000000000000161000000000");
+  Send(controller, "target 00000001 00003 000000000000060000000000\n", 80100);
+  assert(outputs.streams == 2 && outputs.ticks == ServoBench::PulseTicks(1450));
+  Send(controller, "target 00000001 00004 000000000000230000000000\n", 80100);
+  assert(outputs.streams == 3 && outputs.ticks == ServoBench::PulseTicks(1450));
+  controller.Tick(330099);
+  assert(outputs.enabled);
+  controller.Tick(330100);
+  assert(!outputs.enabled && outputs.lastReport == "DANCE TIMEOUT PWM FULL_OFF");
+  Send(controller, "target 00000001 00005 000000000000150000000000\n", 330101);
+  assert(outputs.streams == 3);
+  Send(controller, "arm\n", 400000);
+  assert(outputs.lastReport.find("dance_token=00000002") != std::string::npos);
+  Send(controller, "dance 08 1234abcd 00000001\n", 400000);
+  assert(outputs.lastReport.find("REJECT") == 0);
+  Send(controller, "dance 08 1234abcd 00000002\n", 400000);
+  assert(outputs.lastReport.find("REJECT") == 0); // A rejected start consumed arm.
+  Send(controller, "arm\ndance 08 1234abcd 00000003\n", 400000);
+  assert(outputs.lastReport.find("DANCE READY") == 0);
+  Send(controller, "stop\n", 400001);
+  assert(!outputs.enabled);
+}
+
+static void CheckDanceGrammarAndExclusion() {
+  const char* invalidStarts[] = {
+    "dance 00 1234abcd 00000001\n", "dance 3F 1234abcd 00000001\n",
+    "dance 40 1234abcd 00000001\n", "dance 08 1234ABCD 00000001\n",
+    "dance 08 00000000 00000001\n", "dance 08 1234abce 00000001\n",
+    "dance 08 1234abcd 00000000\n", "dance 08 1234abcd 00000002\n",
+    "dance 08 1234abcd 00000001 extra\n", "dance 008 1234abcd 00000001\n"
+  };
+  for (const char* command : invalidStarts) {
+    FakeOutputs outputs;
+    ServoBench::Controller controller(outputs, 0x1234abcd);
+    Send(controller, "arm\n");
+    Send(controller, command);
+    Send(controller, "dance 08 1234abcd 00000001\ntarget 00000001 00001 000000000000150000000000\n");
+    assert(!outputs.enabled && outputs.streams == 0);
+  }
+  const char* invalidTargets[] = {
+    "target 00000001 00001 150000000000150000000000\n", // Inactive channel0 must be0000.
+    "target 00000002 00001 000000000000150000000000\n", "target 00000001 00000 000000000000150000000000\n",
+    "target 00000001 00001 000000000000059900000000\n", "target 00000001 00001 000000000000230100000000\n",
+    "target 00000001 00001 +500\n", "target 00000001 0001 1500\n",
+    "target 00000001 0000a 1500\n", "target 00000001 100000 1500\n",
+    "target 00000001 00001 000000000000150000000000 extra\n", "target 00000001 00001 15\t0\n",
+    "pulse 3 1500\n", "cal 3 1500 0500\n", "arm\n", "help\n", "unknown\n"
+  };
+  for (const char* command : invalidTargets) {
+    FakeOutputs outputs;
+    ServoBench::Controller controller(outputs, 0x1234abcd);
+    StartDance(controller);
+    Send(controller, "target 00000001 00001 000000000000150000000000\n", 40000);
+    assert(outputs.enabled);
+    Send(controller, command, 50000);
+    assert(!outputs.enabled);
+    Send(controller, "target 00000001 00002 000000000000150000000000\n", 60000);
+    assert(outputs.streams == 1);
+  }
+  for (const char* sequence : {"00001", "00002"}) {
+    FakeOutputs outputs;
+    ServoBench::Controller controller(outputs, 0x1234abcd);
+    StartDance(controller);
+    Send(controller, "target 00000001 00002 000000000000150000000000\n", 40000);
+    Send(controller, std::string("target 00000001 ") + sequence + " 000000000000150000000000\n", 80000);
+    assert(!outputs.enabled && outputs.streams == 1);
+  }
+  FakeOutputs outputs;
+  ServoBench::Controller controller(outputs, 0x1234abcd);
+  Send(controller, "dance 08 1234abcd 00000001\n");
+  assert(outputs.lastReport.find("REJECT") == 0);
+  StartDance(controller);
+  Send(controller, "target 00000001 99999 000000000000150000000000\n", 40000);
+  Send(controller, "target 00000001 00001 000000000000150000000000\n", 80000);
+  assert(!outputs.enabled && outputs.streams == 1); // No sequence wrapping.
+}
+
+static void CheckDanceDeadlinesAndStop() {
+  for (uint64_t targetTime : {249999ULL, 250000ULL, 250001ULL}) {
+    FakeOutputs outputs;
+    ServoBench::Controller controller(outputs, 0x1234abcd);
+    StartDance(controller);
+    Send(controller, "target 00000001 00001 000000000000150000000000\n", targetTime);
+    assert(outputs.enabled == (targetTime < ServoBench::DanceWatchdogUs));
+  }
+  for (uint64_t delay : {9999ULL, 10000ULL, 10001ULL}) {
+    FakeOutputs outputs;
+    ServoBench::Controller controller(outputs, 0x1234abcd);
+    StartDance(controller);
+    outputs.completionDelay = delay;
+    Send(controller, "target 00000001 00001 000000000000150000000000\n", 240000);
+    assert(outputs.enabled == (delay < 10000));
+    if (delay >= 10000) assert(outputs.lastReport == "DANCE TIMEOUT PWM FULL_OFF");
+    else {
+      controller.Tick(499998);
+      assert(outputs.enabled);
+      controller.Tick(499999);
+      assert(!outputs.enabled);
+    }
+  }
+  for (const char* command : {"stop\n", "!", "partial!", "partial\t", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}) {
+    for (bool targetFirst : {false, true}) {
+      FakeOutputs outputs;
+      ServoBench::Controller controller(outputs, 0x1234abcd);
+      StartDance(controller);
+      if (targetFirst) Send(controller, "target 00000001 00001 000000000000150000000000\n", 40000);
+      Send(controller, command, 50000);
+      assert(!outputs.enabled);
+      Send(controller, "\ntarget 00000001 00002 000000000000150000000000\n", 60000);
+      assert(outputs.streams == (targetFirst ? 1U : 0U));
+    }
+  }
+  FakeOutputs outputs;
+  ServoBench::Controller controller(outputs, 0x1234abcd);
+  StartDance(controller);
+  for (unsigned sequence = 1; sequence <= 2999; ++sequence) {
+    char command[64];
+    std::snprintf(command, sizeof(command), "target 00000001 %05u 000000000000150000000000\n", sequence);
+    Send(controller, command, static_cast<uint64_t>(sequence) * 200000);
+    assert(outputs.enabled);
+  }
+  controller.Tick(ServoBench::DanceMaximumUs - 11);
+  assert(outputs.enabled);
+  outputs.completionDelay = 10;
+  Send(controller, "target 00000001 03000 000000000000150000000000\n", ServoBench::DanceMaximumUs - 10);
+  assert(!outputs.enabled && outputs.streams == 3000);
+  assert(outputs.lastReport == "DANCE TIMEOUT PWM FULL_OFF");
+  Send(controller, "target 00000001 03001 000000000000150000000000\n", ServoBench::DanceMaximumUs);
+  assert(!outputs.enabled && outputs.streams == 3000);
+}
+
+static void CheckDanceRegistersAndFaults() {
+  RegisterOutputs outputs;
+  ServoBench::Controller controller(outputs, 0x1234abcd);
+  StartDance(controller);
+  const unsigned preparedOffWrites = outputs.bus.fullOffWrites;
+  for (unsigned sequence = 1; sequence <= 10; ++sequence) {
+    char command[64];
+    std::snprintf(command, sizeof(command), "target 00000001 %05u 000000000000200000000000\n", sequence);
+    Send(controller, command, sequence * 40000);
+    assert(outputs.bus.fullOffWrites == preparedOffWrites);
+    for (unsigned channel = 0; channel < 16; ++channel) {
+      assert(((outputs.bus.registers[0x09 + channel * 4] & 0x10) != 0) == (channel != 3));
+    }
+  }
+  Send(controller, "!", 400001);
+  AssertAllOff(outputs.bus);
+  for (unsigned failure = 1; failure <= 28; ++failure) {
+    RegisterOutputs failed;
+    ServoBench::Controller failedController(failed, 0x1234abcd);
+    StartDance(failedController);
+    failed.bus.failAt = failed.bus.operations + failure;
+    Send(failedController, "target 00000001 00001 000000000000150000000000\n", 40000);
+    assert(failedController.Faulted());
+    AssertAllOff(failed.bus);
+    Send(failedController, "arm\ndance 08 1234abcd 00000002\ntarget 00000002 00001 000000000000150000000000\n", 80000);
+    AssertAllOff(failed.bus);
+  }
+  RegisterOutputs corrupt;
+  ServoBench::Controller corrupted(corrupt, 0x1234abcd);
+  StartDance(corrupted);
+  corrupt.bus.corruptReadback = true;
+  Send(corrupted, "target 00000001 00001 000000000000150000000000\n", 40000);
+  assert(corrupted.Faulted());
+  AssertAllOff(corrupt.bus);
+  for (unsigned field = 0; field < 27; ++field) {
+    RegisterOutputs mismatch;
+    ServoBench::Controller mismatched(mismatch, 0x1234abcd);
+    StartDance(mismatched);
+    mismatch.bus.corruptRegister = field == 0 ? 0 : field == 1 ? 1 :
+        field == 2 ? 0xfe : 0x06 + field - 3;
+    Send(mismatched, "target 00000001 00001 000000000000150000000000\n", 40000);
+    assert(mismatched.Faulted());
+    AssertAllOff(mismatch.bus);
+  }
+}
+
+static std::string FrameCommand(unsigned sequence, const unsigned widths[6]) {
+  char command[64];
+  std::snprintf(command, sizeof(command), "target 00000001 %05u %04u%04u%04u%04u%04u%04u\n",
+      sequence, widths[0], widths[1], widths[2], widths[3], widths[4], widths[5]);
+  return command;
+}
+
+static void CheckDanceMasks() {
+  for (unsigned mask = 1; mask <= 0x3f; ++mask) {
+    RegisterOutputs outputs;
+    ServoBench::Controller controller(outputs, 0x1234abcd);
+    Send(controller, "arm\n");
+    char start[40];
+    std::snprintf(start, sizeof(start), "dance %02x 1234abcd 00000001\n", mask);
+    Send(controller, start);
+    const unsigned preparedOffWrites = outputs.bus.fullOffWrites;
+    unsigned widths[6]{};
+    for (unsigned channel = 0; channel < 6; ++channel) {
+      if ((mask & (1U << channel)) != 0) widths[channel] = channel % 2 == 0 ? 600 : 2300;
+    }
+    for (unsigned sequence = 1; sequence <= 10; ++sequence) {
+      Send(controller, FrameCommand(sequence, widths), sequence * 40000);
+      assert(!controller.Faulted() && outputs.bus.frameWrites == sequence);
+      assert(outputs.bus.fullOffWrites == preparedOffWrites);
+      for (unsigned channel = 0; channel < 16; ++channel) {
+        const unsigned reg = 0x06 + channel * 4;
+        const bool selected = channel < 6 && (mask & (1U << channel)) != 0;
+        assert(outputs.bus.registers[reg] == 0 && outputs.bus.registers[reg + 1] == 0);
+        if (!selected) {
+          assert(outputs.bus.registers[reg + 2] == 0 && outputs.bus.registers[reg + 3] == 0x10);
+        } else {
+          const unsigned delta = sequence * 160;
+          const unsigned actual = channel % 2 == 0 ? (delta < 850 ? 1450 - delta : 600) :
+              (delta < 850 ? 1450 + delta : 2300);
+          const unsigned ticks = outputs.bus.registers[reg + 2] |
+              ((outputs.bus.registers[reg + 3] & 0x0f) << 8);
+          assert(ticks == ServoBench::PulseTicks(actual));
+        }
+      }
+    }
+    Send(controller, "stop\n", 400001);
+    AssertAllOff(outputs.bus);
+  }
+  FakeRegisterBus bus;
+  unsigned widths[6]{};
+  assert(ServoBench::SetVerifiedFrame(bus, 0, widths) == ServoBench::PulseReadbackResult::WriteFailed);
+  assert(bus.operations == 0);
+  widths[0] = ServoBench::PulseTicks(1500);
+  assert(ServoBench::SetVerifiedFrame(bus, 2, widths) == ServoBench::PulseReadbackResult::WriteFailed);
+  assert(bus.operations == 0); // Reject the complete frame before writing any channel.
+}
+
 int main() {
   CheckRegisters();
   CheckReadback();
@@ -412,6 +679,11 @@ int main() {
   CheckHelpReportsConfiguredLimits();
   CheckCalibrationGrammar();
   CheckCalibrationStopAndFault();
+  CheckDanceSession();
+  CheckDanceGrammarAndExclusion();
+  CheckDanceDeadlinesAndStop();
+  CheckDanceRegistersAndFaults();
+  CheckDanceMasks();
   {
     FakeOutputs outputs;
     ServoBench::Controller controller(outputs);

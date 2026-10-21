@@ -1,130 +1,152 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { analyzeMusic, musicCue, MusicDance } from "../music.mjs";
-import { BenchController } from "../controller.mjs";
-
-const analysis = { duration: 30, bpm: 120, beatSeconds: 0.5, offset: 0, energy: Array(1500).fill(1) };
-const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { MusicDance, AudioOutputClock } from '../music.mjs';
+import { BenchController } from '../controller.mjs';
+const flush = async () => { for (let index = 0; index < 5; index++) await Promise.resolve(); };
+const analysis = { duration: 4, frameSeconds: 0.01, energy: Array(401).fill(1), motions: {
+  bass: Array.from({ length: 401 }, (_, index) => Math.sin(index * 0.1) * 0.8),
+  mid: Array.from({ length: 401 }, (_, index) => Math.cos(index * 0.05) * 0.5), phrase: Array(401).fill(0.2),
+} };
 class Audio extends EventTarget {
   paused = true; currentTime = 0; readyState = 4; ended = false; seeking = false; playbackRate = 1;
   async play() { this.paused = false; }
-  pause() { if (!this.paused) { this.paused = true; this.dispatchEvent(new Event("pause")); } }
+  pause() { if (!this.paused) { this.paused = true; this.dispatchEvent(new Event('pause')); } }
 }
 async function fixture(writeOverride) {
-  const writes = [];
+  let time = 0; let nextTimer = 0; const timers = new Map(); const writes = [];
   const controller = new BenchController({ write: async (...args) => { writes.push(args[0]); await writeOverride?.(...args); },
-    setTimer: () => 1, clearTimer: () => {} });
-  await controller.connected();
-  controller.receive("READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300");
-  controller.receive("STOP PWM FULL_OFF"); writes.length = 0;
+    now: () => time, setTimer: (callback, delay) => { const id = ++nextTimer; timers.set(id, { callback, at: time + delay }); return id; }, clearTimer: id => timers.delete(id) });
   const audio = new Audio();
   const music = new MusicDance({ audio, getState: () => ({ ...controller.state, capabilities: controller.capabilities }),
-    arm: () => controller.arm(), calibrate: (...args) => controller.calibrate(...args), stop: () => controller.stop(),
-    schedule: () => 1, cancel: () => {} });
+    arm: () => controller.arm(), startDance: mask => controller.startDance(mask), target: widths => controller.target(widths), stop: () => controller.stop(),
+    now: () => time, clock: { resume: async () => {}, time: () => audio.currentTime }, schedule: () => 1, cancel: () => {} });
   music.analysis = analysis;
-  const tick = async (time = audio.currentTime) => { audio.currentTime = time; music.tick(music.generation); await flush(); };
-  return { writes, controller, music, audio, tick };
+  await controller.connected();
+  controller.receive('READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300 dance=v1 dance_boot=1234abcd');
+  controller.receive('STOP PWM FULL_OFF'); writes.length = 0;
+  const tick = async seconds => {
+    time = seconds * 1000; audio.currentTime = seconds;
+    for (const [id, timer] of [...timers]) if (timer.at <= time) { timers.delete(id); timer.callback(); }
+    music.tick(music.generation); await flush();
+  };
+  const ack = () => {
+    const match = writes.at(-1)?.match(/^target (\w{8}) (\d{5}) (\d{24})\n$/);
+    assert(match); controller.receive(`DANCE APPLIED token=${match[1]} seq=${match[2]} us=${match[3]}`);
+  };
+  const start = async (channels = [{ channel: 0, feature: 'bass' }, { channel: 2, feature: 'mid' }]) => {
+    assert.equal(await music.play({ dance: true, consent: true, channels, leadMs: 0 }), true); await flush();
+    await tick(0.005);
+    controller.receive('ARMED for one pulse; dance_token=00000001'); await tick(0.01);
+    const mask = channels.reduce((value, channel) => value | (1 << channel.channel), 0).toString(16).padStart(2, '0');
+    controller.receive(`DANCE READY token=00000001 mask=${mask} watchdog_ms=250`); await tick(0.02);
+  };
+  return { music, audio, controller, writes, tick, ack, start };
 }
 
-test("PCM energy/onset analysis estimates a 120 BPM pulse and silent input stays still", () => {
-  const sampleRate = 1000;
-  const samples = new Float32Array(20000);
-  for (let start = 0; start < samples.length; start += 500) samples.fill(0.8, start, start + 40);
-  const buffer = { duration: 20, sampleRate, length: samples.length, numberOfChannels: 1, getChannelData: () => samples };
-  const result = analyzeMusic(buffer);
-  assert.equal(result.bpm, 120); assert.equal(result.duration, 20);
-  assert(result.energy.some(value => value > 0.9));
-  samples.fill(0);
-  const silent = analyzeMusic(buffer);
-  assert.equal(silent.bpm, null); assert.equal(musicCue(silent, 2, 100).energy, 0);
-  assert.throws(() => analyzeMusic({ ...buffer, duration: 601 }));
-});
-
-test("cues alternate within all confirmed endpoints and never need a sub-600ms interval", () => {
-  assert.equal(musicCue(analysis, 0, 100).width, 2300);
-  assert.equal(musicCue(analysis, 1, 100).width, 600);
-  assert.equal(musicCue(analysis, 0.5, 100).step, 0);
-  assert.equal(musicCue(analysis, 0, 40).width, 1790);
-  for (const strength of [-1, 0, 50, 100, 200]) for (let time = 0; time < 30; time += 0.13) {
-    const cue = musicCue(analysis, time, strength);
-    assert(cue.width >= 600 && cue.width <= 2300);
-  }
-});
-
-test("loading/preview sends no USB; dance needs explicit consent, channel and firmware limits", async () => {
+test('audio preview has no USB writes; streaming requires feature assignments, consent and new firmware', async () => {
   const { music, controller, writes } = await fixture();
   assert.equal(await music.play({ dance: true }), false);
-  assert.equal(await music.play({ dance: true, consent: true, channel: 6 }), false);
-  controller.state.calibrationMinimumUs = 1000;
+  assert.equal(await music.play({ dance: true, consent: true, channels: [] }), false);
+  assert.equal(await music.play({ dance: true, consent: true, channels: [null] }), false);
+  assert.equal(await music.play({ dance: true, consent: true, channels: [{ channel: 6, feature: 'bass' }] }), false);
+  assert.equal(await music.play({ dance: true, consent: true, channels: [{ channel: 0, feature: 'bass' }, { channel: 0, feature: 'mid' }] }), false);
+  assert.equal(await music.play({ dance: true, consent: true, channels: [{ channel: 0, feature: 'unknown' }] }), false);
+  controller.state.danceSupported = false;
   assert.equal(await music.play({ dance: true, consent: true }), false);
-  assert.equal(await music.play(), true); assert.deepEqual(writes, []);
-  music.pause(); assert.deepEqual(writes, []);
+  assert.equal(await music.play(), true); assert.deepEqual(writes, []); music.stop(); assert.deepEqual(writes, []);
 });
 
-test("dance waits for Arm and matching DONE, skips missed cues, and pause invalidates late ACK", async () => {
-  const { music, audio, controller, writes, tick } = await fixture();
-  assert.equal(await music.play({ dance: true, consent: true, channel: 3 }), true);
-  assert.deepEqual(writes, ["arm\n"]);
-  await tick(0.2); assert.equal(writes.length, 1);
-  controller.receive("ARMED for one pulse"); await tick(0.2);
-  assert.deepEqual(writes, ["arm\n", "cal 3 1790 0500\n"]);
-  await tick(4.5); assert.equal(writes.length, 2); // No DONE, no next target.
-  controller.receive("DONE PWM FULL_OFF"); await tick(4.5); await tick(4.5);
-  assert.equal(writes.at(-1), "arm\n");
-  controller.receive("ARMED for one pulse"); await tick(5.2);
-  assert.equal(writes.at(-1), "cal 3 1110 0500\n"); // Current cue, not queued beat 1.
-  music.pause(); assert.equal(audio.currentTime, 5.2); assert.equal(audio.paused, true);
-  assert.equal(writes.at(-1), "!\n");
-  controller.receive("ARMED for one pulse"); controller.receive("DONE PWM FULL_OFF"); await tick(6);
-  assert.equal(writes.length, 5);
-  music.stop(); assert.equal(audio.currentTime, 0);
+test('Arm and session ACK gate independent multi-channel targets with no 500ms duration', async () => {
+  const { music, controller, writes, start } = await fixture(); await start();
+  assert.equal(writes[0], 'arm\n'); assert.equal(writes[1], 'dance 05 1234abcd 00000001\n');
+  const match = writes[2].match(/^target 00000001 00001 (\d{24})\n$/); assert(match);
+  const widths = match[1].match(/\d{4}/g).map(Number);
+  assert(widths[0] >= 600 && widths[0] <= 2300); assert(widths[2] >= 600 && widths[2] <= 2300);
+  assert.notEqual(widths[0], widths[2]); assert.deepEqual([widths[1], widths[3], widths[4], widths[5]], [0, 0, 0, 0]);
+  assert.equal(controller.arm(), false); assert.equal(controller.calibrate(0, 1500, 500), false);
+  assert(writes.every(value => !value.startsWith('cal '))); music.stop();
 });
 
-test("early firmware ACKs cannot outrun an unresolved transport write", async () => {
+test('matching ACK and write gate each40ms frame; late scheduling samples current audio and never catches up', async () => {
+  const { music, controller, writes, start, ack, tick } = await fixture(); await start();
+  await tick(0.03); assert.equal(writes.length, 3);
+  ack(); await tick(0.04); assert.equal(writes.length, 3);
+  await tick(0.06); assert.equal(writes.length, 4);
+  assert(writes.at(-1).includes(' 00002 '));
+  controller.receive('DANCE APPLIED token=ffffffff seq=00002 us=150000001500000000000000');
+  await tick(0.08); assert.equal(writes.length, 4);
+  ack(); await tick(0.13); assert.equal(writes.length, 5); // One newest frame, no missed-frame burst.
+  assert(writes.at(-1).includes(' 00003 '));
+  await tick(0.31); assert.equal(music.state.active, false); assert.equal(writes.at(-1), '!\n');
+});
+
+test('unresolved target write cannot be outrun by early matching ACK', async () => {
   let finish;
-  const { music, controller, writes, tick } = await fixture(text => text === "arm\n" ? new Promise(resolve => { finish = resolve; }) : undefined);
-  await music.play({ dance: true, consent: true });
-  controller.receive("ARMED for one pulse"); await tick(0.1);
-  assert.equal(writes.length, 1);
-  finish(); await flush(); await tick(0.2);
-  assert.equal(writes.at(-1), "cal 0 1790 0500\n"); music.stop();
+  const { music, controller, writes, start, ack, tick } = await fixture(text => text.startsWith('target ') ? new Promise(resolve => { finish = resolve; }) : undefined);
+  await start(); ack(); await tick(0.06); assert.equal(writes.length, 3);
+  finish(); await flush(); await tick(0.07); assert.equal(writes.length, 4); music.stop();
 });
 
-test("delayed Arm never compresses the next pulse below the 600ms cadence", async () => {
-  const { music, controller, writes, tick } = await fixture();
-  await music.play({ dance: true, consent: true });
-  await flush();
-  controller.receive("ARMED for one pulse"); await tick(0.9);
-  controller.receive("DONE PWM FULL_OFF"); await tick(1.4); await tick(1.4);
-  assert.equal(writes.length, 2);
-  await tick(1.51); assert.equal(writes.at(-1), "arm\n"); music.stop();
-});
-
-test("media interruption, USB disconnect/reset/fault, rejected and missing ACK never resume motion", async () => {
-  for (const event of ["waiting", "stalled", "error", "seeking", "ended", "pause", "ratechange"]) {
-    const { music, audio, controller, writes, tick } = await fixture();
-    await music.play({ dance: true, consent: true });
-    audio.dispatchEvent(new Event(event));
-    assert.equal(music.state.active, false); assert.equal(writes.at(-1), "!\n");
-    controller.receive("ARMED for one pulse"); await tick(2); assert.equal(writes.length, 2);
+test('Pause, all media interruptions and USB faults invalidate callbacks and never resume on late ACK', async () => {
+  for (const event of ['waiting', 'stalled', 'error', 'seeking', 'ended', 'pause', 'ratechange']) {
+    const { music, audio, controller, writes, start, tick } = await fixture(); await start();
+    audio.dispatchEvent(new Event(event)); const count = writes.length;
+    assert.equal(music.state.active, false); assert.equal(writes.at(-1), '!\n');
+    controller.receive('DANCE READY token=00000001 mask=05 watchdog_ms=250'); await tick(0.08); assert.equal(writes.length, count);
   }
-  for (const change of [controller => controller.disconnected(), controller => controller.fail("timeout"),
-    controller => controller.fail("fault", true), controller => controller.receive("REJECT cal"),
-    controller => controller.receive("READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300")]) {
-    const { music, controller, writes, tick } = await fixture();
-    await music.play({ dance: true, consent: true }); change(controller); await tick(1);
+  for (const change of [controller => controller.disconnected(), controller => controller.fail('fault', true),
+    controller => controller.receive('REJECT target'), controller => controller.receive('DANCE TIMEOUT PWM FULL_OFF'),
+    controller => controller.receive('READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300 dance=v1 dance_boot=1234abce')]) {
+    const { music, controller, start, tick } = await fixture(); await start(); change(controller); await tick(0.03);
     assert.equal(music.state.active, false);
-    assert.equal(writes.filter(value => value.startsWith("cal ")).length, 0);
   }
 });
 
-test("cancel during blocked media Play cannot later start USB; playback failure stays stopped", async () => {
-  const { music, audio, writes } = await fixture();
-  let finish;
+test('missing ACK stops; software timing lead samples future feature positions independently', async () => {
+  const { music, writes, start, tick } = await fixture(); await start(); await tick(0.18);
+  assert.equal(music.state.active, false); assert.equal(writes.at(-1), '!\n');
+  const f = await fixture(); f.music.state.leadMs = 0;
+  await f.start(); const withoutLead = f.writes.at(-1); f.music.stop();
+  const g = await fixture(); const pending = g.music.play({ dance: true, consent: true, channels: [{ channel: 0, feature: 'bass' }, { channel: 2, feature: 'mid' }], leadMs: 100 });
+  await pending; await g.tick(0.005); g.controller.receive('ARMED for one pulse; dance_token=00000001'); await g.tick(0.01);
+  g.controller.receive('DANCE READY token=00000001 mask=05 watchdog_ms=250'); await g.tick(0.02);
+  assert.notEqual(g.writes.at(-1), withoutLead); g.music.stop();
+});
+
+test('Stop during unresolved audio Play cannot later send Arm and decoder autoplay failure stays stopped', async () => {
+  const { music, audio, writes } = await fixture(); let finish;
   audio.play = () => new Promise(resolve => { finish = resolve; });
-  const play = music.play({ dance: true, consent: true });
-  music.stop(); finish(); await play;
-  assert.equal(music.state.active, false); assert.equal(writes.filter(value => value === "arm\n").length, 0);
-  audio.play = async () => { throw Error("blocked"); };
-  assert.equal(await music.play(), false); assert.equal(music.state.active, false);
+  const play = music.play({ dance: true, consent: true }); await flush(); music.stop(); finish(); await play;
+  assert.equal(writes.filter(value => value === 'arm\n').length, 0);
+  audio.play = async () => { throw Error('blocked'); };
+  assert.equal(await music.play(), false); assert.equal(music.state.active, false); assert.equal(audio.currentTime, 0);
+});
+
+test('interrupted audio output stops before Arm and during streaming; recovery never resumes motion', async () => {
+  for (const streaming of [false, true]) {
+    const f = await fixture();
+    const clock = new AudioOutputClock(f.audio);
+    clock.context = { state: 'running', resume: async () => {} };
+    f.music.clock = clock;
+    if (streaming) await f.start();
+    else await f.music.play({ dance: true, consent: true });
+    clock.context.state = 'interrupted';
+    await f.tick(streaming ? 0.04 : 0.02);
+    assert.equal(f.music.state.active, false);
+    assert.equal(f.writes.at(-1), '!\n');
+    if (!streaming) assert.equal(f.writes.includes('arm\n'), false);
+    const stoppedWrites = f.writes.length;
+    clock.context.state = 'running'; await f.tick(0.06);
+    assert.equal(f.writes.length, stoppedWrites);
+    assert.equal(f.music.state.active, false);
+  }
+});
+
+test('audio preroll never arms before media advances', async () => {
+  const f = await fixture();
+  await f.music.play({ dance: true, consent: true });
+  f.music.now = () => 200; f.music.tick(f.music.generation); await flush();
+  assert.equal(f.music.state.active, true); assert.deepEqual(f.writes, []);
+  f.music.now = () => 1001; f.music.tick(f.music.generation); await flush();
+  assert.equal(f.music.state.active, false); assert.deepEqual(f.writes, ['!\n']);
 });

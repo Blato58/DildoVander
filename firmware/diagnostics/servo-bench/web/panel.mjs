@@ -421,7 +421,7 @@ if (!supported) {
 }
 music = mountMusicPanel(document, {
   getState: () => ({ ...getRawSnapshot(), automatic: !!autoCalibration?.state.active }),
-  arm: () => controller.arm(), calibrate: (channel, width, duration) => controller.calibrate(channel, width, duration),
+  arm: () => controller.arm(), startDance: mask => controller.startDance(mask), target: widths => controller.target(widths),
   stop: () => controller.stop(), channel: () => Number(elements.channel.value),
   onChange: () => render(controller.state, controller.capabilities),
 });

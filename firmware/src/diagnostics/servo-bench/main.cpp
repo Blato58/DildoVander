@@ -6,6 +6,7 @@
 #include "driver/uart.h"
 #include "esp_err.h"
 #include "esp_rom_sys.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -57,6 +58,13 @@ class PcaOutputs final : public ServoBench::Outputs, private ServoBench::Registe
     return matches;
   }
 
+  bool Frame(unsigned mask, const unsigned ticks[6]) override {
+    return ServoBench::SetVerifiedFrame(*this, mask, ticks) ==
+        ServoBench::PulseReadbackResult::Match;
+  }
+
+  uint64_t NowUs(uint64_t) override { return static_cast<uint64_t>(esp_timer_get_time()); }
+
   void Report(const char* message) override {
     std::printf("SERVO_BENCH %s\n", message);
     // Reports follow the controller's shutdown attempt. Never print from an
@@ -103,6 +111,11 @@ class PcaOutputs final : public ServoBench::Outputs, private ServoBench::Registe
         device_, &reg, 1, &value, 1, ReadTimeoutMs));
   }
 
+  bool ReadBytes(uint8_t reg, uint8_t* values, std::size_t size) override {
+    return device_ && RecordTransfer("READ", reg, i2c_master_transmit_receive(
+        device_, &reg, 1, values, size, ReadTimeoutMs));
+  }
+
   void WaitOscillator() override { esp_rom_delay_us(500); }
 
   i2c_master_bus_handle_t bus_ = nullptr;
@@ -115,17 +128,20 @@ class PcaOutputs final : public ServoBench::Outputs, private ServoBench::Registe
 extern "C" void app_main() {
   PcaOutputs outputs;
   const bool ready = outputs.Initialize();
-  ServoBench::Controller controller(outputs);
+  uint32_t bootNonce = 0;
+  while (bootNonce == 0) bootNonce = esp_random();
+  ServoBench::Controller controller(outputs, bootNonce);
   // Keep UART0's console pin mapping; use USB-UART, not native USB-OTG.
   const bool uartReady = uart_driver_install(UART_NUM_0, 256, 0, 0, nullptr, 0) == ESP_OK;
   if (!ready || !uartReady) controller.Fault();
   if (ready && uartReady && !controller.Faulted()) {
-    char message[192];
+    char message[224];
     std::snprintf(message, sizeof(message),
         "READY PWM FULL_OFF; GPIO1=SDA GPIO14=SCL no OE control PCA=0x40 nominal 50Hz; "
         "diag=i2c-errors-v2 read_timeout_ms=20; calibration=v2 "
-        "calibration_min_us=%u calibration_max_us=%u; type help",
-        ServoBench::CalibrationMinimumUs, ServoBench::CalibrationMaximumUs);
+        "calibration_min_us=%u calibration_max_us=%u; dance=v1 dance_boot=%08lx; type help",
+        ServoBench::CalibrationMinimumUs, ServoBench::CalibrationMaximumUs,
+        static_cast<unsigned long>(bootNonce));
     outputs.Report(message);
   } else {
     outputs.Report("NOT READY; PWM state not guaranteed; cut servo power, check wiring and restart");

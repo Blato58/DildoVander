@@ -106,7 +106,7 @@ async function enableTools(): Promise<void> {
       <p role="status">{{ automatic?.message || 'Asistovaná kalibrace není spuštěná.' }}</p>
       <p v-if="automatic?.candidateUs != null">Návrh: {{ automatic.candidateUs }} µs · Stop {{ automatic.stopConfirmed ? 'potvrzený firmwarem' : 'nepotvrzený' }} · poloha neměřená.</p>
     </section>
-    <ServoMusicPanel :channel="channel" :prepared="physicallyPrepared" />
+    <ServoMusicPanel />
     <details><summary>PCA9685 readback a technický log</summary><p>Registry jsou čtení PCA9685, ne snímač skutečné polohy serva. Po odpojení je log historický.</p>
       <dl v-if="state.readback" class="bench-metrics"><div v-for="(value, key) in state.readback" :key="key"><dt>{{ key }}</dt><dd>{{ value }}</dd></div></dl><p v-else>Žádný potvrzený readback.</p><pre class="bench-log">{{ bench.log.value.join('\n') || 'Žádné technické události.' }}</pre>
     </details>
