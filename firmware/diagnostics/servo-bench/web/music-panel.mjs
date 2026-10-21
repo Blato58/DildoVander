@@ -15,10 +15,21 @@ export function mountMusicPanel(document, options) {
       const option = document.createElement('option'); option.value = value.id; option.textContent = value.label;
       option.selected = index === channel; feature.append(option);
     }
+    const laneLabel = document.createElement('div'); laneLabel.className = 'music-lane-label';
+    const laneTitle = document.createElement('strong'); laneTitle.id = `music-label-${channel}`;
+    const laneStatus = document.createElement('small'); laneStatus.id = `music-lane-status-${channel}`;
+    laneLabel.append(laneTitle, laneStatus); get('lane-labels').append(laneLabel);
+    const svg = name => document.createElementNS('http://www.w3.org/2000/svg', name);
+    const lane = svg('g'); lane.id = `music-lane-${channel}`;
+    lane.setAttribute('transform', `translate(0 ${4 + channel * 40}) scale(1 .4)`);
+    const baseline = svg('line'); baseline.setAttribute('x1', '0'); baseline.setAttribute('x2', '1000');
+    baseline.setAttribute('y1', '140'); baseline.setAttribute('y2', '140'); baseline.classList.add('music-baseline');
+    const path = svg('path'); path.id = `music-motion-${channel}`; path.classList.add('music-motion');
+    lane.append(baseline, path); get('lanes').append(lane);
     row.append(label, feature); get('channels').append(row);
   }
-  const channels = () => Array.from({ length: 6 }, (_, channel) => ({ channel, feature: get(`feature-${channel}`).value }))
-    .filter(value => get(`channel-${value.channel}`).checked);
+  const allChannels = () => Array.from({ length: 6 }, (_, channel) => ({ channel, feature: get(`feature-${channel}`).value }));
+  const channels = () => allChannels().filter(value => get(`channel-${value.channel}`).checked);
   const dance = new MusicDance({ ...options, audio, onChange: render });
   let loading = false; let selection = 0; let url = null;
   let summary = 'Zvuk zůstává v tomto prohlížeči. Nic se nenahrává na server.';
@@ -32,18 +43,25 @@ export function mountMusicPanel(document, options) {
     get('progress').max = dance.analysis?.duration || 1; get('progress').value = dance.state.time;
     get('time').textContent = `${dance.state.time.toFixed(1)} / ${(dance.analysis?.duration || 0).toFixed(1)} s`;
     get('timing').textContent = `Předstih ${Number(get('lead').value)} ms + odhad RTT/2 · RTT ${dance.state.rttMs.toFixed(1)} ms · potvrzeno ${dance.state.updateHz.toFixed(1)} snímků/s · cíle PWM: ${dance.state.appliedWidths.map((value, index) => value ? `${index}: ${value} µs` : '').filter(Boolean).join(' · ') || 'zatím žádné'}`;
-    const x = (dance.state.time / (dance.analysis?.duration || 1) * 1000).toFixed(1);
-    get('cursor').setAttribute('x1', x); get('cursor').setAttribute('x2', x);
-    const feature = get(`feature-${get('preview').value}`).value;
-    const signature = `${selection}:${Number(get('strength').value)}:${feature}:${!!dance.analysis}`;
+    const x = Math.min(1000, Math.max(0, dance.state.time / (dance.analysis?.duration || 1) * 1000)).toFixed(1);
+    get('playhead').setAttribute('transform', `translate(${x} 0)`);
+    const assignments = allChannels();
+    const signature = `${selection}:${Number(get('strength').value)}:${assignments.map(value => `${value.feature}:${get(`channel-${value.channel}`).checked}`).join(',')}:${!!dance.analysis}`;
     if (signature !== plotSignature) {
       plotSignature = signature;
-      const paths = waveformPaths(dance.analysis, Number(get('strength').value), feature);
-      get('wave').setAttribute('d', paths.waveform); get('motion').setAttribute('d', paths.motion);
+      get('wave').setAttribute('d', waveformPaths(dance.analysis).waveform);
+      for (const value of assignments) {
+        const enabled = get(`channel-${value.channel}`).checked;
+        const feature = MUSIC_FEATURES.find(feature => feature.id === value.feature);
+        get(`label-${value.channel}`).textContent = `${value.channel} · ${feature.label.split(' · ')[0]}`;
+        get(`lane-status-${value.channel}`).textContent = enabled ? 'vybraný kanál' : 'vypnuto · náhled';
+        get(`lane-${value.channel}`).classList.toggle('music-lane-off', !enabled);
+        get(`motion-${value.channel}`).setAttribute('d', waveformPaths(dance.analysis, Number(get('strength').value), value.feature).motion);
+      }
     }
     options.onChange?.();
   }
-  for (const id of ['strength', 'lead', 'preview', ...Array.from({ length: 6 }, (_, channel) => `feature-${channel}`)]) get(id).addEventListener('input', render);
+  for (const id of ['strength', 'lead', ...Array.from({ length: 6 }, (_, channel) => [`feature-${channel}`, `channel-${channel}`]).flat()]) get(id).addEventListener('input', render);
   get('file').addEventListener('change', async () => {
     const file = get('file').files?.[0]; const current = ++selection;
     dance.stop(); dance.analysis = null;
