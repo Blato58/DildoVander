@@ -63,7 +63,9 @@ try {
     if (sessionAccount && url.pathname === '/app/v1/customer/admin/characters') return json({ items: [] });
     if (sessionAccount && url.pathname === '/app/v1/admin/users') return json({ users: [], grants: [] });
     if (sessionAccount && url.pathname === '/app/v1/archive/associations') return json({ items: [] });
-    if (url.pathname.startsWith('/app/v1/')) return json({ code: 'account_required' }, 401);
+    if (url.pathname.startsWith('/app/v1/')) return sessionAccount
+      ? json({ code: 'not_available' }, 404)
+      : json({ code: 'account_required' }, 401);
     if (url.pathname === '/guest/v1/evening') return json({ schemaVersion: 1, evening: null, items: [], latest: null });
     if (url.pathname === '/guest/v1/bootstrap') return json({ schemaVersion: 1, csrfToken: 'isolated-guest-csrf' });
     if (url.pathname === '/guest/v1/claim') return json({ locator: '11111111-1111-4111-8111-111111111111' });
@@ -71,7 +73,13 @@ try {
     await route.continue();
   });
   const hasHeading = title => page.getByRole('heading', { name: title, exact: true }).waitFor();
-  const fits = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'layout has no horizontal page overflow');
+  const fits = async () => {
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'layout has no horizontal page overflow');
+  };
 
   await page.goto(origin); await hasHeading(homeHeading());
   await fits(); await page.screenshot({ path: path.join(screenshots, 'home-desktop.png'), fullPage: true });
@@ -95,12 +103,21 @@ try {
     assert.equal(new URL(page.url()).searchParams.get('return'), protectedPath);
     assert.equal(await page.getByRole('button', { name: 'Vyhledat Bluetooth kufry' }).count(), 0);
   }
+  for (const entry of ['/me', '/me/']) {
+    await page.goto(origin + entry);
+    await page.waitForURL(url => url.pathname === '/signin' && url.searchParams.get('return') === '/me/character');
+  }
   await page.goto(origin + '/signin'); await page.getByRole('heading', { name: 'Přihlásit se', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Vytvořit zákaznický účet', exact: true }).click();
   assert(await page.getByLabel('Jak vám máme říkat?').isVisible());
   assert.equal(await page.locator('#account-invite').count(), 0, 'customer registration does not ask for an invite');
   // Customer pages use a synthetic account and read-only API fixtures. Browser mode must never request BLE.
   sessionAccount = { id: 'browser-customer', displayName: 'Testovací host', roles: ['Customer'] };
+  for (const entry of ['/me', '/me/']) {
+    await page.goto(origin + entry);
+    await page.waitForURL(url => url.pathname === '/me/character');
+    await hasHeading('Moje postava');
+  }
   await page.goto(origin + '/me/character'); await hasHeading('Moje postava');
   assert.equal(await page.getByRole('navigation', { name: 'Sekce aplikace' }).getByRole('link').count(), 4);
   assert.equal(await page.getByRole('button', { name: 'Stop', exact: true }).count(), 0);
@@ -289,6 +306,13 @@ try {
   console.error('Application errors:', errors);
   if (page) {
     console.error('Application state on failure:', await page.locator('main').innerText({ timeout: 1000 }).catch(() => 'main unavailable'));
+    console.error('Application layout on failure:', await page.evaluate(() => ({
+      viewport: innerWidth, width: document.documentElement.scrollWidth,
+      overflow: [...document.querySelectorAll('body *')].map(element => ({
+        tag: element.tagName, classes: typeof element.className === 'string' ? element.className : '',
+        right: element.getBoundingClientRect().right,
+      })).filter(element => element.right > innerWidth + 1).slice(0, 12),
+    })).catch(() => 'layout unavailable'));
     await page.screenshot({ path: path.join(screenshots, 'failure.png'), fullPage: true, timeout: 3000 }).catch(() => {});
   }
   throw error;
