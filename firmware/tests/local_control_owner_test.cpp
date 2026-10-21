@@ -244,6 +244,11 @@ class Voice final : public LocalVoicePort {
  public:
   LocalVoiceStatus VoiceStatus() const override { return status; }
   LocalVoiceStatus status;
+  bool customerAdmitted = false;
+  int customerPolls = 0;
+  void PollCustomerStart(const ConversationRuntimeSnapshot&, bool admitted) override {
+    customerAdmitted = admitted; ++customerPolls;
+  }
   bool ConfigureVoice(const std::string& mode, const std::string& chosen) override {
     ++configured; return mode == "realtime" && chosen == "cedar";
   }
@@ -952,6 +957,20 @@ void TestEpochNegotiationResetsWithConnection() {
 }
 
 int main() {
+  {
+    Fixture fixture;
+    fixture.owner.Tick();
+    assert(fixture.voice.customerAdmitted && fixture.voice.customerPolls == 1);
+    fixture.owner.SetMaintenance(true); fixture.owner.Tick();
+    assert(!fixture.voice.customerAdmitted);
+    fixture.owner.SetMaintenance(false);
+    fixture.dance.status.phase = "playing"; fixture.owner.Tick();
+    assert(!fixture.voice.customerAdmitted);
+    fixture.dance.status.phase = "idle";
+    fixture.Connect(); fixture.Submit(LocalControlMessageKind::Acquire); fixture.owner.Tick();
+    assert(!fixture.voice.customerAdmitted);
+  }
+
   {
     AsyncFixture fixture;
     fixture.Connect();

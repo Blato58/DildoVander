@@ -25,6 +25,10 @@ class ConversationStartCoordinator final {
   ConversationStartOutcome Start(const ConversationStartRequest& request,
                                  uint64_t nowMs);
   void Clear();
+  bool AdoptCustomerConversation(const std::string& id) {
+    if (!conversationId_.empty() || !IsConversationUuid(id)) return false;
+    conversationId_ = id; return true;
+  }
   const std::string& ConversationId() const;
 
  private:

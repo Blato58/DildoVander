@@ -175,12 +175,14 @@ async function layout(page, label) {
   await page.screenshot({ path: path.join(screenshots, `${label}.png`), fullPage: true });
 }
 
-async function signInViaNavigation(page) {
+async function signInViaProtectedLink(page) {
   await page.goto(origin);
-  await page.getByRole('link', { name: 'Persona Lab', exact: true }).first().click();
+  assert.equal(await page.getByRole('link', { name: 'Persona Lab', exact: true }).count(), 0, 'Public navigation hides staff-only tools');
+  await page.goto(`${origin}/persona-lab`);
   await page.waitForURL(url => url.pathname === '/signin' && url.searchParams.get('return') === '/persona-lab');
   await page.getByRole('button', { name: 'Přihlásit přístupovým klíčem', exact: true }).click();
   await page.waitForURL('**/persona-lab');
+  await page.getByRole('link', { name: 'Persona Lab', exact: true }).first().waitFor();
   await page.getByRole('heading', { name: 'Persona Lab', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Připravit sezení', exact: true }).waitFor();
 }
@@ -194,7 +196,7 @@ async function viewerJourney(width) {
     await installFixtures(context, state);
     page = await context.newPage(); activePage = page;
     page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
-    await signInViaNavigation(page);
+    await signInViaProtectedLink(page);
     assert.equal(await page.getByRole('button', { name: 'Konfigurace', exact: true }).count(), 0, 'Viewer has no admin configuration controls');
     await page.getByLabel('Název testu', { exact: true }).fill(`Syntetický test ${width}`);
     await page.getByLabel('Konverzační model', { exact: true }).selectOption('gpt-realtime-2.1');
@@ -337,7 +339,7 @@ async function imageJourney(width) {
     await installFixtures(context, state);
     page = await context.newPage(); activePage = page;
     page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
-    await signInViaNavigation(page);
+    await signInViaProtectedLink(page);
     await page.getByLabel('Název testu', { exact: true }).fill('Vlastní vizuální test');
     await page.getByRole('button', { name: 'Připravit sezení', exact: true }).click();
     await page.getByRole('button', { name: 'Připravit nový vizuální test · Realtime 2.1', exact: true }).waitFor();
@@ -389,7 +391,7 @@ async function adminJourney() {
   try {
     await installFixtures(context, state);
     page = await context.newPage(); activePage = page; page.setDefaultTimeout(12000);
-    await signInViaNavigation(page);
+    await signInViaProtectedLink(page);
     await page.getByRole('button', { name: 'Konfigurace', exact: true }).click();
     await page.getByLabel('Název nového draftu', { exact: true }).fill('Prohlížečový draft');
     await page.getByLabel('Instrukce persony', { exact: true }).fill('Výslovně syntetický nový draft. Odpověz jednou krátkou otázkou.');

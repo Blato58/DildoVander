@@ -32,6 +32,7 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 .context-detail { color: var(--aw-muted); font-size: .7rem; max-width: 55ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header-actions { display: flex; gap: .75rem; align-items: center; flex-shrink: 0; }
 .account-link { font-size: .8rem; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-control { min-width: 0; max-width: 100%; }
 .theme-control select { max-width: 7rem; min-height: 44px; border: 1px solid var(--aw-border-subtle); border-radius: .4rem; padding: .45rem; color: var(--aw-muted); background: var(--aw-surface); font-size: .75rem; }
 .application-main { flex: 1; width: 100%; max-width: 100rem; margin-inline: auto; padding: 3rem clamp(1rem, 3vw, 3rem); outline: none; }
 .application-main:focus { outline: none; }

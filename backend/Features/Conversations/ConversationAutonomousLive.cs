@@ -6,6 +6,16 @@ namespace Kufr.Backend.Features.Conversations;
 
 internal sealed partial class ConversationStore
 {
+    internal string CustomerStartupContext(RealtimeCall call)
+    {
+        if (call.LabHardware is not null) { return ""; }
+        var session = journal.CustomerConversation(call.Correlation.DeviceId, call.Correlation.ConversationId);
+        if (session is null) { return ""; }
+        if (session.Snapshot.Length == 0 || session.EndRequested || session.State is "completed" or "failed" or "recovering")
+        { throw new OperationCanceledException("Customer identity was revoked or requires reconciliation."); }
+        return Kufr.Backend.Features.Customers.CustomerContextBuilder.Build(session.Snapshot);
+    }
+
     internal MemoryAccess? LiveMemoryAccess(RealtimeCall call)
     {
         lock (gate)

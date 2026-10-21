@@ -7,6 +7,18 @@ let request: ReturnType<typeof vi.fn>;
 beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+describe('customer passkey enrollment', () => {
+  it('uses the native customer-enroll contract without an invite token', async () => {
+    bridge.native = true;
+    bridge.passkey.mockResolvedValue(undefined);
+    bridge.request.mockResolvedValue({ status: 200, body: JSON.stringify(user('new-customer')) });
+    const identity = await import('./session');
+    await identity.authenticatePasskey('customer-enroll', '', 'Guest');
+    expect(bridge.passkey).toHaveBeenCalledExactlyOnceWith({ mode: 'customer-enroll', token: '', displayName: 'Guest' });
+    expect(identity.account.value?.id).toBe('new-customer');
+  });
+});
+
 describe('authentication generation fences', () => {
   it.each(['request', 'transport'])('cancels the exact native %s before its pending result settles', async kind => {
     bridge.native = true;

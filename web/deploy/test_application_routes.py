@@ -46,6 +46,30 @@ class ApplicationRoutingTests(unittest.TestCase):
         self.assertIn('location / { return 404; }', config)
         self.assertIn('location ^~ /app/v1/', config)
 
+    def test_all_static_vue_entries_have_an_exact_server_page(self):
+        config = proxy.render_compatibility('keepsake.example.invalid')
+        pages = set(re.findall(r'location = ([^ ]+) \{\n(?:(?!\n}).)*?try_files /index.html =404;', config, re.DOTALL))
+        router = Path(__file__).resolve().parents[2] / 'mobilni-aplikace/src/application/router.ts'
+        routes = set(re.findall(r"\{\s*path:\s*'([^']+)'", router.read_text(encoding='utf-8')))
+        static_entries = {route for route in routes if ':' not in route}
+        self.assertFalse(static_entries - pages, 'Vue entries missing from exact server ingress: ' + str(static_entries - pages))
+
+    def test_customer_pages_are_private_get_only_and_do_not_catch_apis(self):
+        config = proxy.render_compatibility('keepsake.example.invalid')
+        for route in ('/me', '/me/', '/me/character', '/me/conversation', '/me/keepsakes', '/me/account', '/admin/customer-sessions'):
+            with self.subTest(route=route):
+                block = config.split('location = ' + route + ' {', 1)[1].split('\n}', 1)[0]
+                for value in ('GET|HEAD', 'no-store', 'no-referrer', 'noindex, nofollow', 'access_log off;', 'try_files /index.html =404;'):
+                    self.assertIn(value, block)
+                self.assertIn("Content-Security-Policy \"frame-ancestors 'none'\"", block)
+                self.assertNotIn('proxy_pass', block)
+                self.assertNotIn('return 30', block)
+                pattern = re.search(r'if \(\$request_uri !~ "([^"]+)"', block).group(1)
+                self.assertIsNotNone(re.search(pattern, route + '?return=%2F'))
+                encoded = '/%' + format(ord(route[1]), '02x') + route[2:]
+                for raw in (encoded, '/' + route, '/app/v1/../..' + route, route + '/extra'):
+                    self.assertIsNone(re.search(pattern, raw), raw)
+
     def test_guest_shell_load_preserves_claim_and_private_headers(self):
         config = proxy.render_compatibility('keepsake.example.invalid')
         for route in ('/archive/duel', '/archive/chronicle',

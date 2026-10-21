@@ -102,7 +102,7 @@ internal static class GptLiveEndpoints
             output.BindOperation(call.OperationId);
             if (call.LabHardware is { } hardwareAdmission) { await hardwareAdmission.EnsureAuthorizedAsync(call.Cancellation.Token); }
             var memoryAccess = conversations.LiveMemoryAccess(call);
-            call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token);
+            call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token, context.RequestServices);
             // Session.start may incur cost even if the socket fails subsequently.
             dispatched = true;
             await using var connection = await provider.ConnectAsync(call.Cancellation.Token);

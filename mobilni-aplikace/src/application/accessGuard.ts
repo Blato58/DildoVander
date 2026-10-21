@@ -6,6 +6,7 @@ import { safeReturnPath } from './navigation';
 export function accessRedirect(route: Pick<RouteLocationNormalized, 'meta' | 'fullPath'>) {
   const denied = accessDenial(route.meta, account.value, offlineSession.value);
   if (denied === 'signin') return { path: '/signin', query: { return: safeReturnPath(route.fullPath) }, replace: true };
+  if (denied === 'staff') return { path: '/me/character', replace: true };
   if (denied) return { path: '/', query: { access: denied }, replace: true };
   return null;
 }

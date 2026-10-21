@@ -144,6 +144,16 @@ void LocalControlOwner::Poll() {
 
 void LocalControlOwner::Tick() {
   Poll();
+  inbox_.RunIfNoUrgent([&]() {
+    if (!voice_) return;
+    ConversationRuntimeSnapshot snapshot;
+    const bool ready = !maintenance_ && !runtime_.NeedsRecovery() && !runtime_.OfflineAuthority() &&
+        (!session_ || session_->LeaseId().empty()) &&
+        (!dance_ || !kufr::dance::IsDanceActive(dance_->DanceState())) &&
+        !manualPending_ && !offlinePending_ && !recoveryPending_ &&
+        !runtime_.HasAutonomousPresentation() && !runtime_.HasStorageWork() && runtimeState_.Read(snapshot);
+    voice_->PollCustomerStart(snapshot, ready);
+  });
   CommandReceipt receipt;
   LocalControlMessage completed;
   bool manualCompleted = false;

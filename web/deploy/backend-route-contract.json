@@ -510,6 +510,31 @@
       "POST",
       "/v1/show/device-cues/{cueId:guid}/ack",
       "Features/Show/ShowDeviceCuesEndpoints.cs"
+    ],
+    [
+      "GET",
+      "/v1/customer-sessions/device",
+      "Features/Customers/CustomerSessionEndpoints.cs"
+    ],
+    [
+      "POST",
+      "/v1/customer-sessions/device-challenge",
+      "Features/Customers/CustomerSessionEndpoints.cs"
+    ],
+    [
+      "POST",
+      "/v1/customer-sessions/device-idle",
+      "Features/Customers/CustomerSessionEndpoints.cs"
+    ],
+    [
+      "POST",
+      "/v1/customer-sessions/redeem",
+      "Features/Customers/CustomerSessionEndpoints.cs"
+    ],
+    [
+      "POST",
+      "/v1/customer-sessions/{id:guid}/device-state",
+      "Features/Customers/CustomerSessionEndpoints.cs"
     ]
   ]
 }

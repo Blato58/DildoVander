@@ -111,7 +111,12 @@ internal static class AccountRoles
     public const string Administrator = "Administrator";
     public const string Operator = "Operator";
     public const string Viewer = "Viewer";
-    public static readonly string[] All = [Owner, Administrator, Operator, Viewer];
+    public const string Customer = "Customer";
+    public static readonly string[] All = [Owner, Administrator, Operator, Viewer, Customer];
+    public static bool IsStaff(System.Security.Claims.ClaimsPrincipal principal) =>
+        principal.Identity?.IsAuthenticated == true &&
+        (principal.IsInRole(Owner) || principal.IsInRole(Administrator)
+            || principal.IsInRole(Operator) || principal.IsInRole(Viewer));
     public static bool IsAdmin(System.Security.Claims.ClaimsPrincipal principal) =>
         principal.Identity?.IsAuthenticated == true &&
         (principal.IsInRole(Owner) || principal.IsInRole(Administrator));

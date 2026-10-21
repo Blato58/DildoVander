@@ -32,7 +32,16 @@ if (args is ["--persona-provider-soak", var seconds])
     return;
 }
 if (args is ["--model-releases"]) { await ModelReleaseTests.RunAsync(); return; }
-if (args is ["--identity"]) { await AccountIdentityTests.RunAsync(); return; }
+if (args is ["--identity"])
+{
+    await AccountIdentityTests.RunAsync();
+    await CustomerProfileTests.RunAsync();
+    await CustomerSessionTests.RunAsync();
+    await AccountIdentityTests.RunCustomerSessionsAsync();
+    return;
+}
+if (args is ["--customer-profiles"]) { await CustomerProfileTests.RunAsync(); return; }
+if (args is ["--customer-sessions"]) { await CustomerSessionTests.RunAsync(); await AccountIdentityTests.RunCustomerSessionsAsync(); return; }
 if (args is ["--identity-fixture"]) { await AccountIdentityTests.RunBrowserFixtureAsync(); return; }
 if (args is ["--show-live-boundary"]) { await AutonomousLiveTests.RunShowLiveBoundariesAsync(); return; }
 if (args is ["--show"])
@@ -326,14 +335,22 @@ Require(restartedStore.GetOperation("device-c", transcription.OperationId!).Oper
     { Kind: "transcription", Status: "cancelled" },
     "conversation end keeps transcription cancelled after restart");
 
-var liveConversation = restartedStore.Create("device-a", Guid.NewGuid(), body, request);
-Require(liveConversation.Response is not null, "new session after restart");
+Require(restartedStore.Create("device-a", Guid.NewGuid(), body, request).Status == 409,
+    "backend restart retains the uncertain legacy device lease");
+// Model the trusted physical owner confirming idle at a fresh device boot.
+// Backend restart alone cannot establish that the previous visit finished.
+var reconciledBoot = Guid.NewGuid();
+restartedJournal.RegisterCustomerChallenge("device-a", new(1, reconciledBoot.ToString("D"),
+    Guid.NewGuid().ToString("D"), 1, request.CatalogVersion, request.OperationEpoch));
+restartedJournal.ReportCustomerIdle("device-a", reconciledBoot.ToString("D"));
+var liveConversation = restartedStore.Create("device-a", Guid.NewGuid(), body, request with { BootId = reconciledBoot });
+Require(liveConversation.Response is not null, "new legacy session after trusted boot-idle reconciliation");
 var liveTurn = restartedStore.SubmitTurn(
     "device-a",
     liveConversation.Response!.ConversationId,
     Guid.NewGuid(),
     turnBody,
-    turn with { ClientTurnId = Guid.NewGuid() });
+    turn with { ClientTurnId = Guid.NewGuid(), BootId = reconciledBoot });
 Require(liveTurn.OperationId is not null
     && restartedStore.GetOperation("device-a", liveTurn.OperationId).Operation?.Status == "completed",
     "live fake result before expiry");

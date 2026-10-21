@@ -134,9 +134,13 @@ internal static partial class KeepsakeOutcomeEndpoints
             c.RequestServices.GetService<ShowCoordinator>()?.ObserveFinaleOutcome(device, operationId,
                 proposal.ProposalId, outcome, request.PresentationEvidence);
             var wand = PartyWandCatalog.Available(63).Single(w => w.Compartment == proposal.Compartment);
+            var customer = journal.CustomerConversation(device, proposal.ConversationId);
+            if (customer is { Snapshot.Length: 0 })
+            { return Results.Json(new { errorCode = "customer_data_revoked" }, statusCode: 410); }
             var result = store.Issue(new KeepsakeIssueSnapshot(outcome, device, proposal.Compartment,
                 wand.StableId, wand.DisplayName, wand.Description, request.PresentationEvidence,
-                proposal.CatalogVersion, capturedEvening, proposal.ConversationId));
+                proposal.CatalogVersion, capturedEvening, proposal.ConversationId),
+                customer is null ? null : new(customer.OwnerId, customer.Id));
             if (capturedEvening is { } evening
                 && journal.ReadSelectionMemoryEpoch(device, operationId) is { } deletionEpoch)
             {

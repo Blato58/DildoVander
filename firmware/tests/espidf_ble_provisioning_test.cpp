@@ -19,6 +19,8 @@ protocomm_t* pendingStop=nullptr;
 int64_t nowMs=0, stopAt=0;
 void (*delayHook)()=nullptr;
 bool proofAvailable=true;
+bool customerAllowed=false, customerRadio=false;
+int serviceSecurityCalls=0, customerCalls=0;
 std::string lastSsid;
 std::string currentIpv4;
 const char* networkPhase = "connecting";
@@ -64,8 +66,14 @@ void protocomm_delete(protocomm_t* transport) {
 esp_err_t protocomm_ble_start(protocomm_t*,const protocomm_ble_config_t* config) {
   assert(pendingStop==nullptr); // A new radio must never overlap failed teardown.
   ++opens; assert(config->service_uuid[12]==0x10 && config->service_uuid[13]==0x7f);
-  assert(config->nu_lookup_count==3 && config->nu_lookup[2].uuid==0xff54);
-  assert(std::strcmp(config->nu_lookup[2].name,"kufr-control")==0);
+  customerRadio = config->service_uuid[0] == 0x22;
+  if (customerRadio) {
+    assert(config->nu_lookup_count == 1 && config->nu_lookup[0].uuid == 0xff55);
+    assert(std::strcmp(config->nu_lookup[0].name, "customer-control") == 0);
+  } else {
+    assert(config->nu_lookup_count==3 && config->nu_lookup[2].uuid==0xff54);
+    assert(std::strcmp(config->nu_lookup[2].name,"kufr-control")==0);
+  }
   if(startFailures>0) { --startFailures; return ESP_ERR_INVALID_ARG; }
   return ESP_OK;
 }
@@ -80,6 +88,7 @@ esp_err_t protocomm_set_version(protocomm_t*,const char*,const char* version) {
   assert(std::strstr(version,"\"sec_ver\":1") && !std::strstr(version,"no_pop")); return ESP_OK;
 }
 esp_err_t protocomm_set_security(protocomm_t*,const char* name,const protocomm_security_t* security,const void* params) {
+  ++serviceSecurityCalls;
   assert(std::strcmp(name,"prov-session")==0 && security==&protocomm_security1);
   const auto* proof=static_cast<const protocomm_security1_params_t*>(params);
   assert(proof->len==32 && proof->data[0]=='a'); return ESP_OK;
@@ -335,6 +344,44 @@ void LifecycleRegression(EspIdfStationNetwork& station,void (*hook)(),bool failI
   try { lifecycle(taskContext); assert(false); } catch(const Stop&) {}
   assert(pendingStop==nullptr);
 }
+
+bool CustomerEnabled(void*) { return customerAllowed; }
+cJSON* CustomerCommand(cJSON* request, void*) {
+  ++customerCalls;
+  if (cJSON_GetObjectItemCaseSensitive(request, "command") != nullptr) return nullptr;
+  auto* response = cJSON_CreateObject();
+  cJSON_AddStringToObject(response, "state", "idle");
+  return response;
+}
+void VerifyCustomerWithoutProof() {
+  switch (windowStage++) {
+    case 0: {
+      assert(customerRadio && !windowOwner->Active());
+      assert(Request("{\"v\":1,\"op\":\"status\"}") == "{\"state\":\"idle\"}");
+      Request("{\"v\":1,\"v\":1,\"op\":\"status\"}", ESP_ERR_INVALID_ARG);
+      const int priorPairs = pairCalls;
+      Request("{\"v\":1,\"command\":\"pair-local\"}", ESP_ERR_INVALID_ARG);
+      assert(pairCalls == priorPairs);
+      customerAllowed = false; nowMs += 100; return;
+    }
+    default:
+      assert(!windowOwner->Active() && closes == baseCloses + 1);
+      Request("{\"v\":1,\"op\":\"status\"}", ESP_ERR_INVALID_ARG);
+      throw Stop{};
+  }
+}
+void TestCustomerLifecycleWithoutProof(EspIdfStationNetwork& station) {
+  nowMs = 0; windowStage = 0; baseCloses = closes;
+  const int beforeSecurity = serviceSecurityCalls;
+  proofAvailable = false; customerAllowed = true;
+  EspIdfBleProvisioning customer(station);
+  customer.BindCustomer(CustomerEnabled, CustomerCommand, nullptr);
+  assert(customer.Begin(true, "customer-device", "1.0.0", {}));
+  customer.Tick(0, true); windowOwner = &customer; delayHook = VerifyCustomerWithoutProof;
+  try { lifecycle(taskContext); assert(false); } catch (const Stop&) {}
+  assert(serviceSecurityCalls == beforeSecurity && customerCalls == 2);
+  customerAllowed = false; proofAvailable = true;
+}
 int main() {
   EspIdfStationNetwork station;
   EspIdfBleProvisioning absent(station);
@@ -433,4 +480,5 @@ int main() {
   LifecycleRegression(station,VerifyRecoveryOpenFailure,false);
   LifecycleRegression(station,VerifyInitialStartRetry,false,true,1);
   LifecycleRegression(station,VerifyInitialRetryDeadline,false,true,100000);
+  TestCustomerLifecycleWithoutProof(station);
 }

@@ -49,6 +49,8 @@ internal static class PersonaLabEndpoints
                 // Authenticated account principals, including Viewer, may test without a device grant.
                 if (http.User.FindFirstValue(ClaimTypes.NameIdentifier) is not { Length: > 0 })
                 { return ApiProblem.Create(http, 401, "account_required"); }
+                if (!AccountRoles.IsStaff(http.User))
+                { return ApiProblem.Create(http, 403, "persona_lab_permission_required"); }
                 return await next(invocation);
             }
             catch (LabException error) { return ApiProblem.Create(invocation.HttpContext, error.Status, error.Code); }

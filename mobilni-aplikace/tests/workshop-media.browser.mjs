@@ -106,7 +106,8 @@ try {
   assert.ok(inputCount >= 2); assert.equal(drained, true); assert.equal(photo, true);
   assert.ok(workletRequests.includes(worklet.href), 'the actual AudioWorklet must load the compiled same-origin asset');
   assert.equal(requests.filter(request => request.path === '/app/v1/workshop/sim-integration/engines').length, 1, 'the compiled media panel must read exact-instance canonical capabilities');
-  await page.getByRole('link', { name: /Domov/ }).first().click();
+  await page.getByRole('link', { name: 'DildoVander, domov', exact: true }).click();
+  await page.waitForURL(url => url.origin === origin && url.pathname === '/');
   await page.getByRole('heading', { name: 'Rozhovor v integrační simulaci' }).waitFor({ state: 'detached' });
   assert.equal(await page.getByRole('heading', { name: 'Rozhovor v integrační simulaci' }).count(), 0);
   const violations = await page.evaluate(() => window.__mediaCspViolations);

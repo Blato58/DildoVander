@@ -57,7 +57,8 @@ internal sealed partial class ConversationStore(
         }
     }
 
-    public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request, LabHardwareContext? labHardware = null)
+    public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request, LabHardwareContext? labHardware = null,
+        string? customerSessionId = null)
     {
         var now = clock.GetUtcNow();
         var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
@@ -93,11 +94,13 @@ internal sealed partial class ConversationStore(
             if (eveningMemory is null || labHardware is not null)
             {
                 reservation = journal.ReserveCreate(deviceId, key, bodyHash, labHardware?.Session.Id,
-                    labHardware?.Session.Config.Id, labHardware?.ExpiresAt, labHardware?.Session.OwnerId);
+                    labHardware?.Session.Config.Id, labHardware?.ExpiresAt, labHardware?.Session.OwnerId,
+                    customerSessionId, request.BootId.ToString("D"));
             }
             else if (eveningMemory.TryAdmitShowVisit(deviceId, () =>
             {
-                reservation = journal.ReserveCreate(deviceId, key, bodyHash);
+                reservation = journal.ReserveCreate(deviceId, key, bodyHash,
+                    customerSessionId: customerSessionId, bootId: request.BootId.ToString("D"));
                 return reservation.Conflict ? null : reservation.Response?.ConversationId;
             }) is null)
             {
@@ -1015,6 +1018,7 @@ internal sealed partial class ConversationStore(
         }
         if (conversations.Remove(conversationId, out var conversation))
         {
+            journal.ReleaseRemovedNoncustomerConversation(conversation.DeviceId, conversationId);
             // Normal/network cleanup after a valid proposal leaves physical
             // outcome unknown. Only the trusted device may resolve that result.
             if (conversation.LabHardware is not null) { conversation.LabHardware.Lease.Cancel(); }

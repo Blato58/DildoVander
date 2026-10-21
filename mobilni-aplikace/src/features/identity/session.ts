@@ -11,7 +11,7 @@ export interface AccountDeviceAssociation { id: string; deviceId: string; alias:
 export interface AccountDetails { devices?: {deviceId: string; canOperate: boolean}[]; sessions: AccountSession[]; grants: ResourceGrant[]; associations: AccountDeviceAssociation[]; passkeyCount: number; passkeys: {id: string; name: string | null; createdAt: string; isBackedUp: boolean}[] }
 interface IdentityBridge {
   request(options: { requestId: string; path: string; method: string; body?: string; confirmed?: boolean }): Promise<{ status: number; body: string }>;
-  passkey(options: { mode: 'signin' | 'enroll' | 'add' | 'reauth'; token?: string; displayName?: string }): Promise<void>;
+  passkey(options: { mode: 'signin' | 'enroll' | 'customer-enroll' | 'add' | 'reauth'; token?: string; displayName?: string }): Promise<void>;
   accountTransport(options: { requestId: string; path: string; method: string; headers: Record<string, string>; bodyBase64?: string }): Promise<{ status: number; headers: Record<string, string>; bodyBase64: string }>;
   cancelAccountRequest(options: { requestId: string }): Promise<{ cancelled: boolean }>;
 }
@@ -164,6 +164,14 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
       active_model_changed: 'Aktivní model se mezitím změnil. Obnovte seznam.',
       model_activation_busy: 'Jiný správce právě mění model. Zkuste to znovu.',
       model_release_invalid: 'Balíček modelu neprošel kontrolou integrity.',
+      character_revision_mismatch: 'Profil postavy mezitím změnil jiný požadavek. Načtěte aktuální profil a zkuste úpravu znovu.',
+      device_busy: 'Kufr právě obsluhuje jiný rozhovor. Zkuste to znovu za chvíli.',
+      device_challenge_unavailable: 'Kufr neposkytl platnou výzvu pro bezpečné připojení. Odpojte ho a zkuste znovu.',
+      customer_mode_disabled: 'Zákaznický režim tohoto kufru není povolen obsluhou.',
+      start_ticket_expired: 'Připojení vypršelo dřív, než kufr rozhovor převzal. Připojte se a zkuste znovu.',
+      customer_session_requires_reconciliation: 'Výsledek startu se ověřuje. Obnovte stav relace a nevytvářejte nový rozhovor.',
+      customer_profile_revoked: 'Tento profil už není pro nový rozhovor platný. Obnovte profil postavy.',
+      device_epoch_mismatch: 'Kufr se od připojení restartoval. Odpojte ho a připojte znovu.',
     };
     throw new IdentityRequestError(explanations[code ?? ''] ?? (status === 403 ? 'K této akci nemáte oprávnění.' : 'Akci účtu se nepodařilo dokončit.'), status, code, rejectedGeneration);
   }
@@ -257,7 +265,7 @@ function credentialJson(credential: PublicKeyCredential): object {
     signature: encode(assertion.signature), userHandle: assertion.userHandle ? encode(assertion.userHandle) : null } };
 }
 
-export function authenticatePasskey(mode: 'signin' | 'enroll' | 'add' | 'reauth', token = '', displayName = ''): Promise<void> {
+export function authenticatePasskey(mode: 'signin' | 'enroll' | 'customer-enroll' | 'add' | 'reauth', token = '', displayName = ''): Promise<void> {
   if (authenticationPending) return Promise.reject(new Error('Ověření přístupovým klíčem už probíhá.'));
   const operation = (async () => {
     // Epochs protect Vue state; waiting also protects browser/native cookie ordering.
@@ -269,7 +277,7 @@ export function authenticatePasskey(mode: 'signin' | 'enroll' | 'add' | 'reauth'
   return pending;
 }
 
-async function performPasskeyAuthentication(mode: 'signin' | 'enroll' | 'add' | 'reauth', token: string, displayName: string): Promise<void> {
+async function performPasskeyAuthentication(mode: 'signin' | 'enroll' | 'customer-enroll' | 'add' | 'reauth', token: string, displayName: string): Promise<void> {
   const generation = advanceAuthentication();
   if (native) {
     await nativeIdentity.passkey({ mode, token, displayName });
@@ -281,8 +289,8 @@ async function performPasskeyAuthentication(mode: 'signin' | 'enroll' | 'add' | 
   if (!window.isSecureContext || !window.PublicKeyCredential) throw new Error('Přístupové klíče vyžadují HTTPS a podporovaný prohlížeč.');
   await refreshIdentity();
   requireCurrentAuthentication(generation);
-  const optionsPath = mode === 'reauth' ? '/passkeys/reauthentication-options' : mode === 'signin' ? '/passkeys/request-options' : mode === 'add' ? '/passkeys/options' : '/enrollment/options';
-  const raw = await accountRequest<Record<string, unknown>>('/app/v1' + optionsPath, 'POST', mode === 'enroll' ? { token, displayName } : undefined);
+  const optionsPath = mode === 'reauth' ? '/passkeys/reauthentication-options' : mode === 'signin' ? '/passkeys/request-options' : mode === 'add' ? '/passkeys/options' : mode === 'customer-enroll' ? '/customer/enrollment/options' : '/enrollment/options';
+  const raw = await accountRequest<Record<string, unknown>>('/app/v1' + optionsPath, 'POST', mode === 'enroll' ? { token, displayName } : mode === 'customer-enroll' ? { displayName } : undefined);
   requireCurrentAuthentication(generation);
   const options = { ...raw, challenge: decode(raw.challenge as string) };
   let credential: PublicKeyCredential | null;
@@ -298,7 +306,7 @@ async function performPasskeyAuthentication(mode: 'signin' | 'enroll' | 'add' | 
   }
   if (!credential) throw new Error('Ověření bylo zrušeno.');
   requireCurrentAuthentication(generation);
-  const complete = mode === 'reauth' ? '/passkeys/reauthenticate' : mode === 'signin' ? '/passkeys/sign-in' : mode === 'add' ? '/passkeys/complete' : '/enrollment/complete';
+  const complete = mode === 'reauth' ? '/passkeys/reauthenticate' : mode === 'signin' ? '/passkeys/sign-in' : mode === 'add' ? '/passkeys/complete' : mode === 'customer-enroll' ? '/customer/enrollment/complete' : '/enrollment/complete';
   await accountRequest('/app/v1' + complete, 'POST', { credential: credentialJson(credential) });
   requireCurrentAuthentication(generation);
   advanceAuthentication();

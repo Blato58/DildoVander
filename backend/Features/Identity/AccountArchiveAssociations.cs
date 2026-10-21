@@ -68,7 +68,10 @@ internal static class AccountArchiveAssociations
         group.MapGet("", async (HttpContext context, AccountDatabase db, KeepsakeStore store) =>
         {
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-            var links = await db.ArchiveAssociations.Where(x => x.UserId == userId).OrderByDescending(x => x.LinkedAt).Take(100).ToArrayAsync();
+            var explicitLinks = await db.ArchiveAssociations.Where(x => x.UserId == userId).OrderByDescending(x => x.LinkedAt).Take(100).ToArrayAsync();
+            var links = explicitLinks.Concat(store.CustomerAccountLinks(userId).Select(link => new AccountArchiveAssociation
+            { UserId = userId, Locator = link.Locator, Epoch = link.Epoch, LinkedAt = link.LinkedAt }))
+                .DistinctBy(link => link.Locator).OrderByDescending(link => link.LinkedAt).Take(100);
             var items = new List<object>();
             foreach (var link in links)
             {
@@ -90,24 +93,33 @@ internal static class AccountArchiveAssociations
         group.MapGet("/{locator:guid}", async (string locator, HttpContext context, AccountDatabase db, KeepsakeStore store) =>
         {
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-            var link = await db.ArchiveAssociations.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId && x.Locator == locator);
+            var link = await AccountLinkAsync(db, store, userId, locator);
             if (link is null || !store.IsAccountAssociationCurrent(locator, link.Epoch)) { return ApiProblem.Create(context, 404, "archive_association_unavailable"); }
             return Results.Json(KeepsakeEndpoints.ProjectForAccount(store.ReadForAccount(locator, link.Epoch)));
         });
         group.MapGet("/{locator:guid}/assets/{assetId:guid}", async (string locator, string assetId, HttpContext context, AccountDatabase db, KeepsakeStore store) =>
         {
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-            var link = await db.ArchiveAssociations.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId && x.Locator == locator);
+            var link = await AccountLinkAsync(db, store, userId, locator);
             if (link is null || !store.IsAccountAssociationCurrent(locator, link.Epoch)) { return ApiProblem.Create(context, 404, "archive_association_unavailable"); }
             var asset = store.ReadAssetForAccount(locator, link.Epoch, assetId);
             return Results.File(asset.Bytes, asset.Asset.MediaType);
         });
-        group.MapDelete("/{locator:guid}", async (string locator, HttpContext context, AccountDatabase db) =>
+        group.MapDelete("/{locator:guid}", async (string locator, HttpContext context, AccountDatabase db, KeepsakeStore store) =>
         {
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            store.RemoveCustomerAccountLink(userId, locator);
             await db.ArchiveAssociations.Where(x => x.UserId == userId && x.Locator == locator).ExecuteDeleteAsync();
             return Results.NoContent();
         });
+    }
+    private static async Task<AccountArchiveAssociation?> AccountLinkAsync(AccountDatabase db, KeepsakeStore store, string userId, string locator)
+    {
+        var link = await db.ArchiveAssociations.AsNoTracking().SingleOrDefaultAsync(value => value.UserId == userId && value.Locator == locator);
+        if (link is not null) { return link; }
+        var automatic = store.CustomerAccountLink(userId, locator);
+        return automatic is null ? null : new AccountArchiveAssociation
+        { UserId = userId, Locator = automatic.Locator, Epoch = automatic.Epoch, LinkedAt = automatic.LinkedAt };
     }
     private sealed record AccountArchiveClaim(string Ticket);
 }

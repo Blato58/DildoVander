@@ -14,6 +14,7 @@ constexpr uint64_t WindowMs = 300000;
 constexpr uint64_t LifecycleRetryMs = 1000;
 protocomm_ble_name_uuid_t Endpoints[] = {
     {"proto-ver", 0xff50}, {"prov-session", 0xff51}, {"kufr-control", 0xff54}};
+protocomm_ble_name_uuid_t CustomerEndpoints[] = {{"customer-control", 0xff55}};
 const char* ProfileName(NetworkProfile profile) {
   return profile == NetworkProfile::Hotspot ? "hotspot" :
       profile == NetworkProfile::Fallback ? "fallback" : "none";
@@ -63,20 +64,19 @@ bool EspIdfBleProvisioning::Begin(bool nvsInitialized, const char* deviceId,
       std::strspn(deviceId, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != std::strlen(deviceId) ||
       std::strspn(firmwareVersion, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-+") != std::strlen(firmwareVersion)) { return false; }
   nvs_handle_t handle;
-  if (nvs_open("wand_ble", NVS_READONLY, &handle) != ESP_OK) { return false; }
-  size_t length = sizeof(proof_);
-  const auto loaded = nvs_get_str(handle, "pop", proof_, &length);
-  nvs_close(handle);
-  if (loaded != ESP_OK || length != 33 || proof_[32] != 0) {
-    NetworkProfiles::Wipe(proof_, sizeof(proof_));
-    return false;
-  }
-  for (size_t index = 0; index < 32; ++index) {
-    if (!((proof_[index] >= '0' && proof_[index] <= '9') ||
-          (proof_[index] >= 'a' && proof_[index] <= 'f'))) {
-      NetworkProfiles::Wipe(proof_, sizeof(proof_));
-      return false;
+  if (nvs_open("wand_ble", NVS_READONLY, &handle) == ESP_OK) {
+    size_t length = sizeof(proof_);
+    const auto loaded = nvs_get_str(handle, "pop", proof_, &length);
+    nvs_close(handle);
+    serviceProofReady_ = loaded == ESP_OK && length == 33 && proof_[32] == 0;
+    for (size_t index = 0; serviceProofReady_ && index < 32; ++index) {
+      serviceProofReady_ = (proof_[index] >= '0' && proof_[index] <= '9') ||
+          (proof_[index] >= 'a' && proof_[index] <= 'f');
     }
+  }
+  if (!serviceProofReady_) {
+    NetworkProfiles::Wipe(proof_, sizeof(proof_));
+    if (!customerEnabled_ || !customerRequest_) return false;
   }
   std::strcpy(deviceId_, deviceId);
   std::strcpy(firmwareVersion_, firmwareVersion);
@@ -87,7 +87,7 @@ bool EspIdfBleProvisioning::Begin(bool nvsInitialized, const char* deviceId,
   proofParams_.len = 32;
   callbacks_ = callbacks;
   initialDeadline_ = esp_timer_get_time() / 1000 + WindowMs;
-  initialPending_ = true;
+  initialPending_ = serviceProofReady_;
   ready_ = true;
   if (xTaskCreate(TaskEntry, "ble_provisioning", 6144, this, 3, &lifecycleTask_) != pdPASS) {
     ready_ = false;
@@ -96,27 +96,33 @@ bool EspIdfBleProvisioning::Begin(bool nvsInitialized, const char* deviceId,
   }
   return true;
 }
-bool EspIdfBleProvisioning::Open(uint64_t nowMs, uint64_t windowDeadline) {
-  if (!ready_ || closing_ || transport_ != nullptr || nowMs >= windowDeadline) { return false; }
+bool EspIdfBleProvisioning::Open(uint64_t nowMs, uint64_t windowDeadline, bool customer) {
+  if (!ready_ || (!customer && !serviceProofReady_) || closing_ || transport_ != nullptr || nowMs >= windowDeadline) { return false; }
   // The STA and BLE may initialize in either order, but share one default loop.
   const auto loop = esp_event_loop_create_default();
   if (loop != ESP_OK && loop != ESP_ERR_INVALID_STATE) { return false; }
   transport_ = protocomm_new();
   if (transport_ == nullptr) { return false; }
   protocomm_ble_config_t config{};
-  std::strcpy(config.device_name, name_);
+  if (customer) std::snprintf(config.device_name, sizeof(config.device_name), "DV_GUEST_%s", name_ + 5);
+  else std::strcpy(config.device_name, name_);
   const uint8_t uuid[] = {0x21,0xc8,0x95,0x63,0xd6,0x40,0xcc,0x9d,
                           0x98,0x4b,0xe8,0x70,0x10,0x7f,0x7a,0xb9};
   std::memcpy(config.service_uuid, uuid, sizeof(uuid));
-  config.nu_lookup_count = 3;
-  config.nu_lookup = Endpoints;
+  // A separate public service has no provisioning endpoints or PoP authority.
+  // Both modes use this lifecycle owner; a stopped transport is drained first.
+  if (customer) config.service_uuid[0] = 0x22;
+  config.nu_lookup_count = customer ? 1 : 3;
+  config.nu_lookup = customer ? CustomerEndpoints : Endpoints;
   config.keep_ble_on = false;
   if (protocomm_ble_start(transport_, &config) != ESP_OK) {
     protocomm_delete(transport_);
     transport_ = nullptr;
     return false;
   }
-  const bool endpoints = protocomm_set_version(transport_, "proto-ver",
+  customerMode_.store(customer);
+  const bool endpoints = customer ?
+      protocomm_add_endpoint(transport_, "customer-control", Handle, this) == ESP_OK : protocomm_set_version(transport_, "proto-ver",
       "{\"prov\":{\"ver\":\"v1.1\",\"sec_ver\":1,\"cap\":[]},\"kufr\":{\"ver\":\"1\"}}") == ESP_OK &&
       protocomm_set_security(transport_, "prov-session", &protocomm_security1, &proofParams_) == ESP_OK &&
       protocomm_add_endpoint(transport_, "kufr-control", Handle, this) == ESP_OK;
@@ -165,11 +171,18 @@ void EspIdfBleProvisioning::UpdateWindow(uint64_t nowMs, bool networkReady) {
     nextOpenAttempt_ = nowMs + LifecycleRetryMs;
     if (Open(nowMs, initialDeadline_)) { initialPending_ = false; }
   }
+  const bool customerAllowed = networkReady && customerEnabled_ && customerEnabled_(customerContext_);
+  if (active_.load() && customerMode_.load() && !customerAllowed) Close(nowMs);
+  if (active_.load() && !customerMode_.load() && customerAllowed) Close(nowMs);
+  if (!initialPending_ && !closing_ && !active_.load() && customerAllowed && nowMs >= nextOpenAttempt_) {
+    nextOpenAttempt_ = nowMs + LifecycleRetryMs;
+    Open(nowMs, UINT64_MAX, true);
+  }
   if (networkReady) { offlineTracked_ = false; return; }
   if (!offlineTracked_) { offlineTracked_ = true; offlineSince_ = nowMs; }
   // A failed stop retains transport ownership. Retry without consuming the one
   // recovery window, and never start a second radio against that stale transport.
-  if (!initialPending_ && !closing_ && !active_.load() && !recoveryUsed_ &&
+  if (!initialPending_ && !closing_ && !active_.load() && serviceProofReady_ && !recoveryUsed_ &&
       nowMs - offlineSince_ >= 60000 && nowMs >= nextOpenAttempt_) {
     nextOpenAttempt_ = nowMs + LifecycleRetryMs;
     if (Open(nowMs, nowMs + WindowMs)) { recoveryUsed_ = true; }
@@ -289,10 +302,15 @@ esp_err_t EspIdfBleProvisioning::Handle(uint32_t, const uint8_t* input, ssize_t 
   // cJSON needs five spare bytes; the wire response is still at most 512 bytes.
   constexpr size_t SerializedCapacity = 518;
   char* serialized = static_cast<char*>(std::calloc(SerializedCapacity, 1));
-  auto* response = request != nullptr && serialized != nullptr ? owner->Execute(request) : nullptr;
+  auto* response = request != nullptr && serialized != nullptr && (!owner->customerMode_.load() || UniqueFields(request)) ?
+      (owner->customerMode_.load() ?
+       (owner->customerRequest_ ? owner->customerRequest_(request, owner->customerContext_) : nullptr) :
+       owner->Execute(request)) : nullptr;
   if (request != nullptr) {
     auto* password = cJSON_GetObjectItemCaseSensitive(request, "password");
     if (cJSON_IsString(password)) { NetworkProfiles::Wipe(password->valuestring, std::strlen(password->valuestring)); }
+    auto* ticket = cJSON_GetObjectItemCaseSensitive(request, "ticket");
+    if (cJSON_IsString(ticket)) { NetworkProfiles::Wipe(ticket->valuestring, std::strlen(ticket->valuestring)); }
   }
   cJSON_Delete(request);
   NetworkProfiles::Wipe(buffer, sizeof(buffer));

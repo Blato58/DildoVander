@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "esp_log.h"
+#include <cstring>
 #include "esp_netif_sntp.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -229,6 +230,8 @@ bool EspIdfBackendNetwork::FinishPresentation(
   } else if (!completedOutcome.outcomeId.empty()) {
     keepsake_.Retire(completedOutcome, "presentation_fault");
   }
+  if (customerReserved_.load())
+    customerPresentationResult_.store(presentation.State() == WandPresentationState::Idle ? 1 : -1);
   return true;
 }
 
@@ -251,6 +254,8 @@ bool EspIdfBackendNetwork::Start(bool nvsInitialized) {
     showTask_ = nullptr;
     ESP_LOGE(LogTag, "Show polling unavailable: task allocation failed");
   }
+  if (xTaskCreate(CustomerTaskEntry, "customer_poll", 8192, this, 3, &customerTask_) != pdPASS)
+    ESP_LOGE(LogTag, "Customer transport unavailable: task allocation failed");
   return true;
 }
 
@@ -553,6 +558,11 @@ bool EspIdfBackendNetwork::StartVoiceWithImageConsent(const std::string& request
 
 bool EspIdfBackendNetwork::StartVoiceWithTestContext(const std::string& requestId,
     const ConversationRuntimeSnapshot& snapshot, bool imageConsent, const std::string& testContext) {
+  return StartVoiceInternal(requestId, snapshot, imageConsent, testContext, false);
+}
+
+bool EspIdfBackendNetwork::StartVoiceInternal(const std::string& requestId,
+    const ConversationRuntimeSnapshot& snapshot, bool imageConsent, const std::string& testContext, bool customer) {
   std::string testContextId;
   if (!testContext.empty()) {
     if (!SupportsVoiceTestContext() || !ValidVoiceTestContext(testContext) || imageConsent ||
@@ -568,7 +578,7 @@ bool EspIdfBackendNetwork::StartVoiceWithTestContext(const std::string& requestI
       !runtimeState_.Matches(snapshot)) return false;
   std::lock_guard<std::mutex> presentationLock(presentationMutex_);
   std::lock_guard<std::mutex> voiceLock(voiceMutex_);
-  if (terminalProposalOutstanding_ || presentationActive_ || keepsakeRetirementReason_.front()
+  if ((!customer && customerReserved_.load()) || terminalProposalOutstanding_ || presentationActive_ || keepsakeRetirementReason_.front()
       || voiceBusy_.load() || showCues_.IsActive() || keepsake_.HasTechnicalDelivery() ||
       requestId == lastVoiceRequestId_ || voiceStatus_.mode == "off" || !voiceStatus_.available) return false;
   voiceSnapshot_ = snapshot;
@@ -577,6 +587,8 @@ bool EspIdfBackendNetwork::StartVoiceWithTestContext(const std::string& requestI
   voiceStatus_.error.clear();
   voiceStatus_.photoWarning.clear();
   voiceImageConsent_ = imageConsent;
+  voiceCustomer_ = customer;
+  if (customer) customerPresentationResult_.store(0);
   ClearVoiceTestContext(voiceTestContext_);
   voiceTestContext_ = testContext;
   voiceStatus_.testContextId = testContextId;
@@ -634,8 +646,14 @@ void EspIdfBackendNetwork::StopVoiceOutput() {
 }
 
 void EspIdfBackendNetwork::SetVoicePhase(const char* phase) {
-  std::lock_guard<std::mutex> lock(voiceMutex_);
-  voiceStatus_.phase = phase;
+  {
+    std::lock_guard<std::mutex> lock(voiceMutex_);
+    voiceStatus_.phase = phase;
+  }
+  if (customerReserved_.load() && (!std::strcmp(phase, "listening") || !std::strcmp(phase, "speaking"))) {
+    std::lock_guard<std::mutex> lock(customerMutex_);
+    if (customerState_ == "context_ready") customerState_ = "running";
+  }
 }
 
 void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
@@ -644,13 +662,14 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
   ConversationRuntimeSnapshot snapshot;
   std::string requestId, voice, mode;
   uint64_t epoch = 0, queuedAtMs = 0;
-  bool imageConsent = false;
+  bool imageConsent = false, customerStart = false;
   VoiceTestContextLease testContext;
   {
     std::lock_guard<std::mutex> lock(voiceMutex_);
     snapshot = voiceSnapshot_; requestId = voiceRequestId_; voice = voiceStatus_.voice; mode = voiceStatus_.mode;
     epoch = voiceStartEpoch_; queuedAtMs = voiceQueuedAtMs_;
     imageConsent = voiceImageConsent_;
+    customerStart = voiceCustomer_;
     voiceImageConsent_ = false;
     testContext.value = std::move(voiceTestContext_);
   }
@@ -680,6 +699,13 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
       startRequest.operationEpoch = snapshot.operationEpoch;
       startRequest.idempotencyKey = key;
       startRequest.testContext = testContext.value;
+      if (customerStart) {
+        std::string created;
+        const bool redeemed = RedeemCustomer(tokens, snapshot, created);
+        if (!redeemed || !current()) return false;
+        conversation = created;
+        return coordinator.AdoptCustomerConversation(created);
+      }
       const auto started = coordinator.Start(startRequest, MonotonicMs());
       ClearVoiceTestContext(startRequest.testContext);
       conversation = coordinator.ConversationId();
@@ -756,6 +782,12 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
     voiceStatus_.phase = succeeded && current() ? "completed" : voiceEpoch_.load() != epoch ? "idle" : "failed";
     voiceStatus_.error = voiceStatus_.phase == "failed" ? error : "";
     voiceBusy_.store(false);
+  }
+  if (customerStart) {
+    std::lock_guard<std::mutex> lock(customerMutex_);
+    if (customerState_ != "recovering") customerState_ = succeeded ? (proposalStored ? "finishing" : "completed") : "failed";
+    if (customerState_ != "recovering") customerError_ = succeeded ? "" : error;
+    // The reservation remains held until the backend has accepted terminal state.
   }
   std::fill(final.reply.begin(), final.reply.end(), '\0');
 }
