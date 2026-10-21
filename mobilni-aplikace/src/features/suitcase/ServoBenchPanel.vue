@@ -3,6 +3,7 @@ import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, 
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { servoBench as bench } from './servoBench';
+import ServoMusicPanel from './ServoMusicPanel.vue';
 const state = bench.state;
 const capabilities = bench.capabilities;
 const automatic = bench.automatic;
@@ -18,8 +19,10 @@ const exported = ref('');
 const noiseWarning = ref(false);
 const channels = [0, 1, 2, 3, 4, 5];
 const profile = computed(() => bench.profiles.value[channel.value]);
-const contextLocked = computed(() => automatic.value?.active || !!state.value.pending || state.value.writing || !!state.value.armedUntil || bench.closing.value);
-const calibrationValid = computed(() => Number.isInteger(calibrationWidth.value) && calibrationWidth.value >= 1000 && calibrationWidth.value <= 2000 && Number.isInteger(duration.value) && duration.value >= 500 && duration.value <= 3000);
+const contextLocked = computed(() => automatic.value?.active || bench.dancing.value || !!state.value.pending || state.value.writing || !!state.value.armedUntil || bench.closing.value);
+const minimumUs = computed(() => Math.max(600, state.value.calibrationMinimumUs ?? 600));
+const maximumUs = computed(() => Math.min(2300, state.value.calibrationMaximumUs ?? 2300));
+const calibrationValid = computed(() => Number.isInteger(calibrationWidth.value) && calibrationWidth.value >= minimumUs.value && calibrationWidth.value <= maximumUs.value && Number.isInteger(duration.value) && duration.value >= 500 && duration.value <= 3000);
 watch(channel, () => { bench.changeContext(); label.value = profile.value?.label ?? ''; physicallyPrepared.value = false; automatedConsent.value = false; });
 watch([calibrationWidth, duration], () => bench.changeContext());
 watch(physicallyPrepared, (value, previous) => { if (previous && !value) { bench.disableTools(); if (bench.connected.value) void bench.stop(); } });
@@ -77,12 +80,12 @@ async function enableTools(): Promise<void> {
     <fieldset :disabled="!physicallyPrepared || !!automatic?.active || bench.closing.value">
       <legend>Ruční kalibrační pulz</legend>
       <div class="bench-fields">
-        <label class="aw-field">PWM v µs<input v-model.number="calibrationWidth" class="aw-input" type="number" min="1000" max="2000" step="1" :disabled="contextLocked"></label>
+        <label class="aw-field">PWM v µs<input v-model.number="calibrationWidth" class="aw-input" type="number" :min="minimumUs" :max="maximumUs" step="1" :disabled="contextLocked"></label>
         <label class="aw-field">Doba v ms<input v-model.number="duration" class="aw-input" type="number" min="500" max="3000" step="100" :disabled="contextLocked"></label>
       </div>
-      <input v-model.number="calibrationWidth" type="range" min="1000" max="2000" step="5" aria-label="PWM kalibrace v mikrosekundách" :disabled="contextLocked">
-      <div class="bench-actions"><AwButton v-for="width in [1200, 1500, 1800]" :key="width" :disabled="contextLocked" @click="calibrationWidth = width">{{ width }} µs</AwButton><AwButton :disabled="contextLocked" @click="calibrationWidth = Math.max(1000, calibrationWidth - 10)">−10 µs</AwButton><AwButton :disabled="contextLocked" @click="calibrationWidth = Math.min(2000, calibrationWidth + 10)">+10 µs</AwButton></div>
-      <p v-if="!calibrationValid" role="alert">Zadejte celé PWM 1000–2000 µs a dobu 500–3000 ms.</p>
+      <input v-model.number="calibrationWidth" type="range" :min="minimumUs" :max="maximumUs" step="5" aria-label="PWM kalibrace v mikrosekundách" :disabled="contextLocked">
+      <div class="bench-actions"><AwButton v-for="width in [1200, 1500, 1800]" :key="width" :disabled="contextLocked" @click="calibrationWidth = width">{{ width }} µs</AwButton><AwButton :disabled="contextLocked" @click="calibrationWidth = Math.max(minimumUs, calibrationWidth - 10)">−10 µs</AwButton><AwButton :disabled="contextLocked" @click="calibrationWidth = Math.min(maximumUs, calibrationWidth + 10)">+10 µs</AwButton></div>
+      <p v-if="!calibrationValid" role="alert">Zadejte celé PWM {{ minimumUs }}–{{ maximumUs }} µs a dobu 500–3000 ms.</p>
       <div class="bench-actions"><AwButton :disabled="!capabilities.arm || !state.calibrationSupported || !calibrationValid" @click="bench.arm">Arm · kalibrační pulz</AwButton><AwButton variant="primary" :disabled="!capabilities.calibrate || !calibrationValid" @click="bench.calibrate(channel, calibrationWidth, duration)">Provést kalibrační pulz</AwButton></div>
     </fieldset>
     <section aria-labelledby="bench-profile-title">
@@ -103,6 +106,7 @@ async function enableTools(): Promise<void> {
       <p role="status">{{ automatic?.message || 'Asistovaná kalibrace není spuštěná.' }}</p>
       <p v-if="automatic?.candidateUs != null">Návrh: {{ automatic.candidateUs }} µs · Stop {{ automatic.stopConfirmed ? 'potvrzený firmwarem' : 'nepotvrzený' }} · poloha neměřená.</p>
     </section>
+    <ServoMusicPanel :channel="channel" :prepared="physicallyPrepared" />
     <details><summary>PCA9685 readback a technický log</summary><p>Registry jsou čtení PCA9685, ne snímač skutečné polohy serva. Po odpojení je log historický.</p>
       <dl v-if="state.readback" class="bench-metrics"><div v-for="(value, key) in state.readback" :key="key"><dt>{{ key }}</dt><dd>{{ value }}</dd></div></dl><p v-else>Žádný potvrzený readback.</p><pre class="bench-log">{{ bench.log.value.join('\n') || 'Žádné technické události.' }}</pre>
     </details>

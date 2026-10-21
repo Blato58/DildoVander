@@ -332,7 +332,7 @@ test("restart does not inherit an old waiter, timer or deferred write", async ()
 
 test("bounded runs finish at the endpoint and require fresh Stop proof", async () => {
   for (const [centerUs, direction, expected] of [
-    [500, "max", 77], [2400, "min", 77], [525, "min", 2], [2400, "max", 1],
+    [600, "max", 69], [2300, "min", 69], [625, "min", 2], [2300, "max", 1],
   ]) {
     const f = await fixture();
     await startPulse(f, { centerUs, direction });
@@ -347,7 +347,7 @@ test("bounded runs finish at the endpoint and require fresh Stop proof", async (
     assert.equal(f.auto.state.stage, "completed");
     assert.equal(f.auto.state.reason, "bound");
     assert.equal(f.pulseWrites().length, expected);
-    const endpoint = direction === "min" ? 500 : 2400;
+    const endpoint = direction === "min" ? 600 : 2300;
     assert.equal(f.auto.state.currentUs, endpoint);
     assert.equal(f.auto.state.candidateUs, centerUs === endpoint ? null : endpoint);
     assert.equal(f.stopWrites().length, 1);
@@ -364,12 +364,12 @@ test("bounded runs finish at the endpoint and require fresh Stop proof", async (
 
 test("a missing candidate Stop ACK never confirms OFF or retries Stop", async () => {
   const f = await fixture({ stopAck: false });
-  await startPulse(f, { centerUs: 2375 });
+  await startPulse(f, { centerUs: 2275 });
   await f.time.advance(1500);
   await f.time.advance(1500);
   await f.time.advance(0);
   await f.time.advance(1500);
-  assert.equal(f.auto.state.candidateUs, 2400);
+  assert.equal(f.auto.state.candidateUs, 2300);
   await f.time.advance(10000);
   assert.equal(f.auto.state.stopConfirmed, false);
   assert.equal(f.stopWrites().length, 1);

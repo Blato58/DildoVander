@@ -201,11 +201,12 @@ export class BenchController {
       const legacyCalibration = /(?:^|\s)calibration=v1(?:\s|;|$)/.test(message);
       const configuredCalibration = /(?:^|\s)calibration=v2(?:\s|;|$)/.test(message) &&
         hasValidConfiguredLimits;
-      this.state.calibrationSupported = legacyCalibration || configuredCalibration;
-      this.state.calibrationMinimumUs = configuredCalibration ? configuredMinimum :
-        legacyCalibration ? LegacyCalibrationMinimumUs : null;
-      this.state.calibrationMaximumUs = configuredCalibration ? configuredMaximum :
-        legacyCalibration ? LegacyCalibrationMaximumUs : null;
+      // Older firmware may advertise a wider range than the confirmed six servos.
+      const minimum = Math.max(600, configuredCalibration ? configuredMinimum : LegacyCalibrationMinimumUs);
+      const maximum = Math.min(2300, configuredCalibration ? configuredMaximum : LegacyCalibrationMaximumUs);
+      this.state.calibrationSupported = (legacyCalibration || configuredCalibration) && minimum <= maximum;
+      this.state.calibrationMinimumUs = this.state.calibrationSupported ? minimum : null;
+      this.state.calibrationMaximumUs = this.state.calibrationSupported ? maximum : null;
       this.state.lastCompleted = null;
       this.activePulse = null;
       this.state.error = "";

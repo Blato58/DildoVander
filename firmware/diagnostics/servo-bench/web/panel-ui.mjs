@@ -14,7 +14,7 @@ export function mountBenchUi(document) {
   mount('stop-actions', button({ id: 'stop', label: 'Stop', variant: 'danger', disabled: true }) +
     button({ id: 'noise', label: 'Drhne / vrčí', variant: 'danger', disabled: true }));
   mount('calibration-fields', field({ id: 'cal-width', label: 'Cílová šířka pulzu (µs)',
-    control: '<input class="aw-input" type="number" min="500" max="2400" step="1" value="1500" aria-describedby="cal-help">' }) +
+    control: '<input class="aw-input" type="number" min="600" max="2300" step="1" value="1500" aria-describedby="cal-help">' }) +
     field({ id: 'cal-duration', label: 'Doba pokusu (ms)',
       control: '<input class="aw-input" type="number" min="500" max="3000" step="100" value="1500" aria-describedby="cal-help">' }));
 }

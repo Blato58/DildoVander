@@ -320,9 +320,9 @@ test("calibration MCP schema enforces support and strict bounds without altering
 test("maximum calibration waits past legacy deadline and reports only DONE for requested duration", async () => {
   const f = await fixture();
   await calibrationConnected(f);
-  const move = f.tool("calibrate", { channel: 5, pulseWidthUs: 2400, durationMs: 3000 });
+  const move = f.tool("calibrate", { channel: 5, pulseWidthUs: 2300, durationMs: 3000 });
   await tick();
-  assert.equal(f.writes.at(-1), "cal 5 2400 3000\n");
+  assert.equal(f.writes.at(-1), "cal 5 2300 3000\n");
   f.ack("PULSE nominal 3000 ms; calibration; timeout/Stop writes PCA FULL_OFF");
   let settled = false;
   move.then(() => { settled = true; });
@@ -334,7 +334,7 @@ test("maximum calibration waits past legacy deadline and reports only DONE for r
   const result = payload(await move);
   assert.equal(result.ok, true);
   assert.match(result.message, /3000 ms/);
-  assert.equal(result.state.lastCompleted.pulseWidthUs, 2400);
+  assert.equal(result.state.lastCompleted.pulseWidthUs, 2300);
   assert.equal(f.writes.filter(command => command.startsWith("cal ")).length, 1);
 });
 

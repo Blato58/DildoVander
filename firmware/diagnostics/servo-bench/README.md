@@ -93,18 +93,20 @@ jeden kalibrační pohyb. Pro další pokus musíš znovu kliknout na Arm;
 povolení platí nejvýše 10 sekund. Změna hodnot sama pohyb nespouští.
 
 Kalibrační firmware hlásí při startu `calibration=v2` spolu s nakonfigurovanými
-limity. Výchozí šířka je **500–2400 µs** a dobu generování PWM lze nastavit na
+limity. Pro všech šest dodaných stolních serv byla fyzicky potvrzena použitelná
+šířka signálu **600–2300 µs** (2026-10-21); firmware tento rozsah inzeruje a
+vynucuje. Dobu generování PWM lze nastavit na
 **500–3000 ms**. Šířka řídí požadovanou
 polohu; doba určuje, jak dlouho servo dostává opakované impulzy přibližně 50 Hz.
-Tyto výchozí meze odpovídají uvedenému rozsahu 0,5–2,4 ms, nejsou však
-ověřením úhlu 180° konkrétního serva. Firmware `calibration=v1` je nadále
-podporován se svým pevným starším rozsahem 1000–3000 µs.
-Delší doba sama nezvětšuje požadovaný úhel. Začni 1500 µs, potom zkus jeden
-pohyb na 1600 µs; pro viditelnější posun jsou připravené hodnoty 1200/1500/1800 µs.
-K dalším hodnotám postupuj po malých krocích a sleduj volné servo.
-Rozsah není zárukou dosažení 0–180° ani bezpečných dorazů konkrétního kusu:
-prodejce mezní šířky neuvádí. Při vrčení proti dorazu, drhnutí nebo zahřívání
-vypni V+; nepokoušej se doraz dál přetlačovat.
+Potvrzení platí pouze pro šířku impulzu na volných bench servech. Nejde o
+změřené úhly, zatížení, dorazy ani kalibraci serv namontovaných v mechanismu.
+Firmware `calibration=v1` je nadále
+podporován; jeho oznámený rozsah 1000–3000 µs panel omezuje na potvrzených
+1000–2300 µs. Také meze `v2` panel protíná s 600–2300 µs; širší firmware
+neopravňuje k překročení fyzicky potvrzeného rozsahu.
+Začni 1500 µs, potom zkus jeden pohyb na 1600 µs a postupuj po malých krocích
+s dohledem nad volným servem. Při vrčení, drhnutí nebo zahřívání vypni V+;
+nepokoušej se doraz dál přetlačovat.
 
 Pro základní pohyb není předchozí kalibrace nutná. Slouží k nalezení použitelných
 poloh konkrétního kusu; při testu volného serva nepředstírá kalibraci přihrádky.
@@ -114,6 +116,52 @@ kalibraci uloženou v ESP či provozním firmware. Při výměně serva profil z
 ověř; tlačítko **Vymazat profil kanálu** dovoluje začít znovu pro daný kanál.
 Export JSON vytvoří text pro zkopírování jako záznam hodnot pro další práci. Mechanismus
 přihrádky vyžaduje samostatnou kalibraci až po dokončení testu volného serva.
+
+### Hudba a tanec podle místní skladby
+
+V panelu **Hudba a tanec** vyber místní MP3/WAV (nejvýše 32 MiB a 10 minut).
+Pro tento test byl zadán soubor `song.mp3`; soubor zůstává mimo repozitář.
+Prohlížeč jej lokálně dekóduje a analyzuje energii v 20ms oknech a odhad rytmu
+z nárůstů energie. BPM je pouze odhad, nikoli anotovaný hudební takt.
+Není potřeba AI, síť, mikrofon ani posílání zvuku na server.
+
+**Play** bez zaškrtnutého tance slouží k poslechu a nepohne USB servem.
+Pro tanec připoj právě jedno volné servo na vybraný kanál, vyčkej na potvrzený
+Stop a firmware s podporou celého rozsahu 600–2300 µs. Zaškrtni **Servo tančí
+se zvukem** a potvrzení přípravy pro toto Play. V aplikaci je navíc potřeba
+společné potvrzení připraveného volného serva. Rozsah tance začíná na 40 %;
+100 % může využít celých 600–2300 µs kolem středu 1450 µs. Energie skladby
+řídí výchylku; ticho neposílá nový pulz. Střed je odvozený z potvrzeného rozsahu,
+nikoli změřený úhel nebo uložená kalibrace mechanismu.
+
+Časovým zdrojem je přehrávaný zvuk. Každý cíl používá samostatné Arm,
+potvrzení, 500ms `cal` a skutečné DONE. Cíle střídají směr po rytmických
+krocích nejméně 600 ms od sebe; rychlý rytmus se zpomalí na násobek dob.
+Zpožděné kroky se přeskočí, nehromadí se fronta a nepotvrzený povel se
+neopakuje. USB/prohlížeč i mechanická odezva přidávají latenci; nejde
+o garantovanou synchronizaci fyzického pohybu na vzorek zvuku.
+
+**Pause** zastaví zvuk na místě a vyžádá PWM Stop. Nové Play pokračuje
+od stejného času a tanec vyžaduje nové potvrzení obsluhy a firmware Stop.
+**Stop hudby a tance** i hlavní **Stop USB** zastaví obojí a vrátí zvuk
+na začátek. Konec skladby, buffering během přehrávání, chyba zvuku, skrytí
+stránky, odpojení či chyba USB tanec přeruší bez automatického obnovení.
+Při hardwarové chybě se I2C neopakuje. Stav potvrzeného PWM sleduj v USB
+diagnostice; Stop neodpojuje 5 V ani nepotvrzuje skutečnou polohu.
+
+Ověření bez hardwaru:
+
+```powershell
+node --test firmware/diagnostics/servo-bench/web/tests/*.test.mjs
+node firmware/diagnostics/servo-bench/web/tests/music.browser.mjs
+```
+
+Browser test používá uzamčený Playwright z `mobilni-aplikace` a Chrome
+(volitelně `PLAYWRIGHT_CHANNEL`), generovaný místní WAV a falešný UART.
+`SERVO_MUSIC_FILE` může ukazovat na vlastní místní MP3. `SERVO_SCREENSHOTS`
+určuje existující složku pro snímky. Ověří skutečné dekódování, přehrávání,
+Pause/Stop, příkazy a desktop/mobil v obou tématech; neotevírá reálné USB
+a neprokazuje skutečný tanec serva.
 
 ### Asistovaný automatický průchod
 

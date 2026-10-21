@@ -8,8 +8,8 @@
 namespace ServoBench {
 constexpr uint32_t OscillatorHz = 25000000;
 constexpr unsigned Prescale = 121;
-constexpr unsigned CalibrationMinimumUs = 500;
-constexpr unsigned CalibrationMaximumUs = 2400;
+constexpr unsigned CalibrationMinimumUs = 600;
+constexpr unsigned CalibrationMaximumUs = 2300;
 constexpr unsigned MaximumCommandPulseUs = 9999;
 constexpr uint64_t PulseDurationUs = 500000;
 constexpr uint64_t ArmDurationUs = 10000000;

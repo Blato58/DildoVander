@@ -112,7 +112,7 @@ static void CheckReadback() {
   ServoBench::PwmSnapshot snapshot;
   assert(!ServoBench::ReadPwmSnapshot(bus, 6, snapshot) && bus.operations == 0);
   assert(ServoBench::PreparePca(bus));
-  for (unsigned microseconds : {500U, 1000U, 1400U, 1500U, 1600U, 2000U, 2400U}) {
+  for (unsigned microseconds : {600U, 1000U, 1400U, 1500U, 1600U, 2000U, 2300U}) {
     const unsigned ticks = ServoBench::PulseTicks(microseconds);
     assert(ServoBench::SetPulse(bus, 0, ticks));
     assert(ServoBench::ReadPwmSnapshot(bus, 0, snapshot) && snapshot.Matches(ticks));
@@ -292,7 +292,7 @@ static void CheckHelpReportsConfiguredLimits() {
 static void CheckCalibrationGrammar() {
   const char* invalid[] = {
     "cal 6 1500 0500\n", "cal 16 1500 0500\n", "cal -1 1500 0500\n",
-    "cal 0 0499 0500\n", "cal 0 2401 0500\n", "cal 0 1500 0499\n",
+    "cal 0 0599 0500\n", "cal 0 2301 0500\n", "cal 0 1500 0499\n",
     "cal 0 1500 3001\n", "cal 0 1500 500\n", "cal 0 1500 03000\n",
     "cal 0 1500 +500\n", "cal 0 1500 5e02\n", "cal 0 1e03 0500\n",
     "cal 0 +500 0500\n", "cal 0 10000 0500\n", "cal 0 1500 0500 extra\n",
