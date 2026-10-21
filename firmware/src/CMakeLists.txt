@@ -40,6 +40,9 @@ idf_component_register(
         "features/voice_turn/BoundedPlaybackOwner.cpp"
         "features/voice_turn/BoundedVoicePlayback.cpp"
         "features/voice_turn/DeviceMediaCodec.cpp"
+        "features/voice_turn/DeviceMediaSession.cpp"
+        "features/voice_turn/EspIdfDeviceMediaSocket.cpp"
+        "features/voice_turn/EspIdfDeviceMediaTransport.cpp"
         "features/voice_turn/EspIdfRealtimeTransport.cpp"
         "features/voice_turn/RealtimeEventCodec.cpp"
         "features/voice_turn/RealtimeSessionEngine.cpp"
@@ -117,7 +120,7 @@ idf_component_register(
         "features/wand_selection/SelectionSequence.cpp"
         "features/wand_presentation/WandPresentation.cpp"
     INCLUDE_DIRS "."
-    REQUIRES app_update protocomm cjson fatfs sdmmc esp_driver_sdmmc esp_driver_i2c esp_driver_rmt esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash device_configuration
+    REQUIRES app_update protocomm cjson fatfs sdmmc esp_driver_sdmmc esp_driver_i2c esp_driver_rmt esp_driver_i2s esp_driver_gpio bootloader_support esp_event esp_http_client esp_http_server esp_https_server esp_hw_support esp_netif esp_timer esp_wifi freertos log mbedtls mdns nvs_flash device_configuration tcp_transport esp-tls
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE

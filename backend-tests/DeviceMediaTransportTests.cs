@@ -409,7 +409,12 @@ internal static class DeviceMediaTransportTests
             return Task.FromResult<WebSocket>(socket);
         }));
         var liveConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        { ["OPENAI_API_KEY"] = "offline-device-media-fixture" }).Build();
+        {
+            ["OPENAI_API_KEY"] = "offline-device-media-fixture",
+            ["Backend:GptLive:InputQuietMs"] = "500",
+            ["Backend:GptLive:OutputPauseMs"] = "500",
+            ["Backend:GptLive:TerminalQuietMs"] = "1000"
+        }).Build();
         builder.Services.AddSingleton(new GptLiveClient(liveConfiguration, _ =>
         {
             var socket = new LiveProviderSocket();
@@ -439,7 +444,12 @@ internal static class DeviceMediaTransportTests
                 {
                     context.Items["dv-account-device"] = "media-device";
                 }
-                await next(context);
+                try { await next(context); }
+                finally
+                {
+                    if (Guid.TryParse(context.Request.Headers["X-Device-Media-Test-Gate"], out var finishedId)
+                        && socketGates.TryGetValue(finishedId, out var finished)) { finished.RequestEnded.TrySetResult(); }
+                }
             });
             app.MapDeviceMedia();
             app.MapGet("/fixture-media", ServeFramesAsync);
@@ -488,6 +498,7 @@ internal static class DeviceMediaTransportTests
             await VerifyClaimAdmissionFencesAsync(app.Services);
             await VerifyPlayedReplyFencesAsync(app.Services);
             await VerifyMappedPlayedReplyAsync(http.BaseAddress!, app.Services, socketGates, providers);
+            await VerifyMappedTerminalRepliesAsync(http.BaseAddress!, app.Services, socketGates, providers, liveProviders);
             await VerifyActiveProviderAsync(http.BaseAddress!, app.Services, providers, clock);
             token = access.IssueToken("media-device")!.AccessToken;
             using (var client = await ConnectAsync(http.BaseAddress!, route, token))
@@ -615,6 +626,9 @@ internal static class DeviceMediaTransportTests
                 Check(callB is not null && store.StartRealtimeTurn(callB), "next actual operation starts after exact played ACK publication");
             }
             var nextAdmission = AdmitBAsync();
+            var terminal = sink.WriteAsync(new { type = "closed", reason = "conversation_terminal", responseGeneration = 0 }, lifetime.Token);
+            Check(!terminal.IsCompleted && !transport.SentTypes.Contains("closed"),
+                "terminal event waits for exact played publication before entering an otherwise free socket writer");
             Check(!nextAdmission.IsCompleted && !admittedB && CountOperationRows(services, conversation) == 1,
                 "completed drained A cannot admit journal/provider B while exact played ACK is held");
             if (ending == "cancel")
@@ -624,6 +638,7 @@ internal static class DeviceMediaTransportTests
                     "urgent current cancellation owns store mutation independently of blocked played ACK");
                 sink.CompleteCancellation(cancellation!, close: true);
                 await ExpectCancellationAsync(nextAdmission.WaitAsync(TimeSpan.FromSeconds(1)));
+                await ExpectCancellationAsync(terminal.WaitAsync(TimeSpan.FromSeconds(1)));
                 published!(true); // A late socket continuation cannot reopen the settled cancellation.
             }
             else
@@ -632,12 +647,20 @@ internal static class DeviceMediaTransportTests
                 if (ending == "delivered")
                 {
                     await nextAdmission.WaitAsync(TimeSpan.FromSeconds(1));
+                    await terminal.WaitAsync(TimeSpan.FromSeconds(1));
+                    Check(transport.SentTypes.Count(type => type == "closed") == 1, "successful exact publication releases one terminal event");
                     store.ReleaseRealtimeTurn(callB!, dispatched: true, completed: false);
                 }
-                else { await ExpectCancellationAsync(nextAdmission.WaitAsync(TimeSpan.FromSeconds(1))); }
+                else
+                {
+                    await ExpectCancellationAsync(nextAdmission.WaitAsync(TimeSpan.FromSeconds(1)));
+                    await ExpectCancellationAsync(terminal.WaitAsync(TimeSpan.FromSeconds(1)));
+                }
             }
             Check(admittedB == (ending == "delivered") && CountOperationRows(services, conversation) == (ending == "delivered" ? 2 : 1),
                 "only delivered exact played ACK permits next durable operation; unknown/cancel remain closed");
+            Check(ending == "delivered" || !transport.SentTypes.Contains("closed"),
+                "unknown publication or urgent cancellation cannot publish stale terminal success");
         }
     }
 
@@ -709,6 +732,127 @@ internal static class DeviceMediaTransportTests
         command.CommandText = "SELECT COUNT(*) FROM turn_operations WHERE conversation_id = $conversation";
         command.Parameters.AddWithValue("$conversation", conversation);
         return (long)command.ExecuteScalar()!;
+    }
+
+    private static string ReadJournalStatus(IServiceProvider services, string operation)
+    {
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        { DataSource = services.GetRequiredService<IConfiguration>()["Backend:DatabasePath"] }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT status FROM turn_operations WHERE operation_id = $operation";
+        command.Parameters.AddWithValue("$operation", operation);
+        return (string)command.ExecuteScalar()!;
+    }
+
+    private static async Task VerifyMappedTerminalRepliesAsync(Uri address, IServiceProvider services,
+        ConcurrentDictionary<Guid, WireGate> gates, ConcurrentQueue<ActiveProviderSocket> realtimeProviders,
+        ConcurrentQueue<LiveProviderSocket> liveProviders)
+    {
+        foreach (var engine in new[] { "gpt-live", "realtime" })
+        foreach (var ending in new[] { "delivered", "cancel", "unknown" })
+        {
+            Console.WriteLine($"Device media terminal fixture: {engine}/{ending}.");
+            var gateId = Guid.NewGuid();
+            var gate = new WireGate(); gates[gateId] = gate;
+            var device = "terminal-media-" + Guid.NewGuid().ToString("N");
+            var boot = Guid.NewGuid();
+            var store = services.GetRequiredService<ConversationStore>();
+            var create = new CreateConversationRequest(device, boot, 1, PartyWandCatalog.Version, "cs-CZ", new(true, false), MaximumEpoch);
+            var created = store.Create(device, Guid.NewGuid(), JsonSerializer.SerializeToUtf8Bytes(create, RealtimeProtocol.JsonOptions), create);
+            Check(created.Status == 201, "terminal fixture creates actual owned conversation");
+            var conversation = created.Response!.ConversationId;
+            var bearer = services.GetRequiredService<DeviceAccessStore>().IssueToken(device)!.AccessToken;
+            using var client = await ConnectAsync(address, "/v1/conversations/" + conversation + "/device-media", bearer, gateId);
+            var opening = new RealtimeTurnRequest(Guid.NewGuid(), boot, 1, engine == "gpt-live" ? 0 : 63,
+                7, PartyWandCatalog.Version, true, "", null, "marin", 1, MaximumEpoch);
+            await SendControlAsync(client, JsonSerializer.SerializeToUtf8Bytes(new { type = "open", engine, request = opening }, RealtimeProtocol.JsonOptions));
+            var inbox = new MediaInbox(client);
+            var sessionEvent = await inbox.JsonAsync("session");
+            var started = await inbox.JsonAsync("started");
+            await inbox.JsonAsync("media.operation");
+            var operation = started.GetProperty("operationId").GetString()!;
+            Task providerEnded;
+            if (engine == "gpt-live")
+            {
+                await inbox.JsonAsync("media.input");
+                await inbox.JsonAsync("listening");
+                Check(liveProviders.TryDequeue(out var provider), "terminal Live uses local protocol override");
+                provider!.EmitTerminalSpeech();
+                await inbox.JsonAsync("media.output");
+                await inbox.BinaryAsync();
+                var checkpoint = await inbox.JsonAsync("playback_checkpoint");
+                var checkpointRequest = Guid.NewGuid();
+                await SendControlAsync(client, JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    type = "playback", requestId = checkpointRequest,
+                    playbackId = checkpoint.GetProperty("playbackId").GetGuid(),
+                    pcmBytes = checkpoint.GetProperty("pcmBytes").GetInt32(), drained = true
+                }));
+                var checkpointAck = await inbox.JsonAsync("control.ack");
+                Check(checkpointAck.GetProperty("requestId").GetGuid() == checkpointRequest
+                    && checkpointAck.GetProperty("status").GetInt32() == 204, "terminal Live exact checkpoint drain accepted");
+                providerEnded = provider.Ended.Task;
+            }
+            else
+            {
+                Check(realtimeProviders.TryDequeue(out var provider), "terminal Realtime uses local SDK protocol override");
+                await inbox.JsonAsync("media.output");
+                await inbox.BinaryAsync();
+                provider!.CompleteTerminalResponse();
+                providerEnded = provider.Ended.Task;
+            }
+            var completed = await inbox.JsonAsync("completed");
+            Check(completed.GetProperty("operationId").GetString() == operation
+                && completed.GetProperty("result").GetProperty("decision").GetString() != "ask",
+                "actual provider/domain terminal result precedes played acknowledgement");
+            var requestId = Guid.NewGuid();
+            gate.AckType = "control.ack"; gate.AckRequest = requestId; gate.ObserveRequest = requestId;
+            await SendControlAsync(client, JsonSerializer.SerializeToUtf8Bytes(new
+            { type = "played", requestId, operationId = operation, responseGeneration = 0 }));
+            var ack = await inbox.JsonAsync("control.ack");
+            await gate.Held.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            await gate.Admitted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Check(ack.GetProperty("requestId").GetGuid() == requestId && ack.GetProperty("status").GetInt32() == 204
+                && gate.TerminalEvents == 0 && gate.CloseCalls == 0 && !gate.RequestEnded.Task.IsCompleted,
+                "terminal ACK bytes visible while actual send continuation and endpoint closure remain held");
+            if (ending == "delivered")
+            {
+                gate.Release.TrySetResult();
+                var closed = await inbox.JsonAsync("closed");
+                Check(closed.GetProperty("reason").GetString() == "conversation_terminal", "terminal success follows exact played publication");
+                var close = await ReadAsync(client);
+                Check(close.Kind == WebSocketMessageType.Close, "terminal JSON followed directly by WebSocket close");
+                await client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "terminal fixture complete", CancellationToken.None);
+            }
+            else if (ending == "cancel")
+            {
+                await SendControlAsync(client, JsonSerializer.SerializeToUtf8Bytes(new
+                { type = "cancel", requestId = Guid.NewGuid(), operationId = operation, responseGeneration = 0 }));
+                await CheckTargetedCancellationAsync(() => ReadAsync(client),
+                    () => client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "terminal fixture cancelled", CancellationToken.None),
+                    engine + " terminal blocked ACK");
+                Check(!gate.Release.Task.IsCompleted, "urgent current cancellation settles independently of held ACK writer");
+            }
+            else
+            {
+                gate.Release.TrySetException(new WebSocketException("Synthetic unknown publication outcome."));
+                await CheckDisconnectedAsync(client);
+            }
+            await gate.RequestEnded.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await providerEnded.WaitAsync(TimeSpan.FromSeconds(3));
+            var registry = services.GetRequiredService<RealtimeLiveRegistry>();
+            Check(registry.Find(sessionEvent.GetProperty("streamId").GetGuid(), device, conversation) is null
+                && CountOperationRows(services, conversation) == 1 && liveProviders.IsEmpty && realtimeProviders.IsEmpty,
+                "terminal acknowledgement outcome releases actual provider and registry without another admission");
+            Check(gate.TerminalEvents == (ending == "delivered" ? 1 : 0)
+                && gate.CloseCalls == (ending == "delivered" ? 1 : 0), "terminal publishes exactly once on success and never after unknown/cancel");
+            var recorded = store.GetOperation(device, operation).Operation;
+            Check(recorded?.Status == (ending == "cancel" ? "cancelled" : "completed")
+                && ReadJournalStatus(services, operation) == (ending == "cancel" ? "cancelled" : "completed")
+                && recorded.Correlation.OperationEpoch == MaximumEpoch, "terminal cleanup retains actual original journal outcome and epoch");
+            gates.TryRemove(gateId, out _);
+        }
     }
 
     private static async Task VerifyAckVisibilityAsync(Uri address, IServiceProvider services,
@@ -1314,6 +1458,11 @@ internal static class DeviceMediaTransportTests
         internal TaskCompletionSource Held { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Admitted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource RequestEnded { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int terminalEvents, closeCalls;
+        internal int TerminalEvents => Volatile.Read(ref terminalEvents);
+        internal int CloseCalls => Volatile.Read(ref closeCalls);
+        internal void Closing() => Interlocked.Increment(ref closeCalls);
         private readonly MemoryStream incoming = new();
         private bool observed;
         private int held;
@@ -1345,9 +1494,14 @@ internal static class DeviceMediaTransportTests
         }
         internal async Task ForwardedAsync(ReadOnlyMemory<byte> bytes, WebSocketMessageType kind, CancellationToken token)
         {
-            if (kind != WebSocketMessageType.Text || AckType is null || Volatile.Read(ref held) != 0) { return; }
+            if (kind != WebSocketMessageType.Text) { return; }
             using var document = JsonDocument.Parse(bytes);
             var root = document.RootElement;
+            if (root.TryGetProperty("type", out var terminalType) && terminalType.GetString() == "closed")
+            {
+                Interlocked.Increment(ref terminalEvents);
+            }
+            if (AckType is null || Volatile.Read(ref held) != 0) { return; }
             if (!root.TryGetProperty("type", out var type) || type.GetString() != AckType
                 || AckRequest is { } expected && (!root.TryGetProperty("requestId", out var request) || request.GetGuid() != expected)) { return; }
             if (Interlocked.Exchange(ref held, 1) != 0) { return; }
@@ -1375,8 +1529,11 @@ internal static class DeviceMediaTransportTests
         public override void Dispose() => inner.Dispose();
         public override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) =>
             inner.CloseAsync(closeStatus, statusDescription, cancellationToken);
-        public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) =>
-            inner.CloseOutputAsync(closeStatus, statusDescription, cancellationToken);
+        public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
+        {
+            gate.Closing();
+            return inner.CloseOutputAsync(closeStatus, statusDescription, cancellationToken);
+        }
         public override async ValueTask<ValueWebSocketReceiveResult> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             gate.BeforeReceive();
@@ -1404,6 +1561,7 @@ internal static class DeviceMediaTransportTests
 
     private sealed class PublicationSocket : WebSocket
     {
+        internal ConcurrentQueue<string> SentTypes { get; } = new();
         internal TaskCompletionSource SendEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public override WebSocketCloseStatus? CloseStatus => null;
@@ -1419,6 +1577,11 @@ internal static class DeviceMediaTransportTests
         public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage,
             CancellationToken cancellationToken)
         {
+            if (messageType == WebSocketMessageType.Text)
+            {
+                using var document = JsonDocument.Parse(buffer);
+                if (document.RootElement.TryGetProperty("type", out var type)) { SentTypes.Enqueue(type.GetString()!); }
+            }
             SendEntered.TrySetResult();
             return Release.Task;
         }
@@ -1492,6 +1655,12 @@ internal static class DeviceMediaTransportTests
         internal bool Aborted => ended.IsCancellationRequested;
         internal TaskCompletionSource Ended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private void Emit(object value) => events.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(value));
+        internal void EmitTerminalSpeech()
+        {
+            Emit(new { type = "session.output_transcript.delta", delta = "Zadna fyzicka hulka neni dostupna. Necham kufr odpocivat.",
+                start_ms = 0, end_ms = 1000, event_id = Guid.NewGuid().ToString("N") });
+            Emit(new { type = "session.output_audio.delta", delta = "AQIDBA==" });
+        }
         public override WebSocketCloseStatus? CloseStatus => null;
         public override string? CloseStatusDescription => null;
         public override WebSocketState State => Aborted ? WebSocketState.Aborted : WebSocketState.Open;
@@ -1559,7 +1728,19 @@ internal static class DeviceMediaTransportTests
                     pending.RemoveAt(index);
                     return result;
                 }
-                pending.Add(await ReadAsync(client));
+                var next = await ReadAsync(client);
+                if (next.Kind == WebSocketMessageType.Close)
+                {
+                    var eventTypes = pending.Where(item => item.Kind == WebSocketMessageType.Text).Select(item =>
+                    {
+                        using var document = JsonDocument.Parse(item.Bytes);
+                        var root = document.RootElement;
+                        return root.GetProperty("type").GetString()
+                            + (root.TryGetProperty("code", out var code) ? "/" + code.GetString() : "");
+                    });
+                    throw new InvalidOperationException("Fixture closed while waiting for " + type + "; received " + string.Join(",", eventTypes));
+                }
+                pending.Add(next);
                 Check(pending.Count < 64, "active fixture bounds pending events");
             }
         }
@@ -1596,14 +1777,32 @@ internal static class DeviceMediaTransportTests
         internal TaskCompletionSource Ended { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal ActiveProviderSocket() => Emit(new { type = "session.created", session = new { type = "realtime", model = RealtimeProtocol.Model } });
         private void Emit(object value) => events.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(value));
-        internal void CompleteResponse() => Emit(new
+        private int responseNumber;
+        private bool terminalAfterTool;
+        internal void CompleteTerminalResponse()
+        {
+            terminalAfterTool = true;
+            Emit(new
+            {
+                type = "response.done", response = new
+                {
+                    id = "response-1", status = "completed",
+                    output = new[] { new { type = "function_call", name = "end_conversation", call_id = "terminal-tool",
+                        arguments = "{\"reason\":\"fixture terminal\"}" } },
+                    usage = new { input_tokens = 123, output_tokens = 200,
+                        input_token_details = new { text_tokens = 123, audio_tokens = 0 } }
+                }
+            });
+        }
+        internal void CompleteResponse() => CompleteResponse("response-1", "Jak ti rikaji?");
+        private void CompleteResponse(string responseId, string transcript) => Emit(new
         {
             type = "response.done",
             response = new
             {
-                id = "response-1", status = "completed",
+                id = responseId, status = "completed",
                 output = new[] { new { type = "message", role = "assistant", status = "completed",
-                    content = new[] { new { type = "output_audio", transcript = "Jak ti rikaji?" } } } },
+                    content = new[] { new { type = "output_audio", transcript } } } },
                 usage = new { input_tokens = 123, output_tokens = 200, input_token_details = new { text_tokens = 123, audio_tokens = 0 } }
             }
         });
@@ -1642,8 +1841,11 @@ internal static class DeviceMediaTransportTests
                     Emit(new { type = "session.updated", session = new { type = "realtime", model = RealtimeProtocol.Model } });
                     break;
                 case "response.create":
-                    Emit(new { type = "response.created", response = new { id = "response-1" } });
-                    Emit(new { type = "response.output_audio.delta", response_id = "response-1", delta = "AQIDBA==" });
+                    var number = Interlocked.Increment(ref responseNumber);
+                    var responseId = "response-" + number;
+                    Emit(new { type = "response.created", response = new { id = responseId } });
+                    Emit(new { type = "response.output_audio.delta", response_id = responseId, delta = "AQIDBA==" });
+                    if (terminalAfterTool && number == 2) { CompleteResponse(responseId, "Rozhovor skoncil. Kufr si odpocine."); }
                     break;
                 case "input_audio_buffer.append":
                     InputStarted.TrySetResult();

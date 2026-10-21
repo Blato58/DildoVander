@@ -11,7 +11,7 @@
 #include "esp_timer.h"
 
 #include "BuildDate.h"
-#include "../voice_turn/EspIdfRealtimeTransport.h"
+#include "../voice_turn/EspIdfDeviceMediaTransport.h"
 #include "../voice_turn/VoiceOutputCancellation.h"
 #include "DeviceTokenSession.h"
 #include "EspIdfStationNetwork.h"
@@ -1135,16 +1135,18 @@ void EspIdfBackendNetwork::RunVoice(DeviceTokenSession& tokens,
           photo == PhotoOutcome::Failed ? "photo_failed" : "";
       return photo;
     };
-    ports.beginAudio = [&]() { voiceAudio_.Continuous(mode == "gpt-live"); voiceAudio_.Begin(); };
+    ports.beginAudio = [&]() { voiceAudio_.Continuous(mode == "gpt-live"); };
     ports.realtime = [&](const std::string& body, const std::string& key, const TurnCorrelation& correlation,
         const std::function<bool(const TurnOperationObservation&)>& completed) {
       const char* token = tokens.AccessToken(MonotonicMs());
       // Session creation/photo may have refreshed the same authoritative token.
       showToken_.Publish(token, tokens.AccessTokenExpiresAtMs());
-      EspIdfRealtimeTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
+      EspIdfDeviceMediaTransport transport(settings_.BackendHost(), token ? token : "", voiceAudio_,
           current, [this](const char* phase) { SetVoicePhase(phase); }, mode == "gpt-live");
       const bool succeeded = transport.Run(body, key, correlation, snapshot, completed);
       if (!transport.Error().empty()) error = transport.Error();
+      if (!succeeded && !transport.Diagnostic().empty())
+        ESP_LOGW(LogTag, "Device media failed: %.64s", transport.Diagnostic().c_str());
       return succeeded;
     };
     auto result = RunVoiceWorkflow(request, ports);

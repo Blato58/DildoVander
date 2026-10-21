@@ -266,6 +266,13 @@ internal sealed class DeviceMediaEventSink(DeviceMediaSocket socket, Cancellatio
             using var document = JsonDocument.Parse(bytes);
             var root = document.RootElement;
             var type = root.GetProperty("type").GetString();
+            if (type == "closed")
+            {
+                // Terminal Played releases the core just like ask-to-next-turn.
+                // Keep its final event/core return behind the actual typed ACK
+                // publication, or endpoint teardown can overtake that receipt.
+                await BeforeNextOperationAsync(token);
+            }
             string? cancelOperation = null;
             if (type == "listening")
             {

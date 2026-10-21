@@ -4,8 +4,9 @@ The backend exposes `GET /v1/conversations/{id}/device-media` as a persistent
 WebSocket for an autonomous physical device. The application subprotocol is
 `kufr-device-media-v1`. This is a device/backend connection; the phone is not a
 relay. Production clients must use WSS with normal hostname/certificate checks.
-The current ESP transport migration is unfinished; this endpoint alone does not
-advertise a device capability or prove physical audio operation.
+The production ESP caller uses the shared asynchronous engine and independent
+bounded playback worker over this connection. Native simulator bridge migration
+is separate. Source composition does not prove physical audio operation.
 
 The upgrade requires a current device `Authorization: Bearer ...`, a nonempty
 UUID `Idempotency-Key` header, and the exact subprotocol. Browser account cookies
@@ -15,6 +16,17 @@ device/conversation/session registry binding; hardware authority is checked as
 well. An independent one-second timer also expires an idle or blocked session.
 The first complete opening frame rechecks current bearer authority before any
 shared admission or provider work; upgrade-time authentication is not sufficient.
+
+The ESP uses the pinned ESP-IDF SSL transport with its certificate bundle and
+hostname verification. Its bounded RFC6455 adapter rejects redirects, masked
+server frames, extensions, malformed fragments and an absent/duplicate/wrong
+subprotocol or upgrade proof. One actor owns TLS reads and writes. Each receive
+visit performs at most one 50 ms nonblocking read and one bounded control reply;
+partial messages retain their original bounded workspace. A five-second opening
+budget includes connection and upgrade. Unknown writes fail closed. TLS debug
+builds refuse before sending credentials because debug hooks can log plaintext.
+Actual DNS/TLS timing and board heap/stack margins still require the exact-build
+bench checks; these are software bounds rather than hardware measurements.
 
 ## Opening and lifetime
 
@@ -139,6 +151,9 @@ admission share one short RAM gate. The durable cancellation attempt runs
 outside that gate. A known refusal releases the claim; success or an unknown
 mutation outcome permanently closes this stream's admission authority. Claim
 settlement never waits for an ACK or a writer that is waiting on the claim.
+Normal terminal `closed` publication waits for the same exact played ACK before
+the core can return or the endpoint can close its output. Failed/error teardown
+remains independent of a successful receipt.
 An urgent current cancel also closes a next-admission waiter blocked on a played
 ACK without requiring that ACK to drain. Unknown/failed ACK publication cannot
 admit the next operation.

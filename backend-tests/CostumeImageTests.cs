@@ -216,7 +216,19 @@ internal static class CostumeImageTests
             var turn = store.SubmitTurn("a", id, Guid.NewGuid(), "opening"u8, text, true);
             await WaitAsync(() => store.GetOperation("a", turn.OperationId!).Operation?.Result is TurnResult);
             Check(prompt!.Contains("red cloak") && !prompt.Contains("green cloak"), "manual context reaches next turn");
-            var other = store.SubmitTurn("b", noConsent, Guid.NewGuid(), "other"u8, text, true);
+            var otherKey = Guid.NewGuid();
+            var other = store.SubmitTurn("b", noConsent, otherKey, "other"u8, text, true);
+            // A published result can precede release of the shared paid-call slot.
+            await WaitAsync(() =>
+            {
+                if (other.Status == 503 && other.ErrorCode == "dialogue_busy")
+                {
+                    other = store.SubmitTurn("b", noConsent, otherKey, "other"u8, text, true);
+                    return false;
+                }
+                return true;
+            });
+            Check(other.Status == 202 && !string.IsNullOrEmpty(other.OperationId), "other turn accepted");
             await WaitAsync(() => store.GetOperation("b", other.OperationId!).Operation?.Result is TurnResult);
             Check(!prompt!.Contains("cloak"), "context never crosses conversations");
             clock.Now = clock.Now.AddSeconds(121);

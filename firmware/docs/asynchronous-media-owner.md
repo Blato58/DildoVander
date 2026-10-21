@@ -3,8 +3,9 @@
 `RealtimeSessionEngine` has an explicit asynchronous mode shared by platform
 callers. Its reader admits bounded events and calls `Poll()` during idle periods
 as well as after input. Admission is not playback or control completion. The
-existing HTTP mode remains during caller migration; the asynchronous ports are
-not yet the production media composition.
+production ESP caller uses these ports through `DeviceMediaSession`. The native
+simulator's browser bridge migration is separate; its older HTTP mode remains
+until that bridge uses the same ports.
 
 `VoicePlaybackPort` reserves immutable drain handles at event admission.
 `BoundedPlaybackOwner` retains at most four ordered raw barriers in addition to
@@ -31,6 +32,20 @@ relabels an old captured block. Platform shutdown must fence playback/control,
 stop and join borrowers, and only then clear or destroy their storage.
 
 ## ESP capture boundary
+
+`EspIdfDeviceMediaTransport` runs the sole device/backend WSS actor on the
+backend worker and creates one independent 12 KiB playback task. It requires
+bounded PSRAM workspaces of 64 KiB each for PCM and receive assembly; allocation
+failure refuses that voice session. `PlaybackAuthorityPort` composes the original
+conversation validity with the playback token at the raw output gate, so Stop
+cannot be undone by a late Begin. Output revocation precedes borrower joins.
+
+The socket actor retains one input acknowledgement, one sent normal control
+acknowledgement and at most four local control actions. Unknown writes or
+five-second missing acknowledgements terminate the original session without
+replaying audio. Fresh control request IDs remain retired for the connection.
+It processes idle engine work without waiting for more provider bytes. TLS,
+socket and playback waits do not run on the actuator/control owner.
 
 `EspIdfVoiceAudio::SetCaptureEnabled` changes only capture admission and its
 capture epoch. It does not reset the playback converter, increment the TX epoch,
