@@ -45,6 +45,8 @@ export class BenchController {
     this.state = { connected: false, baseline: false, fault: false, pending: null, writing: false,
       armedUntil: 0, calibrationSupported: false, calibrationMinimumUs: null,
       calibrationMaximumUs: null, lastCompleted: null,
+      danceSupported: false, danceBoot: null, armDanceToken: null, danceSession: null,
+      danceSequence: 0, lastApplied: null, danceRttMs: null,
       message: "Neaktivní · odpojeno", error: "", errorKind: "", readback: null };
     this.generation = 0;
   }
@@ -52,9 +54,11 @@ export class BenchController {
   get capabilities() {
     const state = this.state;
     const idle = state.connected && state.baseline && !state.fault && !state.pending && !state.writing;
-    return { arm: idle && !state.armedUntil,
-      pulse: idle && state.armedUntil > this.now(),
-      calibrate: idle && state.armedUntil > this.now() && state.calibrationSupported, stop: state.connected };
+    return { arm: idle && !state.armedUntil && !state.danceSession,
+      pulse: idle && state.armedUntil > this.now() && !state.danceSession,
+      calibrate: idle && state.armedUntil > this.now() && state.calibrationSupported && !state.danceSession,
+      danceStart: idle && state.armedUntil > this.now() && state.danceSupported && !!state.armDanceToken,
+      danceTarget: idle && !!state.danceSession, stop: state.connected };
   }
 
   changed() { this.onChange(this.state, this.capabilities); }
@@ -62,6 +66,15 @@ export class BenchController {
   clearArm() {
     this.clearTimer(this.armTimer);
     this.state.armedUntil = 0;
+    this.state.armDanceToken = null;
+  }
+
+  clearDance() {
+    this.state.danceSession = null;
+    this.state.danceSequence = 0;
+    this.state.lastApplied = null;
+    this.expectedTarget = null;
+    this.requestedDance = null;
   }
 
   clearPending() {
@@ -74,9 +87,11 @@ export class BenchController {
     this.clearArm();
     this.clearPending();
     this.activePulse = null;
+    this.clearDance();
     Object.assign(this.state, { connected: true, baseline: false, fault: false, writing: false,
       error: "", errorKind: "", readback: null, calibrationSupported: false,
-      calibrationMinimumUs: null, calibrationMaximumUs: null, lastCompleted: null });
+      calibrationMinimumUs: null, calibrationMaximumUs: null, lastCompleted: null,
+      danceSupported: false, danceBoot: null, danceRttMs: null });
     return this.stop("!\n");
   }
 
@@ -85,6 +100,7 @@ export class BenchController {
     this.clearArm();
     this.clearPending();
     this.activePulse = null;
+    this.clearDance(); this.state.danceSupported = false; this.state.danceBoot = null;
     Object.assign(this.state, { connected: false, baseline: false, writing: false, message,
       calibrationSupported: false, calibrationMinimumUs: null, calibrationMaximumUs: null, lastCompleted: null });
     this.changed();
@@ -146,10 +162,28 @@ export class BenchController {
       Math.max(3000, durationMs + 1500));
   }
 
+  startDance(mask) {
+    if (!this.capabilities.danceStart || !Number.isInteger(mask) || mask < 1 || mask > 63) return false;
+    const token = this.state.armDanceToken;
+    this.clearArm(); this.clearDance();
+    this.requestedDance = { token, mask };
+    return this.command(`dance ${mask.toString(16).padStart(2, '0')} ${this.state.danceBoot} ${token}\n`, 'dance-start', 'Čekám na potvrzení plynulého tance…', 150);
+  }
+
+  target(widths) {
+    if (!this.capabilities.danceTarget || !Array.isArray(widths) || widths.length !== 6 || this.state.danceSequence >= 99999 ||
+      !widths.every((width, channel) => Number.isInteger(width) && (this.state.danceSession.mask & (1 << channel) ? width >= 600 && width <= 2300 : width === 0))) return false;
+    const sequence = this.state.danceSequence + 1;
+    this.expectedTarget = { token: this.state.danceSession.token, sequence, sentAt: this.now() };
+    return this.command(`target ${this.expectedTarget.token} ${String(sequence).padStart(5, '0')} ${widths.map(width => String(width).padStart(4, '0')).join('')}\n`,
+      'dance-target', 'Plynulý tanec · čekám na potvrzení registrů.', 150);
+  }
+
   stop(command = "!\n") {
     if (!this.state.connected) return false;
     this.clearArm();
     this.clearPending();
+    this.clearDance();
     this.state.baseline = false;
     this.activePulse = null;
     this.state.lastCompleted = null;
@@ -160,6 +194,7 @@ export class BenchController {
     this.generation++;
     this.clearArm();
     this.clearPending();
+    this.clearDance();
     this.state.baseline = false;
     this.state.writing = false;
     this.activePulse = null;
@@ -192,6 +227,10 @@ export class BenchController {
       this.state.baseline = false;
       this.state.fault = false;
       this.state.readback = null;
+      this.clearDance();
+      const danceBoot = message.match(/(?:^|\s)dance_boot=([0-9a-f]{8})(?=\s|;|$)/)?.[1];
+      this.state.danceSupported = /(?:^|\s)dance=v1(?:\s|;|$)/.test(message) && !!danceBoot && danceBoot !== '00000000';
+      this.state.danceBoot = this.state.danceSupported ? danceBoot : null;
       const configuredLimits = message.match(
         /(?:^|\s)calibration_min_us=(\d{1,4})\s+calibration_max_us=(\d{1,4})(?=\s|;|$)/);
       const configuredMinimum = configuredLimits ? Number(configuredLimits[1]) : null;
@@ -217,6 +256,7 @@ export class BenchController {
       const requested = this.state.pending === "stop";
       this.clearArm();
       this.clearPending();
+      this.clearDance();
       this.activePulse = null;
       this.state.lastCompleted = null;
       this.state.baseline = requested && !this.state.fault;
@@ -227,6 +267,7 @@ export class BenchController {
     } else if (/^ARMED for one pulse\b/.test(message) && this.state.pending === "arm") {
       this.clearPending();
       this.state.armedUntil = this.armDeadline;
+      this.state.armDanceToken = message.match(/(?:^|\s)dance_token=([0-9a-f]{8})(?=\s|;|$)/)?.[1] ?? null;
       const remaining = this.armDeadline - this.now();
       if (remaining <= 0) {
         this.clearArm();
@@ -240,6 +281,26 @@ export class BenchController {
         }, remaining);
       }
       this.changed();
+    } else if (/^DANCE READY\b/.test(message) && this.state.pending === 'dance-start') {
+      const match = message.match(/^DANCE READY token=([0-9a-f]{8}) mask=([0-3][0-9a-f]) watchdog_ms=250$/);
+      if (!match || match[1] !== this.requestedDance?.token || parseInt(match[2], 16) !== this.requestedDance.mask) return;
+      this.state.danceSession = { ...this.requestedDance };
+      this.requestedDance = null; this.clearPending();
+      this.state.message = 'Plynulý tanec připraven · první cíl zatím nebyl odeslán.'; this.changed();
+    } else if (/^DANCE APPLIED\b/.test(message) && this.state.pending === 'dance-target') {
+      const match = message.match(/^DANCE APPLIED token=([0-9a-f]{8}) seq=(\d{5}) us=(\d{24})$/);
+      if (!match || match[1] !== this.expectedTarget?.token || Number(match[2]) !== this.expectedTarget.sequence) return;
+      const widths = match[3].match(/\d{4}/g).map(Number);
+      if (!widths.every((width, channel) => this.state.danceSession.mask & (1 << channel) ? width >= 600 && width <= 2300 : width === 0)) {
+        this.fail('Firmware oznámil PWM mimo potvrzené meze / vybrané kanály.'); return;
+      }
+      this.state.danceRttMs = Math.max(0, this.now() - this.expectedTarget.sentAt);
+      this.state.danceSequence = this.expectedTarget.sequence;
+      this.state.lastApplied = { token: match[1], sequence: this.expectedTarget.sequence, pulseWidthsUs: widths };
+      this.expectedTarget = null; this.clearPending();
+      this.state.message = 'Plynulý tanec · registry cíle potvrzeny; poloha neměřená.'; this.changed();
+    } else if (/^DANCE (?:TIMEOUT|LIMIT)\b/.test(message)) {
+      this.fail('Firmware ukončil tanec: watchdog / časový limit. Potvrďte nový Stop.');
     } else if (/^PULSE nominal \d+ ms\b/.test(message) && this.state.pending === "pulse") {
       this.state.message = `Firmware hlásí pulz ${this.activePulse?.durationMs ?? "—"} ms · čekám na PWM FULL_OFF`;
       this.changed();

@@ -41,15 +41,20 @@ try {
   page.on("response", response => { if (response.status() >= 400 && !response.url().endsWith("/favicon.ico")) failedResources.push(response.url()); });
   await page.addInitScript(() => {
     window.benchWrites = [];
-    let nextRead; const queue = []; let pulseTimer;
+    let nextRead; const queue = []; let pulseTimer; let firstStop = true; let armToken = 0;
     const feed = text => { const value = { value: new TextEncoder().encode(text), done: false }; if (nextRead) { const resolve = nextRead; nextRead = null; resolve(value); } else queue.push(value); };
     const port = {
       open: async () => {}, close: async () => {}, setSignals: async () => {},
       readable: { getReader: () => ({ read: () => queue.length ? Promise.resolve(queue.shift()) : new Promise(resolve => { nextRead = resolve; }), cancel: async () => { nextRead?.({ done: true }); }, releaseLock: () => {} }) },
       writable: { getWriter: () => ({ write: async bytes => {
         const text = new TextDecoder().decode(bytes); window.benchWrites.push(text);
-        if (text.includes("!")) { clearTimeout(pulseTimer); feed("READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300\nSTOP PWM FULL_OFF\n"); }
-        else if (text === "arm\n") feed("ARMED for one pulse\n");
+        if (text.includes("!")) {
+          clearTimeout(pulseTimer);
+          feed(`${firstStop ? 'READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300 dance=v1 dance_boot=1234abcd\n' : ''}STOP PWM FULL_OFF\n`); firstStop = false;
+        }
+        else if (text === "arm\n") feed(`ARMED for one pulse; dance_token=${(++armToken).toString(16).padStart(8, '0')}\n`);
+        else if (text.startsWith('dance ')) { const [, mask, , token] = text.trim().split(' '); feed(`DANCE READY token=${token} mask=${mask} watchdog_ms=250\n`); }
+        else if (text.startsWith('target ')) { const [, token, sequence, widths] = text.trim().split(' '); feed(`DANCE APPLIED token=${token} seq=${sequence} us=${widths}\n`); }
         else if (text.startsWith("cal ")) { feed("PULSE nominal 500 ms calibration\n"); pulseTimer = setTimeout(() => feed("DONE PWM FULL_OFF\n"), 500); }
       }, abort: async () => {}, releaseLock: () => {} }) },
     };
@@ -62,7 +67,8 @@ try {
   console.log("Local analysis:", await page.locator("#music-summary").textContent());
   assert.deepEqual(await page.evaluate(() => window.benchWrites), []);
   await page.locator("#music-play").click();
-  await page.waitForFunction(() => document.getElementById("music-audio").currentTime > 0.15);
+  try { await page.waitForFunction(() => document.getElementById("music-audio").currentTime > 0.15, null, { timeout: 5000 }); }
+  catch (error) { console.error('Playback:', await page.locator('#music-status').textContent(), await page.locator('#music-audio').evaluate(audio => ({ paused: audio.paused, time: audio.currentTime, ready: audio.readyState })), errors); throw error; }
   await page.locator("#music-pause").click();
   const paused = await page.locator("#music-audio").evaluate(audio => ({ paused: audio.paused, time: audio.currentTime }));
   assert(paused.paused && paused.time > 0);
@@ -72,16 +78,26 @@ try {
   await page.locator("#connect").click();
   await page.locator("#cal-arm:enabled").waitFor();
   await page.locator("#channel").selectOption("2");
+  await page.locator('#music-channel-2').check(); await page.locator('#music-channel-5').check();
+  await page.locator('#music-feature-2').selectOption('mid');
   await page.locator("#music-dance").check(); await page.locator("#music-consent").check();
   await page.locator("#music-play").click();
-  await page.waitForFunction(() => window.benchWrites.some(value => value.startsWith("cal 2 ")), { timeout: 15000 });
+  await page.waitForFunction(() => window.benchWrites.filter(value => value.startsWith('target ')).length >= 6);
+  assert((await page.evaluate(() => window.benchWrites)).some(value => value.startsWith('dance 25 ')));
+  const frames = await page.evaluate(() => window.benchWrites.filter(value => value.startsWith('target ')).map(value => value.trim().split(' ')[3].match(/\d{4}/g).map(Number)));
+  assert(frames.every(frame => [1, 3, 4].every(channel => frame[channel] === 0)));
+  assert(frames.some(frame => frame[0] !== frame[2] || frame[2] !== frame[5]));
+  assert(await page.locator('#music-feature-2').isDisabled());
+  assert((await page.locator('#music-wave').getAttribute('d')).startsWith('M'));
+  assert((await page.locator('#music-motion').getAttribute('d')).startsWith('M'));
   assert(await page.locator("#channel").isDisabled());
   assert(await page.locator("#cal-arm").isDisabled());
   await page.locator("#music-pause").click();
   assert.equal(await page.evaluate(() => window.benchWrites.at(-1)), "!\n");
   await page.locator("#cal-arm:enabled").waitFor();
+  const previousFrames = await page.evaluate(() => window.benchWrites.filter(value => value.startsWith('target ')).length);
   await page.locator("#music-consent").check(); await page.locator("#music-play").click();
-  await page.waitForFunction(() => window.benchWrites.filter(value => value.startsWith("cal 2 ")).length >= 2);
+  await page.waitForFunction(count => window.benchWrites.filter(value => value.startsWith('target ')).length > count, previousFrames);
   await page.locator("#stop").click();
   assert(await page.locator("#music-audio").evaluate(audio => audio.paused));
   assert.equal(await page.locator("#music-audio").evaluate(audio => audio.currentTime), 0);
@@ -96,7 +112,7 @@ try {
   }
   assert.deepEqual(errors, []);
   assert.deepEqual(failedResources, []);
-  console.log("PASS: real audio decode/listen/pause/stop, fake UART dance/pause/global Stop, 1440x1000 and 390x844, both themes.");
+  console.log("PASS: FFT/waveform plots, real audio output clock, three independently assigned channels in atomic25Hz frames, Pause/globalStop, 1440x1000 and390x844both themes.");
 } finally {
   await browser?.close(); server.kill(); await rm(temporary, { recursive: true, force: true });
 }

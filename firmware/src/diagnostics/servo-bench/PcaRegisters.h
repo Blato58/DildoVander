@@ -7,6 +7,12 @@ class RegisterBus {
   virtual ~RegisterBus() = default;
   virtual bool Write(uint8_t reg, const uint8_t* values, std::size_t size) = 0;
   virtual bool Read(uint8_t reg, uint8_t& value) = 0;
+  virtual bool ReadBytes(uint8_t reg, uint8_t* values, std::size_t size) {
+    for (std::size_t i = 0; i < size; ++i) {
+      if (!Read(static_cast<uint8_t>(reg + i), values[i])) return false;
+    }
+    return true;
+  }
   virtual void WaitOscillator() = 0;
 };
 
@@ -45,6 +51,21 @@ inline bool SetPulse(RegisterBus& bus, unsigned channel, unsigned ticks) {
   return bus.Write(static_cast<uint8_t>(0x06 + channel * 4), values, sizeof(values));
 }
 
+inline bool EncodeFrame(unsigned mask, const unsigned ticks[6], uint8_t values[24]) {
+  if (mask == 0 || mask > 0x3f) return false;
+  for (unsigned channel = 0; channel < 6; ++channel) {
+    const bool selected = (mask & (1U << channel)) != 0;
+    if ((selected && (ticks[channel] < PulseTicks(CalibrationMinimumUs) ||
+                      ticks[channel] > PulseTicks(CalibrationMaximumUs))) ||
+        (!selected && ticks[channel] != 0)) return false;
+    values[channel * 4] = 0;
+    values[channel * 4 + 1] = 0;
+    values[channel * 4 + 2] = static_cast<uint8_t>(ticks[channel] & 0xff);
+    values[channel * 4 + 3] = selected ? static_cast<uint8_t>((ticks[channel] >> 8) & 0x0f) : 0x10;
+  }
+  return true;
+}
+
 struct PwmSnapshot {
   uint8_t mode1 = 0;
   uint8_t mode2 = 0;
@@ -69,10 +90,14 @@ struct PwmSnapshot {
 inline bool ReadPwmSnapshot(RegisterBus& bus, unsigned channel, PwmSnapshot& snapshot) {
   if (channel > 5) return false;
   const uint8_t reg = static_cast<uint8_t>(0x06 + channel * 4);
-  return bus.Read(0x00, snapshot.mode1) && bus.Read(0x01, snapshot.mode2) &&
-      bus.Read(0xfe, snapshot.prescale) && bus.Read(reg, snapshot.onLow) &&
-      bus.Read(reg + 1, snapshot.onHigh) && bus.Read(reg + 2, snapshot.offLow) &&
-      bus.Read(reg + 3, snapshot.offHigh);
+  uint8_t values[4]{};
+  if (!bus.Read(0x00, snapshot.mode1) || !bus.Read(0x01, snapshot.mode2) ||
+      !bus.Read(0xfe, snapshot.prescale) || !bus.ReadBytes(reg, values, sizeof(values))) return false;
+  snapshot.onLow = values[0];
+  snapshot.onHigh = values[1];
+  snapshot.offLow = values[2];
+  snapshot.offHigh = values[3];
+  return true;
 }
 
 enum class PulseReadbackResult { WriteFailed, ReadFailed, Mismatch, Match };
@@ -89,5 +114,20 @@ inline PulseReadbackResult SetVerifiedPulse(
     return PulseReadbackResult::Mismatch;
   }
   return PulseReadbackResult::Match;
+}
+
+inline PulseReadbackResult SetVerifiedFrame(RegisterBus& bus, unsigned mask, const unsigned ticks[6]) {
+  uint8_t expected[24]{}, actual[24]{};
+  // OCH=0 applies all six channels together on the single write's STOP.
+  // Channels6..15 remain as prepared FULL_OFF; inactive0..5 are explicitly off.
+  if (!EncodeFrame(mask, ticks, expected) || !bus.Write(0x06, expected, sizeof(expected))) {
+    return PulseReadbackResult::WriteFailed;
+  }
+  uint8_t mode1 = 0, mode2 = 0, prescale = 0;
+  if (!bus.Read(0x00, mode1) || !bus.Read(0x01, mode2) || !bus.Read(0xfe, prescale) ||
+      !bus.ReadBytes(0x06, actual, sizeof(actual))) return PulseReadbackResult::ReadFailed;
+  return (mode1 & 0x7f) == 0x20 && mode2 == 0x04 && prescale == Prescale &&
+      std::memcmp(expected, actual, sizeof(actual)) == 0 ?
+      PulseReadbackResult::Match : PulseReadbackResult::Mismatch;
 }
 }  // namespace ServoBench

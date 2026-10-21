@@ -10,11 +10,14 @@ export interface BenchState {
   connected: boolean; baseline: boolean; fault: boolean; pending: string | null; writing: boolean;
   armedUntil: number; calibrationSupported: boolean; message: string; error: string; errorKind: string;
   calibrationMinimumUs?: number | null; calibrationMaximumUs?: number | null;
+  danceSupported?: boolean; danceBoot?: string | null; armDanceToken?: string | null;
+  danceSession?: { token: string; mask: number } | null; danceSequence?: number;
+  lastApplied?: { token: string; sequence: number; pulseWidthsUs: number[] } | null; danceRttMs?: number | null;
   lastCompleted: { channel: number; pulseWidthUs: number; durationMs: number; calibration: boolean } | null;
   readback: { channel: number; mode1: string; mode2: string; prescale: number; on: number; off: number;
     fullOn: boolean; fullOff: boolean; expectedOff: number; match: boolean } | null;
 }
-interface Capabilities { arm: boolean; pulse: boolean; calibrate: boolean; stop: boolean }
+interface Capabilities { arm: boolean; pulse: boolean; calibrate: boolean; stop: boolean; danceStart?: boolean; danceTarget?: boolean }
 interface Profile { label: string; min: number | null; center: number | null; max: number | null }
 interface AutoState {
   active: boolean; stage: string; channel: number | null; direction: 'min' | 'max' | null;
@@ -26,6 +29,7 @@ interface Controller {
   connected(): Promise<boolean>; disconnected(message?: string): void; receive(line: string): void;
   fail(message: string): void; arm(): Promise<boolean> | false; pulse(channel: number, width: number): Promise<boolean> | false;
   calibrate(channel: number, width: number, duration: number): Promise<boolean> | false; stop(): Promise<boolean> | false;
+  startDance(mask: number): Promise<boolean> | false; target(widths: number[]): Promise<boolean> | false;
 }
 interface Transport { writer: unknown; connect(options?: { authorizedOnly: boolean }): Promise<void>; write(text: string, stop?: boolean): Promise<void>; close(): Promise<void> }
 interface Profiles {
@@ -179,7 +183,7 @@ export const servoBench = {
     ensure(); music?.dispose();
     music = new MusicDance({ audio,
       getState: () => ({ ...snapshot(), automatic: !!calibration?.state.active || !visible || document.hidden }),
-      arm: () => controller!.arm(), calibrate: (channel: number, width: number, duration: number) => controller!.calibrate(channel, width, duration),
+      arm: () => controller!.arm(), startDance: (mask: number) => controller!.startDance(mask), target: (widths: number[]) => controller!.target(widths),
       stop: () => controller!.stop(), onChange: () => {
         const started = !!music?.state.dancing && !dancing.value;
         dancing.value = !!music?.state.dancing;

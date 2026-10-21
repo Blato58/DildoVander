@@ -58,20 +58,23 @@ describe('integrated USB service protocol boundary', () => {
   });
   it('music owns motion until main Stop cancels playback and invalidates late acknowledgements', async () => {
     await connectBaseline();
-    usb.callbacks!.onLine('READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300');
+    usb.callbacks!.onLine('READY PWM FULL_OFF calibration=v2 calibration_min_us=600 calibration_max_us=2300 dance=v1 dance_boot=1234abcd');
     await bench.stop(); usb.callbacks!.onLine('STOP PWM FULL_OFF');
     const audio = Object.assign(new EventTarget(), { paused: true, currentTime: 0, readyState: 4, playbackRate: 1,
       play: vi.fn(async function (this: { paused: boolean }) { this.paused = false; }),
       pause: vi.fn(function (this: { paused: boolean }) { this.paused = true; }) });
     const music = bench.createMusic(audio as unknown as HTMLAudioElement, () => {});
-    music.analysis = { duration: 8, bpm: 120, beatSeconds: 0.5, offset: 0, energy: Array(400).fill(1) };
+    music.analysis = { duration: 8, bpm: 120, beatSeconds: 0.5, offset: 0, energy: Array(400).fill(1), motions: { bass: Array(400).fill(0.5), mid: Array(400).fill(-0.5) } };
     usb.write.mockClear();
-    expect(await music.play({ dance: true, consent: true, channel: 2 })).toBe(true);
+    expect(await music.play({ dance: true, consent: true, channels: [{ channel: 0, feature: 'bass' }, { channel: 2, feature: 'mid' }] })).toBe(true);
     expect(bench.dancing.value).toBe(true);
     expect(await bench.arm()).toBe(false); expect(await bench.pulse(1, 1500)).toBe(false);
     expect(bench.canStartAutomatic.value).toBe(false);
-    usb.callbacks!.onLine('ARMED for one pulse'); await vi.advanceTimersByTimeAsync(25);
-    expect(usb.write).toHaveBeenCalledWith('cal 2 1790 0500\n', false);
+    audio.currentTime = 0.005; await vi.advanceTimersByTimeAsync(10);
+    usb.callbacks!.onLine('ARMED for one pulse; dance_token=00000001'); await vi.advanceTimersByTimeAsync(10);
+    expect(usb.write).toHaveBeenCalledWith('dance 05 1234abcd 00000001\n', false);
+    usb.callbacks!.onLine('DANCE READY token=00000001 mask=05 watchdog_ms=250'); await vi.advanceTimersByTimeAsync(10);
+    expect(usb.write).toHaveBeenCalledWith('target 00000001 00001 162000001280000000000000\n', false);
     audio.currentTime = 1.2; await bench.stop();
     expect(audio.paused).toBe(true); expect(audio.currentTime).toBe(0); expect(bench.dancing.value).toBe(false);
     const commands = usb.write.mock.calls.length;
