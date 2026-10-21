@@ -133,6 +133,7 @@ EspIdfLocalControlServer::EspIdfLocalControlServer(
 EspIdfLocalControlServer::~EspIdfLocalControlServer() { Stop(); }
 
 bool EspIdfLocalControlServer::Start() {
+  std::lock_guard<std::mutex> lifecycle(lifecycleMutex_);
   if (server_ != nullptr || !identity_.IsHealthy() ||
       !identity_.IsProvisioned() || !credential_.IsHealthy()) {
     return false;
@@ -162,10 +163,11 @@ bool EspIdfLocalControlServer::Start() {
   config.httpd.send_wait_timeout = 1;
   config.httpd.max_req_hdr_len = 1024;
   config.httpd.max_uri_len = 64;
-  if (httpd_ssl_start(&server_, &config) != ESP_OK) {
-    server_ = nullptr;
+  httpd_handle_t candidate = nullptr;
+  if (httpd_ssl_start(&candidate, &config) != ESP_OK) {
     return false;
   }
+  { std::lock_guard<std::mutex> lock(mutex_); server_ = candidate; }
   httpd_uri_t endpoint = {};
   endpoint.uri = "/v1/control";
   endpoint.method = HTTP_GET;
@@ -176,7 +178,7 @@ bool EspIdfLocalControlServer::Start() {
   endpoint.ws_pre_handshake_cb = BeforeUpgrade;
   endpoint.ws_post_handshake_cb = AfterUpgrade;
   if (httpd_register_uri_handler(server_, &endpoint) != ESP_OK) {
-    Stop();
+    StopLocked();
     return false;
   }
   httpd_uri_t pairing = {};
@@ -185,7 +187,7 @@ bool EspIdfLocalControlServer::Start() {
   pairing.handler = Pair;
   pairing.user_ctx = this;
   if (httpd_register_uri_handler(server_, &pairing) != ESP_OK) {
-    Stop();
+    StopLocked();
     return false;
   }
   httpd_uri_t trace = {};
@@ -194,7 +196,7 @@ bool EspIdfLocalControlServer::Start() {
   trace.handler = ShowTrace;
   trace.user_ctx = this;
   if (httpd_register_uri_handler(server_, &trace) != ESP_OK) {
-    Stop();
+    StopLocked();
     return false;
   }
   return true;
@@ -286,17 +288,26 @@ esp_err_t EspIdfLocalControlServer::Pair(httpd_req_t* request) {
 }
 
 void EspIdfLocalControlServer::Stop() {
-  if (server_ == nullptr) {
-    return;
+  std::lock_guard<std::mutex> lifecycle(lifecycleMutex_);
+  StopLocked();
+}
+
+void EspIdfLocalControlServer::StopLocked() {
+  httpd_handle_t running = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    running = server_;
+    stopping_ = true;
   }
-  // httpd_ssl_stop waits for the server task and its session destructors.
-  // Do not hold the output mutex while waiting for queued work to finish.
-  httpd_ssl_stop(server_);
-  server_ = nullptr;
+  // The lifecycle fence excludes new queue_work calls while SDK Stop drains
+  // accepted callbacks/session destructors. Control never takes this fence.
+  if (running) httpd_ssl_stop(running);
   std::lock_guard<std::mutex> lock(mutex_);
+  server_ = nullptr;
   ClearOutput();
   closing_ = {};
   workScheduled_ = false;
+  stopping_ = false;
 }
 
 esp_err_t EspIdfLocalControlServer::BeforeUpgrade(httpd_req_t* request) {
@@ -416,7 +427,7 @@ bool EspIdfLocalControlServer::Send(
   bool accepted = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (server_ != nullptr && closing_.socket < 0 && count_ < OutputCapacity) {
+    if (server_ != nullptr && !stopping_ && closing_.socket < 0 && count_ < OutputCapacity) {
       Output& output = output_[(head_ + count_) % OutputCapacity];
       output.handle = handle;
       output.json = json;
@@ -426,8 +437,6 @@ bool EspIdfLocalControlServer::Send(
   }
   if (!accepted) {
     Close(handle);
-  } else {
-    Pump();
   }
   return accepted;
 }
@@ -443,18 +452,22 @@ void EspIdfLocalControlServer::Close(
     closing_ = handle;
     ClearOutput();
   }
-  Pump();
 }
 
 void EspIdfLocalControlServer::Pump() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (server_ != nullptr && !workScheduled_ &&
-      (closing_.socket >= 0 || count_ > 0)) {
+  std::lock_guard<std::mutex> lifecycle(lifecycleMutex_);
+  httpd_handle_t running = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (server_ == nullptr || stopping_ || workScheduled_ ||
+        (closing_.socket < 0 && count_ == 0)) return;
     workScheduled_ = true;
-    if (httpd_queue_work(server_, Work, this) != ESP_OK) {
-      // Keep bounded work, including close, for the next owner-loop retry.
-      workScheduled_ = false;
-    }
+    running = server_;
+  }
+  // SDK queue admission can wait. It owns no mutex used by control Send/Close.
+  if (httpd_queue_work(running, Work, this) != ESP_OK) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    workScheduled_ = false;
   }
 }
 
@@ -519,7 +532,6 @@ void EspIdfLocalControlServer::Work(void* context) {
     std::lock_guard<std::mutex> lock(server->mutex_);
     server->workScheduled_ = false;
   }
-  server->Pump();
 }
 
 void EspIdfLocalControlServer::ClearOutput() {

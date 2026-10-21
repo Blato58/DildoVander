@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import subprocess
+import struct
 import tempfile
 import time
 import unittest
@@ -97,6 +98,8 @@ class Wire:
         return actual
 
     def stream(self, opening=True):
+        probe, _ = self.service("media-socket-open")
+        self.result(probe, 299)  # Explicit offline fake carveout, never real fallback.
         request, body = self.service("realtime-start")
         actual = json.loads(body)
         assert actual["bootId"] == self.boot and actual["opening"] and actual["wav"] is None
@@ -651,6 +654,201 @@ class MediaTests(unittest.TestCase):
         result = self.wire.command(f"MEDIA_START {session} {request} gpt-live coral 1.2 false main 1 1 0")
         self.assertFalse(result["commandResult"]["accepted"])
         self.assertEqual(self.wire.snapshot["reported"]["readyMask"], 63)
+
+
+class DeviceSocketTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="twin-device-media-")
+        self.wire = Wire(Path(self.temp.name))
+
+    def tearDown(self):
+        self.wire.close()
+        self.temp.cleanup()
+
+    def opening(self, engine):
+        wire = self.wire
+        wire.start(engine)
+        request, _ = wire.service("media-socket-open")
+        self.assertEqual(request["path"], f"/v1/conversations/{wire.conversation}/device-media")
+        self.assertEqual(request["headers"], {})
+        wire.result(request, 204)
+        request, raw = wire.service("media-socket-send")
+        opening = json.loads(raw)
+        self.assertEqual(opening["engine"], engine)
+        self.assertEqual(opening["type"], "open")
+        body = opening["request"]
+        wire.correlation = dict(deviceId="native-media", bootId=wire.boot, conversationId=wire.conversation,
+            clientTurnId=body["clientTurnId"], generation=body["generation"], deviceRevision=body["deviceRevision"])
+        if "operationEpoch" in body:
+            wire.correlation["operationEpoch"] = body["operationEpoch"]
+        wire.operation = str(uuid.uuid4())
+        wire.result(request, 204)
+        self.deliver(dict(type="session", streamId=str(uuid.uuid4()), audioFormat="pcm16-mono-24000"))
+
+    def deliver(self, value, binary=False):
+        request, _ = self.wire.service("media-socket-receive")
+        raw = value if binary else json.dumps(value, separators=(",", ":")).encode()
+        self.wire.result(request, 200, raw, "application/octet-stream" if binary else "application/json")
+
+    def started(self):
+        wire = self.wire
+        self.deliver(dict(type="media.operation", operationId=wire.operation, responseGeneration=0))
+        self.deliver(dict(type="started", operationId=wire.operation, correlation=wire.correlation, responseGeneration=0))
+
+    def retire(self):
+        wire = self.wire
+        request, _ = wire.service("media-socket-close")
+        wire.result(request, 204)
+        request, _ = wire.service("conversation-delete")
+        wire.result(request, 204)
+
+    def test_shared_socket_binary_output_played_receipt_and_terminal_both_engines(self):
+        for engine in ("realtime", "gpt-live"):
+            with self.subTest(engine=engine):
+                self.opening(engine)
+                self.started()
+                self.deliver(dict(type="media.output", stream=1, responseGeneration=0, format="pcm16-mono-24000"))
+                self.deliver(b"KF" + bytes([1, 2]) + struct.pack("<III", 1, 0, 6) + bytes(6), True)
+                self.wire.output("pcm")
+                self.deliver(dict(type="completed", operationId=self.wire.operation, correlation=self.wire.correlation,
+                    responseGeneration=0, result=dict(reply="Socket fixture", decision="no_selection", reason="", proposal=None), costMicroUsd=0))
+                drain, _ = self.wire.output("drain")
+                self.wire.ack(drain)
+                # An idle read poll lets the shared owner observe asynchronous drain.
+                request, _ = self.wire.service("media-socket-receive")
+                self.wire.result(request, 204)
+                request, body = self.wire.service("media-socket-send")
+                control = json.loads(body)
+                self.assertEqual(control["type"], "played")
+                self.assertEqual(control["operationId"], self.wire.operation)
+                self.wire.result(request, 204)
+                self.deliver(dict(type="control.ack", requestId=control["requestId"], status=204))
+                self.deliver(dict(type="closed", reason="conversation_terminal", responseGeneration=0))
+                self.retire()
+                caption, _ = self.wire.output("dialogue")
+                self.assertEqual(caption["text"], "Socket fixture")
+                self.wire.output("completed")
+
+    def test_shared_socket_cancel_generation_rejects_old_output_ack(self):
+        for engine in ("realtime", "gpt-live"):
+            with self.subTest(engine=engine):
+                self.opening(engine)
+                self.started()
+                self.deliver(dict(type="media.output", stream=1, responseGeneration=0, format="pcm16-mono-24000"))
+                self.deliver(b"KF" + bytes([1, 2]) + struct.pack("<III", 1, 0, 6) + bytes(6), True)
+                old, _ = self.wire.output("pcm")
+                self.wire.media.clear()
+                self.deliver(dict(type="audio_cancel", responseGeneration=1))
+                self.deliver(dict(type="media.operation", operationId=self.wire.operation, responseGeneration=1))
+                if engine == "realtime":
+                    self.deliver(dict(type="started", operationId=self.wire.operation, correlation=self.wire.correlation, responseGeneration=1))
+                self.deliver(dict(type="media.output", stream=2, responseGeneration=1, format="pcm16-mono-24000"))
+                self.deliver(b"KF" + bytes([1, 2]) + struct.pack("<III", 2, 0, 8) + bytes(8), True)
+                current, _ = self.wire.output("pcm")
+                self.assertGreater(int(current["outputEpoch"]), int(old["outputEpoch"]))
+                self.assertFalse(self.wire.ack(old)["commandResult"]["accepted"])
+                self.deliver(dict(type="completed", operationId=self.wire.operation, correlation=self.wire.correlation,
+                    responseGeneration=1, result=dict(reply="Replacement fixture", decision="no_selection", reason="", proposal=None), costMicroUsd=0))
+                drain, _ = self.wire.output("drain")
+                self.wire.ack(drain)
+                request, _ = self.wire.service("media-socket-receive")
+                self.wire.result(request, 204)
+                request, body = self.wire.service("media-socket-send")
+                control = json.loads(body)
+                self.assertEqual(control["responseGeneration"], 1)
+                self.wire.result(request, 204)
+                self.deliver(dict(type="control.ack", requestId=control["requestId"], status=204))
+                self.deliver(dict(type="closed", reason="conversation_terminal", responseGeneration=1))
+                self.retire()
+                self.wire.output("completed")
+
+    def test_shared_socket_input_credit_stale_ack_and_disconnect_never_replay(self):
+        for engine in ("realtime", "gpt-live"):
+            with self.subTest(engine=engine):
+                self.opening(engine)
+                input_id = str(uuid.uuid4())
+                self.deliver(dict(type="media.input", stream=1, inputId=input_id, format="pcm16-mono-24000", maxFrameBytes=4096, credit=1))
+                self.deliver(dict(type="listening", inputId=input_id, responseGeneration=0))
+                self.wire.output("listening")
+                state = self.wire.state
+                payload = bytes(8000)
+                result = self.wire.command(f"MEDIA_FRAME {self.wire.session} {state['epoch']} {state['inputEpoch']} 0 pcm {len(payload)}", payload)
+                self.assertTrue(result["commandResult"]["accepted"])
+                request, _ = self.wire.service("media-socket-receive")
+                self.wire.result(request, 204)
+                request, raw = self.wire.service("media-socket-send")
+                self.assertEqual(raw[:4], b"KF" + bytes([1, 1]))
+                self.assertEqual(struct.unpack("<III", raw[4:16]), (1, 0, 4096))
+                self.wire.result(request, 204)
+                # One credit: the remaining capture never leaves before exact ACK.
+                request, _ = self.wire.service("media-socket-receive")
+                self.assertFalse(any(h["kind"] == "media-socket-send" for h, _ in self.wire.services))
+                self.wire.result(request, 200, dict(type="media.ack", stream=1, sequence=0))
+                request, raw = self.wire.service("media-socket-send")
+                self.assertEqual(struct.unpack("<III", raw[4:16]), (1, 1, 704))
+                self.wire.result(request, 204)
+                self.deliver(dict(type="media.ack", stream=1, sequence=2))
+                self.retire()
+                self.wire.output("failed")
+                self.assertFalse(any(h["kind"] == "media-socket-send" for h, _ in self.wire.services))
+
+    def test_shared_socket_malformed_credit_binary_and_disconnect_fail_closed(self):
+        for engine in ("realtime", "gpt-live"):
+            for fault in ("credit", "binary", "disconnect"):
+                with self.subTest(engine=engine, fault=fault):
+                    self.opening(engine)
+                    if fault == "credit":
+                        self.deliver(dict(type="media.input", stream=1, inputId=str(uuid.uuid4()),
+                            format="pcm16-mono-24000", maxFrameBytes=4096, credit=2))
+                    elif fault == "binary":
+                        self.started()
+                        self.deliver(dict(type="media.output", stream=1, responseGeneration=0, format="pcm16-mono-24000"))
+                        self.deliver(b"KF" + bytes([1, 2]) + struct.pack("<III", 1, 1, 6) + bytes(6), True)
+                    else:
+                        request, _ = self.wire.service("media-socket-receive")
+                        self.wire.result(request, 410)
+                    self.retire()
+                    self.wire.output("failed")
+                    self.assertFalse(any(h["kind"] in ("pcm", "completed") for h, _ in self.wire.media))
+
+    def test_shared_socket_stop_fences_pending_receive_and_late_result(self):
+        for engine in ("realtime", "gpt-live"):
+            with self.subTest(engine=engine):
+                self.opening(engine)
+                request, _ = self.wire.service("media-socket-receive")
+                self.wire.command("STOP")
+                late = self.wire.result(request, 200, dict(type="heartbeat"))
+                self.assertFalse(late["commandResult"]["accepted"])
+                self.assertFalse(self.wire.state["active"])
+                self.assertFalse(self.wire.snapshot["reported"]["outputsEnabled"])
+                self.wire.command("INSPECT")
+                # Let the cancelled worker finish without dispatching old services.
+                until = time.monotonic() + 1
+                while time.monotonic() < until:
+                    self.wire.command("SNAPSHOT")
+                    time.sleep(.005)
+                self.wire.services.clear()  # Retired best-effort DELETE is not a new actor request.
+                self.wire.start(engine)
+                successor = self.wire.state["sessionId"]
+                stale = self.wire.result(request, 200, dict(type="heartbeat"))
+                self.assertFalse(stale["commandResult"]["accepted"])
+                self.assertEqual(self.wire.state["sessionId"], successor)
+                probe, _ = self.wire.service("media-socket-open")
+                self.wire.result(probe, 503)
+                close, _ = self.wire.service("conversation-delete")
+                self.wire.result(close, 204)
+                self.wire.output("failed")
+
+    def test_shared_socket_malformed_and_failed_connect_have_no_legacy_fallback(self):
+        for engine in ("realtime", "gpt-live"):
+            with self.subTest(engine=engine):
+                self.wire.start(engine)
+                request, _ = self.wire.service("media-socket-open")
+                self.wire.result(request, 503)
+                request, _ = self.wire.service("conversation-delete")
+                self.wire.result(request, 204)
+                self.wire.output("failed")
+                self.assertFalse(any(h["kind"] == "realtime-start" for h, _ in self.wire.services))
 
 
 if __name__ == "__main__":

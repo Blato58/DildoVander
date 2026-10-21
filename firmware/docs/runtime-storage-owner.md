@@ -192,9 +192,10 @@ plain refusal; a previously pending request's failed result requires inspection.
 The backend producer uses `StartPolled`: Tick cannot consume Begin before that
 producer rechecks its cancellation and preparation gates. Its held claim also
 prevents the network expiry task from treating the consumed proposal mailbox as
-expired. Preparation is tracked once for the exact retained candidate. This does
-not activate the shared runtime in production. The legacy notifier path and
-offline outbox/settings writes remain synchronous in that composition.
+expired. Preparation is tracked once for the exact retained candidate. Production
+uses this shared worker for notifier and offline outbox/settings operations;
+the synchronous constructors remain conservative service/legacy compatibility
+ports and do not grant production scoped admission.
 
 The no-bridge `autonomous_claimed_storage_test` exercises actual shared storage,
 Wand, control and physical score owners with simulated I/O: 1,152 completed

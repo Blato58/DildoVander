@@ -125,7 +125,7 @@ class DeviceControl {
                                bool authenticated, uint64_t nowMs);
   bool BeginAcceptedSelection(uint64_t nowMs, SelectionStep& step);
   bool ReserveAutonomousPresentation(const std::string& proposalId, uint8_t compartment,
-      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch);
+      uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch, bool technicalTest = false);
   AutonomousAdmissionProgress LastAutonomousAdmissionProgress() const {
     return autonomousAdmissionProgress_;
   }
@@ -192,11 +192,12 @@ class DeviceControl {
     uint8_t compartment = 0;
     uint64_t expectedRevision = 0, fingerprint = 0, operationEpoch = 0;
     uint64_t calibrationRevision = 0;
+    bool technicalTest = false;
   } deferredAutonomousAdmission_;
   AutonomousAdmissionProgress autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Rejected;
   bool AdvanceAutonomousAdmission(AutonomousAdmissionKind kind,
       const std::string& proposalId, uint8_t compartment, uint64_t expectedRevision,
-      uint64_t fingerprint, uint64_t operationEpoch);
+      uint64_t fingerprint, uint64_t operationEpoch, bool technicalTest = false);
   void CancelDeferredAutonomousAdmission(bool reportFault = true);
   struct CachedResult {
     bool occupied = false;

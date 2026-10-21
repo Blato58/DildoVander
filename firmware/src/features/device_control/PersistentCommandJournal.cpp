@@ -100,6 +100,7 @@ bool PersistentCommandJournal::ReadHistoryEntry(size_t index, JournalHistoryEntr
   entry.identity = {saved.epoch, saved.id, saved.compartment, saved.fingerprint};
   entry.timedCompleted = saved.timedCompleted;
   entry.evidencePinned = saved.evidencePinned;
+  entry.technicalTest = saved.technicalTest;
   return true;
 }
 
@@ -141,6 +142,7 @@ bool PersistentCommandJournal::ExportSnapshot(JournalSnapshot& snapshot) const {
     destination.fingerprint = source.fingerprint;
     destination.timedCompleted = source.timedCompleted;
     destination.evidencePinned = source.evidencePinned;
+    destination.technicalTest = source.technicalTest;
   }
   snapshot.reservation.epoch = presentationReservation_.epoch;
   if (presentationReservation_.epoch != 0) {
@@ -219,12 +221,30 @@ bool PersistentCommandJournal::BeginScoped(
 
 bool PersistentCommandJournal::ReservePresentation(
     uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
+  return ReserveAtOrigin(epoch, id, compartment, fingerprint, false);
+}
+
+bool PersistentCommandJournal::ReserveTechnicalPresentation(
+    uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) {
+  return ReserveAtOrigin(epoch, id, compartment, fingerprint, true);
+}
+
+bool PersistentCommandJournal::IsTechnicalTestOperation(
+    uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint) const {
+  const auto* entry = ExactEntry(epoch, id, compartment, fingerprint);
+  return healthy_ && entry && entry->technicalTest;
+}
+
+bool PersistentCommandJournal::ReserveAtOrigin(
+    uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint,
+    bool technicalTest) {
   if (!healthy_ || state_.origin != StateOrigin::Scoped || epoch == 0 ||
       epoch != state_.currentEpoch || !IsCanonicalUuid(id) || compartment < 1 ||
       compartment > 6 || fingerprint == 0 || HasPending() ||
       (state_.readyMask & (1u << (compartment - 1))) == 0) return false;
   if (HasPresentationReservation())
-    return HasPresentationReservation(epoch, id, compartment, fingerprint);
+    return HasPresentationReservation(epoch, id, compartment, fingerprint) &&
+        IsTechnicalTestOperation(epoch, id, compartment, fingerprint) == technicalTest;
   if (state_.historyCount == HistoryCapacity ||
       FindHistorical(epoch, id, compartment, fingerprint) != Lookup::Missing) return false;
 
@@ -236,6 +256,7 @@ bool PersistentCommandJournal::ReservePresentation(
   entry.epoch = epoch;
   entry.evidencePinned = true;
   entry.timedCompleted = false;
+  entry.technicalTest = technicalTest;
   if (!Persist(next)) return false;
   presentationReservation_ = {epoch, id, compartment, fingerprint};
   return true;
@@ -481,7 +502,8 @@ bool PersistentCommandJournal::CommitEvidenceReconciliation(
         actual.compartment != expected.identity.compartment ||
         actual.fingerprint != expected.identity.fingerprint ||
         actual.timedCompleted != expected.timedCompleted ||
-        actual.evidencePinned != expected.evidencePinned) return false;
+        actual.evidencePinned != expected.evidencePinned ||
+        actual.technicalTest != expected.technicalTest) return false;
   }
   if (compact && (expectedCount != HistoryCapacity ||
       state_.currentEpoch == std::numeric_limits<uint64_t>::max() ||
@@ -527,7 +549,7 @@ bool PersistentCommandJournal::Decode(const uint8_t* data, size_t length, State&
   const uint8_t version = data[4];
   const bool version1 = version == 1 && length == 44;
   const bool legacyHistory = (version == 2 || version == 3) && length == LegacyRecordSize;
-  const bool scopedRecord = version == RecordVersion && length == RecordSize;
+  const bool scopedRecord = (version == RecordVersion || version == 5) && length == RecordSize;
   if ((!version1 && !legacyHistory && !scopedRecord) || data[5] > AllCompartmentsMask ||
       data[6] > 6 || (version1 ? data[7] != 0 : data[7] > HistoryCapacity)) return false;
   if (scopedRecord) {
@@ -582,9 +604,10 @@ bool PersistentCommandJournal::Decode(const uint8_t* data, size_t length, State&
       if (scopedRecord) {
         entry.compartment = data[offset + 36];
         const uint8_t flags = data[offset + 37];
-        if ((flags & ~3u) != 0) return false;
+        if ((flags & ~(version == 5 ? 7u : 3u)) != 0) return false;
         entry.timedCompleted = (flags & 1) != 0;
         entry.evidencePinned = (flags & 2) != 0;
+        entry.technicalTest = (flags & 4) != 0;
         entry.fingerprint = Read64(data + offset + 38);
         entry.epoch = Read64(data + offset + 46);
         if (entry.epoch > decoded.currentEpoch ||
@@ -617,6 +640,10 @@ bool PersistentCommandJournal::Decode(const uint8_t* data, size_t length, State&
 void PersistentCommandJournal::Encode(const State& state, std::array<uint8_t, RecordSize>& data) {
   std::copy(Magic, Magic + sizeof(Magic), data.begin());
   data[4] = RecordVersion;
+  // Existing production-only records stay byte-compatible with v4. A technical
+  // marker requires v5 so older firmware refuses it rather than misclassifying it.
+  for (size_t index = 0; index < state.historyCount; ++index)
+    if (state.history[index].technicalTest) data[4] = 5;
   data[5] = state.readyMask;
   data[6] = state.pendingCompartment;
   data[7] = state.historyCount;
@@ -631,7 +658,8 @@ void PersistentCommandJournal::Encode(const State& state, std::array<uint8_t, Re
     const auto& entry = state.history[index];
     std::copy(entry.id.begin(), entry.id.end(), data.begin() + offset);
     data[offset + 36] = entry.compartment;
-    data[offset + 37] = static_cast<uint8_t>((entry.timedCompleted ? 1 : 0) | (entry.evidencePinned ? 2 : 0));
+    data[offset + 37] = static_cast<uint8_t>((entry.timedCompleted ? 1 : 0) |
+        (entry.evidencePinned ? 2 : 0) | (entry.technicalTest ? 4 : 0));
     Write64(data.data() + offset + 38, entry.fingerprint);
     Write64(data.data() + offset + 46, entry.epoch);
   }

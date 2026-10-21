@@ -540,3 +540,34 @@ test('native epoch negotiation waits for validated metadata and scopes only new 
   assert.equal(stop.type, 'safety.stop'); assert.equal(Object.hasOwn(stop, 'operationEpoch'), false);
   connection.suspend();
 });
+
+
+test('native diagnostics are requested only after capability and remain strictly redacted', async () => {
+  const diagnosticFixture = JSON.parse(await readFile(new URL('../../contracts/fixtures/valid/state-snapshot-diagnostics.json', import.meta.url)));
+  for (const supported of [false, true]) {
+    const native = bridge();
+    const connection = new ProtocolDeviceConnection(() => {}, {
+      source: 'native-device', deviceId: fixture.deviceId,
+      createSocket: () => new NativeControlSocket(native),
+      parseFrame: frame => validateControlMessage(new TextEncoder().encode(frame)),
+    });
+    await settle(); native.emit('open'); await settle();
+    const hello = JSON.parse(native.sent.at(-1).frame);
+    const state = { ...fixture, capabilities: [...fixture.capabilities, 'operationEpoch', ...(supported ? ['runtimeDiagnostics'] : [])] };
+    native.emit('frame', JSON.stringify({ protocolVersion: 1, type: 'welcome', requestMessageId: hello.messageId, snapshot: state }));
+    await settle();
+    const request = validateControlMessage(new TextEncoder().encode(native.sent.at(-1).frame));
+    assert.equal(request.type, 'state.get');
+    assert.equal(request.includeDiagnostics, supported ? true : undefined);
+    if (supported) {
+      const diagnostic = { ...state, eventSequence: fixture.eventSequence + 1, operationEpoch: '2', diagnostics: diagnosticFixture.diagnostics };
+      native.emit('frame', JSON.stringify(diagnostic)); await settle();
+      assert.equal(native.closed.length, 0);
+      diagnostic.eventSequence++;
+      diagnostic.diagnostics.storage.unexpectedSecret = 'must reject';
+      native.emit('frame', JSON.stringify(diagnostic)); await settle();
+      assert.equal(native.closed.length, 1);
+    }
+    connection.suspend(); await settle();
+  }
+});

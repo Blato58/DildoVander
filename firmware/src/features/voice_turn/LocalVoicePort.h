@@ -10,16 +10,25 @@ struct LocalVoiceStatus {
   std::string error = "";
   bool cameraAvailable = false;
   std::string photoWarning;
+  std::string testContextId;
 };
 
 class LocalVoicePort {
  public:
   virtual ~LocalVoicePort() = default;
   virtual LocalVoiceStatus VoiceStatus() const = 0;
+  virtual bool SupportsVoiceTestContext() const { return false; }
   virtual bool ConfigureVoice(const std::string& mode, const std::string& voice) = 0;
   virtual bool StartVoice(const std::string& requestId,
                           const ConversationRuntimeSnapshot& snapshot) = 0;
   virtual void StopVoice() = 0;
+  virtual bool StartVoiceWithTestContext(const std::string& requestId,
+      const ConversationRuntimeSnapshot& snapshot, bool imageConsent,
+      const std::string& testContext) {
+    return testContext.empty() && StartVoiceWithImageConsent(requestId, snapshot, imageConsent);
+  }
+  // A scoped refusal must never fall back to global Stop.
+  virtual bool StopVoiceForTestContext(const std::string&) { return false; }
   virtual bool StartVoiceWithImageConsent(const std::string& requestId,
       const ConversationRuntimeSnapshot& snapshot, bool imageConsent) {
     return !imageConsent && StartVoice(requestId, snapshot);
@@ -33,5 +42,6 @@ inline std::string VoiceStatusJson(const LocalVoiceStatus& status) {
       "\",\"phase\":\"" + status.phase + "\",\"error\":" +
       (status.error.empty() ? "null" : "\"" + status.error + "\"") +
       ",\"cameraAvailable\":" + (status.cameraAvailable ? "true" : "false") +
-      ",\"photoWarning\":" + (status.photoWarning.empty() ? "null" : "\"" + status.photoWarning + "\"") + "}";
+      ",\"photoWarning\":" + (status.photoWarning.empty() ? "null" : "\"" + status.photoWarning + "\"") +
+      (status.testContextId.empty() ? "" : ",\"testContextId\":\"" + status.testContextId + "\"") + "}";
 }

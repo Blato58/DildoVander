@@ -251,7 +251,21 @@ class Voice final : public LocalVoicePort {
     ++started; lastRevision = snapshot.deviceRevision; return true;
   }
   void StopVoice() override { ++stopped; }
+  bool SupportsVoiceTestContext() const override { return true; }
+  bool StartVoiceWithTestContext(const std::string& request,
+      const ConversationRuntimeSnapshot& snapshot, bool image, const std::string& ticket) override {
+    if (ticket.empty()) return StartVoiceWithImageConsent(request, snapshot, image);
+    if (image || ticket.size() != 43) return false;
+    ++testStarts;
+    status.testContextId = std::string(64, 'a'); // fixed mock hash, never a real credential
+    return true;
+  }
+  bool StopVoiceForTestContext(const std::string& id) override {
+    if (status.testContextId.empty() || status.testContextId != id) return false;
+    status.testContextId.clear(); ++testStops; return true;
+  }
   int configured = 0, started = 0, stopped = 0;
+  int testStarts = 0, testStops = 0;
   uint64_t lastRevision = 0;
 };
 
@@ -938,6 +952,35 @@ void TestEpochNegotiationResetsWithConnection() {
 }
 
 int main() {
+  {
+    AsyncFixture fixture;
+    fixture.Connect();
+    auto start = fixture.Message(LocalControlMessageKind::VoiceStart);
+    start.testContext = std::string(43, 'A');
+    auto stale = start; ++stale.expectedRevision;
+    assert(fixture.inbox.Submit(fixture.handle, stale)); fixture.Poll(100);
+    assert(!fixture.output.lastVoiceAccepted && fixture.voice.testStarts == 0);
+    start.imageConsent = true;
+    assert(fixture.inbox.Submit(fixture.handle, start)); fixture.Poll(101);
+    assert(!fixture.output.lastVoiceAccepted && fixture.voice.testStarts == 0);
+    start.imageConsent = false;
+    assert(fixture.inbox.Submit(fixture.handle, start)); fixture.Poll(102);
+    assert(fixture.output.lastVoiceAccepted && fixture.voice.testStarts == 1 && fixture.voice.started == 0);
+    const auto generation = fixture.runtime.Generation();
+    auto stop = fixture.Message(LocalControlMessageKind::VoiceStop);
+    stop.testContextId = std::string(64, 'b');
+    assert(fixture.inbox.Submit(fixture.handle, stop)); fixture.Poll(103);
+    assert(!fixture.output.lastVoiceAccepted && fixture.voice.testStops == 0 && fixture.voice.stopped == 0);
+    assert(fixture.runtime.Generation() == generation && fixture.transport.closes == 0);
+    stop.testContextId = std::string(64, 'a');
+    assert(fixture.inbox.Submit(fixture.handle, stop)); fixture.Poll(104);
+    assert(fixture.output.lastVoiceAccepted && fixture.voice.testStops == 1 && fixture.voice.stopped == 0);
+    assert(fixture.runtime.Generation() > generation);
+    const auto stoppedGeneration = fixture.runtime.Generation();
+    assert(fixture.inbox.Submit(fixture.handle, stop)); fixture.Poll(105);
+    assert(!fixture.output.lastVoiceAccepted && fixture.voice.testStops == 1 && fixture.voice.stopped == 0);
+    assert(fixture.runtime.Generation() == stoppedGeneration && fixture.transport.closes == 0);
+  }
   TestDeferredManualAckAndCoalescing();
   TestDeferredManualAckFailureAndUrgentStop();
   TestStopWhileActualJournalWriteIsStalled();

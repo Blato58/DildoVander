@@ -61,6 +61,11 @@ class AsyncCommandJournal final : public CommandJournal {
   bool BeginWithIdentity(const std::string& id, uint8_t slot, uint64_t fingerprint) override;
   bool BeginScoped(uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) override;
   bool ReservePresentation(uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) override;
+  bool ReserveTechnicalPresentation(uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) override;
+  bool IsTechnicalTestOperation(uint64_t epoch, const std::string& id, uint8_t slot,
+                                uint64_t fingerprint) const override {
+    return View().IsTechnicalTestOperation(epoch, id, slot, fingerprint);
+  }
   bool BeginReservedPresentation(uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) override;
   void CancelPresentationReservation() override;
   bool Resolve(uint8_t readyMask) override;
@@ -75,7 +80,7 @@ class AsyncCommandJournal final : public CommandJournal {
   using Purpose = JournalStorageOwner::Purpose;
   bool Apply(const Request& request, Purpose purpose);
   bool Identified(JournalStorageOwner::Operation operation, Purpose purpose, uint64_t epoch,
-                  const std::string& id, uint8_t slot, uint64_t fingerprint);
+                  const std::string& id, uint8_t slot, uint64_t fingerprint, bool technicalTest = false);
   static bool Same(const Request& left, const Request& right);
   JournalSnapshotView View() const { return JournalSnapshotView(snapshot_); }
   void Adopt(const JournalStorageOwner::Completion& completion);

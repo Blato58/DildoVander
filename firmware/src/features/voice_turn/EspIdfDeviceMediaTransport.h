@@ -3,6 +3,7 @@
 #include <string>
 #include "EspIdfVoiceAudio.h"
 #include "DeviceMediaFailure.h"
+#include "VoiceMediaHealth.h"
 #include "../conversation/ConversationRuntimeState.h"
 #include "../conversation/TurnOperationCodec.h"
 
@@ -12,7 +13,8 @@ class EspIdfDeviceMediaTransport final {
  public:
   EspIdfDeviceMediaTransport(const std::string& host, const std::string& token,
       EspIdfVoiceAudio& audio, std::function<bool()> current,
-      std::function<void(const char*)> phase, bool live);
+      std::function<void(const char*)> phase, bool live,
+      std::function<void(const VoiceMediaHealth&)> health = {});
   ~EspIdfDeviceMediaTransport();
   bool Run(const std::string& body, const std::string& key, const TurnCorrelation& opening,
       const ConversationRuntimeSnapshot& snapshot,
@@ -25,4 +27,5 @@ class EspIdfDeviceMediaTransport final {
   std::function<bool()> current_;
   std::function<void(const char*)> phase_;
   bool live_;
+  std::function<void(const VoiceMediaHealth&)> health_;
 };

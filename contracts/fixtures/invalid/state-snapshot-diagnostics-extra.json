@@ -1,0 +1,109 @@
+{
+  "protocolVersion": 1,
+  "type": "state.snapshot",
+  "deviceId": "kufr-001",
+  "bootId": "c85743d5-1b72-41b8-8500-ae3c102b27d6",
+  "deviceUptimeMs": 153200,
+  "eventSequence": 80,
+  "revision": 37,
+  "controlMode": "manual",
+  "controlLeaseId": "a8287a95-b6a1-4501-bdaa-38721ec83191",
+  "phase": "ready",
+  "activeCommandId": null,
+  "readyMask": 63,
+  "calibrationRevision": 2,
+  "faults": [],
+  "microphoneState": "idle",
+  "capabilities": [
+    "manualControl",
+    "conversationText",
+    "runtimeDiagnostics"
+  ],
+  "lastResult": null,
+  "conversation": {
+    "conversationId": "9a8dd264-61f7-4339-b677-866798263cb2",
+    "generation": 0,
+    "activeTurnId": null
+  },
+  "diagnostics": {
+    "version": 1,
+    "sampledAtMs": 1234,
+    "buildId": "synthetic-test",
+    "resetReason": 0,
+    "profile": 2,
+    "calibrationConfigured": false,
+    "hardwareAvailable": true,
+    "station": {
+      "phase": "connected",
+      "activeProfile": 0,
+      "hasIp": true,
+      "changing": false
+    },
+    "backend": {
+      "online": true,
+      "authentication": "unknown",
+      "time": "unknown"
+    },
+    "ota": "verifying-boot",
+    "storage": {
+      "startup": 3,
+      "state": 5,
+      "journalKnown": true,
+      "journalHealthy": true,
+      "journalUsed": 3,
+      "journalCapacity": 32,
+      "operationEpoch": "4294967301",
+      "compactions": "0",
+      "busy": false,
+      "token": "forbidden-field"
+    },
+    "memory": {
+      "internalFree": 123456,
+      "internalMinimum": 0,
+      "internalLargest": 0,
+      "psramFree": 0,
+      "psramMinimum": 0,
+      "psramLargest": 0
+    },
+    "stack": {
+      "controlMinimum": 0,
+      "serviceMinimum": 0,
+      "storageMinimum": 0
+    },
+    "control": {
+      "passes": 0,
+      "skipped": 0,
+      "executionUs": 0,
+      "maxExecutionUs": 0,
+      "latenessUs": 0,
+      "maxLatenessUs": 0,
+      "gapUs": 0,
+      "maxGapUs": 37000,
+      "owner": 8,
+      "maintenanceOwner": 0
+    },
+    "physical": {
+      "maxTransferUs": 0,
+      "maxPassBusUs": 0,
+      "lockRefusals": 0,
+      "budgetRefusals": 0,
+      "coalescedLedFrames": 0,
+      "urgentStopPending": true,
+      "overBudgetPasses": 0
+    },
+    "storageMaxOperationUs": 0,
+    "mediaAvailable": false,
+    "media": {
+      "session": "0",
+      "cancellationEpoch": "0",
+      "playedPcmBytes": "0",
+      "captureQueuedBytes": 0,
+      "captureHighWaterBytes": 0,
+      "captureOverruns": 0,
+      "playbackQueuedBytes": 0,
+      "playbackHighWaterBytes": 0,
+      "termination": 0,
+      "cancellationTail": "unmeasured"
+    }
+  }
+}

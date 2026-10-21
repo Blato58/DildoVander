@@ -351,6 +351,7 @@
       "required": ["protocolVersion", "type", "messageId", "deviceId", "bootId"],
       "properties": {
         "includeOperationEpoch": {"const": true},
+        "includeDiagnostics": {"const": true},
         "protocolVersion": { "const": 1 },
         "type": { "const": "state.get" },
         "messageId": { "$ref": "#/$defs/uuid" },
@@ -673,6 +674,466 @@
         "requiresReload": { "type": "boolean" }
       }
     },
+    "runtimeDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "sampledAtMs",
+        "buildId",
+        "resetReason",
+        "profile",
+        "calibrationConfigured",
+        "hardwareAvailable",
+        "station",
+        "backend",
+        "ota",
+        "storage",
+        "memory",
+        "stack",
+        "control",
+        "physical",
+        "storageMaxOperationUs",
+        "mediaAvailable",
+        "media"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sampledAtMs": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "buildId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "resetReason": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "profile": {
+          "enum": [
+            0,
+            2
+          ]
+        },
+        "calibrationConfigured": {
+          "type": "boolean"
+        },
+        "hardwareAvailable": {
+          "type": "boolean"
+        },
+        "station": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "phase",
+            "activeProfile",
+            "hasIp",
+            "changing"
+          ],
+          "properties": {
+            "phase": {
+              "enum": [
+                "unknown",
+                "offline",
+                "connecting",
+                "connected"
+              ]
+            },
+            "activeProfile": {
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            "hasIp": {
+              "type": "boolean"
+            },
+            "changing": {
+              "type": "boolean"
+            }
+          }
+        },
+        "backend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "online",
+            "authentication",
+            "time"
+          ],
+          "properties": {
+            "online": {
+              "type": "boolean"
+            },
+            "authentication": {
+              "enum": [
+                "unknown",
+                "authorized",
+                "expired",
+                "revoked",
+                "failed"
+              ]
+            },
+            "time": {
+              "enum": [
+                "unknown",
+                "waiting",
+                "trusted",
+                "rejected"
+              ]
+            }
+          }
+        },
+        "ota": {
+          "enum": [
+            "unknown",
+            "disabled",
+            "idle",
+            "verifying-boot",
+            "checking",
+            "available",
+            "current",
+            "waiting-idle",
+            "downloading",
+            "verifying-image",
+            "ready-to-reboot",
+            "rebooting",
+            "rollback",
+            "finalizing-boot",
+            "service-required",
+            "error"
+          ]
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startup",
+            "state",
+            "journalKnown",
+            "journalHealthy",
+            "journalUsed",
+            "journalCapacity",
+            "operationEpoch",
+            "compactions",
+            "busy"
+          ],
+          "properties": {
+            "startup": {
+              "enum": [
+                0,
+                1,
+                2,
+                3
+              ]
+            },
+            "state": {
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                255
+              ]
+            },
+            "journalKnown": {
+              "type": "boolean"
+            },
+            "journalHealthy": {
+              "type": "boolean"
+            },
+            "journalUsed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 32
+            },
+            "journalCapacity": {
+              "const": 32
+            },
+            "operationEpoch": {
+              "$ref": "#/$defs/operationEpoch"
+            },
+            "compactions": {
+              "$ref": "#/$defs/operationEpoch"
+            },
+            "busy": {
+              "type": "boolean"
+            }
+          }
+        },
+        "memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "internalFree",
+            "internalMinimum",
+            "internalLargest",
+            "psramFree",
+            "psramMinimum",
+            "psramLargest"
+          ],
+          "properties": {
+            "internalFree": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "internalMinimum": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "internalLargest": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "psramFree": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "psramMinimum": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "psramLargest": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        },
+        "stack": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "controlMinimum",
+            "serviceMinimum",
+            "storageMinimum"
+          ],
+          "properties": {
+            "controlMinimum": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "serviceMinimum": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "storageMinimum": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        },
+        "control": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passes",
+            "skipped",
+            "executionUs",
+            "maxExecutionUs",
+            "latenessUs",
+            "maxLatenessUs",
+            "gapUs",
+            "maxGapUs",
+            "owner",
+            "maintenanceOwner"
+          ],
+          "properties": {
+            "passes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "executionUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxExecutionUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "latenessUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxLatenessUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gapUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxGapUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "maintenanceOwner": {
+              "enum": [
+                0,
+                3,
+                4,
+                5
+              ]
+            }
+          }
+        },
+        "physical": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxTransferUs",
+            "maxPassBusUs",
+            "lockRefusals",
+            "budgetRefusals",
+            "coalescedLedFrames",
+            "overBudgetPasses",
+            "urgentStopPending"
+          ],
+          "properties": {
+            "maxTransferUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxPassBusUs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lockRefusals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "budgetRefusals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "coalescedLedFrames": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "overBudgetPasses": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "urgentStopPending": {
+              "type": "boolean"
+            }
+          }
+        },
+        "storageMaxOperationUs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "mediaAvailable": {
+          "type": "boolean"
+        },
+        "media": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "session",
+            "cancellationEpoch",
+            "playedPcmBytes",
+            "captureQueuedBytes",
+            "captureHighWaterBytes",
+            "captureOverruns",
+            "playbackQueuedBytes",
+            "playbackHighWaterBytes",
+            "termination",
+            "cancellationTail"
+          ],
+          "properties": {
+            "session": {
+              "$ref": "#/$defs/operationEpoch"
+            },
+            "cancellationEpoch": {
+              "$ref": "#/$defs/operationEpoch"
+            },
+            "playedPcmBytes": {
+              "$ref": "#/$defs/operationEpoch"
+            },
+            "captureQueuedBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "captureHighWaterBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "captureOverruns": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "playbackQueuedBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "playbackHighWaterBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "termination": {
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            "cancellationTail": {
+              "const": "unmeasured"
+            }
+          }
+        }
+      }
+    },
     "stateSnapshot": {
       "type": "object",
       "additionalProperties": false,
@@ -697,6 +1158,7 @@
         "conversation"
       ],
       "properties": {
+        "diagnostics": {"$ref": "#/$defs/runtimeDiagnostics"},
         "operationEpoch": {"$ref": "#/$defs/operationEpoch"},
         "voice": { "$ref": "#/$defs/voiceStatus" },
         "dance": { "$ref": "#/$defs/danceStatus" },

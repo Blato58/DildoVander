@@ -45,9 +45,12 @@ struct LocalControlMessage {
   std::string commandId;
   std::string voiceMode;
   std::string voice;
+  std::string testContext;
+  std::string testContextId;
   bool imageConsent = false;
   bool acknowledge = false;
   bool includeOperationEpoch = false;
+  bool includeDiagnostics = false;
   bool hasOperationEpoch = false;
   uint64_t operationEpoch = 0;
   bool shortVariant = false;

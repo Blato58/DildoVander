@@ -13,7 +13,9 @@ addFormats(ajv, ['uuid']);
 const referenceSchema = ajv.compile(parseStrictJson(await readFile(new URL('./control-message-v1.schema.json', import.meta.url))));
 function reference(bytes) {
   const message = parseStrictJson(bytes, 8192);
-  if (bytes.length > 2048 && message.type !== 'conversation.text' && message.type !== 'conversation.result' && message.type !== 'offline.outbox') throw new Error('message exceeds 2048 UTF-8 bytes');
+  const diagnosticSnapshot = message.type === 'state.snapshot' && Object.prototype.hasOwnProperty.call(message, 'diagnostics');
+  if (diagnosticSnapshot && bytes.length > 4096) throw new Error('message exceeds 4096 UTF-8 bytes');
+  if (bytes.length > 2048 && !diagnosticSnapshot && message.type !== 'conversation.text'  && message.type !== 'conversation.result' && message.type !== 'offline.outbox') throw new Error('message exceeds 2048 UTF-8 bytes');
   if (!referenceSchema(message)) throw new Error(ajv.errorsText(referenceSchema.errors));
   return message;
 }
@@ -96,3 +98,21 @@ const withoutCodeGeneration = spawnSync(process.execPath, ['--disallow-code-gene
 `], { encoding: 'utf8' });
 assert.equal(withoutCodeGeneration.status, 0, withoutCodeGeneration.stderr);
 console.log(`Standalone validator matches AJV for ${compared} fixture/mutation/raw cases; runtime import and validation pass with Function blocked and V8 string code generation disabled.`);
+
+// Diagnostics extend only an explicitly requested data snapshot, with a 4 KiB
+// ceiling. Ordinary control and legacy snapshot limits remain unchanged.
+const diagnosticSnapshot = JSON.parse(await readFile(new URL('./fixtures/valid/state-snapshot-diagnostics.json', import.meta.url), 'utf8'));
+const diagnosticBytes = Buffer.from(JSON.stringify(diagnosticSnapshot));
+validateControlMessage(diagnosticBytes);
+const diagnosticAtLimit = Buffer.concat([diagnosticBytes, Buffer.alloc(4096 - diagnosticBytes.length, ' ')]);
+compare(diagnosticAtLimit, 'diagnostic snapshot at4096 bytes');
+validateControlMessage(diagnosticAtLimit);
+const diagnosticOverLimit = Buffer.concat([diagnosticAtLimit, Buffer.from(' ')]);
+compare(diagnosticOverLimit, 'diagnostic snapshot over4096 bytes');
+assert.throws(() => validateControlMessage(diagnosticOverLimit), /4096/);
+const secretDiagnostic = structuredClone(diagnosticSnapshot);
+secretDiagnostic.diagnostics.storage.token = 'forbidden';
+assert.throws(() => validateControlMessage(Buffer.from(JSON.stringify(secretDiagnostic))));
+const legacySnapshot = structuredClone(diagnosticSnapshot); delete legacySnapshot.diagnostics;
+const legacyBytes = Buffer.from(JSON.stringify(legacySnapshot));
+assert.throws(() => validateControlMessage(Buffer.concat([legacyBytes, Buffer.alloc(2049 - legacyBytes.length, ' ')])), /2048/);

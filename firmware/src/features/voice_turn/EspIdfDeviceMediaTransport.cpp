@@ -44,8 +44,10 @@ uint64_t NextSession() {
 }
 }
 EspIdfDeviceMediaTransport::EspIdfDeviceMediaTransport(const std::string& host, const std::string& token,
-    EspIdfVoiceAudio& audio, std::function<bool()> current, std::function<void(const char*)> phase, bool live)
-    : host_(host), token_(token), audio_(audio), current_(std::move(current)), phase_(std::move(phase)), live_(live) {}
+    EspIdfVoiceAudio& audio, std::function<bool()> current, std::function<void(const char*)> phase, bool live,
+    std::function<void(const VoiceMediaHealth&)> health)
+    : host_(host), token_(token), audio_(audio), current_(std::move(current)), phase_(std::move(phase)), live_(live),
+      health_(std::move(health)) {}
 EspIdfDeviceMediaTransport::~EspIdfDeviceMediaTransport() {
   std::fill(token_.begin(), token_.end(), '\0');
 }
@@ -61,6 +63,19 @@ bool EspIdfDeviceMediaTransport::Run(const std::string& body, const std::string&
       [](void* context) { static_cast<EspIdfVoiceAudio*>(context)->Stop(); },
       [](void* context) { return static_cast<EspIdfVoiceAudio*>(context)->MutePlayback(); }, &audio_);
   BoundedVoicePlayback playback(owner, sessionId);
+  VoiceMediaHealth health;
+  health.session = sessionId;
+  health.termination = 1;
+  const auto publish = [&]() {
+    const auto playbackState = owner.Inspect();
+    health.playbackQueuedBytes = static_cast<uint32_t>(playbackState.queuedBytes);
+    health.playbackHighWaterBytes = std::max(health.playbackHighWaterBytes, health.playbackQueuedBytes);
+    health.playedPcmBytes = playbackState.playedSamples * 2;
+    health.captureQueuedBytes = audio_.CaptureQueuedBytes();
+    health.captureHighWaterBytes = audio_.CaptureHighWaterBytes();
+    health.captureOverruns = audio_.CaptureOverruns();
+    if (health_) health_(health);
+  };
   PlaybackWorker worker(owner);
   TaskHandle_t task = nullptr;
   if (xTaskCreate(PlaybackWorker::Run, "voice_playback", 12288, &worker, 3, &task) != pdPASS) {
@@ -88,7 +103,10 @@ bool EspIdfDeviceMediaTransport::Run(const std::string& body, const std::string&
         if (engine) {
           channel->Attach(*engine);
           bool valid = channel->Open(host_, opening, token_, key, live_, body);
-          while (valid && current_() && (!engine->Closed() || engine->HasPendingActions())) valid = channel->Step();
+          while (valid && current_() && (!engine->Closed() || engine->HasPendingActions())) {
+            valid = channel->Step();
+            publish();
+          }
           success = valid && current_() && engine->Closed() && !engine->Failed() && !audio_.Failed();
           if (!success) error_ = *channel->Error() ? channel->Error() : "media_session_failed";
           engine->Stop();
@@ -97,6 +115,8 @@ bool EspIdfDeviceMediaTransport::Run(const std::string& body, const std::string&
     }
   }
   if (!success && error_.empty()) error_ = "media_capacity_unavailable";
+  health.termination = success ? 2 : current_() ? 4 : 3;
+  publish();
   (void)audio_.SetCaptureEnabled(sessionId, false);
   playback.Stop(); // Immediate output revocation precedes every borrower join.
   worker.stop.store(true);

@@ -4,6 +4,9 @@ string(REGEX REPLACE "^sdkconfig\\." "" KUFR_PLATFORMIO_ENV "${sdkconfig_name}")
 if(KUFR_PLATFORMIO_ENV STREQUAL "production")
 idf_component_register(
     SRCS
+        "features/device_runtime/DeviceRuntime.cpp"
+        "features/device_runtime/EspIdfControlServices.cpp"
+        "features/device_runtime/DeviceDiagnostics.cpp"
         "features/network_provisioning/NetworkProfiles.cpp"
         "features/network_provisioning/EspIdfNetworkProfileStorage.cpp"
         "features/network_provisioning/EspIdfBleProvisioning.cpp"
@@ -43,7 +46,6 @@ idf_component_register(
         "features/voice_turn/DeviceMediaSession.cpp"
         "features/voice_turn/EspIdfDeviceMediaSocket.cpp"
         "features/voice_turn/EspIdfDeviceMediaTransport.cpp"
-        "features/voice_turn/EspIdfRealtimeTransport.cpp"
         "features/voice_turn/RealtimeEventCodec.cpp"
         "features/voice_turn/RealtimeSessionEngine.cpp"
         "features/voice_turn/VoiceWorkflow.cpp"
@@ -72,9 +74,8 @@ idf_component_register(
         "features/conversation/ConversationTurnFailureInbox.cpp"
         "features/conversation/ConversationUuid.cpp"
         "features/conversation/EspIdfConversationStartTransport.cpp"
-        "features/conversation/EspIdfConversationTextTransport.cpp"
+        "features/conversation/EspIdfConversationCleanup.cpp"
         "features/conversation/EspIdfConversationUuid.cpp"
-        "features/conversation/EspIdfTurnPollTransport.cpp"
         "features/conversation/OperationAcceptedCodec.cpp"
         "features/conversation/PendingProposal.cpp"
         "features/conversation/TurnPollGuard.cpp"

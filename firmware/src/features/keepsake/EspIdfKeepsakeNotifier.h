@@ -37,6 +37,10 @@ class EspIdfKeepsakeNotifier final : public JournalEvidenceSource {
   // This acknowledges only the RAM handoff, never durable completion of NVS.
   KeepsakeQueueResult Queue(const KeepsakeOutcome& outcome);
   void Retire(const KeepsakeOutcome& outcome, const char* reason);
+  // Bounded volatile delivery only. The command journal already durably carries
+  // technical origin and timed outcome; no Lab row enters production NVS/outbox.
+  bool QueueTechnical(const KeepsakeOutcome& outcome);
+  bool HasTechnicalDelivery() const { return technicalPending_.load(); }
  private:
   static void TaskEntry(void* context);
   void Run();
@@ -47,6 +51,11 @@ class EspIdfKeepsakeNotifier final : public JournalEvidenceSource {
   bool ProcessRetirements();
   bool ProcessDeliveryAcknowledgements();
   bool Deliver(const KeepsakeOutcome& outcome, const char* accessToken, int& status, std::string& errorCode);
+  void ProcessTechnical(class DeviceTokenSession& tokens);
+  std::mutex technicalMutex_;
+  KeepsakeOutcome technical_;
+  std::atomic<bool> technicalPending_{false};
+  uint64_t technicalQueuedAt_ = 0, technicalRetryAt_ = 0;
   DeviceIdentity& identity_;
   EspIdfStationNetwork& station_;
   const std::atomic<bool>& backendOnline_;

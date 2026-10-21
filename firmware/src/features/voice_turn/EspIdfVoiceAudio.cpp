@@ -468,8 +468,11 @@ void EspIdfVoiceAudio::Capture() {
       std::lock_guard<std::mutex> muteLock(muteGate_);
       if (epoch == captureEpoch_.load() && active_.load() && listening_.load() && !failed_.load() &&
           xQueueSend(input_, &frame, 0) != pdTRUE) {
+        if (captureOverruns_.load() != UINT32_MAX) captureOverruns_.fetch_add(1);
         failed_.store(true); StopCues(); StopLocked();
       }
+      const auto queued = CaptureQueuedBytes();
+      if (queued > captureHighWater_.load()) captureHighWater_.store(queued);
     }
     std::memset(&frame, 0, sizeof(frame));
     std::fill(samples.begin(), samples.end(), 0);

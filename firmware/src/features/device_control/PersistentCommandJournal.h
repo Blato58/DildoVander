@@ -66,6 +66,10 @@ class PersistentCommandJournal final : public CommandJournal {
                    uint64_t fingerprint) override;
   bool ReservePresentation(uint64_t epoch, const std::string& id, uint8_t compartment,
                            uint64_t fingerprint) override;
+  bool ReserveTechnicalPresentation(uint64_t epoch, const std::string& id, uint8_t compartment,
+                                   uint64_t fingerprint) override;
+  bool IsTechnicalTestOperation(uint64_t epoch, const std::string& id, uint8_t compartment,
+                                uint64_t fingerprint) const override;
   bool HasPresentationReservation() const override;
   bool HasPresentationReservation(uint64_t epoch, const std::string& id,
                                   uint8_t compartment, uint64_t fingerprint) const override;
@@ -109,6 +113,7 @@ class PersistentCommandJournal final : public CommandJournal {
     uint64_t epoch = 0;
     bool timedCompleted = false;
     bool evidencePinned = true;
+    bool technicalTest = false;
   };
   struct State {
     uint8_t readyMask = 0;
@@ -123,6 +128,8 @@ class PersistentCommandJournal final : public CommandJournal {
 
   bool BuildScopedState(const std::string& deviceId, bool factoryProvisioning, State& next) const;
   bool BeginAtEpoch(uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint);
+  bool ReserveAtOrigin(uint64_t epoch, const std::string& id, uint8_t compartment,
+                        uint64_t fingerprint, bool technicalTest);
   bool ConfirmTimedAtEpoch(uint64_t epoch, const std::string& id, uint8_t compartment, uint64_t fingerprint);
   const Entry* ExactEntry(uint64_t epoch, const std::string& id,
                           uint8_t compartment, uint64_t fingerprint) const;

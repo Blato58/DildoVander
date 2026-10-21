@@ -9,6 +9,7 @@ class CommandJournal;
 class SafetyController;
 class SelectionSequence;
 class LocalControlTransport;
+namespace kufr { namespace runtime { class RuntimeDiagnosticsPort; } }
 
 // Reads actual state only on the control owner; never a parallel device model.
 class LocalControlOutput final : public LocalControlOutputPort {
@@ -19,6 +20,7 @@ class LocalControlOutput final : public LocalControlOutputPort {
                      ConversationSession& conversation,
                      LocalControlTransport& transport, LocalVoicePort* voice = nullptr,
                      kufr::dance::LocalDancePort* dance = nullptr);
+  void BindDiagnostics(kufr::runtime::RuntimeDiagnosticsPort& diagnostics) { diagnostics_ = &diagnostics; }
 
   bool VoiceAck(const LocalSocketAdmission::Handle& handle,
                 const LocalControlMessage& request, bool accepted) override;
@@ -36,6 +38,9 @@ class LocalControlOutput final : public LocalControlOutputPort {
   bool ScopedSnapshot(const LocalSocketAdmission::Handle& handle,
                       const std::string& leaseId, uint64_t nowMs,
                       bool includeOperationEpoch) override;
+  bool ScopedSnapshot(const LocalSocketAdmission::Handle& handle,
+                      const std::string& leaseId, uint64_t nowMs,
+                      bool includeOperationEpoch, bool includeDiagnostics) override;
   bool Heartbeat(const LocalSocketAdmission::Handle& handle,
                   const LocalControlMessage& request, uint64_t nowMs) override;
   bool CommandAck(const LocalSocketAdmission::Handle& handle,
@@ -51,12 +56,15 @@ class LocalControlOutput final : public LocalControlOutputPort {
  private:
   bool AdvanceEvent();
   bool BuildSnapshot(const std::string& leaseId, uint64_t nowMs,
-                      std::string& json, bool includeOperationEpoch = false);
+                      std::string& json, bool includeOperationEpoch = false,
+                      bool includeDiagnostics = false);
   bool BuildResult(uint64_t eventSequence, std::string& json) const;
-  bool Send(const LocalSocketAdmission::Handle& handle, const std::string& json);
+  bool Send(const LocalSocketAdmission::Handle& handle, const std::string& json,
+            size_t maximumBytes = 2048);
   bool ResultChanged() const;
   void RememberResult();
   const char* Phase(bool liveLease) const;
+  std::string CapabilitiesJson() const;
 
   LocalVoicePort* voice_;
   kufr::dance::LocalDancePort* dance_;
@@ -71,4 +79,5 @@ class LocalControlOutput final : public LocalControlOutputPort {
   uint64_t eventSequence_ = 0;
   uint64_t resultEventSequence_ = 0;
   LastSelectionResult rememberedResult_;
+  kufr::runtime::RuntimeDiagnosticsPort* diagnostics_ = nullptr;
 };

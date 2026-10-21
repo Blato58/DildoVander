@@ -21,7 +21,49 @@ KeepsakeOutcome Candidate() {
   return value;
 }
 
+void StrictTechnicalAcknowledgements() {
+  auto outcome = Candidate();
+  outcome.operationEpoch = 18446744073709551615ULL;
+  outcome.physicalFingerprint = 9007199254740993ULL;
+  const std::string response = "{\"schemaVersion\":1,\"outcomeId\":\"" + outcome.outcomeId +
+      "\",\"physicalOperationId\":\"" + outcome.physicalOperationId +
+      "\",\"sessionEpoch\":1,\"operationEpoch\":\"18446744073709551615\",\"physicalFingerprint\":\"9007199254740993\"}";
+  const auto technical = [&](const std::string& value, const KeepsakeOutcome& expected) {
+    return keepsake_persistence::MatchesTechnicalOutcomeAcknowledgement(value.c_str(), value.size(), expected);
+  };
+  assert(technical(response, outcome));
+  assert(!keepsake_persistence::MatchesOutcomeAcknowledgement(response.c_str(), response.size(), outcome));
+  for (unsigned changed = 0; changed != 5; ++changed) {
+    auto wrong = outcome;
+    if (changed == 0) --wrong.operationEpoch;
+    if (changed == 1) --wrong.physicalFingerprint;
+    if (changed == 2) ++wrong.generation;
+    if (changed == 3) wrong.physicalOperationId = "77777777-7777-4777-8777-777777777777";
+    if (changed == 4) wrong.outcomeId = "66666666-6666-4666-8666-666666666666";
+    assert(!technical(response, wrong));
+  }
+  auto located = response.substr(0, response.size() - 1) + ",\"locator\":\"55555555-5555-4555-8555-555555555555\"}";
+  assert(!technical(located, outcome));
+  const std::string production = "{\"locator\":\"55555555-5555-4555-8555-555555555555\",\"outcomeId\":\""
+      + outcome.outcomeId + "\",\"physicalOperationId\":\"" + outcome.physicalOperationId
+      + "\",\"sessionEpoch\":1,\"operationEpoch\":\"18446744073709551615\",\"physicalFingerprint\":\"9007199254740993\"}";
+  assert(keepsake_persistence::MatchesOutcomeAcknowledgement(production.c_str(), production.size(), outcome));
+  assert(!technical(production, outcome));
+  for (const auto& replacement : {std::pair<std::string, std::string>{"\"schemaVersion\":1", "\"schemaVersion\":2"},
+      {"\"operationEpoch\":\"18446744073709551615\"", "\"operationEpoch\":18446744073709551615"},
+      {"\"operationEpoch\":\"18446744073709551615\"", "\"operationEpoch\":\"0\""},
+      {"\"physicalFingerprint\":\"9007199254740993\"", "\"physicalFingerprint\":\"0\""},
+      {"\"sessionEpoch\":1", "\"sessionEpoch\":\"1\""}}) {
+    auto invalid = response;
+    invalid.replace(invalid.find(replacement.first), replacement.first.size(), replacement.second);
+    assert(!technical(invalid, outcome));
+  }
+  for (const auto& invalid : {std::string("null"), std::string("[]"), std::string("{}"), response.substr(0, response.size() - 1)})
+    assert(!technical(invalid, outcome));
+}
+
 int main() {
+  StrictTechnicalAcknowledgements();
   const std::string response = "{\"locator\":\"55555555-5555-4555-8555-555555555555\",\"outcomeId\":\""
       + Candidate().outcomeId + "\",\"physicalOperationId\":\"" + Candidate().physicalOperationId + "\",\"sessionEpoch\":1}";
   assert(keepsake_persistence::MatchesOutcomeAcknowledgement(response.c_str(), response.size(), Candidate()));

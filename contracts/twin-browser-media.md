@@ -10,12 +10,14 @@ separately authorized. The owner authorized reusing the VPS provider key on
 
 Shared C++ owns Realtime event sequencing, correlation, playback gates,
 cancellation, technical limits, photo validation/fallback and pending proposals.
-ESP and native adapters both consume the extracted production session engine.
+ESP and native adapters both consume `DeviceMediaSession`, `RealtimeSessionEngine`
+and the same fixed-capacity `BoundedPlaybackOwner`.
 The native control owner alone starts physical presentation after the shared
 voice workflow finishes. Network/media waits execute outside the control loop.
 
 The backend authenticates scoped simulation control, relays actual production
-HTTP/NDJSON and bounded bytes, persists non-secret simulation settings, and
+HTTP conversation/photo requests and persistent device-media WebSocket bytes,
+persists non-secret simulation settings, and
 serves browser HAL frames. It never interprets a proposed slot or runs effects.
 Browser owns explicit media permissions, PCM capture/playback, JPEG preview and
 capture, consumed-byte/drain acknowledgements, and immediate local cancellation.
@@ -28,8 +30,8 @@ Existing ASCII control lines and one JSON reply remain supported. Extra commands
   Availability flags are0/1. Camera availability means browser API capability;
   permission/capture still require explicit activation and preview acceptance.
 - `MEDIA_CANCEL sessionUUID`
-- `MEDIA_EVENT sessionUUID epoch byteLength` followed by UTF-8 production NDJSON
-  bytes and one LF. Maximum line payload 65536 bytes; native parses it with the
+- `MEDIA_EVENT sessionUUID epoch byteLength` is retained only for explicitly
+  selected fake fixtures, followed by UTF-8 fixture event bytes and one LF. Maximum line payload 65536 bytes; native parses it with the
   production codec on a bounded media worker, not the control loop.
 - `MEDIA_FRAME sessionUUID epoch inputEpoch sequence pcm|jpeg byteLength` then
   exact bytes and one LF. PCM16 LE mono 24000 Hz, even length, at most9600 bytes;
@@ -59,13 +61,28 @@ the phase label alone never enables microphone capture. HAL descriptors carry
 the same gate. Current input state can overtake queued chronological output;
 it must not invalidate already queued PCM of the same valid output epoch.
 
-Service kinds are conversation-create/delete, image-upload/poll, realtime-start,
-realtime-input, realtime-played and realtime-playback. Paths are allowlisted to
-the isolated backend and exact simulated identity/conversation/session. The
-network adapter holds the actual device token and supplies HTTP status/raw body;
-C++ interprets results. No arbitrary URL, path, command or physical identity is
-accepted from a browser. Streaming NDJSON arrives via MEDIA_EVENT; media-start
-request acceptance returns its HTTP status separately.
+Service kinds are conversation-create/delete, image-upload/poll and
+media-socket-open/send/receive/close. Socket requests use only the exact owned
+`/v1/conversations/{id}/device-media` path; the backend opens one authenticated
+`kufr-device-media-v1` ClientWebSocket using its simulated device bearer and the
+original idempotency key. Bearers never enter private native messages or browser
+payloads. Browser cookies/Origin still authorize only the existing Twin routes.
+
+The socket is bounded I/O, without a second decision engine. One send carries
+at most8184 bytes, a PCM frame at most4096 plus its16-byte KF header, and one
+received message at most65536 bytes. Idle receives retain one partial bounded
+message; no read is restarted or replayed. Input credit, stream/sequence checks,
+operation identity/epoch and typed control acknowledgements belong to shared C++.
+A failed/uncertain send, invalid message, stale ACK or disconnect retires the
+original session. No reconnect or microphone replay occurs. Actor cancellation,
+replacement and expiry abort/dispose the socket; playback has its own immediate
+RAM fence and worker. Backend service replies must retain the native actor's
+session, boot and epoch scope.
+
+The explicitly selected `fake` setting returns private socket-open status299
+before any real socket opens. Only that fixture mode retains realtime-start,
+realtime-input/played/playback and MEDIA_EVENT. A supported engine failure never
+selects this carveout; production Live/Realtime per-chunk HTTP is rejected.
 Native creates and parses the actual production conversation-start request and
 response. The network adapter binds authentication to the simulated instance;
 it does not choose a conversation, proposal, slot or dialogue outcome. Service
@@ -81,8 +98,12 @@ after the browser reports completed scheduled playback; suspended/disconnected
 audio fails or times out. This is software enqueue/drain evidence, never proof
 of audible sound. Partial photo upload or lost acceptance is never replayed.
 
-Wall-clock limits remain the production limits: photo120s, text/speech45s,
-Realtime480s with per-turn80s, GPT-Live190s (input180s), at most10 turns.
+Supported Live/Realtime device-media sessions have the shared180s wall-clock
+limit, with at most10 turns and their existing per-turn bounds. The old
+Realtime480s HTTP limit applies only to retained legacy fixtures; it is not a
+promise for the supported WebSocket transport. Photo capture remains120s.
+Playback RAM is fixed64KiB; overload fails closed. Browser input remains bounded
+400ms and is sliced into at most4800-byte captures before4096-byte wire frames.
 Integration browser media disables injected clock controls. Deterministic tests
 use explicit fake external services/media fixtures and retain injected device
 time; real network deadlines always use wall time.
@@ -135,3 +156,30 @@ explicit activation. AudioContext must be unlocked by user action. Reload or a
 new observer never restarts the native device or replays an input. Source switch
 aborts subscriptions and cancels that browser's media HAL, preserving device
 journal/recovery. Replay never calls any media or control endpoint.
+
+
+## Offline socket fault acceptance
+
+`--twin-media` uses real loopback WebSocket connections, the backend
+ClientWebSocket bridge, native DeviceMediaSession and bounded playback worker.
+Its provider fixture supplies protocol data only; no provider or TLS claim is
+made. Both Live/Realtime run the same cases:
+
+| Fault | Expected result |
+| --- | --- |
+| Seed82421,16 PCM blocks,50-300ms seeded delays, one500ms delay and one2500ms receive stall | Exact ordered bytes and genuine drain/played receipt within bounded session/credit; no retry/replay. |
+| Abrupt connection loss after five PCM blocks | Original actor fails/closes; no automatic reconnect or action. |
+| Duplicate or out-of-order binary output sequence | Native shared codec fails closed; no terminal proposal/action. |
+|300 immediate4800-byte blocks without a browser consumer | Finite playback queues fail explicitly; Stop remains independently available. No lossless overload promise. |
+|2500ms stalled original socket, Stop, delayed old callback, new actor, then actual loopback backend stop/restart | Stop must return within1s on the test host; fresh explicit sessions preserve exact new bytes and never replay cancelled audio. Old callback cannot terminate the new actor. |
+
+`--device-media` separately exercises the production mapped authenticated route
+with real WebSockets and offline provider ports: fragmented PCM/opening, exact
+control replay versus conflicting replay, duplicate/out-of-order/malformed input,
+original uint64 operation epochs, typed stale availability refusal, ACK visibility
+and exhausted ACK credit, blocked uploads with urgent cancellation/peer-close,
+bearer expiry at opening receive and during an active/stalled session. These are
+software acceptance tests; token expiry uses a controlled TimeProvider. Native
+socket tests additionally reject a delayed MEDIA_RESULT after a new native
+session has started. Arbitrary long outages, physical audio continuity and WAN
+TLS are outside these offline claims.

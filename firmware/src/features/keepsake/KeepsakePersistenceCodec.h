@@ -90,6 +90,25 @@ inline bool MatchesOutcomeAcknowledgement(const char* bytes, size_t length, cons
   return matching;
 }
 
+// Technical Lab receipts intentionally have no locator or archive grant. They
+// must never be accepted by the production delivery matcher above.
+inline bool MatchesTechnicalOutcomeAcknowledgement(const char* bytes, size_t length,
+                                                    const KeepsakeOutcome& outcome) {
+  auto* root = cJSON_ParseWithLength(bytes, length);
+  std::string outcomeId, physical;
+  uint64_t schema = 0, generation = 0, epoch = 0, fingerprint = 0;
+  const bool matching = cJSON_IsObject(root) && cJSON_GetArraySize(root) == 6 &&
+      Number(root, "schemaVersion", schema) && schema == 1 &&
+      Text(root, "outcomeId", outcomeId) && outcomeId == outcome.outcomeId &&
+      Text(root, "physicalOperationId", physical) && physical == outcome.physicalOperationId &&
+      Number(root, "sessionEpoch", generation) && generation == outcome.generation &&
+      OptionalIdentityNumber(root, "operationEpoch", epoch) && epoch != 0 && epoch == outcome.operationEpoch &&
+      OptionalIdentityNumber(root, "physicalFingerprint", fingerprint) && fingerprint != 0 &&
+      fingerprint == outcome.physicalFingerprint;
+  cJSON_Delete(root);
+  return matching;
+}
+
 inline std::string Encode(const KeepsakeOutboxState& state) {
   std::string bytes = "{\"schemaVersion\":3,\"pending\":[";
   for (size_t i = 0; i < state.pending.size(); ++i) {

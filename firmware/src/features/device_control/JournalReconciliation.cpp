@@ -51,6 +51,8 @@ JournalReconciliation::Result JournalReconciliation::ValidateInventory(
     bool found = false;
     for (size_t entry = 0; entry < historyCount_; ++entry) {
       if (!SameJournalOperationIdentity(identity, history_[entry].identity)) continue;
+      // Test-origin journal rows cannot be relabelled as production inventory.
+      if (history_[entry].technicalTest) return Result::InvalidReference;
       referenced_[entry] = true;
       found = true;
       break;

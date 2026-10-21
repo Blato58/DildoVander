@@ -51,6 +51,8 @@ class CommandJournal {
   // Reservation persists only a pinned tombstone. Its one-use admission
   // capability belongs to this instance and must never survive a restart.
   virtual bool ReservePresentation(uint64_t, const std::string&, uint8_t, uint64_t) { return false; }
+  virtual bool ReserveTechnicalPresentation(uint64_t, const std::string&, uint8_t, uint64_t) { return false; }
+  virtual bool IsTechnicalTestOperation(uint64_t, const std::string&, uint8_t, uint64_t) const { return false; }
   virtual bool HasPresentationReservation() const { return false; }
   virtual bool HasPresentationReservation(uint64_t, const std::string&, uint8_t, uint64_t) const { return false; }
   virtual bool BeginReservedPresentation(uint64_t, const std::string&, uint8_t, uint64_t) { return false; }

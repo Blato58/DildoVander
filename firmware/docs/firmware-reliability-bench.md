@@ -59,6 +59,12 @@ and successful firmware builds do not satisfy these checks.
 - Measure profile-B residual DMA/acoustic tail with the actual amplifier and
   speaker; software mute is not an instantaneous hardware mute. Verify camera
   capture and image consent without storing guest media in technical logs.
+- With a separately authorized isolated Lab ticket, verify capability admission,
+  the original session expiry and exact hashed-context Stop. A mismatched or
+  stale context must not stop unrelated work. Interrupt pending technical motion
+  and inspect recovery; it must remain technical and never enter the production
+  keepsake inventory. Do not record the ticket or execute a paid provider test
+  merely to complete this checklist.
 
 ## Measurements and result
 

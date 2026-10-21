@@ -27,6 +27,7 @@ class JournalStorageOwner final {
     std::array<char, 37> id{};
     uint8_t slot = 0, readyMask = 0;
     uint64_t fingerprint = 0;
+    bool technicalTest = false;
   };
   struct Completion {
     Token token;

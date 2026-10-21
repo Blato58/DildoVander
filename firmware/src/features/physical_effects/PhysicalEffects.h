@@ -26,6 +26,11 @@ class PhysicalIo {
   virtual bool Vibration(uint8_t channel, bool enabled) = 0;
   virtual bool Lights(const std::array<uint8_t, 108>& grb) = 0;
   virtual bool ReadInputs(PhysicalInputs& inputs) = 0;
+  // Optional direct shutdown for an SDK adapter. Recovery may clear only the
+  // epoch it inspected; a concurrent new Stop must retain the output gate.
+  virtual void RequestUrgentStop() { EnableOutputs(false); }
+  virtual uint32_t StopEpoch() const { return 0; }
+  virtual bool ClearUrgentStopAfterInspection(uint32_t) { return true; }
 };
 
 class PhysicalEffects final {

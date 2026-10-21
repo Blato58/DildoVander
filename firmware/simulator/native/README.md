@@ -3,7 +3,8 @@
 The long-lived offline host composes production `SafetyController`,
 `SelectionSequence`, `DeviceControlRuntime`, `PersistentCommandJournal`,
 `PendingProposal`/`TurnPollGuard`, `WandPresentation`/`PhysicalPresentation`,
-`PhysicalEffects`, `DanceCoordinator`, shared `RealtimeSessionEngine` and
+`PhysicalEffects`, `DanceCoordinator`, shared `DeviceMediaSession`,
+`BoundedPlaybackOwner`, `RealtimeSessionEngine` and
 `VoiceWorkflow`. The process uses private HTTP/media ports rather than contacting
 a provider, network, GPIO, speaker, camera or SD device itself. It supports deterministic synthetic proposals,
 accepted driver writes, synthetic tone enqueue evidence and a synthetic dance
@@ -157,7 +158,9 @@ uses explicit booleans `true|false` for photo consent and `0|1` availability.
 It requires a UUID boot identity, healthy inspected runtime and available audio.
 The native worker creates/parses production conversation requests, performs
 production photo validation and no-photo fallback, and executes the same
-Realtime event/input engine as ESP. Only the control owner takes a completed
+DeviceMediaSession and bounded playback worker as ESP. Supported Live/Realtime
+use one backend-owned authenticated WebSocket, with a180s session deadline.
+Only the explicitly selected fake setting retains legacy per-chunk HTTP/events. Only the control owner takes a completed
 proposal and calls `PendingProposal`/`WandPresentation`.
 
 `MEDIA_RESULT requestId status contentType byteLength`, `MEDIA_EVENT sessionId
@@ -183,8 +186,10 @@ telemetry.
 actual browser scheduling completion. A successful drain requires the exact
 current drain notification sequence and cumulative byte count, with `drained`
 `true`. It never substitutes elapsed time for an ACK. Drain waits at most30s;
-HTTP waits are at most5s (3s for input/played/checkpoint), on an independent
-worker. Input buffering is bounded to400ms. `MEDIA_CANCEL sessionId` and owner
+Private service waits are at most5s; supported socket sends have a250ms
+backend deadline. Socket polling retains one bounded message across idle polls;
+its session limit is180s, without reconnect or microphone replay. Network and
+playback workers remain independent of control. Input buffering is bounded to400ms. `MEDIA_CANCEL sessionId` and owner
 Stop clear/wake queues and invalidate epochs immediately. They cannot revive
 old frames or proposals. Media cancellation preserves an already admitted
 physical scene; owner Stop remains the physical safety transition. Deletion
@@ -224,12 +229,17 @@ Cancellation wakes queue waits and fences stale epochs. Browser startup bufferin
 is150ms, independent of actual playback ACK. A stream without a valid terminal
 event fails and retires its actor; cleanup is once per conversation.
 
-The targeted offline HTTP/native burst test is part of:
+The targeted offline WebSocket/native burst test is part of:
 
 ```sh
 KUFR_TWIN_TEST_NATIVE=/path/to/native-twin dotnet run --project backend-tests -- --twin-media
 ```
 
-It sends260 distinct4800-byte PCM blocks through a loopback provider fixture,
-holds output consumption for5s, and checks exact bytes/drain, malformed/truncated
-stream cleanup, and bounded DELETEs. The fixture uses no provider or user media.
+It sends64 distinct4800-byte PCM blocks at the24kHz playback rate through the real loopback WebSocket
+bridge and production device-media event sink for both engines. It checks exact
+binary bytes, genuine drain/played receipts, malformed/truncated messages,
+replacement generations and bounded cleanup. Native tests also check one-credit
+input, wrong ACKs, malformed binary/credit, disconnect, Stop and no fallback.
+The shared playback owner has fixed64KiB RAM; sustained overload fails closed.
+The fake fixture suite retains its legacy32-entry HAL backpressure checks.
+These fixtures use no provider or user media.

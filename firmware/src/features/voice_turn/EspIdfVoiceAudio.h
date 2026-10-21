@@ -38,6 +38,9 @@ class EspIdfVoiceAudio final : public VoiceAudioPort, public PresentationAudioPo
   // B has no GPIO mute, so admitted DMA remains a hardware latency boundary.
   bool MutePlayback();
   bool Failed() const override { return failed_.load(); }
+  uint32_t CaptureQueuedBytes() const { return input_ ? static_cast<uint32_t>(uxQueueMessagesWaiting(input_)) * 960 : 0; }
+  uint32_t CaptureHighWaterBytes() const { return captureHighWater_.load(); }
+  uint32_t CaptureOverruns() const { return captureOverruns_.load(); }
   void Cue(uint16_t frequencyHz, uint16_t durationMs) override;
   CueResult TryCue(uint16_t frequencyHz, uint16_t durationMs) override;
   void StopCues() override;
@@ -63,6 +66,7 @@ class EspIdfVoiceAudio final : public VoiceAudioPort, public PresentationAudioPo
   std::atomic<bool> active_{false}, listening_{false}, failed_{false}, playing_{false};
   std::atomic<uint32_t> epoch_{0};
   std::atomic<uint32_t> captureEpoch_{0};
+  std::atomic<uint32_t> captureHighWater_{0}, captureOverruns_{0};
   uint64_t captureSession_ = 0; // muteGate_ binds the reader to raw Begin's scope.
   std::atomic<uint64_t> outputTaint_{0};
   std::atomic<bool> outputUnsafe_{false};

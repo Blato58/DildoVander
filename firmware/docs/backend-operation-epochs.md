@@ -55,8 +55,11 @@ for deterministic request/ACK and real SQLite migration, restart and import
 checks. Run npm --prefix contracts test for wire schemas and boundary cases.
 These tests use isolated temporary stores and no paid provider.
 
-Production scoped admission and compaction remain disabled. The legacy firmware
-still has its 32-operation ceiling. Durable identity-loss detection, pin
-reconciliation, integrated compaction/restart validation and the remaining media
-and runtime work must be completed before production acceptance. Hardware
-power interruption, real hotspot/iPhone and flash behavior remain unverified.
+Production now composes established identity, complete committed-source
+reconciliation and the asynchronous journal/evidence owner before scoped
+admission. Bounded compaction replaces the lifetime 32-operation ceiling while
+retaining pinned evidence; an entirely pinned window still refuses admission.
+See [runtime storage ownership](runtime-storage-owner.md) for the integrated
+producer/control lifecycle tests and [software acceptance](redesign-acceptance.md)
+for current evidence. Hardware power interruption, real hotspot/iPhone and flash
+behavior remain separate, unverified bench checks.

@@ -5,6 +5,8 @@
 #include <string>
 
 #include "../src/features/local_control/LocalControlCodec.h"
+#include "../src/features/conversation/ConversationStartCodec.h"
+#include "../src/features/voice_turn/VoiceTestContext.h"
 
 namespace {
 
@@ -173,6 +175,38 @@ int main(int argc, char** argv) {
   assert(dance.kind == LocalControlMessageKind::DanceStop);
   assert(!Parse("{" + common + ",\"type\":\"dance.stop\",\"expectedRevision\":1}", dance));
   TestConnectionAndLease();
+  {
+    LocalControlMessage context;
+    const std::string ticket(43, 'A'), id(64, 'a');
+    assert(MatchesActiveVoiceTestContext(id, id, true, false));
+    assert(MatchesActiveVoiceTestContext(id, id, false, true));
+    assert(!MatchesActiveVoiceTestContext(id, id, false, false)); // old failed/completed status
+    assert(!MatchesActiveVoiceTestContext(id, std::string(64, 'b'), true, true));
+    assert(!MatchesActiveVoiceTestContext("", id, true, true));
+    const auto start = "{" + Common("voice.start") + Boot() + ",\"expectedRevision\":1";
+    assert(Parse(start + ",\"testContext\":\"" + ticket + "\"}", context));
+    assert(context.testContext == ticket);
+    assert(!Parse(start + ",\"testContext\":\"" + ticket + "!\"}", context));
+    assert(!Parse(start + ",\"testContextId\":\"" + id + "\"}", context));
+    const auto stop = "{" + Common("voice.stop") + Boot();
+    assert(Parse(stop + ",\"testContextId\":\"" + id + "\"}", context));
+    assert(context.testContextId == id);
+    assert(!Parse(stop + ",\"testContextId\":\"" + std::string(64, 'A') + "\"}", context));
+    assert(!Parse(stop + ",\"testContext\":\"" + ticket + "\"}", context));
+    ConversationStartRequest request;
+    request.deviceId = "kufr-001"; request.bootId = Id; request.idempotencyKey = Id;
+    request.catalogVersion = "catalog"; request.audioConsent = true; request.operationEpoch = UINT64_MAX;
+    request.testContext = ticket;
+    std::string original, retry;
+    assert(BuildConversationStartRequest(request, original));
+    assert(BuildConversationStartRequest(request, retry) && original == retry);
+    assert(original.find("\"testContext\":\"" + ticket + "\"") != std::string::npos);
+    assert(original.find("18446744073709551615") != std::string::npos);
+    request.imageConsent = true;
+    assert(!BuildConversationStartRequest(request, retry));
+    request.imageConsent = false; request.audioConsent = false;
+    assert(!BuildConversationStartRequest(request, retry));
+  }
   TestOfflineEnvelope();
   TestOperationEpoch();
   TestTextAndHostileJson();

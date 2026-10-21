@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -16,6 +17,7 @@ internal static class TwinMediaTests
 {
     internal static async Task RunAsync()
     {
+        await SocketBridgeAsync();
         await FramingAsync();
         await EventDeliveryAsync();
         ProviderSource();
@@ -569,6 +571,63 @@ internal static class TwinMediaTests
             "renewal cannot prune overflow barrier before owner callback");
         Console.WriteLine("PASS Twin cancellation memory: owner/boot isolation, 64 entries, no eviction, expiry and overflow barrier");
     }
+    private static async Task SocketBridgeAsync()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var connections = 0;
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders(); builder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var app = builder.Build();
+        app.UseWebSockets();
+        app.MapGet("/socket/{mode}", async (Microsoft.AspNetCore.Http.HttpContext context) =>
+        {
+            Interlocked.Increment(ref connections);
+            Check(context.Request.Headers.Authorization == "Bearer offline-bridge-test", "socket identity stays server-side");
+            using var socket = await context.WebSockets.AcceptWebSocketAsync("kufr-device-media-v1");
+            if (context.Request.RouteValues["mode"]?.ToString() == "oversize")
+            {
+                try { await socket.SendAsync(new byte[65537], WebSocketMessageType.Text, true, context.RequestAborted); }
+                catch (WebSocketException) { }
+                return;
+            }
+            var buffer = new byte[32];
+            var frame = await socket.ReceiveAsync(buffer.AsMemory(), context.RequestAborted);
+            Check(frame.MessageType == WebSocketMessageType.Binary && frame.Count == 2, "single admitted binary send");
+            await socket.SendAsync(new byte[] { 1, 2 }, WebSocketMessageType.Binary, false, context.RequestAborted);
+            await socket.SendAsync(new byte[] { 3, 4 }, WebSocketMessageType.Binary, true, context.RequestAborted);
+            received.TrySetResult();
+            try { await socket.ReceiveAsync(buffer.AsMemory(), context.RequestAborted); }
+            catch (Exception error) when (error is WebSocketException or OperationCanceledException) { }
+        });
+        await app.StartAsync(deadline.Token);
+        try
+        {
+            Uri Address(string mode) => new UriBuilder(app.Urls.Single()) { Scheme = "ws", Path = "/socket/" + mode }.Uri;
+            using var actor = new CancellationTokenSource();
+            using var bridge = await TwinDeviceMediaSocket.ConnectAsync(Address("idle"), "Bearer offline-bridge-test", Guid.NewGuid().ToString("D"), actor.Token);
+            Check(await bridge.ReceiveAsync(deadline.Token) is null, "idle read retains live socket");
+            await bridge.SendAsync([9, 8], true, deadline.Token);
+            await received.Task.WaitAsync(deadline.Token);
+            (byte[] Bytes, bool Binary)? output;
+            do { output = await bridge.ReceiveAsync(deadline.Token); } while (output is null);
+            Check(output.Value.Binary && output.Value.Bytes.SequenceEqual(new byte[] { 1, 2, 3, 4 }), "fragmented message preserved once");
+            Array.Clear(output.Value.Bytes);
+            actor.Cancel();
+            var failed = false;
+            try { await bridge.SendAsync([9, 8], true, deadline.Token); }
+            catch (Exception error) when (error is InvalidDataException or WebSocketException or OperationCanceledException) { failed = true; }
+            Check(failed && connections == 1, "owner cancellation disposes without reconnect or replay");
+            using var oversized = await TwinDeviceMediaSocket.ConnectAsync(Address("oversize"), "Bearer offline-bridge-test", Guid.NewGuid().ToString("D"), deadline.Token);
+            failed = false;
+            try { while (await oversized.ReceiveAsync(deadline.Token) is null) { } }
+            catch (InvalidDataException) { failed = true; }
+            Check(failed && connections == 2, "oversized complete message aborts bounded receive");
+        }
+        finally { await app.StopAsync(CancellationToken.None); }
+        Console.WriteLine("PASS Twin WSS bridge: idle/fragmentation, actor cancellation, bounded frames and no reconnect");
+    }
+
     private static void ProviderSource()
     {
         var root = Path.Combine(Path.GetTempPath(), "twin-provider-source-" + Guid.NewGuid().ToString("N"));

@@ -1,4 +1,5 @@
 #include "ConversationStartCodec.h"
+#include "../voice_turn/VoiceTestContext.h"
 
 #include <limits>
 
@@ -191,15 +192,19 @@ bool BuildConversationStartRequest(const ConversationStartRequest& request,
   if (!IsSafeIdentifier(request.deviceId, 48) ||
       !IsSafeIdentifier(request.catalogVersion, 128) ||
       !IsConversationUuid(request.bootId) ||
-      !IsConversationUuid(request.idempotencyKey)) {
+      !IsConversationUuid(request.idempotencyKey) ||
+      (!request.testContext.empty() && (!ValidVoiceTestContext(request.testContext) ||
+        !request.audioConsent || request.imageConsent))) {
     return false;
   }
   body = "{\"deviceId\":\"" + request.deviceId +
          "\",\"bootId\":\"" + request.bootId +
          "\",\"generation\":" + std::to_string(request.generation) +
          ",\"catalogVersion\":\"" + request.catalogVersion + "\"";
-  if (request.operationEpoch != 0)
+  if (request.operationEpoch != 0) {
     body += ",\"operationEpoch\":\"" + std::to_string(request.operationEpoch) + "\"";
+  }
+  if (!request.testContext.empty()) body += ",\"testContext\":\"" + request.testContext + "\"";
   body += std::string(",\"locale\":\"cs-CZ\",\"consent\":{\"audio\":") +
          (request.audioConsent ? "true" : "false") + ",\"image\":" +
          (request.imageConsent ? "true" : "false") + "}}";
