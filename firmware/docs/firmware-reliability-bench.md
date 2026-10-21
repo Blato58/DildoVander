@@ -5,9 +5,30 @@ power interruption, acoustic measurement or real iPhone check has been run as
 part of this redesign. Execute only after separate authorization. Simulation
 and successful firmware builds do not satisfy these checks.
 
+## Prepared production artifact
+
+The local production rebuild on 21 October 2026 used source commit
+`b0edfa10ca6569b80c25acf8f934d3e4da7637c1` (tree
+`fd8c95d2c68bca9665df0262fdb5562d3c1d8cdd`). Its compiled build ID was verified
+in the actual compilation database. Later documentation-only commits do not
+change this artifact's identity.
+
+| Property | Recorded result |
+| --- | --- |
+| Environment / application version | `production` / local `0.1.1` |
+| Application image | `firmware.bin`, 2,123,952 bytes |
+| SHA-256 | `d0c60283806d54a1b92ea0c29793e4b1c007d281bbd6e18e55e38e9c64d43967` |
+| Static RAM / linked flash | 178,508 / 2,123,533 bytes |
+| Build result | Success, 274.71 seconds; ESP-IDF 6.1, pinned PlatformIO platform 7.1.3 |
+| Physical execution | **Unrun**; no flash, provisioning or bench activation |
+
+These are build observations, not peak activated heap/stack measurements. CI
+builds use their own version/run identity and must retain their own artifact
+digest; do not substitute this local digest for a different binary.
+
 ## Record the artifact and fixture
 
-- Pin the reviewed commit/tree and the production binary SHA-256, build/version,
+- Pin the source commit/tree and the production binary SHA-256, build/version,
   configuration and dependency versions. Use the production artifact, never a
   diagnostic image, for OTA. Keep diagnostic binaries separately identified.
 - Record board revision, actual flash/PSRAM configuration, hardware profile,
