@@ -187,7 +187,7 @@ export async function loadBundle(manifest, readAsset, options = {}) {
     if (!record(certificate) || certificate.result !== 'PASS_CAD_NOT_PHYSICAL_ACCEPTANCE' || certificate.physical_test_performed !== false || !record(evidence) || evidence.schemaVersion !== 1 || evidence.modelId !== manifest.modelId || evidence.modelAssetSha256 !== modelAsset.sha256 || evidence.sourceRevision !== manifest.provenance.sourceRevision || !record(evidence.sourceHashes) || !Object.keys(evidence.sourceHashes).length || Object.keys(evidence.sourceHashes).length > 512 || !record(certificate.sources)) fail('invalid CAD verification certificate');
     for (const [source, hash] of Object.entries(evidence.sourceHashes)) {
       text(source, 'source evidence path', 240);
-      if (!/^[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*(?:\/[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*)*$/u.test(source)) fail('unsafe source evidence path');
+      if (source !== 'reference/.gitattributes' && !/^[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*(?:\/[\p{L}\p{N}_-]+(?:[.][\p{L}\p{N}_-]+)*)*$/u.test(source)) fail('unsafe source evidence path');
       if (!hashPattern.test(hash) || certificate.sources[source] !== hash) fail('CAD report source evidence disagrees');
     }
   }

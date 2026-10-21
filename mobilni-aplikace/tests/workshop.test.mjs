@@ -72,10 +72,14 @@ test('verified provenance requires a matching successful report tied to exact mo
     return loadBundle(published, async path => path === 'model.json' ? bytes : proof);
   }
   assert.equal((await loadReport(report)).manifest.provenance.cadVerification, 'verified');
+  const withGitAttributes = clone(report);
+  withGitAttributes.sources['reference/.gitattributes'] = 'c'.repeat(64);
+  withGitAttributes.modelEvidence.sourceHashes['reference/.gitattributes'] = 'c'.repeat(64);
+  assert.equal((await loadReport(withGitAttributes)).manifest.provenance.cadVerification, 'verified');
   for (const mutate of [r => r.result = 'FAIL', r => r.physical_test_performed = true, r => r.modelEvidence.modelAssetSha256 = 'b'.repeat(64), r => r.modelEvidence.sourceHashes = {}, r => r.sources['MONT\u00c1\u017d.md'] = 'b'.repeat(64)]) {
     const altered = clone(report); mutate(altered); await assert.rejects(loadReport(altered), /CAD/);
   }
-  for (const source of ['../MONT\u00c1\u017d.md', '/MONT\u00c1\u017d.md', 'a//b.md', 'a\\b.md', 'a/<b>.md', 'MONT.md\n']) {
+  for (const source of ['../MONT\u00c1\u017d.md', '/MONT\u00c1\u017d.md', 'a//b.md', 'a\\b.md', 'a/<b>.md', 'MONT.md\n', '.gitattributes', 'reference/.env', 'reference/.gitattributes/extra']) {
     const altered = clone(report);
     altered.sources = altered.modelEvidence.sourceHashes = { [source]: 'a'.repeat(64) };
     await assert.rejects(loadReport(altered), /source evidence path/);
