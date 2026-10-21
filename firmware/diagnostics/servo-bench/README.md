@@ -131,8 +131,11 @@ vzorků po 10 ms; kanály se vyhodnocují odděleně, aby se protifázový zvuk
 nevyrušil. Z basů 40–220 Hz, středů 220–2000 Hz, výšek 2000–7500 Hz,
 energie, spektrálních nástupů a pomalých změn barvy vznikají odlišné tlumené
 trajektorie. Odhad BPM je informační; pohyb sleduje průběh skladby, nestřídá
-jen dvě polohy po odhadnutém rytmu. Graf ukazuje waveform a plánovanou dráhu
-zvoleného kanálu, nikoli změřenou polohu serva.
+jen dvě polohy po odhadnutém rytmu. Přehled ukazuje waveform a plánované dráhy všech šesti kanálů současně,
+nikoli změřené polohy serv. Každý řádek nese číslo kanálu a přiřazenou složku;
+vypnuté kanály mají přerušovanou křivku a označení. Společná svislá linka sleduje
+slyšitelnou pozici skladby ve všech řádcích, při Pause zůstane stát a Stop ji
+vrátí na začátek. Nastavený předstih serv neposouvá tuto časovou značku.
 
 Zaškrtni jeden až šest kanálů 0–5 a každému přiřaď vlastní složku skladby:
 **Basy, Středy, Výšky, Akcenty, Dynamika nebo Fráze**. Výchozí je pouze kanál 0.

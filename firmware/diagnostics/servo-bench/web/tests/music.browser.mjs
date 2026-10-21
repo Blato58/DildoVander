@@ -89,30 +89,51 @@ try {
   assert(frames.some(frame => frame[0] !== frame[2] || frame[2] !== frame[5]));
   assert(await page.locator('#music-feature-2').isDisabled());
   assert((await page.locator('#music-wave').getAttribute('d')).startsWith('M'));
-  assert((await page.locator('#music-motion').getAttribute('d')).startsWith('M'));
+  assert.equal(await page.locator('#music-lanes .music-motion').count(), 6);
+  assert.equal(await page.locator('.music-lane-label').count(), 7);
+  for (let channel = 0; channel < 6; channel++) assert((await page.locator(`#music-motion-${channel}`).getAttribute('d')).startsWith('M'));
+  assert.match(await page.locator('#music-label-2').innerText(), /2 · Středy/);
+  assert(await page.locator('#music-lane-1').evaluate(element => element.classList.contains('music-lane-off')));
+  const playhead = () => page.locator('#music-playhead').getAttribute('transform');
+  assert.notEqual(await playhead(), 'translate(0.0 0)');
   assert(await page.locator("#channel").isDisabled());
   assert(await page.locator("#cal-arm").isDisabled());
   await page.locator("#music-pause").click();
   assert.equal(await page.evaluate(() => window.benchWrites.at(-1)), "!\n");
   await page.locator("#cal-arm:enabled").waitFor();
+  const pausedHead = await playhead(); await page.waitForTimeout(160);
+  assert.equal(await playhead(), pausedHead);
+  const pausedTime = await page.locator('#music-audio').evaluate(audio => audio.currentTime);
+  const expectedX = pausedTime / await page.locator('#music-audio').evaluate(audio => audio.duration) * 1000;
+  assert(Math.abs(Number(pausedHead.match(/translate\(([\d.]+)/)[1]) - expectedX) < 12);
   const previousFrames = await page.evaluate(() => window.benchWrites.filter(value => value.startsWith('target ')).length);
   await page.locator("#music-consent").check(); await page.locator("#music-play").click();
   await page.waitForFunction(count => window.benchWrites.filter(value => value.startsWith('target ')).length > count, previousFrames);
   await page.locator("#stop").click();
   assert(await page.locator("#music-audio").evaluate(audio => audio.paused));
   assert.equal(await page.locator("#music-audio").evaluate(audio => audio.currentTime), 0);
-  await page.locator("#music-title").scrollIntoViewIfNeeded();
+  assert.equal(await playhead(), 'translate(0.0 0)');
+  await page.locator('#music-title').evaluate(element => element.scrollIntoView({ block: 'start' }));
   const screenshots = process.env.SERVO_SCREENSHOTS || temporary;
   await page.locator('section[aria-labelledby="music-title"]').screenshot({ path: path.join(screenshots, "servo-music-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   for (const theme of ["lord-voldemort", "olivander"]) {
     await page.evaluate(theme => globalThis.DildoVanderTheme.setTheme(theme), theme);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    await page.locator('section[aria-labelledby="music-title"]').screenshot({ path: path.join(screenshots, `servo-music-mobile-${theme}.png`) });
+    const chart = await page.locator('.music-overview').boundingBox();
+    assert(chart.height <= 285, 'all seven waveform lanes fit in one compact chart');
+    const first = await page.locator('.music-lane-label').first().boundingBox();
+    const last = await page.locator('.music-lane-label').last().boundingBox();
+    assert(last.y + last.height <= chart.y + chart.height + 1 && first.y >= chart.y);
+    await page.locator('#music-title').evaluate(element => element.scrollIntoView({ block: 'start' }));
+    const view = await page.locator('.music-overview').boundingBox();
+    const footer = await page.locator('.stop-bar').boundingBox();
+    assert(view.y >= 0 && view.y + view.height < footer.y, 'all waveform lanes visible together above the fixed Stop bar');
+    await page.screenshot({ path: path.join(screenshots, `servo-music-mobile-${theme}.png`) });
   }
   assert.deepEqual(errors, []);
   assert.deepEqual(failedResources, []);
-  console.log("PASS: FFT/waveform plots, real audio output clock, three independently assigned channels in atomic25Hz frames, Pause/globalStop, 1440x1000 and390x844both themes.");
+  console.log("PASS: seven simultaneous waveform lanes, shared moving/paused/reset playhead, real audio output clock, three independently assigned channels in atomic25Hz frames, Pause/globalStop, 1440x1000 and390x844both themes.");
 } finally {
   await browser?.close(); server.kill(); await rm(temporary, { recursive: true, force: true });
 }

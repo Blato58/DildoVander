@@ -103,26 +103,35 @@
     </div>
     <section class="bench-section bench-music" aria-labelledby="music-title">
       <h2 id="music-title">Waveform a tanec serv</h2>
-      <p>Plynulé polohy sledují skutečný waveform, basy, středy, výšky a nástupy zvuku. Vyberte jeden nebo více kanálů a každému přiřaďte vlastní složku skladby. Jeden společný snímek mění vybrané kanály současně, cílově 25× za sekundu. Tanec nemá 500ms minimum ani pulzní cyklus.</p>
-      <p>Potvrzené meze jsou <strong>600–2300 µs pro všech šest serv</strong> (21. 10. 2026). Používejte pouze volná serva bez mechanismu; vyberte jen skutečně připojené kanály a ověřte napájení pro jejich společný provoz. Poloha, proud ani mechanická odezva nejsou měřené.</p>
       <label class="field" for="music-file">Místní skladba · MP3 / WAV, do 32 MiB a 10 minut</label>
       <input class="aw-input" id="music-file" type="file" accept="audio/*">
       <p id="music-summary" class="aw-muted"></p>
       <audio id="music-audio" preload="auto"></audio>
+      <div class="music-overview" aria-label="Přehled skladby a všech šesti kanálů">
+        <div id="music-lane-labels" class="music-lane-labels"><div class="music-lane-label"><strong>Zvuk</strong><small>celá skladba</small></div></div>
+        <svg class="music-waveform" viewBox="0 0 1000 280" preserveAspectRatio="none" role="img" aria-label="Waveform skladby a šest plánovaných drah. Svislá linka ukazuje společnou pozici přehrávání.">
+          <g transform="scale(1 .4)"><path id="music-wave" class="music-wave"/></g>
+          <g id="music-lanes"></g>
+          <g id="music-playhead" class="music-playhead" transform="translate(0 0)"><line class="music-cursor-outline" x1="0" x2="0" y1="0" y2="280"/><line id="music-cursor" class="music-cursor" x1="0" x2="0" y1="0" y2="280"/><path class="music-cursor-tip" d="M-6,0 L6,0 L0,7 Z"/></g>
+        </svg>
+      </div>
       <label class="field"><input id="music-dance" type="checkbox"> Vybraná serva tančí se zvukem</label>
-      <fieldset><legend>Kanály a jejich zvukové složky</legend><div id="music-channels" class="music-channels"></div></fieldset>
       <label class="field"><input id="music-consent" type="checkbox"> Vybraná volná serva, společné napájení a bezpečný prostor jsou připravené. Zůstávám u vypínače a povoluji toto Play.</label>
+      <div class="actions"><button class="aw-button aw-button--primary" id="music-play" type="button" disabled>Play</button><button class="aw-button aw-button--secondary" id="music-pause" type="button" disabled>Pause</button><button class="aw-button aw-button--danger" id="music-stop" type="button" disabled>Stop hudby a tance</button></div>
+      <progress id="music-progress" max="1" value="0" aria-label="Průběh skladby"></progress>
+      <p id="music-time" class="aw-muted"></p><p id="music-status" role="status"></p>
+      <p id="music-timing" class="aw-muted"></p>
+      <fieldset><legend>Kanály a jejich zvukové složky</legend><div id="music-channels" class="music-channels"></div></fieldset>
       <label class="field" for="music-strength">Rozsah tance · % potvrzeného rozsahu (40 % na začátek)</label>
       <input id="music-strength" class="aw-input" type="number" min="1" max="100" value="40">
       <label class="field" for="music-lead">Předstih serv vůči slyšitelnému zvuku · ms (0–300)</label>
       <input id="music-lead" class="aw-input" type="number" min="0" max="300" step="10" value="100">
       <p class="aw-muted">Výstupní hodiny zvuku a odhad RTT/2 korigují časování. Předstih dolaďte podle pohybu serv. Při zpoždění se neposílá fronta starých poloh. Firmware bez nových snímků vyžádá FULL_OFF po 250 ms; blokované I2C ani odpojení 5 V tím nejsou zaručené.</p>
-      <label class="field" for="music-preview">Náhled pohybu kanálu</label><select id="music-preview" class="aw-input"><option value="0">Kanál 0</option><option value="1">Kanál 1</option><option value="2">Kanál 2</option><option value="3">Kanál 3</option><option value="4">Kanál 4</option><option value="5">Kanál 5</option></select>
-      <svg class="music-waveform" viewBox="0 0 1000 190" role="img" aria-label="Waveform skladby nahoře a plánovaný plynulý pohyb vybraného kanálu dole"><path id="music-wave" class="music-wave"/><path id="music-motion" class="music-motion"/><line id="music-cursor" class="music-cursor" x1="0" x2="0" y1="0" y2="190"/></svg>
-      <p id="music-timing" class="aw-muted"></p>
-      <div class="actions"><button class="aw-button aw-button--primary" id="music-play" type="button" disabled>Play</button><button class="aw-button aw-button--secondary" id="music-pause" type="button" disabled>Pause</button><button class="aw-button aw-button--danger" id="music-stop" type="button" disabled>Stop hudby a tance</button></div>
-      <progress id="music-progress" max="1" value="0" aria-label="Průběh skladby"></progress>
-      <p id="music-time" class="aw-muted"></p><p id="music-status" role="status"></p>
+      <details class="bench-details"><summary>Jak číst křivky a připravit serva</summary>
+      <p>Každý řádek ukazuje plánovanou dráhu podle přiřazené zvukové složky. Vypnuté kanály jsou označené a přerušované. Svislá linka sleduje slyšitelnou pozici skladby, bez předstihu serv; neukazuje měřenou polohu.</p>
+      <p>Plynulé polohy sledují skutečný waveform, basy, středy, výšky a nástupy zvuku. Vyberte jeden nebo více kanálů a každému přiřaďte vlastní složku skladby. Jeden společný snímek mění vybrané kanály současně, cílově 25× za sekundu. Tanec nemá 500ms minimum ani pulzní cyklus.</p>
+      <p>Potvrzené meze jsou <strong>600–2300 µs pro všech šest serv</strong> (21. 10. 2026). Používejte pouze volná serva bez mechanismu; vyberte jen skutečně připojené kanály a ověřte napájení pro jejich společný provoz. Poloha, proud ani mechanická odezva nejsou měřené.</p>
+      </details>
     </section>
     <details id="diagnostics" class="bench-details bench-diagnostics">
       <summary>Diagnostika · registry a sériový log</summary>
