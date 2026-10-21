@@ -3,7 +3,7 @@ from functools import lru_cache
 
 import cadquery as cq
 
-from geometry import ROOT, PARAMS
+from geometry import ROOT, PARAMS, box
 
 
 @lru_cache
@@ -17,3 +17,16 @@ def servo():
         mechanism["cam_y"] + 5.625,
         mechanism["cam_z"],
     ))
+
+
+@lru_cache(maxsize=40)
+def servo_at_angle(angle=0):
+    """Move the output stub with its horn, retaining the stationary case pose."""
+    if angle == 0:
+        return servo()
+    mechanism = PARAMS["mechanism"]
+    axis = (mechanism["cam_x"], mechanism["cam_y"], mechanism["cam_z"])
+    # Imported gear shoulder is 1.75 mm behind the cam datum; output is 3 mm long.
+    region = box(3.1, 6, 6, (axis[0] - 1.75, axis[1] - 3, axis[2] - 3))
+    shaft = servo().intersect(region).rotate(axis, (axis[0]+1,axis[1],axis[2]), angle)
+    return servo().cut(region).fuse(shaft).clean()

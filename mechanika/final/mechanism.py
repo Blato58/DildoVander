@@ -10,7 +10,8 @@ from functools import lru_cache
 
 import cadquery as cq
 from geometry import PARAMS, Part, Item, box, cylinder, fuse, cut, hole_z, strap_slots
-from servo_reference import servo
+from servo_reference import servo, servo_at_angle
+import servo_horn
 
 M = PARAMS["mechanism"]
 W = PARAMS["wand"]
@@ -360,19 +361,15 @@ def wand():
 
 @lru_cache
 def stock_horn():
-    shape = fuse([box(2,35,6,(0.2,-17.5,-3)), cylinder(4.5,2,(0.2,0,0),(1,0,0))])
-    holes = [cylinder(1.2,4,(-1,sign*M["horn_fastener_radius"],0),(1,0,0)) for sign in (-1,1)]
-    # The reference shaft enters this blind hub socket. The horn itself is
-    # still a design envelope: spline engagement must be checked on hardware.
-    holes.append(cylinder(2.5,1.2,(0.15,0,0),(1,0,0)))
-    return cut(shape, holes)
+    # Retain the assembly identity consumed by the twin's rotation bindings.
+    return servo_horn.horn()
 
 
 def parts():
     return [Part("lift_base", base(), 6, "100% infill; servo cradle, two guides and transport strap anchors in one print"),
             Part("wand_bed_left", tray_halves()[0], 6, "Keyed left bed half; front guide integral; print left edge down; join with two M3x45 button screws and thin nuts", ((0,1,0),-90)),
             Part("wand_bed_right", tray_halves()[1], 6, "Keyed right bed half; peg and rear guide integral; print right edge down; supports NONE", ((0,1,0),90)),
-            Part("dwell_cam", cam(), 6, "100% infill; captured integral sliding peg drives both directions; two circular dwells", ((0,1,0),-90))]
+            Part("dwell_cam", cam(), 6, "100% infill; captured integral sliding peg drives both directions; two circular dwells", ((0,1,0),-90))] + servo_horn.parts()
 
 
 def module(index=0, angle=0, with_wand=True):
@@ -384,8 +381,8 @@ def module(index=0, angle=0, with_wand=True):
               Item(f"tray_{index+1}", tray_halves()[1].translate((0,0,tray_z)), "moving", "tray"),
               Item(f"tray_left_{index+1}", tray_halves()[0].translate((0,0,tray_z)), "moving", "tray"),
               Item(f"cam_{index+1}", cam().rotate((0,0,0),(1,0,0),angle).translate((M["cam_x"],M["cam_y"],M["cam_z"])), "moving", "metal"),
-              Item(f"servo_{index+1}", servo(), "hardware", "black", "Owner-supplied SG90-Servo.stp; shaft aligned to cam; physical fit pending"),
-              Item(f"stock_horn_{index+1}", stock_horn().rotate((0,0,0),(1,0,0),angle).translate((M["cam_x"],M["cam_y"],M["cam_z"])), "moving_hw", "white", "35 mm double horn with provisional shaft socket; measured spline/hub/fastener fit pending"),
+              Item(f"servo_{index+1}", servo_at_angle(angle), "hardware", "black", "Owner-supplied SG90-Servo.stp; output shaft follows horn angle; physical fit pending"),
+              Item(f"stock_horn_{index+1}", stock_horn().rotate((0,0,0),(1,0,0),angle).translate((M["cam_x"],M["cam_y"],M["cam_z"])), "moving_hw", "white", "Printed PETG servo_horn; STEP-derived 20-groove socket; physical spline grip, retaining screw and load pending"),
               Item(f"u059_{index+1}", box(32,24,8,(7.5,24,tray_z-10)), "moving_hw", "pcb", "32 x 24 x 8 catalog"),
               Item(f"led_{index+1}", box(3,200,10,(45,6,tray_z-7)), "moving_hw", "light", "10 x 200; thickness 3 provisional")]
     for j,y in enumerate(TRAY_JOINTS,start=1):

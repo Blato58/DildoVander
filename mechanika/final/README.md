@@ -15,7 +15,7 @@ otevřené v [předání](STAV.md) a [montážním návodu](MONTÁŽ.md).
 
 Výstupy lze přijmout pouze s ověřením, jehož zdrojové SHA-256 odpovídají
 aktuálním souborům; starší ověření nepokrývá zjednodušení montáže. Návrh má
-51 typů STL / 71 výtisků včetně tří samostatných zkušebních měrek pro čep, drážku
+53 typů STL / 78 výtisků včetně čtyř samostatných zkušebních měrek pro čep, drážku
 a boční kapsy matic M3/M4 i epoxidový zámek s odvzdušněním. Každý typ má svůj orientovaný STL, STEP, modelový 3MF a ověřovaný profil v [tiskovém manifestu](exports/printing-manifest.csv). [Výrobní návod](TISK.md) uvádí podporu NONE, rozebíratelné spoje a omezení kontroly. Skutečné počty
 exportovaných dílů uvádí aktuální tiskový seznam.
 
@@ -24,6 +24,7 @@ exportovaných dílů uvádí aktuální tiskový seznam.
 Servo používá od 21. 10. 2026 [STEP dodaný majitelem](reference/SG90-Servo.md)
 včetně montážních patek a vývodu kabelů. Osa serva, vačky a páky je o 1 mm
 výše (lokální Z37); upravené lůžko a vedení zachovávají jejich návaznost.
+Tištěná [servopáka a měrka drážkování](SERVO-HORN.md) jsou prototypy pro trysku 0,4 mm.
 Tato změna vyžaduje nové výrobní ověření; starší výrobní výstupy ji nepokrývají.
 
 Elektronika a pevné svazky vznikají na stole před vložením rámu a před

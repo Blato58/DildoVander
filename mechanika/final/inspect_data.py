@@ -133,12 +133,12 @@ _HARDWARE = {
     "green_drives": ("Zelený vypínač pohonů", "Zeleně podsvícená kolébka"),
     "white_ptt": ("Bílé momentové tlačítko PTT", "Bíle podsvícené momentové PTT"),
     "servo_": ("Polohovací mikroservo", "Polohovací mikroservo"),
-    "stock_horn_": ("Koupená oboustranná servopáka", "Polohovací mikroservo"),
     "u059_": ("Vibrační modul M5Stack U059", "M5Stack U059"),
     "led_": ("Úsek adresovatelných LED WS2812B", "WS2812B"),
 }
 
 _MECHANICAL = {
+    "stock_horn_": ("Tištěná oboustranná servopáka", "PETG servo_horn, drážkování podle dodaného STEP; nejprve zkušební měrka. Usazení, původní středový šroub a únosnost čekají na fyzické ověření."),
     "wooden_case": ("Skutečný dřevěný kufr", "Plášť koupeného kufru s výztuhami u lemu a zaobleným spodním profilem; není určen k tisku ani vrtání. Průchozí horní obdélník není celovýškový volný prostor."),
     "wooden_lid": ("Prázdné víko kufru", "Referenční prázdné víko; jeho výška je předpoklad, detaily pantů nejsou změřené."),
     "floor_brace": ("Výztuha dna", "Majitelem potvrzená výztuha uprostřed dna přes celou šířku X; šířka v Y a výška v Z jsou parametry skutečného kufru."),
@@ -182,7 +182,7 @@ _MECHANICAL = {
     "tray_joint_": ("Spoj polovin lůžka", "Dva příčné M3×45 ISO7380-1 a tenké DIN439 matice; přístup na stole před elektronikou. Nenahrazovat vyšší maticí."),
     "tray_": ("Pravá polovina lůžka hůlky", "Samostatný výtisk s integrálním čepem Ø6 a zadním vedením; krátké klíče a dva svěrné spoje s levou polovinou."),
     "cam_": ("Drážková zdvihová vačka", "Integrovaný kluzný čep lůžka přenáší zdvih i návrat; tření a opotřebení ověřit na výtisku."),
-    "coupler_head_": ("Hlava šroubu spojky servopáky", "Šroub M2 spojuje koupenou páku s vačkou v nastavitelných drážkách."),
+    "coupler_head_": ("Hlava šroubu spojky servopáky", "Šroub M2 spojuje tištěnou páku s vačkou v nastavitelných drážkách."),
     "coupler_nut_": ("Matice spojky servopáky", "Matice M2 leží v zapuštěné kapse vačky."),
     "coupler_shaft_": ("Šroub spojky servopáky", "Šroub M2 × 10; skutečné otvory páky je nutné ověřit při sestavení."),
     "wand_": ("Hůlka v přihrádce", "Konzervativní obálka hůlky; nejde o rekonstrukci jejího ornamentu."),
