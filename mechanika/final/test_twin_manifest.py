@@ -37,7 +37,7 @@ class TwinManifestTests(unittest.TestCase):
         for index, slot in enumerate(manifest["slots"]):
             self.assertEqual(slot["channels"], {"servoPca": index, "vibrationPca": index+6,
                                                 "ledStart": index*6, "ledCount": 6})
-            self.assertEqual(slot["camPivotMm"], [100+index*48, 133, 48])
+            self.assertEqual(slot["camPivotMm"], [100+index*48, 133, 49])
             self.assertEqual(slot["servoPivotMm"], slot["camPivotMm"])
             self.assertIn(f"tray_left_{index+1}", slot["liftComponents"])
         samples = manifest["kinematics"]["samples"]

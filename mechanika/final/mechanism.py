@@ -10,6 +10,7 @@ from functools import lru_cache
 
 import cadquery as cq
 from geometry import PARAMS, Part, Item, box, cylinder, fuse, cut, hole_z, strap_slots
+from servo_reference import servo
 
 M = PARAMS["mechanism"]
 W = PARAMS["wand"]
@@ -17,6 +18,8 @@ GUIDES = ((8.0, 87.0), (38.0, 191.0))
 MOUNT_HOLES = ((8.0, 9.0), (38.0, 9.0), (8.0, 203.0), (38.0, 203.0))
 U059_TIE_ROWS = (29.0, 42.5)
 LED_TIE_ROWS = (29.0, 180.0)
+SERVO_TIE_CENTRES = (10, 22)
+SERVO_SUPPORT_Z = M["cam_z"] - 6.25 - 0.25
 
 
 def smooth(t):
@@ -77,9 +80,9 @@ def cam_wire(offset=0.0, x=0.0):
 def retaining_ties(kind):
     ties=[]
     if kind=="servo":
-        for x in (7,21):
-            outer=box(2.5,28.8,18.25,(x-1.25,103.5,24))
-            inner=box(4,27.8,17.25,(x-2,104,24.5))
+        for x in SERVO_TIE_CENTRES:
+            outer=box(2.5,28.8,M["cam_z"]+7.25-24,(x-1.25,103.5,24))
+            inner=box(4,27.8,M["cam_z"]+6.75-24.5,(x-2,104,24.5))
             ties.append(outer.cut(inner))
     elif kind=="u059":
         for y in U059_TIE_ROWS:
@@ -131,11 +134,11 @@ def base():
         pieces.append(box(8, 10, M["guide_height"]-4, (x-4, y-5, 4)))
         # Broad roots below the lowest travel of the follower sleeves.
         pieces.append(box(14,16 if y==191 else 20,25,(x-7,y-10,4)))
-    # Anti-rotation servo cradle. The known body is 27 X / 22 Y / 11.5 Z.
-    # The body-to-shaft offset remains a mounting/calibration assumption.
-    pieces.append(box(27.3, 27.6, 26.0, (0.2, 104.2, 4)))
-    pieces.append(box(27.3, 2.5, 15.5, (0.2, 103.5, 29)))
-    pieces.append(box(27.3, 2.5, 15.5, (0.2, 129.5, 29)))
+    # The supplied STEP is 12.5 mm thick along module Z. Leave 0.25 mm
+    # below it; its shaft, cam and horn now share the raised 37 mm axis.
+    pieces.append(box(27.3, 27.6, SERVO_SUPPORT_Z-4, (0.2, 104.2, 4)))
+    pieces.append(box(27.3, 2.5, 17.5, (0.2, 103.5, 29)))
+    pieces.append(box(27.3, 2.5, 17.5, (0.2, 129.5, 29)))
     # Grow the cradle lips at 45 degrees from the solid pedestal. Their old
     # abrupt 0.7/0.2 mm ledges started unsupported above the servo tie tunnels.
     for points in (((103.5,29),(104.2,28.3),(104.2,29)),
@@ -155,8 +158,12 @@ def base():
     holes += [hole_z(x,y,12,z=6,height=35) for x,y in MOUNT_HOLES]
     holes += [hole_z(x,y,4.5) for x,y in GUIDES]
     # Two releasable 2.5 mm cable ties retain the servo against the hard cradle.
-    for x in (7, 21):
+    for x in SERVO_TIE_CENTRES:
         holes.append(box(3, 31, 3, (x-1.5, 103, 24)))
+    # Open-top reliefs clear both mounting ears and the cable outlet. The
+    # first tie is beyond the outlet so it cannot pinch the servo wires.
+    holes.append(box(3, 33, 20, (16.25, 101, SERVO_SUPPORT_Z)))
+    holes.append(box(2, 4, 14, (5.6, 103, M["cam_z"]-2.1)))
     # Transport restraint threads through the structural base, independently of tray.
     holes += [box(3, 18, 10, (x, 58, -1)) for x in (4, 39)]
     # Shallow open pocket clears the enlarged cam rim; 2.5 mm of floor remains.
@@ -175,8 +182,6 @@ def base():
                 holes.append(hole_z(xx,yy,12.2,z=-1,height=6))
                 holes.append(hole_z(xx,yy,13.1,z=3.9,height=4.3))
     holes += retaining_ties("servo")
-    # Real rear-face wire opening; three finite native leads clear the cradle.
-    holes.append(box(8,4,5,(10,129,34)))
     # Capacitor feedthroughs clear the base rib as well as their own holders.
     for gx,gy,gz in PARAMS["capacitors"][2:]:
         index=int((gx-M["origin_x"])/M["pitch"])
@@ -353,6 +358,16 @@ def wand():
     return head.fuse(shaft).clean()
 
 
+@lru_cache
+def stock_horn():
+    shape = fuse([box(2,35,6,(0.2,-17.5,-3)), cylinder(4.5,2,(0.2,0,0),(1,0,0))])
+    holes = [cylinder(1.2,4,(-1,sign*M["horn_fastener_radius"],0),(1,0,0)) for sign in (-1,1)]
+    # The reference shaft enters this blind hub socket. The horn itself is
+    # still a design envelope: spline engagement must be checked on hardware.
+    holes.append(cylinder(2.5,1.2,(0.15,0,0),(1,0,0)))
+    return cut(shape, holes)
+
+
 def parts():
     return [Part("lift_base", base(), 6, "100% infill; servo cradle, two guides and transport strap anchors in one print"),
             Part("wand_bed_left", tray_halves()[0], 6, "Keyed left bed half; front guide integral; print left edge down; join with two M3x45 button screws and thin nuts", ((0,1,0),-90)),
@@ -369,8 +384,8 @@ def module(index=0, angle=0, with_wand=True):
               Item(f"tray_{index+1}", tray_halves()[1].translate((0,0,tray_z)), "moving", "tray"),
               Item(f"tray_left_{index+1}", tray_halves()[0].translate((0,0,tray_z)), "moving", "tray"),
               Item(f"cam_{index+1}", cam().rotate((0,0,0),(1,0,0),angle).translate((M["cam_x"],M["cam_y"],M["cam_z"])), "moving", "metal"),
-              Item(f"servo_{index+1}", box(27,22,11.5,(0.5,106.5,30.25)), "hardware", "black", "22 x 11.5 x 27 catalog; shaft offset provisional"),
-              Item(f"stock_horn_{index+1}", cut(fuse([box(2,35,6,(0.2,-17.5,-3)),cylinder(4.5,2,(0.2,0,0),(1,0,0))]),[cylinder(1.2,4,(-1,sign*M["horn_fastener_radius"],0),(1,0,0)) for sign in (-1,1)]).rotate((0,0,0),(1,0,0),angle).translate((29,112,36)), "moving_hw", "white", "35 mm double horn; width/hub/thickness and slotted fastener location pending measured fit"),
+              Item(f"servo_{index+1}", servo(), "hardware", "black", "Owner-supplied SG90-Servo.stp; shaft aligned to cam; physical fit pending"),
+              Item(f"stock_horn_{index+1}", stock_horn().rotate((0,0,0),(1,0,0),angle).translate((M["cam_x"],M["cam_y"],M["cam_z"])), "moving_hw", "white", "35 mm double horn with provisional shaft socket; measured spline/hub/fastener fit pending"),
               Item(f"u059_{index+1}", box(32,24,8,(7.5,24,tray_z-10)), "moving_hw", "pcb", "32 x 24 x 8 catalog"),
               Item(f"led_{index+1}", box(3,200,10,(45,6,tray_z-7)), "moving_hw", "light", "10 x 200; thickness 3 provisional")]
     for j,y in enumerate(TRAY_JOINTS,start=1):
@@ -391,8 +406,9 @@ def module(index=0, angle=0, with_wand=True):
     for x, y in GUIDES:
         shapes.append(Item(f"guide_bolt_{index+1}_{int(y)}", cylinder(2,100,(x,y,-4)), "fastener", "metal","M4x100 DIN931; 86 mm smooth shank covers complete bearing travel, availability/dry fit pending"))
         shapes.append(Item(f"guide_head_{index+1}_{int(y)}",cylinder(3.85,2.8,(x,y,-6.8)),"hardware","metal","M4 DIN931 AF7 head allowance OD7.7 H2.8; actual corner fit pending"))
-        shapes.append(Item(f"guide_washer_{index+1}_{int(y)}", cylinder(4.5,.8,(x,y,83)).cut(cylinder(2.3,3,(x,y,82))), "hardware", "metal","M4 DIN125 9 mm OD washer; guide retention above full lift"))
-        shapes.append(Item(f"guide_nut_{index+1}_{int(y)}",cylinder(4,3.2,(x,y,83.8)).cut(cylinder(2,4,(x,y,83.5))),"hardware","metal","M4 DIN934 H3.2 + low-strength threadlocker; tighten without sleeve preload"))
+        guide_top = M["guide_height"]
+        shapes.append(Item(f"guide_washer_{index+1}_{int(y)}", cylinder(4.5,.8,(x,y,guide_top)).cut(cylinder(2.3,3,(x,y,guide_top-1))), "hardware", "metal","M4 DIN125 9 mm OD washer; guide retention above full lift"))
+        shapes.append(Item(f"guide_nut_{index+1}_{int(y)}",cylinder(4,3.2,(x,y,guide_top+.8)).cut(cylinder(2,4,(x,y,guide_top+.5))),"hardware","metal","M4 DIN934 H3.2 + low-strength threadlocker; tighten without sleeve preload"))
     liner=fuse([box(38,W["head_length"],W["foam"]+W["fabric"],(4,6,tray_z+3)),
                 box(16,W["length"]-W["head_length"],W["foam"]+W["fabric"],(15,6+W["head_length"],tray_z+3))])
     if with_wand:

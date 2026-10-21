@@ -80,7 +80,9 @@ for name, offset in {
         ANCHORS[name] = tuple(a+b for a,b in zip(ANCHORS[parent], offset))
 for index in range(1, M["count"] + 1):
     x = M["origin_x"] + M["pitch"] * (index - 1)
-    ANCHORS[f"servo_{index}"] = (x + 14, M["origin_y"] + 128.5, M["origin_z"] + 36)
+    # Native leads fan out in front of the STEP outlet before their extension.
+    # These separated approach anchors do not assert measured plug pin pitch.
+    ANCHORS[f"servo_{index}"] = (x + 6.6, M["origin_y"] + 100.5, M["origin_z"] + M["cam_z"])
     ANCHORS[f"u059_{index}"] = (x + 23, M["origin_y"] + 48, REST_TRAY_Z - 6)
     ANCHORS[f"led_{index}"] = (x + 46.5, M["origin_y"] + 6, REST_TRAY_Z - 2)
 for index, point in enumerate(PARAMS["capacitors"], 1):
@@ -123,7 +125,7 @@ for block in NETS:
 for index in range(12):
     PIN_OFFSETS["pca9685"][f"CH{index}"] = (3+index*5, -2, 20)
 for index in range(1,7):
-    PIN_OFFSETS[f"servo_{index}"] = {"+": (-2, 0, 0), "-": (0, 0, 0), "S": (2, 0, 0)}
+    PIN_OFFSETS[f"servo_{index}"] = {"+": (0, 0, -2.5), "-": (0, 0, 0), "S": (0, 0, 2.5)}
     PIN_OFFSETS[f"u059_{index}"] = {"red": (-2, 0, 0), "black": (0, 0, 0), "yellow": (2, 0, 0)}
     PIN_OFFSETS[f"led_{index}"] = {"+5V": (0, 0, -2), "GND": (0, 0, 0),
                                      "DIN": (0, 0, 2), "DOUT": (0, 200, 2)}
@@ -296,7 +298,10 @@ def _endpoint_path(endpoint, corridor):
                 (x+46.65,loop_y,FRAME_TOP+33), (x+46.65,y,FRAME_TOP+33), (x+46.65,y,z)]
     if part.startswith("servo_"):
         x = M["origin_x"]+M["pitch"]*(int(part.split("_")[-1])-1)
-        return [a,(a[0],M["origin_y"]+147,a[2]),(x+46.65,M["origin_y"]+147,a[2]),
+        # Escape through the open cradle notch before following the left
+        # side of the servo to the existing rear service corridor.
+        return [a,(a[0],M["origin_y"]+98.5,a[2]),(x-1.6,M["origin_y"]+98.5,a[2]),
+                (x-1.6,M["origin_y"]+147,a[2]),(x+46.65,M["origin_y"]+147,a[2]),
                 (x+46.65,M["origin_y"]+147,44),(x+46.65,y,44),(x+46.65,y,z)]
     # Rear boards approach from the back side of the modules. The only long
     # front/rear crossings run in the right fixed service corridor.
