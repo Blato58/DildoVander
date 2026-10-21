@@ -64,6 +64,8 @@ internal static partial class AccountEndpoints
         group.MapPost("/passkeys/reauthenticate", ReauthenticateAsync).RequireAuthorization();
         group.MapPost("/enrollment/options", EnrollmentOptionsAsync);
         group.MapPost("/enrollment/complete", CompleteEnrollmentAsync);
+        group.MapPost("/customer/enrollment/options", CustomerEnrollmentOptionsAsync);
+        group.MapPost("/customer/enrollment/complete", CompleteCustomerEnrollmentAsync);
         group.MapPost("/passkeys/options", AdditionalPasskeyOptionsAsync).RequireAuthorization()
             .AddEndpointFilter(RequireRecentPasskeyAsync);
         group.MapPost("/passkeys/complete", CompleteAdditionalPasskeyAsync).RequireAuthorization()

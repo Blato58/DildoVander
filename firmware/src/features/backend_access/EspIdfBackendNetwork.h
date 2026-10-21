@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cJSON.h"
 #include <atomic>
 #include <mutex>
 #include "../voice_turn/LocalVoicePort.h"
@@ -53,6 +54,12 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   void StopVoice() override;
   bool Start(bool nvsInitialized);
   bool IsOnline() const { return online_.load(); }
+  bool CustomerEnabled() const {
+    const auto voice = VoiceStatus();
+    return customerEnabled_.load() && voice.available && voice.mode != "off";
+  }
+  cJSON* CustomerRequest(cJSON* request);
+  void PollCustomerStart(const ConversationRuntimeSnapshot& snapshot, bool admitted) override;
   uint32_t AuthenticationState() const;
   uint32_t TrustedTimeState() const { return timeState_.load(); }
   bool ReadVoiceMediaHealth(VoiceMediaHealth& health) const;
@@ -94,9 +101,27 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
                  class ConversationStartCoordinator& coordinator,
                  struct ConversationStartRequest& startRequest);
   void SetVoicePhase(const char* phase);
+  bool StartVoiceInternal(const std::string&, const ConversationRuntimeSnapshot&, bool,
+                          const std::string&, bool customer);
+  static void CustomerTaskEntry(void*);
+  void RunCustomer();
+  bool RefreshCustomerChallenge(const char* accessToken);
+  bool RedeemCustomer(class DeviceTokenSession& tokens, const ConversationRuntimeSnapshot& snapshot,
+                      std::string& conversation);
+  mutable std::mutex customerMutex_;
+  std::atomic<bool> customerEnabled_{false}, customerReserved_{false};
+  std::string customerChallenge_, customerOperation_, customerTicket_, customerSession_;
+  std::array<uint8_t, 32> customerTicketDigest_{};
+  std::string customerState_ = "idle", customerError_, customerReported_;
+  ConversationRuntimeSnapshot customerChallengeSnapshot_;
+  std::atomic<bool> customerIdleAdmission_{false};
+  std::atomic<int> customerPresentationResult_{0};
+  bool customerBootReconciled_ = false, customerChallengeRegistering_ = false;
+  uint64_t customerChallengeAtMs_ = 0;
+  TaskHandle_t customerTask_ = nullptr;
   EspIdfVoiceAudio voiceAudio_;
   EspIdfCostumeCamera camera_;
-  bool voiceImageConsent_ = false;
+  bool voiceImageConsent_ = false, voiceCustomer_ = false;
   std::string voiceTestContext_;
   mutable std::mutex voiceMutex_;
   LocalVoiceStatus voiceStatus_;

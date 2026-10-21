@@ -31,9 +31,9 @@
     <key>NSLocalNetworkUsageDescription</key>
     <string>Připojení ke kufru v místní síti pro pozorování a ruční ovládání.</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>Bluetooth bezpečně nastaví Wi-Fi kufru a přečte jeho síťovou diagnostiku i bez internetu.</string>
+    <string>Bluetooth připojí váš účet k rozhovoru s kufrem. Obsluha jej používá také k nastavení Wi-Fi a diagnostice.</string>
     <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>Bluetooth bezpečně nastaví Wi-Fi kufru přímo z iPhonu.</string>
+    <string>Bluetooth připojí iPhone ke kufru pro váš rozhovor nebo servisní nastavení.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Po spuštění vybraného rozhovoru mikrofon průběžně posílá váš hlas serveru. Rozhovor můžete kdykoli zastavit.</string>
     <key>NSCameraUsageDescription</key>

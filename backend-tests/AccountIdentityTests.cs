@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.DigitalTwin;
 using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.ModelReleases;
@@ -24,7 +25,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-internal static class AccountIdentityTests
+internal static partial class AccountIdentityTests
 {
     public static async Task RunBrowserFixtureAsync()
     {
@@ -549,7 +550,7 @@ internal static class AccountIdentityTests
             jars[client] = jar; return client;
         }
         public CookieContainer Cookies(HttpClient client) => jars[client];
-        public static async Task<Fixture> StartAsync(bool browserMode = false)
+        public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false)
         {
             var root = Path.Combine(Path.GetTempPath(), "dv-account-tests-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
@@ -607,10 +608,16 @@ internal static class AccountIdentityTests
                 options.AddPolicy("keepsake-public", _ => System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("fixture"));
             });
             builder.Services.AddSingleton<TwinAccess>(); builder.Services.AddSingleton<TwinStore>(); builder.Services.AddSingleton<TwinHost>();
+            if (customerFeatures)
+            {
+                builder.Services.AddSingleton<ICharacterEnrichmentProvider>(new CustomerTestEnrichmentProvider());
+                builder.Services.AddCustomerCharacters(builder.Configuration);
+            }
             var app = builder.Build();
             await AccountProvisioning.MigrateAsync(app.Services);
             await app.InitializeAccountsAsync();
             app.UseWebSockets(); app.UseRateLimiter(); app.UseAccountIdentity(); app.MapAccountEndpoints(); app.MapDigitalTwin(); app.MapModelReleases();
+            if (customerFeatures) { app.MapCustomerCharacters(); app.MapCustomerSessions(); }
             app.MapConversations();
             app.MapShowEndpoints(); app.MapShowDeviceCues(); app.MapDuels(); app.MapShowArchiveEndpoints();
             app.MapOfflineOutcomeEndpoints(); app.MapShowChronicle();

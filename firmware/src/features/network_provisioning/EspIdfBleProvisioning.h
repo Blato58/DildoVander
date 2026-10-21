@@ -23,10 +23,13 @@ class EspIdfBleProvisioning final {
   bool Begin(bool nvsInitialized, const char* deviceId, const char* firmwareVersion,
              BleManagementCallbacks callbacks);
   void Tick(uint64_t nowMs, bool networkReady);
-  bool Active() const { return active_.load(); }
+  bool Active() const { return active_.load() && !customerMode_.load(); }
+  void BindCustomer(bool (*enabled)(void*), cJSON* (*request)(cJSON*, void*), void* context) {
+    customerEnabled_ = enabled; customerRequest_ = request; customerContext_ = context;
+  }
 
  private:
-  bool Open(uint64_t nowMs, uint64_t windowDeadline);
+  bool Open(uint64_t nowMs, uint64_t windowDeadline, bool customer = false);
   void Close(uint64_t nowMs);
   void UpdateWindow(uint64_t nowMs, bool networkReady);
   static void TaskEntry(void* context);
@@ -36,6 +39,10 @@ class EspIdfBleProvisioning final {
   cJSON* Execute(cJSON* request);
   void AddStatus(cJSON* response);
 
+  bool (*customerEnabled_)(void*) = nullptr;
+  cJSON* (*customerRequest_)(cJSON*, void*) = nullptr;
+  void* customerContext_ = nullptr;
+  std::atomic<bool> customerMode_{false};
   EspIdfStationNetwork& station_;
   BleManagementCallbacks callbacks_;
   protocomm_t* transport_ = nullptr;
@@ -55,6 +62,7 @@ class EspIdfBleProvisioning final {
   uint64_t nextCloseRetry_ = 0;
   uint64_t nextOpenAttempt_ = 0;
   bool ready_ = false;
+  bool serviceProofReady_ = false;
   TaskHandle_t lifecycleTask_ = nullptr;
   std::atomic<bool> networkReady_{false};
 };

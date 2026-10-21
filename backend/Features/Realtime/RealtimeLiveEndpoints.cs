@@ -102,7 +102,7 @@ internal static partial class RealtimeLiveEndpoints
             }
             registered = true;
             if (call.LabHardware is { } hardwareAdmission) { await hardwareAdmission.EnsureAuthorizedAsync(call.Cancellation.Token); }
-            call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token);
+            call = await ConversationStartupMemory.PrepareAsync(call, conversations, memory, call.Cancellation.Token, context.RequestServices);
             await using var connection = await provider.ConnectAsync(call.Cancellation.Token);
             using var session = new RealtimeLiveSession(device, id, connection, lifetime, labHardware: call.LabHardware);
             live = session;

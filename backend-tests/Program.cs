@@ -32,7 +32,16 @@ if (args is ["--persona-provider-soak", var seconds])
     return;
 }
 if (args is ["--model-releases"]) { await ModelReleaseTests.RunAsync(); return; }
-if (args is ["--identity"]) { await AccountIdentityTests.RunAsync(); return; }
+if (args is ["--identity"])
+{
+    await AccountIdentityTests.RunAsync();
+    await CustomerProfileTests.RunAsync();
+    await CustomerSessionTests.RunAsync();
+    await AccountIdentityTests.RunCustomerSessionsAsync();
+    return;
+}
+if (args is ["--customer-profiles"]) { await CustomerProfileTests.RunAsync(); return; }
+if (args is ["--customer-sessions"]) { await CustomerSessionTests.RunAsync(); await AccountIdentityTests.RunCustomerSessionsAsync(); return; }
 if (args is ["--identity-fixture"]) { await AccountIdentityTests.RunBrowserFixtureAsync(); return; }
 if (args is ["--show-live-boundary"]) { await AutonomousLiveTests.RunShowLiveBoundariesAsync(); return; }
 if (args is ["--show"])

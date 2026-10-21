@@ -7,26 +7,32 @@ import AwNotice from '../../components/AwNotice.vue';
 import { usePreferences } from '../../application/preferences';
 import { applicationBuild } from '../../application/buildIdentity';
 import { account, accountRequest, refreshIdentity, authenticatePasskey, signOut, hasRole, type AccountDetails, type AccountSession } from './session';
+const props = withDefaults(defineProps<{ customerSurface?: boolean }>(), { customerSurface: false });
 const preferences = usePreferences();
 const details = ref<AccountDetails | null>(null);
 const keyNames = ref<Record<string, string>>({});
 const error = ref(''); const message = ref(''); const busy = ref(false);
 let detailsGeneration = 0;
-watch(() => account.value?.id, () => { ++detailsGeneration; details.value = null; keyNames.value = {}; error.value = ''; message.value = ''; }, { flush: 'sync' });
+watch(() => account.value?.id, () => { ++detailsGeneration; details.value = null; keyNames.value = {}; error.value = ''; message.value = ''; busy.value = false; }, { flush: 'sync' });
 async function load() {
+  const beforeRefresh = detailsGeneration;
   await refreshIdentity();
+  if (beforeRefresh !== detailsGeneration) return;
   const generation = ++detailsGeneration;
+  const accountId = account.value?.id;
   const result = account.value ? await accountRequest<AccountDetails>('/app/v1/account') : null;
-  if (generation === detailsGeneration) {
+  if (generation === detailsGeneration && accountId === account.value?.id) {
     details.value = result;
     keyNames.value = Object.fromEntries((result?.passkeys ?? []).map(key => [key.id, key.name ?? '']));
   }
 }
 onMounted(async () => { try { await load(); } catch (e) { error.value = (e as Error).message; } });
 async function action(work: () => Promise<unknown>, success: string) {
+  const generation = detailsGeneration; const accountId = account.value?.id;
   busy.value = true; error.value = ''; message.value = '';
-  try { await work(); await load(); message.value = success; } catch (e) { error.value = (e as Error).message; }
-  finally { busy.value = false; }
+  try { await work(); if (generation !== detailsGeneration || accountId !== account.value?.id) return; await load(); if (accountId === account.value?.id) message.value = success; }
+  catch (e) { if (generation === detailsGeneration && accountId === account.value?.id) error.value = (e as Error).message; }
+  finally { if (accountId === account.value?.id) busy.value = false; }
 }
 function trust(session: AccountSession) {
   void action(() => accountRequest(`/app/v1/installations/${encodeURIComponent(session.id)}`, 'PUT', {
@@ -35,9 +41,9 @@ function trust(session: AccountSession) {
 }
 </script>
 <template>
-  <section class="page-stack" aria-labelledby="settings-title">
-    <header><p class="eyebrow">Váš prostor</p><h1 id="settings-title">Nastavení</h1><p>Vzhled aplikace a přístup k vašemu účtu.</p></header>
-    <section class="aw-card" aria-labelledby="application-version-heading">
+  <section class="page-stack" :aria-label="customerSurface ? 'Zabezpečení účtu' : undefined" :aria-labelledby="customerSurface ? undefined : 'settings-title'">
+    <header v-if="!customerSurface"><p class="eyebrow">Váš prostor</p><h1 id="settings-title">Nastavení</h1><p>Vzhled aplikace a přístup k vašemu účtu.</p></header>
+    <section v-if="!customerSurface" class="aw-card" aria-labelledby="application-version-heading">
       <h2 id="application-version-heading">Verze aplikace</h2>
       <p>Tato verze běží přímo v prohlížeči nebo v nainstalované aplikaci.</p>
       <p>Zdroj sestavení: <code class="application-revision">{{ applicationBuild.revision || 'Nezjištěn' }}</code></p>
@@ -46,12 +52,12 @@ function trust(session: AccountSession) {
       <p>HTTP API v1 · ModelBundle 1. Model a firmware mají samostatnou verzi ve své funkci.</p>
     </section>
     <AwNotice v-if="error" tone="danger" role="alert">{{ error }}</AwNotice><AwNotice v-if="message" tone="success" role="status">{{ message }}</AwNotice>
-    <section class="aw-card"><h2>Vzhled</h2><label for="account-theme">Barevné téma</label><select id="account-theme" v-model="preferences.theme" class="aw-select"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></section>
+    <section v-if="!customerSurface" class="aw-card"><h2>Vzhled</h2><label for="account-theme">Barevné téma</label><select id="account-theme" v-model="preferences.theme" class="aw-select"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></section>
     <section v-if="!account" class="aw-card"><h2>Přihlášení</h2><p>Přihlaste se pro soukromý archiv, přidělené prostředky a správu přístupů.</p><RouterLink to="/signin" class="aw-button aw-button--primary">Přihlásit se</RouterLink></section>
     <template v-else>
-      <AccountArchiveList />
-      <EveningPanel :details="details" />
-      <section v-if="details?.associations.length" class="aw-card">
+      <AccountArchiveList v-if="!customerSurface" />
+      <EveningPanel v-if="!customerSurface" :details="details" />
+      <section v-if="!customerSurface && details?.associations.length" class="aw-card">
         <h2>Kufry propojené s účtem</h2>
         <p>Propojení uchovává název a instalaci. Odebrání neodstraní místní párování ani přidělená oprávnění.</p>
         <ul class="identity-list">
@@ -61,11 +67,11 @@ function trust(session: AccountSession) {
           </li>
         </ul>
       </section>
-      <section class="aw-card"><h2>{{ account.displayName }}</h2><p>{{ account.roles.join(', ') }}</p><p v-if="details">Počet přístupových klíčů: {{ details.passkeyCount }}. Další klíč usnadní obnovu při ztrátě zařízení.</p><AwButton :busy="busy" @click="action(() => authenticatePasskey('add'), 'Přístupový klíč byl přidán.')">Přidat přístupový klíč</AwButton><p v-if="hasRole('Administrator')"><RouterLink to="/settings/admin">Správa uživatelů a oprávnění</RouterLink></p></section>
+      <section class="aw-card"><h2>{{ account.displayName }}</h2><p v-if="!customerSurface">{{ account.roles.join(', ') }}</p><p v-if="details">Počet přístupových klíčů: {{ details.passkeyCount }}. Další klíč usnadní obnovu při ztrátě zařízení.</p><AwButton :busy="busy" @click="action(() => authenticatePasskey('add'), 'Přístupový klíč byl přidán.')">Přidat přístupový klíč</AwButton><p v-if="!customerSurface && hasRole('Administrator')"><RouterLink to="/settings/admin">Správa uživatelů a oprávnění</RouterLink></p></section>
       <section v-if="details" class="aw-card">
         <h2>Přístupové klíče</h2>
         <p>Poslední klíč nelze odebrat. Odebrání klíče odhlásí ostatní relace účtu.</p>
-        <p>Pojmenování a správa klíčů vyžadují nedávné ověření. <RouterLink to="/signin?return=/settings">Znovu ověřit účet</RouterLink></p>
+        <p>Pojmenování a správa klíčů vyžadují nedávné ověření. <RouterLink :to="`/signin?return=${customerSurface ? '/me/account' : '/settings'}`">Znovu ověřit účet</RouterLink></p>
         <ul class="identity-list">
           <li v-for="(key, index) in details.passkeys" :key="key.id">
             <strong>{{ key.name || `Přístupový klíč ${index + 1}` }}</strong>
@@ -80,7 +86,7 @@ function trust(session: AccountSession) {
         </ul>
       </section>
       <section v-if="details" class="aw-card"><h2>Přihlášená zařízení</h2><p>Odebrání ukončí přístup dané relace. Označení důvěry nenahrazuje párování s kufrem ani neprodlužuje platnost přihlášení.</p><ul class="identity-list"><li v-for="session in details.sessions" :key="session.id"><div><strong>{{ session.installationName }}</strong> <span v-if="session.current">· toto zařízení</span><p>Platí do {{ new Date(session.expiresAt * 1000).toLocaleString('cs') }} · {{ session.trusted ? 'důvěryhodná instalace' : 'běžná relace' }}</p></div><div class="button-row"><AwButton :disabled="busy" @click="trust(session)">{{ session.trusted ? 'Zrušit důvěru' : 'Označit jako důvěryhodné' }}</AwButton><AwButton variant="danger" :disabled="busy" @click="action(() => session.current ? signOut() : accountRequest(`/app/v1/sessions/${encodeURIComponent(session.id)}`, 'DELETE'), 'Přístup zařízení byl odebrán.')">{{ session.current ? 'Odhlásit toto zařízení' : 'Odhlásit zařízení' }}</AwButton></div></li></ul></section>
-      <section v-if="details" class="aw-card"><h2>Přidělené prostředky</h2><p v-if="!details.grants.length">Nemáte přidělené jednotlivé prostředky. Role vlastníka a správce mohou mít širší oprávnění.</p><ul v-else><li v-for="grant in details.grants" :key="grant.id">{{ grant.resourceType }} · {{ grant.resourceId }} · {{ grant.permission }}</li></ul><p>Přístupové údaje zařízení a návštěvníků zůstávají oddělené od účtu.</p></section>
+      <section v-if="!customerSurface && details" class="aw-card"><h2>Přidělené prostředky</h2><p v-if="!details.grants.length">Nemáte přidělené jednotlivé prostředky. Role vlastníka a správce mohou mít širší oprávnění.</p><ul v-else><li v-for="grant in details.grants" :key="grant.id">{{ grant.resourceType }} · {{ grant.resourceId }} · {{ grant.permission }}</li></ul><p>Přístupové údaje zařízení a návštěvníků zůstávají oddělené od účtu.</p></section>
     </template>
   </section>
 </template>

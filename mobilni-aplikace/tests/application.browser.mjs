@@ -56,7 +56,11 @@ try {
     requests.push({ path: url.pathname, method: request.method(), url: request.url() });
     const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
     if (url.pathname === '/app/v1/session') return json({ enabled: true, account: sessionAccount, csrfToken: 'isolated-browser-csrf' });
-    if (sessionAccount && url.pathname === '/app/v1/account') return json({ sessions: [], grants: [], associations: [], passkeyCount: 1, passkeys: [], devices: [] });
+    if (sessionAccount && url.pathname === '/app/v1/account') return json({ sessions: [{ id: 'browser-session', installationName: 'Tento prohlížeč', current: true, trusted: false, expiresAt: 1900000000 }], grants: [], associations: [], passkeyCount: 1, passkeys: [{ id: 'browser-passkey', name: 'Můj klíč', createdAt: '2026-10-20T00:00:00Z', isBackedUp: true }], devices: [] });
+    if (sessionAccount && url.pathname === '/app/v1/customer/character') return json({ profile: { profileId: 'browser-profile', revision: 2, userInput: { name: 'Luna', world: 'Moon Saga' }, status: 'ready', enrichment: { summary: 'A prepared character summary.', sources: ['Public character guide'] } } });
+    if (sessionAccount && url.pathname === '/app/v1/customer/sessions') return json({ items: [] });
+    if (sessionAccount && url.pathname === '/app/v1/customer/admin/sessions') return json({ items: [] });
+    if (sessionAccount && url.pathname === '/app/v1/customer/admin/characters') return json({ items: [] });
     if (sessionAccount && url.pathname === '/app/v1/admin/users') return json({ users: [], grants: [] });
     if (sessionAccount && url.pathname === '/app/v1/archive/associations') return json({ items: [] });
     if (url.pathname.startsWith('/app/v1/')) return json({ code: 'account_required' }, 401);
@@ -91,9 +95,44 @@ try {
     assert.equal(new URL(page.url()).searchParams.get('return'), protectedPath);
     assert.equal(await page.getByRole('button', { name: 'Vyhledat Bluetooth kufry' }).count(), 0);
   }
+  await page.goto(origin + '/signin'); await page.getByRole('heading', { name: 'Přihlásit se', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Vytvořit zákaznický účet', exact: true }).click();
+  assert(await page.getByLabel('Jak vám máme říkat?').isVisible());
+  assert.equal(await page.locator('#account-invite').count(), 0, 'customer registration does not ask for an invite');
+  // Customer pages use a synthetic account and read-only API fixtures. Browser mode must never request BLE.
+  sessionAccount = { id: 'browser-customer', displayName: 'Testovací host', roles: ['Customer'] };
+  await page.goto(origin + '/me/character'); await hasHeading('Moje postava');
+  assert.equal(await page.getByRole('navigation', { name: 'Sekce aplikace' }).getByRole('link').count(), 4);
+  assert.equal(await page.getByRole('button', { name: 'Stop', exact: true }).count(), 0);
+  assert.equal(await page.getByLabel('Jméno postavy').inputValue(), 'Luna');
+  assert.equal(await page.getByText('Public character guide').count(), 1);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await fits();
+    await page.screenshot({ path: path.join(screenshots, `customer-character-${width}.png`), fullPage: true });
+  }
+  const customerNav = page.getByRole('navigation', { name: 'Sekce aplikace' });
+  await customerNav.getByRole('link', { name: 'Rozhovor', exact: true }).click(); await hasHeading('Rozhovor s kufrem');
+  assert(await page.getByText(/Bluetooth připojení je dostupné v instalované aplikaci/).isVisible());
+  assert.equal(requests.filter(request => request.path.includes('customerBle') || request.path.includes('start-tickets')).length, 0);
+  await page.goto(origin + '/me/account'); await hasHeading('Můj účet');
+  await page.getByRole('heading', { name: 'Přístupové klíče' }).waitFor();
+  await page.getByRole('heading', { name: 'Přihlášená zařízení' }).waitFor();
+  assert.equal(await page.getByLabel('Název přístupového klíče 1').count(), 1);
+  assert.equal(await page.getByRole('heading', { name: 'Verze aplikace' }).count(), 0);
+  assert.equal(await page.getByRole('heading', { name: 'Přidělené prostředky' }).count(), 0);
+  assert.equal(await page.locator('h1').count(), 1, 'embedded account security view does not add a second page heading');
+  for (const protectedPath of ['/persona-lab', '/suitcase', '/connections', '/suitcase/diagnostics', '/suitcase/director', '/settings', '/settings/admin', '/admin/customer-sessions']) {
+    await page.goto(origin + protectedPath);
+    await page.waitForURL(url => url.pathname === '/me/character');
+    assert.equal(await page.getByRole('heading', { name: 'Moje postava' }).count(), 1, `customer denied ${protectedPath}`);
+  }
   // The remainder exercises existing operations with a labelled synthetic owner.
   sessionAccount = ownerAccount;
   await page.goto(origin); await hasHeading(homeHeading());
+  await page.goto(origin + '/admin/customer-sessions'); await hasHeading('Zákaznické relace');
+  await page.getByRole('heading', { name: 'Příprava postav' }).waitFor();
+  assert.equal(await page.getByText('Žádná příprava postavy není v evidenci.').count(), 1);
   const preferenceTab = await context.newPage();
   await preferenceTab.goto(origin + '/settings');
   await preferenceTab.getByLabel('Barevné téma', { exact: true }).selectOption('olivander');
@@ -103,7 +142,7 @@ try {
   await preferenceTab.close();
   await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
   const nav = page.getByRole('navigation', { name: 'Sekce aplikace' });
-  for (const [label, heading] of [['Kufr', 'Kufr'], ['Dílna', 'Workshop'], ['Archiv', 'Najdi svoji hůlku.'], ['Nastavení', 'Nastavení'], ['Domov', homeHeading()]]) {
+  for (const [label, heading] of [['Kufr', 'Kufr'], ['Dílna', 'Workshop'], ['Archiv', 'Najdi svoji hůlku.'], ['Správa', 'Uživatelé a oprávnění']]) {
     await nav.getByRole('link', { name: label, exact: true }).click(); await hasHeading(heading);
     assert.equal(await page.locator('.application-shell').count(), 1);
   }

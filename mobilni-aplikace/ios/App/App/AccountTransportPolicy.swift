@@ -4,7 +4,7 @@ import Foundation
 enum AccountTransportPolicy {
     static func credentialCommit(path: String, method: String) -> Bool {
         method == "POST" && ["/app/v1/passkeys/sign-in", "/app/v1/passkeys/reauthenticate",
-            "/app/v1/enrollment/complete", "/app/v1/passkeys/complete"].contains(path)
+            "/app/v1/enrollment/complete", "/app/v1/customer/enrollment/complete", "/app/v1/passkeys/complete"].contains(path)
     }
 
     // Caller priority flags cannot bypass the account queue. Only cancellation
@@ -213,10 +213,41 @@ enum AccountTransportPolicy {
         }
     }
 
+    static func customer(path: String, method: String) -> Bool {
+        let exact: [String: Set<String>] = [
+            "/app/v1/customer/enrollment/options": ["POST"],
+            "/app/v1/customer/enrollment/complete": ["POST"],
+            "/app/v1/customer/character": ["GET", "PUT", "DELETE"],
+            "/app/v1/customer/character/correction": ["POST"],
+            "/app/v1/customer/sessions": ["GET"],
+            "/app/v1/customer/start-tickets": ["POST"],
+            "/app/v1/customer/admin/sessions": ["GET"],
+            "/app/v1/customer/admin/characters": ["GET"]]
+        if exact[path]?.contains(method) == true { return true }
+        let parts = path.split(separator: "/").map(String.init)
+        if parts.count >= 5, Array(parts.prefix(4)) == ["app", "v1", "customer", "sessions"],
+           UUID(uuidString: parts[4]) != nil {
+            return (parts.count == 5 && method == "GET") ||
+                (parts.count == 6 && parts[5] == "end" && method == "POST")
+        }
+        if parts.count == 7, Array(parts.prefix(5)) == ["app", "v1", "customer", "admin", "sessions"],
+           UUID(uuidString: parts[5]) != nil, parts[6] == "end" { return method == "POST" }
+        return parts.count == 6 && Array(parts.prefix(5)) == ["app", "v1", "customer", "admin", "devices"] &&
+            !parts[5].isEmpty && parts[5].count <= 128 &&
+            parts[5].allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") } &&
+            ["GET", "PUT"].contains(method)
+    }
+
     static func account(path: String, method: String) -> Bool {
         if let parts = URLComponents(string: path), parts.scheme == nil, parts.host == nil, parts.fragment == nil,
            !parts.percentEncodedPath.contains("%"), !path.contains("\\"), path.count <= 4096 {
             if show(path: parts.path, method: method, query: parts.queryItems ?? []) { return true }
+            if method == "DELETE", parts.path == "/app/v1/customer/character", let query = parts.queryItems,
+               query.count == 2, Set(query.map { $0.name }) == Set(["expectedRevision", "expectedProfileId"]),
+               let revision = query.first(where: { $0.name == "expectedRevision" })?.value,
+               let parsedRevision = Int64(revision), parsedRevision > 0,
+               let profile = query.first(where: { $0.name == "expectedProfileId" })?.value,
+               (UUID(uuidString: profile) != nil || (profile.count == 32 && profile.allSatisfy { "0123456789abcdef".contains($0) })) { return true }
             if method == "GET", parts.path == "/v1/admin/show/chronicle", let query = parts.queryItems,
                query.count == 2, Set(query.map { $0.name }) == Set(["deviceId", "eveningId"]),
                let device = query.first(where: { $0.name == "deviceId" })?.value, !device.isEmpty, device.count <= 128,
@@ -231,6 +262,7 @@ enum AccountTransportPolicy {
         }
         guard !path.contains("%"), !path.contains("?"), !path.contains("#"), !path.contains("\\"),
               !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else { return false }
+        if path.hasPrefix("/app/v1/customer/") { return customer(path: path, method: method) }
         if path.hasPrefix("/app/v1/persona-lab") { return personaLab(path: path, method: method) }
         if path == "/v1/evenings" { return ["GET", "POST"].contains(method) }
         let evening = path.split(separator: "/").map(String.init)
@@ -541,8 +573,8 @@ struct NativeOfflineAccountSession {
               let account = object["account"] as? [String: Any],
               let id = account["id"] as? String, !id.isEmpty, id.utf8.count <= 128,
               let name = account["displayName"] as? String, name.utf8.count <= 320,
-              let roles = account["roles"] as? [String], !roles.isEmpty, roles.count <= 4,
-              roles.allSatisfy({ ["Owner", "Administrator", "Operator", "Viewer"].contains($0) }),
+              let roles = account["roles"] as? [String], !roles.isEmpty, roles.count <= 5,
+              roles.allSatisfy({ ["Owner", "Administrator", "Operator", "Viewer", "Customer"].contains($0) }),
               let expiry = object["expiresAt"] as? NSNumber,
               expiry.doubleValue.isFinite, expiry.doubleValue > now,
               binding.utf8.count == 64 else { return nil }

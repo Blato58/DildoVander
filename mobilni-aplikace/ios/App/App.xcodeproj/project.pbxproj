@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        AEA000000000000000000102 /* CustomerBleProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA000000000000000000002 /* CustomerBleProtocol.swift */; };
+        AEA000000000000000000101 /* KufrCustomerBlePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA000000000000000000001 /* KufrCustomerBlePlugin.swift */; };
         AE9000000000000000000102 /* AccountTransportPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000002 /* AccountTransportPolicy.swift */; };
         AE9000000000000000000101 /* KufrIdentityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000001 /* KufrIdentityPlugin.swift */; };
         AE2000000000000000000101 /* KufrProvisioningPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000001 /* KufrProvisioningPlugin.swift */; };
@@ -32,6 +34,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        AEA000000000000000000002 /* CustomerBleProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerBleProtocol.swift; sourceTree = "<group>"; };
+        AEA000000000000000000001 /* KufrCustomerBlePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrCustomerBlePlugin.swift; sourceTree = "<group>"; };
         AE9000000000000000000002 /* AccountTransportPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransportPolicy.swift; sourceTree = "<group>"; };
         AE9000000000000000000001 /* KufrIdentityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrIdentityPlugin.swift; sourceTree = "<group>"; };
         AE2000000000000000000001 /* KufrProvisioningPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KufrProvisioningPlugin.swift; sourceTree = "<group>"; };
@@ -94,6 +98,8 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				AE1000000000000000000004 /* KufrBridgeViewController.swift */,
                 AE2000000000000000000001 /* KufrProvisioningPlugin.swift */,
+                AEA000000000000000000001 /* KufrCustomerBlePlugin.swift */,
+                AEA000000000000000000002 /* CustomerBleProtocol.swift */,
                 AE9000000000000000000001 /* KufrIdentityPlugin.swift */,
                 AE9000000000000000000002 /* AccountTransportPolicy.swift */,
                 AE2000000000000000000002 /* ProvisioningStatusCodec.swift */,
@@ -200,6 +206,8 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
                 AE2000000000000000000101 /* KufrProvisioningPlugin.swift in Sources */,
+                AEA000000000000000000101 /* KufrCustomerBlePlugin.swift in Sources */,
+                AEA000000000000000000102 /* CustomerBleProtocol.swift in Sources */,
                 AE9000000000000000000101 /* KufrIdentityPlugin.swift in Sources */,
                 AE9000000000000000000102 /* AccountTransportPolicy.swift in Sources */,
                 AE2000000000000000000102 /* ProvisioningStatusCodec.swift in Sources */,

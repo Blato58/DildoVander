@@ -65,6 +65,9 @@ internal sealed partial class KeepsakeStore
             CREATE TABLE IF NOT EXISTS dv10_idempotency (
                 scope TEXT NOT NULL, operation_key TEXT NOT NULL, body_hash TEXT NOT NULL, result TEXT NOT NULL,
                 PRIMARY KEY(scope, operation_key));
+            CREATE TABLE IF NOT EXISTS dv10_customer_owners (
+                keepsake_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, session_id TEXT NOT NULL,
+                epoch INTEGER NOT NULL, linked_at INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS dv10_deletions (
                 id TEXT PRIMARY KEY, keepsake_id TEXT NOT NULL, scope TEXT NOT NULL,
                 local_state TEXT NOT NULL, requested INTEGER NOT NULL, session_hash TEXT NOT NULL);
@@ -188,7 +191,7 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public IssuedKeepsake Issue(KeepsakeIssueSnapshot snapshot)
+    public IssuedKeepsake Issue(KeepsakeIssueSnapshot snapshot, KeepsakeCustomerOwner? customerOwner = null)
     {
         if (string.IsNullOrWhiteSpace(snapshot.OutcomeId) || snapshot.OutcomeId.Length > 128
             || string.IsNullOrWhiteSpace(snapshot.DeviceId) || snapshot.DeviceId.Length > 128
@@ -214,6 +217,9 @@ internal sealed partial class KeepsakeStore
                 var document = JsonSerializer.Deserialize<Document>(reader.GetString(1), Json)!;
                 if ((document.Snapshot with { SourceConversationId = snapshot.SourceConversationId }) != snapshot
                     || (document.Snapshot.SourceConversationId is not null && document.Snapshot.SourceConversationId != snapshot.SourceConversationId)) { throw new KeepsakeException("outcome_snapshot_conflict", 409); }
+                reader.Close();
+                BindCustomerOwner(connection, transaction, existingId, customerOwner);
+                transaction.Commit();
                 return new(existingId);
             }
             reader.Close();
@@ -223,6 +229,7 @@ internal sealed partial class KeepsakeStore
                 ("$id", id), ("$o", outcomeKey), ("$d", snapshot.DeviceId),
                 ("$j", JsonSerializer.Serialize(new Document(snapshot), Json)), ("$evening", snapshot.EveningId));
             var issuedDocument = Load(connection, transaction, id);
+            BindCustomerOwner(connection, transaction, id, customerOwner);
             TryAdmitAutomaticBase(connection, transaction, id, issuedDocument);
             transaction.Commit();
             return new(id);

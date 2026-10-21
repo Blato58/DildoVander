@@ -6,12 +6,12 @@ import AwButton from '../components/AwButton.vue';
 import AwNotice from '../components/AwNotice.vue';
 import { usePreferences } from './preferences';
 import { notifications, dismissNotice, notify } from './notifications';
-import { account, offlineSession, refreshIdentity, hasRole } from '../features/identity/session';
+import { account, offlineSession, refreshIdentity } from '../features/identity/session';
 import { deviceSession } from '../features/suitcase/deviceSession';
 import { nativeDebug } from '../features/suitcase/nativeDebug';
 import { directorStop, clearDirectorStop } from '../features/director/directorStop';
 import { servoBench } from '../features/suitcase/servoBench';
-import { accessDenial, canOperateSuitcase } from './access';
+import { accessDenial, canEnterStaffArea, canOperateSuitcase, isCustomerAccount } from './access';
 import { accessRedirect } from './accessGuard';
 
 const route = useRoute();
@@ -23,14 +23,26 @@ const navigationElement = ref<HTMLElement>();
 const navigationHeight = ref('calc(5rem + env(safe-area-inset-bottom))');
 let navigationObserver: ResizeObserver | undefined;
 const viewError = ref('');
-const navigation = computed(() => [
-  { to: '/', label: 'Domov', symbol: '⌂' },
+const customerAccount = computed(() => isCustomerAccount(account.value));
+const navigation = computed(() => customerAccount.value ? [
+  { to: '/me/character', label: 'Postava', symbol: '✦' },
+  { to: '/me/conversation', label: 'Rozhovor', symbol: '◉' },
+  { to: '/me/keepsakes', label: 'Památky', symbol: '▤' },
+  { to: '/me/account', label: 'Účet', symbol: '⚙' },
+] : canEnterStaffArea(account.value) ? [
   { to: '/suitcase', label: 'Kufr', symbol: '▣' },
+  { to: '/connections', label: 'Připojení', symbol: '⌁' },
+  { to: '/persona-lab', label: 'Persona Lab', symbol: '◌' },
   { to: '/workshop', label: 'Dílna', symbol: '◇' },
   { to: '/archive', label: 'Archiv', symbol: '▤' },
-  { to: '/persona-lab', label: 'Persona Lab', symbol: '◌' },
-  { to: '/settings', label: 'Nastavení', symbol: '⚙' },
-].filter(item => item.to !== '/suitcase' || canOperateSuitcase(account.value)));
+  ...(canOperateSuitcase(account.value) ? [{ to: '/admin/customer-sessions', label: 'Relace', symbol: '◎' }] : []),
+  ...(account.value?.roles.some(role => ['Owner', 'Administrator'].includes(role)) ? [{ to: '/settings/admin', label: 'Správa', symbol: '⚙' }] : []),
+] : [
+  { to: '/', label: 'Domov', symbol: '⌂' },
+  { to: '/workshop', label: 'Dílna', symbol: '◇' },
+  { to: '/archive', label: 'Archiv', symbol: '▤' },
+  { to: '/signin', label: 'Účet', symbol: '⚙' },
+]);
 const identityKey = computed(() => account.value ? `${account.value.id}:${account.value.roles.join(',')}` : 'public');
 const routeAccessible = computed(() => accessDenial(route.meta, account.value, offlineSession.value) === null);
 const connected = computed(() => Boolean(deviceSession.snapshot.value && deviceSession.snapshot.value.phase !== 'disconnected'));
@@ -43,7 +55,6 @@ const stopBusy = computed(() => (deviceCanStop.value || phoneActive.value || dir
   && (!directorCanStop.value || directorStop.value?.busy())
   && !servoBench.connected.value);
 const targetLabel = computed(() => ({ unavailable: 'Kufr není připojen', demo: 'Ukázka · bez zařízení', simulator: 'Simulátor · bez fyzických pohonů', native: 'Místní kufr' })[deviceSession.target.value]);
-const canAdmin = computed(() => hasRole('Owner') || hasRole('Administrator'));
 async function stop(): Promise<void> {
   // Start independent cancellation paths together; a slow USB acknowledgement
   // cannot delay the already-permitted phone or suitcase Stop.
@@ -105,16 +116,16 @@ onBeforeUnmount(() => {
           <span aria-hidden="true">{{ item.symbol }}</span><span>{{ item.label }}</span>
         </RouterLink>
       </nav>
-      <div class="sidebar-details"><span class="eyebrow">Vapour Chrome</span><p>Jeden prostor pro celý večer.</p><RouterLink v-if="canAdmin" to="/settings/admin">Správa aplikace</RouterLink></div>
+      <div class="sidebar-details"><span class="eyebrow">{{ customerAccount ? 'Můj prostor' : 'Vapour Chrome' }}</span><p>{{ customerAccount ? 'Vaše postava, rozhovory a památky.' : 'Jeden prostor pro celý večer.' }}</p><RouterLink v-if="canEnterStaffArea(account)" to="/me/character">Můj zákaznický pohled</RouterLink><RouterLink v-if="canOperateSuitcase(account)" to="/admin/customer-sessions">Zákaznické relace</RouterLink></div>
     </aside>
     <div class="application-body">
       <header class="application-header">
         <div v-if="canOperateSuitcase(account)" class="connection-context"><RouterLink to="/connections">{{ targetLabel }}</RouterLink><span v-if="servoBench.connected.value" class="context-detail">USB servo servis · Stop vypíná PWM, napájení není měřené</span><span v-else-if="phoneActive" class="context-detail">Aktivní telefonní zkouška · oddělená od hlasu kufru</span><span v-else-if="deviceSession.message.value" class="context-detail">{{ deviceSession.message.value }}</span></div>
-        <p v-else class="connection-context">Modely a příběhy · veřejný přístup</p>
+        <p v-else class="connection-context">{{ customerAccount ? 'Můj účet · zákaznická část' : 'Modely a příběhy · veřejný přístup' }}</p>
         <div class="header-actions">
           <label class="theme-control"><span class="sr-only">Vzhled aplikace</span><select v-model="preferences.theme" aria-label="Vzhled aplikace"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></label>
-          <RouterLink v-if="!account" class="account-link" to="/signin">Přihlásit se</RouterLink><RouterLink v-else class="account-link" to="/settings">{{ account.displayName }}</RouterLink>
-          <AwButton v-if="account || deviceCanStop || phoneActive || directorCanStop || servoBench.connected.value" variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
+          <RouterLink v-if="!account" class="account-link" to="/signin">Přihlásit se</RouterLink><RouterLink v-else class="account-link" :to="customerAccount ? '/me/account' : '/settings'">{{ account.displayName }}</RouterLink>
+          <AwButton v-if="!customerAccount && (canEnterStaffArea(account) || deviceCanStop || phoneActive || directorCanStop || servoBench.connected.value)" variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
         </div>
       </header>
       <div class="notification-stack" aria-label="Oznámení"><AwNotice v-for="notice in notifications" :key="notice.id" :tone="notice.tone"><div class="notification-content">{{ notice.message }}<button aria-label="Zavřít oznámení" @click="dismissNotice(notice.id)">×</button></div></AwNotice></div>

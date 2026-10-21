@@ -22,6 +22,8 @@ class LocalVoicePort {
   virtual bool StartVoice(const std::string& requestId,
                           const ConversationRuntimeSnapshot& snapshot) = 0;
   virtual void StopVoice() = 0;
+  // Called only by the control owner under its urgent-event fence.
+  virtual void PollCustomerStart(const ConversationRuntimeSnapshot&, bool) {}
   virtual bool StartVoiceWithTestContext(const std::string& requestId,
       const ConversationRuntimeSnapshot& snapshot, bool imageConsent,
       const std::string& testContext) {

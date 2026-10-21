@@ -4,6 +4,7 @@ using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.ModelReleases;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Diagnostics;
@@ -96,6 +97,7 @@ builder.Services.AddSingleton<OpenAiVectorMemoryProvider>();
 builder.Services.AddSingleton<HybridMemoryService>();
 builder.Services.AddHostedService<MemoryIndexWorker>();
 builder.Services.AddSingleton<ConversationStore>();
+builder.Services.AddCustomerCharacters(builder.Configuration);
 builder.Services.AddPersonaLab();
 builder.Services.AddHostedService<RetentionWorker>();
 var keepsakesEnabled = builder.Configuration.GetValue<bool>("Keepsake:Enabled");
@@ -166,6 +168,8 @@ app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSecond
 await app.InitializeAccountsAsync();
 app.UseAccountIdentity();
 app.MapAccountEndpoints();
+app.MapCustomerCharacters();
+app.MapCustomerSessions();
 app.MapPersonaLab();
 app.MapModelReleases();
 

@@ -193,6 +193,7 @@ internal sealed partial class OperationJournal : IDisposable
         migration.Commit();
 
         EnsureLabProvenance(connection);
+        InitializeCustomerSessions(connection);
 
         // A crash after reservation must never trigger automatic provider replay.
         using var recover = connection.CreateCommand();
@@ -213,7 +214,8 @@ internal sealed partial class OperationJournal : IDisposable
     }
 
     public JournalCreateReservation ReserveCreate(string deviceId, Guid key, string bodyHash,
-        string? labSessionId = null, string? labRevisionId = null, DateTimeOffset? labExpiresAt = null, string? labOwnerId = null)
+        string? labSessionId = null, string? labRevisionId = null, DateTimeOffset? labExpiresAt = null, string? labOwnerId = null,
+        string? customerSessionId = null, string? bootId = null)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -231,6 +233,15 @@ internal sealed partial class OperationJournal : IDisposable
         {
             transaction.Commit();
             return existing;
+        }
+
+        using (var lease = CustomerCommand(connection, transaction,
+            "SELECT operation_id,customer_session_id,conversation_id FROM device_conversation_leases WHERE device_id=$device", ("$device", deviceId)))
+        using (var reader = lease.ExecuteReader())
+        {
+            if (reader.Read() && (customerSessionId is null || reader.GetString(0) != key.ToString("D")
+                || reader.IsDBNull(1) || reader.GetString(1) != customerSessionId || !reader.IsDBNull(2)))
+            { return new JournalCreateReservation(null, false, true); }
         }
 
         var now = clock.GetUtcNow();
@@ -253,6 +264,18 @@ internal sealed partial class OperationJournal : IDisposable
         command.Parameters.AddWithValue("$responseExpiry", response.ExpiresAt.ToUnixTimeMilliseconds());
         command.Parameters.AddWithValue("$recordExpiry", now.AddHours(24).ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
+        CustomerExecute(connection, transaction, """
+            INSERT INTO device_conversation_leases(device_id,operation_id,customer_session_id,conversation_id,boot_id)
+                VALUES($device,$key,$session,$conversation,$boot)
+            ON CONFLICT(device_id) DO UPDATE SET conversation_id=$conversation;
+            """, ("$device", deviceId), ("$key", key.ToString("D")), ("$session", customerSessionId),
+            ("$conversation", response.ConversationId), ("$boot", bootId));
+        if (customerSessionId is not null)
+        {
+            CustomerExecute(connection, transaction,
+                "UPDATE customer_sessions SET conversation_id=$conversation,state='context_ready' WHERE id=$session AND state='starting'",
+                ("$conversation", response.ConversationId), ("$session", customerSessionId));
+        }
         if (labSessionId is not null)
         {
             RecordLabCreate(connection, transaction, deviceId, response.ConversationId, labSessionId, labRevisionId!, labOwnerId!);
@@ -548,6 +571,9 @@ internal sealed partial class OperationJournal : IDisposable
             cancel.ExecuteNonQuery();
         }
 
+        CustomerExecute(connection, transaction,
+            "DELETE FROM device_conversation_leases WHERE device_id=$device AND conversation_id=$conversation AND customer_session_id IS NULL",
+            ("$device", deviceId), ("$conversation", conversationId));
         RecordMutation(connection, transaction, deviceId, route, key);
         transaction.Commit();
         return new MutationResult(204, false);

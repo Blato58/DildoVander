@@ -5,6 +5,7 @@
 #include <string>
 
 #include "../src/features/conversation/ConversationStartCoordinator.h"
+#include "../src/features/backend_access/CustomerSessionRecovery.h"
 
 namespace {
 
@@ -176,4 +177,46 @@ int main() {
   TestInvalidScopeAndRejectedServerResult();
   TestMalformedSuccessStaysOffline();
   TestRetryAfterTransportFailureReusesRequestId();
+  MemoryStorage storage;
+  DeviceIdentity identity(storage);
+  FakeTokenTransport tokenTransport;
+  DeviceTokenSession tokens(identity, tokenTransport);
+  FakeConversationTransport transport;
+  ConversationStartCoordinator customer(identity, tokens, transport);
+  assert(!customer.AdoptCustomerConversation("untrusted"));
+  const std::string accepted = "12345678-1234-4234-8234-123456789abc";
+  assert(customer.AdoptCustomerConversation(accepted));
+  assert(customer.ConversationId() == accepted);
+  assert(!customer.AdoptCustomerConversation("22345678-1234-4234-8234-123456789abc"));
+  assert(customer.Start(Request(), 0) == ConversationStartOutcome::AlreadyStarted);
+  assert(transport.keys.empty());
+  assert(CanRetireUnknownCustomerStart("recovering", "boot-A", "op-A", false, "boot-A", "op-A"));
+  assert(!CanRetireUnknownCustomerStart("recovering", "boot-A", "op-A", true, "boot-A", "op-A"));
+  assert(!CanRetireUnknownCustomerStart("recovering", "boot-A", "op-A", false, "boot-B", "op-A"));
+  assert(!CanRetireUnknownCustomerStart("recovering", "boot-A", "op-A", false, "boot-A", "op-B"));
+  assert(!CanRetireUnknownCustomerStart("running", "boot-A", "op-A", false, "boot-A", "op-A"));
+  // The same freshness predicate gates cache reuse, BLE disclosure and new
+  // queue admission. A runtime transition invalidates even a young challenge.
+  assert(IsCustomerChallengeCurrent(true, false, true, 2000, 1000, 60000));
+  assert(!IsCustomerChallengeCurrent(true, false, false, 2000, 1000, 60000));
+  assert(!IsCustomerChallengeCurrent(true, false, false, 2000, 1000, 90000));
+  assert(!IsCustomerChallengeCurrent(true, true, true, 2000, 1000, 90000));
+  assert(!IsCustomerChallengeCurrent(false, false, true, 2000, 1000, 90000));
+  assert(!IsCustomerChallengeCurrent(true, false, true, 61000, 1000, 60000));
+  assert(!IsCustomerChallengeCurrent(true, false, true, 999, 1000, 90000));
+  // A successful replacement bound to the new snapshot restores service
+  // immediately, rather than waiting for the previous 60-second cache age.
+  assert(IsCustomerChallengeCurrent(true, false, true, 2001, 2001, 60000));
+  std::string order;
+  assert(ReconcileCustomerBoot(true, [&]() { order += "register;"; return true; },
+      [&]() { order += "idle;"; return true; }));
+  assert(order == "register;idle;");
+  order.clear();
+  assert(!ReconcileCustomerBoot(true, [&]() { order += "register;"; return false; },
+      [&]() { order += "idle;"; return true; }));
+  assert(order == "register;");
+  order.clear();
+  assert(!ReconcileCustomerBoot(false, [&]() { order += "register;"; return true; },
+      [&]() { order += "idle;"; return true; }));
+  assert(order == "register;");
 }

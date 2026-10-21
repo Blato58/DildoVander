@@ -132,3 +132,43 @@ and static RAM size do not establish physical latency, position, acoustic tail,
 NVS power-cut behavior or peak activated heap/stack acceptance.
 
 Historical implementation slices are [archived separately](README-history.md).
+
+
+## Customer Bluetooth start (protocol 1)
+
+The existing protocomm BLE lifecycle owns both service and customer modes. The
+customer service UUID is `B97A7F10-70E8-4B98-9DCC-40D66395C822`; its single
+read/write characteristic is `B97AFF55-70E8-4B98-9DCC-40D66395C822`. Service
+provisioning retains its bounded PoP-authenticated window and UUID ending C821.
+Explicit backend customer enablement switches the same lifecycle to the public
+customer service; this never exposes provisioning endpoints and does not require
+a service PoP. Audio hardware and an enabled voice mode must also be available.
+
+Each complete JSON request and reply is at most 512 bytes. Requests carry
+`v:1` and `op:challenge|start|status|end`. Start additionally carries an opaque
+account ticket and UUID `operationId`; status may carry that UUID to recover its
+session ID. Challenge registration is authenticated by the device backend token
+and bound to its boot, catalog, generation and operation epoch. A changed runtime
+snapshot requires a new challenge. The backend owns ticket authorization and
+conversation context; the device redeems outside the BLE callback and uses the
+returned conversation ID before entering the existing voice workflow.
+
+Customer admission runs under the existing control-owner urgent fence and refuses
+manual leases, maintenance, recovery, dance and unavailable snapshots. The voice
+reservation also excludes service voice starts. Phone disconnect does not cancel
+voice. BLE `end` is a status hint only: the signed-in account requests its own end
+through HTTPS and the device polls that exact session and boot. Service Stop
+retains its existing operator authority.
+
+A timed-out redemption holds the reservation while the authenticated device
+status reconciles the original operation. If accepted IDs are recovered without
+an active local voice, the device reports failure for that exact session so the
+backend closes it before permitting another visitor. An unresolved operation
+stays recovering. Boot reconciliation sends `device-idle` only after the control
+owner has published a safe idle snapshot; it never infers safety from phone
+connection state. The backend must only retire old-boot leases in that request.
+
+`pio run -e production` verifies compilation. Existing host harnesses cover BLE
+lifecycle isolation, adopted conversation IDs and owner admission. These checks
+do not prove iPhone Bluetooth, ESP32 radio/audio coexistence, actual physical
+position, provider personalization, or customer end latency on hardware.

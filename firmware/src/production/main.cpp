@@ -461,6 +461,10 @@ extern "C" void app_main() {
       firmwareUpdate, backendNetwork, identity, tlsIdentity, pairing, station, localHostname,
       maintenance, admission, inbox};
   static EspIdfBleProvisioning provisioning(station);
+  provisioning.BindCustomer(
+      [](void* context) { return static_cast<EspIdfBackendNetwork*>(context)->CustomerEnabled(); },
+      [](cJSON* request, void* context) { return static_cast<EspIdfBackendNetwork*>(context)->CustomerRequest(request); },
+      &backendNetwork);
   provisioning.Begin(nvsStatus == ESP_OK, identity.DeviceId().c_str(), KUFR_FIRMWARE_VERSION,
       {BleStatusBridge::Status, BleStatusBridge::Command, &bleBridge,
        BleStatusBridge::PairLocal, BleStatusBridge::RecoverLocal});

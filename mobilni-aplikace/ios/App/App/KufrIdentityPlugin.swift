@@ -475,6 +475,9 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 switch mode {
                 case "reauth": optionsPath = "/app/v1/passkeys/reauthentication-options"; completionPath = "/app/v1/passkeys/reauthenticate"
                 case "signin": optionsPath = "/app/v1/passkeys/request-options"; completionPath = "/app/v1/passkeys/sign-in"
+                case "customer-enroll":
+                    optionsPath = "/app/v1/customer/enrollment/options"; completionPath = "/app/v1/customer/enrollment/complete"
+                    body = try encode(["displayName": call.getString("displayName") ?? ""])
                 case "enroll":
                     optionsPath = "/app/v1/enrollment/options"; completionPath = "/app/v1/enrollment/complete"
                     body = try encode(["token": call.getString("token") ?? "", "displayName": call.getString("displayName") ?? ""])

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dildovander.app/contracts/customer-ble-v1.schema.json",
+  "title": "Customer BLE v1, independent from service provisioning",
+  "oneOf": [
+    { "$ref": "#/$defs/query" },
+    { "$ref": "#/$defs/start" },
+    { "$ref": "#/$defs/end" },
+    { "$ref": "#/$defs/status" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "query": {
+      "type": "object", "additionalProperties": false, "required": ["v", "op"],
+      "properties": {
+        "v": { "const": 1 }, "op": { "enum": ["challenge", "status"] },
+        "operationId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "start": {
+      "type": "object", "additionalProperties": false, "required": ["v", "op", "ticket", "operationId"],
+      "properties": {
+        "v": { "const": 1 }, "op": { "const": "start" },
+        "ticket": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+        "operationId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "end": {
+      "type": "object", "additionalProperties": false, "required": ["v", "op", "sessionId"],
+      "properties": {
+        "v": { "const": 1 }, "op": { "const": "end" },
+        "sessionId": { "$ref": "#/$defs/uuid" }, "operationId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "status": {
+      "type": "object", "additionalProperties": false,
+      "required": ["v", "deviceId", "bootId", "challenge", "capabilities", "state"],
+      "properties": {
+        "v": { "const": 1 }, "deviceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "bootId": { "$ref": "#/$defs/uuid" },
+        "challenge": { "anyOf": [{ "const": "" }, { "$ref": "#/$defs/uuid" }] },
+        "capabilities": {
+          "type": "object", "additionalProperties": false, "required": ["customerStart"],
+          "properties": { "customerStart": { "enum": [0, 1] } }
+        },
+        "state": { "enum": ["idle", "starting", "running", "recovering", "completed", "failed"] },
+        "operationId": { "$ref": "#/$defs/uuid" }, "sessionId": { "$ref": "#/$defs/uuid" },
+        "error": { "type": "string", "maxLength": 96 }
+      }
+    }
+  }
+}

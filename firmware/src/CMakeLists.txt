@@ -52,6 +52,7 @@ idf_component_register(
         "features/backend_access/BuildDate.cpp"
         "features/backend_access/DeviceTokenSession.cpp"
         "features/backend_access/EspIdfBackendNetwork.cpp"
+        "features/backend_access/EspIdfBackendCustomer.cpp"
         "features/keepsake/EspIdfKeepsakeNotifier.cpp"
         "features/keepsake/KeepsakeCommittedInventory.cpp"
         "features/keepsake/KeepsakeEvidenceBridge.cpp"

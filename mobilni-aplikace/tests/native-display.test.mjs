@@ -4,7 +4,9 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const controller = readFileSync(new URL('../ios/App/App/KufrBridgeViewController.swift', import.meta.url), 'utf8');
-const script = controller.match(/private static let viewportScript = """\n([\s\S]*?)\n    """/)[1];
+const viewportMatch = controller.match(/private static let viewportScript = """\r?\n([\s\S]*?)\r?\n    """/);
+assert.ok(viewportMatch, 'native viewport script must remain embedded in the bridge controller');
+const script = viewportMatch[1];
 
 for (const existing of [true, false]) {
   test(`native viewport sets a fixed scale (${existing ? 'existing' : 'missing'} meta)`, () => {
