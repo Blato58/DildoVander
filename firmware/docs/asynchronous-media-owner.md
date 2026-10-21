@@ -3,9 +3,11 @@
 `RealtimeSessionEngine` has an explicit asynchronous mode shared by platform
 callers. Its reader admits bounded events and calls `Poll()` during idle periods
 as well as after input. Admission is not playback or control completion. The
-production ESP caller uses these ports through `DeviceMediaSession`. The native
-simulator's browser bridge migration is separate; its older HTTP mode remains
-until that bridge uses the same ports.
+production ESP caller and native simulator use these ports through
+`DeviceMediaSession`. The backend owns the native actor's authenticated WSS
+connection. ESP compilation excludes the legacy HTTP/audio constructor and
+implementation; host-only explicit fake compatibility cannot become a runtime
+fallback for a failed supported session.
 
 `VoicePlaybackPort` reserves immutable drain handles at event admission.
 `BoundedPlaybackOwner` retains at most four ordered raw barriers in addition to

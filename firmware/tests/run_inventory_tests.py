@@ -106,6 +106,9 @@ CHECKS = {
 }
 
 
+CHECKS["lab_technical_origin_test"] = list(CHECKS["autonomous_claimed_storage_test"])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cjson-dir", required=True, type=Path)

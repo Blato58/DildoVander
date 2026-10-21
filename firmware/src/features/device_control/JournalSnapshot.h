@@ -7,6 +7,7 @@
 #include <string>
 
 #include "CommandJournal.h"
+#include "JournalEvidence.h"
 
 // A bounded, read-only publication of worker-owned journal state. This layout
 // is an in-memory handoff only; it is not a storage or wire format.
@@ -25,6 +26,7 @@ struct JournalSnapshot {
     uint64_t fingerprint = 0;
     bool timedCompleted = false;
     bool evidencePinned = false;
+    bool technicalTest = false;
   };
 
   struct Reservation {
@@ -74,6 +76,19 @@ class JournalSnapshotView final : public CommandJournal {
   explicit JournalSnapshotView(const JournalSnapshot& snapshot) : snapshot_(snapshot) {}
 
   bool HasPending() const override { return !snapshot_.healthy || snapshot_.pendingSlot != 0; }
+  bool IsTechnicalTestOperation(uint64_t epoch, const std::string& id, uint8_t slot,
+                                uint64_t fingerprint) const override {
+    if (!snapshot_.healthy || snapshot_.historyCount > JournalSnapshot::HistoryCapacity || id.size() != 36) return false;
+    for (size_t index = 0; index < snapshot_.historyCount; ++index) {
+      const auto& entry = snapshot_.history[index];
+      if (entry.epoch != epoch || entry.slot != slot || entry.fingerprint != fingerprint) continue;
+      bool same = true;
+      for (size_t ch = 0; ch < 36; ++ch)
+        if (JournalIdentityLower(id[ch]) != JournalIdentityLower(entry.id[ch])) same = false;
+      if (same) return entry.technicalTest;
+    }
+    return false;
+  }
   bool CanBeginOperation() const override { return snapshot_.CanBeginOperation(); }
   uint8_t PendingCompartment() const override { return snapshot_.healthy ? snapshot_.pendingSlot : 0; }
   uint8_t ReadyMask() const override { return snapshot_.healthy ? snapshot_.readyMask : 0; }

@@ -12,6 +12,10 @@ struct AudioTestQueue {
  std::mutex gate;
  std::deque<std::vector<unsigned char>> frames;
 };
+inline unsigned uxQueueMessagesWaiting(QueueHandle_t handle) {
+ auto& queue = *static_cast<AudioTestQueue*>(handle);
+ std::lock_guard<std::mutex> lock(queue.gate); return static_cast<unsigned>(queue.frames.size());
+}
 inline QueueHandle_t xQueueCreate(unsigned capacity, size_t item) {
  static std::vector<std::unique_ptr<AudioTestQueue>> queues;
  auto queue = std::make_unique<AudioTestQueue>();

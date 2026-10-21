@@ -230,6 +230,7 @@ bool EvidenceStorageOwner::RecoverProvenCompletions() {
 bool EvidenceStorageOwner::CanCreateReference(uint64_t epoch, const std::string& id,
     uint8_t slot, uint64_t fingerprint, const Token& token) const {
   if (!epoch || epoch != journal_.CurrentEpoch() || !fingerprint || arbiter_.AdmissionsStopped()
+      || journal_.IsTechnicalTestOperation(epoch, id, slot, fingerprint)
       || !arbiter_.IsCurrent(token) || !journal_.IsEvidencePinned(epoch, id, slot, fingerprint)) return false;
   if (journal_.HasPresentationReservation(epoch, id, slot, fingerprint)) return true;
   JournalSnapshot snapshot;

@@ -49,6 +49,7 @@ void PhysicalEffects::Disable() {
 }
 
 void PhysicalEffects::Fault() {
+  io_.RequestUrgentStop();
   fault_ = true;
   Disable();
 }
@@ -56,8 +57,10 @@ void PhysicalEffects::Fault() {
 bool PhysicalEffects::RecoverAfterInspection() {
   if (!configured_ || !observed_ || active_)
     return false;
+  const auto inspectedStopEpoch = io_.StopEpoch();
   Disable();
   if (!io_.FullOff()) { fault_ = true; return false; }
+  if (!io_.ClearUrgentStopAfterInspection(inspectedStopEpoch)) { fault_ = true; return false; }
   // The local inspection confirms that all trays were manually put at rest.
   restingMask_ = 63;
   raisedMask_ = 0;

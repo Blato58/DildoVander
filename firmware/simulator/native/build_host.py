@@ -16,7 +16,8 @@ CORE = [
     "conversation/ConversationTextCodec", "conversation/ConversationStartCodec",
     "conversation/ConversationSession", "conversation/TurnOperationCodec",
     "voice_turn/RealtimeEventCodec", "voice_turn/RealtimeSessionEngine",
-    "voice_turn/VoiceWorkflow", "costume_photo/CostumePhoto",
+    "voice_turn/VoiceWorkflow", "voice_turn/DeviceMediaSession", "voice_turn/DeviceMediaCodec",
+    "voice_turn/BoundedPlaybackOwner", "voice_turn/BoundedVoicePlayback", "costume_photo/CostumePhoto",
     "physical_effects/PhysicalEffects", "physical_effects/PhysicalPresentation",
     "physical_effects/PresentationDiagnostics", "dance/DanceCoordinator",
 ]
@@ -30,7 +31,7 @@ def build(output, entry="main.cpp"):
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     sources = [FIRMWARE / "src/features" / (source + ".cpp") for source in CORE]
-    sources += [NATIVE / name for name in (entry, "VirtualHardware.cpp", "FileJournal.cpp", "BrowserMedia.cpp")]
+    sources += [NATIVE / name for name in (entry, "VirtualHardware.cpp", "FileJournal.cpp", "BrowserMedia.cpp", "NativeDeviceMediaSocket.cpp")]
     if msvc:
         flags = ["/nologo", "/std:c++14", "/utf-8", "/EHsc", "/W4", "/WX", "/wd4244",
                  "/I" + str(FIRMWARE / "src/features"), "/Fe:" + str(output)]

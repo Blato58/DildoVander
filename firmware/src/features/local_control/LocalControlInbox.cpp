@@ -24,6 +24,7 @@ bool LocalControlInbox::Open(
     return false;
   }
   handle_ = handle;
+  { std::lock_guard<std::mutex> urgent(urgentMutex_); urgentHandle_ = handle; }
   connectedAtMs_ = nowMs;
   connectedPending_ = true;
   return true;
@@ -45,6 +46,16 @@ void LocalControlInbox::EndRecovery() {
 bool LocalControlInbox::Submit(
     const LocalSocketAdmission::Handle& handle,
     const LocalControlMessage& message) {
+  if (message.kind == LocalControlMessageKind::Stop && message.deviceId == deviceId_ && message.bootId == bootId_) {
+    // The domain pass may be in a bounded physical bus transaction. This short
+    // separate gate is never held through that pass and linearizes only current
+    // socket identity plus the immediate OE latch. Ordinary Stop bookkeeping
+    // still runs on the sole control owner below.
+    std::lock_guard<std::mutex> urgent(urgentMutex_);
+    if (urgentStop_ && handle.socket == urgentHandle_.socket &&
+        handle.generation != 0 && handle.generation == urgentHandle_.generation)
+      urgentStop_(urgentContext_);
+  }
   std::lock_guard<std::mutex> lock(mutex_);
   if (!Matches(handle) || disconnectPending_ || message.deviceId != deviceId_ ||
       (message.kind != LocalControlMessageKind::Hello &&
@@ -73,6 +84,7 @@ void LocalControlInbox::Disconnect(
     const LocalSocketAdmission::Handle& handle) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (Matches(handle)) {
+    { std::lock_guard<std::mutex> urgent(urgentMutex_); urgentHandle_ = {}; }
     disconnectPending_ = true;
     ClearQueue();
   }
@@ -81,6 +93,7 @@ void LocalControlInbox::Disconnect(
 bool LocalControlInbox::Take(LocalControlEvent& event) {
   std::lock_guard<std::mutex> lock(mutex_);
   WipeText(event.message.text);
+  WipeText(event.message.testContext);
   event = {};
   if (handle_.socket < 0) {
     return false;
@@ -104,6 +117,7 @@ bool LocalControlInbox::Take(LocalControlEvent& event) {
     event.kind = LocalControlEventKind::Message;
     event.message = queue_[head_];
     WipeText(queue_[head_].text);
+    WipeText(queue_[head_].testContext);
     queue_[head_] = {};
     head_ = (head_ + 1) % QueueCapacity;
     --count_;
@@ -128,6 +142,7 @@ bool LocalControlInbox::CanProcess(
 void LocalControlInbox::ClearQueue() {
   for (LocalControlMessage& message : queue_) {
     WipeText(message.text);
+    WipeText(message.testContext);
     message = {};
   }
   head_ = 0;

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <functional>
+#include <cstdio>
 #include <string>
 #include <type_traits>
 
@@ -283,9 +284,112 @@ void TestLegacyAndUnavailableCannotReserve() {
   assert(!unavailable.HasPresentationReservation());
 }
 
+void UpdateCrc(std::array<uint8_t, Journal::RecordSize>& bytes) {
+  uint32_t crc = 0xffffffff;
+  for (size_t index = 0; index < bytes.size() - 4; ++index) {
+    crc ^= bytes[index];
+    for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  }
+  crc = ~crc;
+  for (unsigned byte = 0; byte < 4; ++byte) bytes[bytes.size() - 4 + byte] = static_cast<uint8_t>(crc >> (8 * byte));
+}
+void TestTechnicalMarkerFormatAndCompactedPins() {
+  Storage production, technical;
+  Journal productionJournal(production), technicalJournal(technical);
+  Provision(productionJournal); Provision(technicalJournal);
+  assert(productionJournal.ReservePresentation(1, FirstId, 2, Fingerprint));
+  assert(technicalJournal.ReserveTechnicalPresentation(1, FirstId, 2, Fingerprint));
+  assert(production.bytes[4] == 4 && technical.bytes[4] == 5);
+  auto expected = production.bytes;
+  expected[4] = 5; expected[118 + 37] |= 4; UpdateCrc(expected);
+  assert(expected == technical.bytes); // all existing v4 fields/bytes retain their positions
+  const auto committed = technical.bytes;
+  technical.bytes[118 + 37] ^= 4; // removing origin without updating CRC must never relabel a row
+  Journal corrupt(technical);
+  assert(!corrupt.IsHealthy());
+  technical.bytes = committed;
+  technical.bytes[4] = 4; UpdateCrc(technical.bytes);
+  Journal unsafeDowngrade(technical);
+  assert(!unsafeDowngrade.IsHealthy()); // v4 refuses the v5-only flag, even with a valid CRC
+  technical.bytes = committed;
+  assert(technicalJournal.BeginReservedPresentation(1, FirstId, 2, Fingerprint));
+  assert(technicalJournal.ResolveRestored(2));
+  assert(technicalJournal.ConfirmTimedPresentationScoped(1, FirstId, 2, Fingerprint));
+  for (unsigned ordinal = 1; ordinal != Journal::HistoryCapacity; ++ordinal) {
+    std::string id = SecondId;
+    const char* hex = "0123456789abcdef";
+    id[34] = hex[ordinal >> 4]; id[35] = hex[ordinal & 15];
+    assert(technicalJournal.ReservePresentation(1, id, 2, 100 + ordinal));
+    assert(technicalJournal.BeginReservedPresentation(1, id, 2, 100 + ordinal));
+    assert(technicalJournal.ResolveRestored(2));
+    assert(technicalJournal.ConfirmTimedPresentationScoped(1, id, 2, 100 + ordinal));
+  }
+  std::array<JournalHistoryEntry, Journal::HistoryCapacity> history{};
+  const size_t count = technicalJournal.HistoryCount();
+  assert(count == history.size());
+  for (size_t index = 0; index != count; ++index) assert(technicalJournal.ReadHistoryEntry(index, history[index]));
+  std::array<bool, Journal::HistoryCapacity> retained{};
+  retained[0] = retained[1] = true;
+  assert(history[0].technicalTest && !history[1].technicalTest);
+  auto forged = history; forged[0].technicalTest = false;
+  assert(!technicalJournal.CommitEvidenceReconciliation(1, forged, count, retained, true));
+  assert(technicalJournal.CommitEvidenceReconciliation(1, history, count, retained, true));
+  assert(technicalJournal.CurrentEpoch() == 2 && technical.bytes[4] == 5);
+  Journal reopened(technical);
+  assert(reopened.IsHealthy() && reopened.HistoryCount() == 2);
+  assert(reopened.IsTechnicalTestOperation(1, FirstId, 2, Fingerprint));
+  assert(reopened.WasTimedPresentationCompletedHistorical(1, FirstId, 2, Fingerprint));
+  assert(reopened.IsEvidencePinned(1, FirstId, 2, Fingerprint));
+  assert(!reopened.IsTechnicalTestOperation(2, FirstId, 2, Fingerprint));
+  assert(!reopened.IsTechnicalTestOperation(history[1].identity.epoch, history[1].identity.operationId,
+      history[1].identity.compartment, history[1].identity.fingerprint));
+  assert(!reopened.BeginReservedPresentation(1, FirstId, 2, Fingerprint));
+}
+
 }  // namespace
 
+void TestTechnicalOriginSurvivesAllPhysicalBoundaries() {
+  Storage storage;
+  Journal journal(storage);
+  Provision(journal);
+  assert(journal.ReserveTechnicalPresentation(1, FirstId, 2, Fingerprint));
+  assert(storage.bytes[4] == 5);
+  assert(journal.IsTechnicalTestOperation(1, UpperId, 2, Fingerprint));
+  assert(!journal.ReservePresentation(1, FirstId, 2, Fingerprint));
+  assert(journal.ReserveTechnicalPresentation(1, FirstId, 2, Fingerprint));
+  assert(journal.BeginReservedPresentation(1, FirstId, 2, Fingerprint));
+  Journal pending(storage);
+  assert(pending.HasPending() && pending.IsTechnicalTestOperation(1, FirstId, 2, Fingerprint));
+  assert(!pending.HasPresentationReservation());
+  assert(pending.ResolveRestored(2));
+  assert(pending.ConfirmTimedPresentationScoped(1, FirstId, 2, Fingerprint));
+  Journal complete(storage);
+  assert(complete.IsTechnicalTestOperation(1, FirstId, 2, Fingerprint));
+  assert(complete.WasTimedPresentationCompletedHistorical(1, FirstId, 2, Fingerprint));
+  JournalSnapshot snapshot;
+  assert(complete.ExportSnapshot(snapshot));
+  assert(JournalSnapshotView(snapshot).IsTechnicalTestOperation(1, FirstId, 2, Fingerprint));
+  assert(!complete.IsTechnicalTestOperation(1, FirstId, 3, Fingerprint));
+  assert(!complete.IsTechnicalTestOperation(2, FirstId, 2, Fingerprint));
+  assert(!complete.IsTechnicalTestOperation(1, FirstId, 2, Fingerprint + 1));
+  for (const auto cut : {Storage::Cut::Before, Storage::Cut::After}) {
+    Storage failing;
+    Journal original(failing);
+    Provision(original);
+    failing.cut = cut;
+    assert(!original.ReserveTechnicalPresentation(1, FirstId, 2, Fingerprint));
+    assert(!original.IsHealthy());
+    failing.cut = Storage::Cut::None;
+    Journal reopened(failing);
+    assert(reopened.IsHealthy() && !reopened.HasPresentationReservation());
+    assert(reopened.IsTechnicalTestOperation(1, FirstId, 2, Fingerprint) == (cut == Storage::Cut::After));
+    assert(!reopened.BeginReservedPresentation(1, FirstId, 2, Fingerprint));
+  }
+}
+
 int main() {
+  TestTechnicalMarkerFormatAndCompactedPins();
+  TestTechnicalOriginSurvivesAllPhysicalBoundaries();
   TestReserveThenConsumeAndProveOnlyAfterReturn();
   TestWrongFieldsAndIdempotentRetry();
   TestCancelAndRestartLeaveOnlyTombstone();

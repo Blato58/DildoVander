@@ -5,9 +5,30 @@ power interruption, acoustic measurement or real iPhone check has been run as
 part of this redesign. Execute only after separate authorization. Simulation
 and successful firmware builds do not satisfy these checks.
 
+## Prepared production artifact
+
+The local production rebuild on 21 October 2026 used source commit
+`1ae08ae31c6f0adfda43a4653db92687f9141e70` (tree
+`bc3b62ee5012617e92ee08c92b39725f675b6420`). Its compiled build ID was verified
+in the actual compilation database. Later documentation/CI-only commits do not
+change this artifact's identity.
+
+| Property | Recorded result |
+| --- | --- |
+| Environment / application version | `production` / local `0.1.1` |
+| Application image | `firmware.bin`, 2,123,968 bytes |
+| SHA-256 | `2a662e925221171a670bb2741c419dfb68dd27e11866114fd1501475cdc0521e` |
+| Static RAM / linked flash | 178,508 / 2,123,541 bytes |
+| Build result | Success, 254.13 seconds; ESP-IDF 6.1, pinned PlatformIO platform 7.1.3 |
+| Physical execution | **Unrun**; no flash, provisioning or bench activation |
+
+These are build observations, not peak activated heap/stack measurements. CI
+builds use their own version/run identity and must retain their own artifact
+digest; do not substitute this local digest for a different binary.
+
 ## Record the artifact and fixture
 
-- Pin the reviewed commit/tree and the production binary SHA-256, build/version,
+- Pin the source commit/tree and the production binary SHA-256, build/version,
   configuration and dependency versions. Use the production artifact, never a
   diagnostic image, for OTA. Keep diagnostic binaries separately identified.
 - Record board revision, actual flash/PSRAM configuration, hardware profile,
@@ -59,6 +80,12 @@ and successful firmware builds do not satisfy these checks.
 - Measure profile-B residual DMA/acoustic tail with the actual amplifier and
   speaker; software mute is not an instantaneous hardware mute. Verify camera
   capture and image consent without storing guest media in technical logs.
+- With a separately authorized isolated Lab ticket, verify capability admission,
+  the original session expiry and exact hashed-context Stop. A mismatched or
+  stale context must not stop unrelated work. Interrupt pending technical motion
+  and inspect recovery; it must remain technical and never enter the production
+  keepsake inventory. Do not record the ticket or execute a paid provider test
+  merely to complete this checklist.
 
 ## Measurements and result
 

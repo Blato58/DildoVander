@@ -261,12 +261,66 @@ void EspIdfKeepsakeNotifier::TaskEntry(void* context) {
   static_cast<EspIdfKeepsakeNotifier*>(context)->Run();
 }
 
+bool EspIdfKeepsakeNotifier::QueueTechnical(const KeepsakeOutcome& outcome) {
+  if (!sharedStorage_ || !Valid(outcome) || !outcome.operationEpoch || !outcome.physicalFingerprint) return false;
+  std::unique_lock<std::mutex> lock(technicalMutex_, std::try_to_lock);
+  if (!lock || technicalPending_.load()) return false;
+  technical_ = outcome;
+  technicalQueuedAt_ = NowMs();
+  technicalRetryAt_ = 0;
+  technicalPending_.store(true);
+  if (task_) xTaskNotifyGive(task_);
+  return true;
+}
+
+void EspIdfKeepsakeNotifier::ProcessTechnical(DeviceTokenSession& tokens) {
+  if (!technicalPending_.load() || !sharedStorage_) return;
+  KeepsakeOutcome outcome;
+  uint64_t queued = 0;
+  {
+    std::unique_lock<std::mutex> lock(technicalMutex_, std::try_to_lock);
+    if (!lock || !technicalPending_.load()) return;
+    outcome = technical_;
+    queued = technicalQueuedAt_;
+  }
+  const auto now = NowMs();
+  bool finished = now < queued || now - queued >= 180000;
+  if (!finished && (now < technicalRetryAt_ || !backendOnline_.load() || !station_.HasIp())) return;
+  if (!finished) {
+    JournalSnapshot snapshot;
+    if (!sharedStorage_->ReadJournalSnapshot(snapshot)) return;
+    JournalSnapshotView journal(snapshot);
+    if (!journal.IsTechnicalTestOperation(outcome.operationEpoch, outcome.physicalOperationId,
+            outcome.compartment, outcome.physicalFingerprint) ||
+        !journal.WasTimedPresentationCompletedHistorical(outcome.operationEpoch, outcome.physicalOperationId,
+            outcome.compartment, outcome.physicalFingerprint)) {
+      // No synthetic proof after reset, compaction or an uncertain completion.
+      finished = true;
+    } else if (tokens.EnsureToken(now)) {
+      Response response;
+      const int status = Post(station_.Settings().BackendHost(), "/v1/keepsakes/outcomes/" + outcome.operationId,
+          Body(outcome, false), outcome.outcomeId, tokens.AccessToken(NowMs()), response);
+      finished = status == 201 && keepsake_persistence::MatchesTechnicalOutcomeAcknowledgement(
+          response.bytes.data(), response.length, outcome);
+      if (status == 401) (void)tokens.HandleUnauthorized(NowMs());
+      if (status >= 400 && status < 500 && status != 401 && status != 429) finished = true;
+      technicalRetryAt_ = NowMs() + 1000;
+    }
+  }
+  if (finished) {
+    std::lock_guard<std::mutex> lock(technicalMutex_);
+    technical_ = {};
+    technicalPending_.store(false);
+  }
+}
+
 void EspIdfKeepsakeNotifier::Run() {
   if (bridge_) { RunShared(); return; }
   EspIdfTokenExchangeTransport transport(station_.Settings().BackendHost());
   DeviceTokenSession tokens(identity_, transport);
   uint64_t disabledUntilMs = 0;
   while (true) {
+    ProcessTechnical(tokens);
     // Notifications wake this persistence pass even while HTTP is backed off/disabled.
     const bool persisted = ProcessDeliveryAcknowledgements() && ProcessRetirements() && PersistCurrent();
     KeepsakeOutcome outcome;
@@ -318,6 +372,7 @@ void EspIdfKeepsakeNotifier::RunShared() {
   std::string retirementReason;
   uint64_t disabledUntilMs = 0, failedAtMs = 0;
   while (true) {
+    ProcessTechnical(tokens);
     bridge_->Pump();
     if (bridge_->IsPoisoned()) healthy_.store(false);
     if (action != Action::None) {

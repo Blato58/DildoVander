@@ -1,5 +1,7 @@
 #pragma once
 #include "voice_turn/RealtimeSessionEngine.h"
+#include "voice_turn/DeviceMediaSocketPort.h"
+#include "voice_turn/BoundedPlaybackOwner.h"
 #include "voice_turn/VoiceWorkflow.h"
 #include <condition_variable>
 #include <deque>
@@ -36,6 +38,8 @@ class BrowserMedia final : public VoiceAudioPort, public CostumeUploadPort {
   bool TakeInput(std::vector<uint8_t>& pcm) override;
   bool Play(const std::vector<uint8_t>& pcm) override;
   bool Drain() override;
+  bool DrainFenced(const BoundedPlaybackOwner::Fence& fence);
+  bool PlayFenced(const BoundedPlaybackOwner::Fence& fence, const uint8_t* pcm, size_t count);
   void Stop() override;
   bool CancelPlayback() override;
   bool Failed() const override { return failed_.load(); }
@@ -52,11 +56,15 @@ class BrowserMedia final : public VoiceAudioPort, public CostumeUploadPort {
   };
   struct Response { bool ready = false; int status = 0; std::string type; std::vector<uint8_t> bytes; };
   bool Current() const;
+  void SetDeviceListening(bool enabled);
+  bool TakeDeviceInput(std::vector<uint8_t>& pcm);
   bool TakeInputForEpoch(std::vector<uint8_t>& pcm, const RealtimeSessionEngine& engine, uint32_t engineEpoch);
   void Worker(VoiceWorkflowRequest request);
+  bool RunDeviceMedia(DeviceMediaSocketPort& socket, const std::string& body, const std::string& key,
+      const TurnCorrelation& correlation, const std::function<bool(const TurnOperationObservation&)>& completed);
   void Phase(const char* phase);
   bool Emit(const std::string& kind, const std::vector<uint8_t>& bytes = {}, bool drain = false,
-      const std::string& text = "");
+      const std::string& text = "", const BoundedPlaybackOwner::Fence* fence = nullptr);
   std::string HeaderLocked(const std::string& kind, size_t bytes, bool drain, const std::string& text);
   Response Request(const std::string& kind, const std::string& method, const std::string& path,
       const std::string& key, const std::string& headers, const char* contentType,
@@ -65,7 +73,7 @@ class BrowserMedia final : public VoiceAudioPort, public CostumeUploadPort {
   void ClearLocked();
   void QueueDeleteLocked();
   std::string device_, boot_, session_, conversation_, phase_ = "idle", endpoint_, photoKey_, lastRequestId_, photoWarning_, audioObservation_;
-  std::string lastPhase_;
+  std::string lastPhase_, mediaError_;
   uint64_t lastPhaseInputEpoch_ = 0, lastPhaseOutputEpoch_ = 0;
   bool lastPhaseListening_ = false;
   TurnCorrelation photoCorrelation_;

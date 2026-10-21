@@ -56,10 +56,12 @@
 #include "features/keepsake/EspIdfKeepsakeInventoryStorage.h"
 #include "features/show_cues/DeviceShowRuntime.h"
 
+#include "features/device_runtime/DeviceRuntime.h"
+#include "features/device_runtime/EspIdfControlServices.h"
+
 namespace {
 
 constexpr char LogTag[] = "kufr";
-constexpr uint32_t ControlLoopPeriodMs = 10;
 constexpr char CatalogVersion[] = "ollivander-private-party-v1";
 // All physical admission remains held until complete production-consumer crash
 // acceptance. The real storage worker and boot reconciliation are composed now.
@@ -97,32 +99,6 @@ struct InitialTlsSetup {
 
 // Logical reservations exclude new admission without holding any mutex through
 // a control pass, flash write or worker operation. Stop always keeps its turn.
-struct MaintenanceGate {
-  ControlMaintenanceGate ownership;
-  ControlMaintenanceGate::Ticket network, ota;
-  class PairingReservation final {
-   public:
-    explicit PairingReservation(MaintenanceGate& gate) : gate_(gate) {
-      acquired_ = gate_.ownership.Acquire(ControlMaintenanceGate::Owner::Pairing, ticket_);
-    }
-    ~PairingReservation() {
-      if (acquired_) gate_.ownership.Release(ControlMaintenanceGate::Owner::Pairing, ticket_);
-    }
-    bool Acquired() const { return acquired_; }
-   private:
-    MaintenanceGate& gate_;
-    ControlMaintenanceGate::Ticket ticket_;
-    bool acquired_ = false;
-  };
-  static bool AcquireNetwork(void* context) {
-    auto& gate = *static_cast<MaintenanceGate*>(context);
-    return gate.ownership.Acquire(ControlMaintenanceGate::Owner::Network, gate.network);
-  }
-  static void ReleaseNetwork(void* context) {
-    auto& gate = *static_cast<MaintenanceGate*>(context);
-    gate.ownership.Release(ControlMaintenanceGate::Owner::Network, gate.network);
-  }
-};
 
 struct BleStatusBridge {
   kufr::ota::EspIdfFirmwareUpdate& ota;
@@ -132,7 +108,7 @@ struct BleStatusBridge {
   LocalPairingCredential& pairing;
   EspIdfStationNetwork& station;
   const std::string& hostname;
-  MaintenanceGate& maintenance;
+  kufr::runtime::MaintenanceReservations& maintenance;
   LocalSocketAdmission& admission;
   LocalControlInbox& inbox;
   std::atomic<bool> policyCall{false};
@@ -215,7 +191,7 @@ struct BleStatusBridge {
 
   static const char* PairLocal(cJSON* response, void* context) {
     auto& bridge = *static_cast<BleStatusBridge*>(context);
-    MaintenanceGate::PairingReservation reservation(bridge.maintenance);
+    kufr::runtime::MaintenanceReservations::PairingReservation reservation(bridge.maintenance);
     if (!reservation.Acquired()) return "busy";
     const char* error = bridge.PairingPrerequisites(false);
     if (error != nullptr) { return error; }
@@ -238,7 +214,7 @@ struct BleStatusBridge {
 
   static const char* RecoverLocal(cJSON* response, void* context) {
     auto& bridge = *static_cast<BleStatusBridge*>(context);
-    MaintenanceGate::PairingReservation reservation(bridge.maintenance);
+    kufr::runtime::MaintenanceReservations::PairingReservation reservation(bridge.maintenance);
     if (!reservation.Acquired()) return "busy";
     const char* error = bridge.PairingPrerequisites(true);
     if (error != nullptr) { return error; }
@@ -380,7 +356,7 @@ extern "C" void app_main() {
   bootloader_random_disable();
   const esp_err_t nvsStatus = nvs_flash_init();
   const bool hardwareStarted = hardware.Initialize(nvsStatus == ESP_OK);
-  // Successful initialization includes an accepted dark LED frame. Failure
+  // Successful initialization queues a retained dark LED frame. Failure
   // leaves that driver state unknown rather than inventing a zero frame.
   observedHardware.ledKnown_ = hardwareStarted;
   std::array<ServoCalibration, 6> calibration{};
@@ -447,9 +423,9 @@ extern "C" void app_main() {
   controlRuntime.BindPresentation(presentation);
   controlRuntime.PublishCurrent();
   static ConversationSession conversation(bootId, conversationId);
-  static MaintenanceGate maintenance;
+  static kufr::runtime::MaintenanceReservations maintenance;
   static EspIdfStationNetwork station;
-  station.SetChangeGate({MaintenanceGate::AcquireNetwork, MaintenanceGate::ReleaseNetwork, &maintenance});
+  station.SetChangeGate({kufr::runtime::MaintenanceReservations::AcquireNetwork, kufr::runtime::MaintenanceReservations::ReleaseNetwork, &maintenance});
   const bool stationStarted = station.Start(nvsStatus == ESP_OK);
   static TwinTelemetryMailbox twinMailbox;
   static EspIdfTwinTelemetry twinNetwork(twinMailbox, identity, station, bootId);
@@ -478,6 +454,9 @@ extern "C" void app_main() {
   static LocalBearerAuthenticator authenticator(pairing);
   static LocalSocketAdmission admission(authenticator);
   static LocalControlInbox inbox(identity.DeviceId(), bootId);
+  inbox.BindUrgentStop([](void* context) {
+    static_cast<EspIdfPhysicalIo*>(context)->RequestUrgentStop();
+  }, &hardware);
   static BleStatusBridge bleBridge{
       firmwareUpdate, backendNetwork, identity, tlsIdentity, pairing, station, localHostname,
       maintenance, admission, inbox};
@@ -518,240 +497,47 @@ extern "C" void app_main() {
   owner.BindOffline(offline);
   static DeviceShowRuntime deviceShow(controlRuntime, runtimeState, presentationPort,
       offline, offlineAudio, backendNetwork.ShowCues(), bootId);
-  bool serverStarted = false;
-  uint64_t retryServerAtMs = 0;
-  bool advertisementStarted = false;
-  uint64_t retryAdvertisementAtMs = 0;
-  bool rawButton = false, button = false, gestureConsumed = false;
-  bool hardwareFaultHandled = false;
-  bool hardwareWasInspected = effects.Healthy();
-  uint8_t pendingButtonAction = 0; // 1: prepared offline scene; 2: explicit online voice.
-  uint64_t buttonChangedAt = 0, buttonPressedAt = 0;
-  bool lastTraceWasDance = false;
-  static DeviceControlRuntime::RecoveryHandle physicalRecovery;
-  PresentationIdentity<97> observedPresentationId;
-  uint32_t observedPresentationSequence = 0;
-  ESP_LOGI(LogTag, "ESP-IDF control loop started; physical outputs require verified service configuration");
-  static_assert(CONFIG_ESP_MAIN_TASK_STACK_SIZE >= 16384,
-                "TLS identity startup requires at least 16 KiB of main task stack");
-  ESP_LOGI(LogTag, "Main task stack: configured %u bytes, minimum remaining %u bytes",
-           static_cast<unsigned>(CONFIG_ESP_MAIN_TASK_STACK_SIZE),
-           static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
-  // Control preempts the storage/network owners; no source I/O runs here.
-  vTaskPrioritySet(nullptr, 6);
-
-  while (true) {
-    ControlMaintenanceGate::Ticket controlPass;
-    const bool ownsControlPass = maintenance.ownership.BeginControl(controlPass);
-    const auto maintenanceOwner = maintenance.ownership.HeldBy();
-    const bool otaHeld = maintenanceOwner == ControlMaintenanceGate::Owner::Ota;
-    const uint64_t nowMs = clock.NowMs();
-    TurnProposal pendingProposal;
-    const bool safeIdle = !deviceControl.HasManualControl() && !deviceControl.HasPendingSelection() &&
-        !controlRuntime.HasStorageWork() && !storageStartup.HasWork() && !selectionSequence.IsBusy() &&
-        !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
-        !backendNetwork.ReadPendingProposal(pendingProposal, nowMs);
-    // The whole-cycle deadline precedes physical output processing, even when
-    // per-phase calibration timeouts would still allow the sequence to run.
-    presentation.CheckDeadline(nowMs);
-    effects.Tick(nowMs);
-    const bool selfTestReady = kufr::ota::BootSelfTestReady(
-        nvsStatus == ESP_OK && storageStarted && storageStartup.ImageStorageHealthy() && stationStarted &&
-            (!kufr::offline::CompiledBank().complete || offlineAudio.Available()),
-        hardware.ProfileSelected(), calibrated, effects);
-    firmwareUpdate.Tick(nowMs, station.HasIp(), selfTestReady,
-        safeIdle && (ownsControlPass || otaHeld) && !sdAssets.Reserved());
-    sdAssets.Tick(safeIdle && (ownsControlPass || otaHeld) && !firmwareUpdate.Reserved());
-    const auto otaStatus = firmwareUpdate.Status();
-    // Boot verification freezes new interactions while permitting STA recovery.
-    const bool needsOtaReservation = sdAssets.Reserved() ||
-        (firmwareUpdate.Reserved() && otaStatus.state != "verifying-boot");
-    const bool maintaining = !storageStarted || !sharedStorage || !sharedStorage->AllowsAdmission() ||
-        controlRuntime.HasRecoveryWork() || !ownsControlPass ||
-        firmwareUpdate.Reserved() || sdAssets.Reserved();
-    const bool recoveryAdmission = ownsControlPass && storageStarted && !storageStartup.RequiresService() &&
-        !firmwareUpdate.Reserved() && !sdAssets.Reserved();
-    owner.SetMaintenance(maintaining);
-    owner.SetRecoveryAdmission(recoveryAdmission);
-    owner.SetDanceAdmission(safeIdle && !maintaining);
-    provisioning.Tick(nowMs, station.HasIp());
-    if (!serverStarted && ownsControlPass &&
-        nowMs >= retryServerAtMs &&
-        station.HasIp() &&
-        identity.IsHealthy() && identity.IsProvisioned() &&
-        tlsIdentity.IsHealthy() && tlsIdentity.IsProvisioned() &&
-        pairing.IsHealthy()) {
-      serverStarted = server.Start();
-      retryServerAtMs = nowMs + 5000;
-      if (serverStarted) {
-        ESP_LOGI(LogTag, "Provisioned local TLS control started; hardware stays gated");
-      }
-    }
-    if (serverStarted && !advertisementStarted && nowMs >= retryAdvertisementAtMs) {
-      advertisementStarted = advertisement.Start(identity.DeviceId());
-      retryAdvertisementAtMs = nowMs + 5000;
-    }
-    if (effects.Healthy()) { hardwareFaultHandled = false; hardwareWasInspected = true; }
-    if (calibrated && !effects.Healthy() && !hardwareFaultHandled) {
-      hardwareFaultHandled = true;
-      SelectionStep stopped;
-      dance.StopDance();
-      // Initial boot inspection is still required; it does not revoke a saved
-      // offline opt-in. A fault after inspection does revoke it like Stop.
-      if (hardwareWasInspected) offline.Stop();
-      controlRuntime.Stop(stopped);
-      backendNetwork.StopVoice();
-      steps.OnStep(stopped);
-    }
-    const bool sampleButton = effects.ButtonPressed();
-    if (sampleButton != rawButton) { rawButton = sampleButton; buttonChangedAt = nowMs; }
-    if (sampleButton != button && nowMs - buttonChangedAt >= 30) {
-      button = sampleButton;
-      if (button) {
-        buttonPressedAt = nowMs;
-        gestureConsumed = false;
-        const bool ambientWasActive = offline.AmbientActive();
-        if (ambientWasActive) offline.PrepareInteraction();
-        if (!ambientWasActive && (offline.Active() || controlRuntime.HasStorageWork() ||
-            controlRuntime.HasAutonomousPresentation() || controlRuntime.HasDecoration() || selectionSequence.IsBusy() || dance.Reserved())) {
-          pendingButtonAction = 0;
-          SelectionStep stopped;
-          dance.StopDance();
-          offline.Stop();
-          controlRuntime.Stop(stopped);
-          backendNetwork.StopVoice();
-          steps.OnStep(stopped);
-          gestureConsumed = true;
-        }
-      } else if (!gestureConsumed && !maintaining) {
-        pendingButtonAction = offline.Armed() ? 1 : controlRuntime.OfflineAuthority() ? 0 : 2;
-      }
-    }
-    // Cancellation is immediate; a newly accepted audio owner waits for the
-    // bounded previous player to quiesce so no old completion can mute it.
-    if (pendingButtonAction && !maintaining && offline.PrepareInteraction()) {
-      const uint8_t action = pendingButtonAction;
-      pendingButtonAction = 0;
-      if (action == 1) offline.StartNext(nowMs);
-      else {
-        const auto voice = backendNetwork.VoiceStatus();
-        if (voice.phase != "idle" && voice.phase != "unavailable") backendNetwork.StopVoice();
-        else {
-          ConversationRuntimeSnapshot snapshot;
-          if (runtimeState.Read(snapshot)) {
-            if (voice.mode == "off") backendNetwork.ConfigureVoice("gpt-live", "marin");
-            backendNetwork.StartVoice(GenerateEspIdfConversationUuid(), snapshot);
-          }
-        }
-      }
-    }
-    if (recoveryAdmission && button && !gestureConsumed && nowMs - buttonPressedAt >= 2000) {
-      gestureConsumed = true;
-      if (!selectionSequence.IsBusy() && !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !dance.Reserved() &&
-          effects.RecoverAfterInspection()) controlRuntime.BeginInspectedRecovery(physicalRecovery);
-    }
-    if (physicalRecovery.IsBound()) {
-      const auto progress = controlRuntime.PollInspectedRecovery(physicalRecovery);
-      if (progress != DeviceControlRuntime::RecoveryProgress::Pending)
-        controlRuntime.FinishInspectedRecovery(physicalRecovery);
-    }
-    server.Pump();
-    owner.Tick();
-    inbox.RunIfNoUrgent([&]() {
-      const uint64_t effectNowMs = clock.NowMs();
-      dance.Tick(effectNowMs);
-      controlRuntime.SetExternalActivity(dance.Reserved());
-      presentation.CheckDeadline(effectNowMs);
-      presentationPort.Tick(effectNowMs);
-      offline.SetVoice(backendNetwork.VoiceStatus().voice);
-      deviceShow.SetVoice(backendNetwork.VoiceStatus().voice);
-      deviceShow.Tick(effectNowMs, !maintaining && !dance.Reserved() &&
-          !deviceControl.HasManualControl(),
-          !conversation.HasActiveTurn() && !backendNetwork.IsConversationVoiceBusy());
-      if (deviceShow.TakeRemoteStop()) {
-        dance.StopDance();
-        backendNetwork.StopVoice();
-      }
-      offline.Tick(effectNowMs, !maintaining && !dance.Reserved() &&
-          !deviceControl.HasManualControl() && !conversation.HasActiveTurn() &&
-          !backendNetwork.IsVoiceBusy() && !deviceShow.Active() &&
-          (!backendNetwork.IsOnline() || controlRuntime.OfflineAuthority()));
-    });
-    owner.PumpReply(backendNetwork);
-    // Owner has applied urgent Stop/lease changes before any autonomous start.
-    inbox.RunIfNoUrgent([&]() {
-      if (!controlRuntime.OfflineAuthority() && !maintaining && !dance.Reserved() && !deviceControl.HasManualControl() && effects.Healthy())
-        backendNetwork.BeginPendingPresentation(presentation, clock.NowMs());
-    });
-    backendNetwork.FinishPresentation(presentation);
-    const auto& presentationTrace = presentationPort.Diagnostics();
-    if (std::strcmp(observedPresentationId.data(), presentationTrace.operationId.data()) != 0 ||
-        observedPresentationSequence != presentationTrace.lastSequence) {
-      observedPresentationId = presentationTrace.operationId;
-      observedPresentationSequence = presentationTrace.lastSequence;
-      lastTraceWasDance = false;
-    }
-    if (dance.Reserved()) lastTraceWasDance = true;
-    showTrace.Publish(lastTraceWasDance ? dance.Diagnostics() : presentationTrace, clock.NowMs());
-    static TwinTelemetrySnapshot twinSnapshot;
-    static uint64_t twinSequence = 0, twinPublishedAt = 0;
-    const uint64_t twinNow = clock.NowMs();
-    if (twinNow - twinPublishedAt >= 500) {
-      twinPublishedAt = twinNow;
-      twinSnapshot.trace = lastTraceWasDance ? dance.Diagnostics() : presentationTrace;
-      twinSnapshot.sequence = ++twinSequence;
-      twinSnapshot.timeMs = twinNow;
-      twinSnapshot.revision = deviceControl.Revision();
-      twinSnapshot.generation = controlRuntime.Generation();
-      twinSnapshot.calibration = effects.CalibrationRevision();
-      twinSnapshot.recovery = selectionSequence.NeedsRecovery() || !effects.Healthy() ||
-          (!controlRuntime.HasAutonomousPresentation() && deviceControl.NeedsRecovery());
-      twinSnapshot.readyMask = deviceControl.ReadyMask();
-      twinSnapshot.slot = presentation.Compartment();
-      switch (presentation.State()) {
-        case WandPresentationState::Idle:
-          twinSnapshot.state = dance.Reserved() ? "dance" : selectionSequence.IsBusy() ? "manual-selection" : "idle";
-          twinSnapshot.slot = selectionSequence.IsBusy() ? selectionSequence.SelectedCompartment() : 0;
-          break;
-        case WandPresentationState::Raising: twinSnapshot.state = "raising"; break;
-        case WandPresentationState::Showing: twinSnapshot.state = "showing"; break;
-        case WandPresentationState::Lowering: twinSnapshot.state = "lowering"; break;
-        case WandPresentationState::Completing: twinSnapshot.state = "lowering"; break;
-        case WandPresentationState::AwaitingAdmission: twinSnapshot.state = "idle"; break;
-        case WandPresentationState::Fault: twinSnapshot.state = "fault"; break;
-      }
-      twinSnapshot.pulse = observedHardware.pulse_;
-      twinSnapshot.led = observedHardware.led_;
-      twinSnapshot.ledKnown = observedHardware.ledKnown_;
-      twinSnapshot.enabled = observedHardware.enabled_;
-      twinSnapshot.vibrationMask = observedHardware.vibrationMask_;
-      twinSnapshot.audio = backendNetwork.IsVoiceBusy() ? "voice-busy-reported" : observedAudio.Status();
-      for (uint8_t slot = 1; slot <= 6; ++slot) {
-        twinSnapshot.estimate[slot - 1] = effects.IsResting(slot) ? 1 : effects.IsRaised(slot) ? 2 :
-            effects.Healthy() && observedHardware.enabled_ ? 3 : 0;
-      }
-      twinMailbox.Publish(twinSnapshot);
-    }
-    // Publish idle only after all admissions in this iteration have completed.
-    // An old pending journal record still requires inspection; it is not an
-    // active actuator and must not prevent offline-safe network/OTA recovery.
-    const bool completedSafeIdle = !deviceControl.HasManualControl() && !deviceControl.HasPendingSelection() &&
-        !controlRuntime.HasStorageWork() && !storageStartup.HasWork() && !selectionSequence.IsBusy() &&
-        !controlRuntime.HasAutonomousPresentation() && !controlRuntime.HasDecoration() && !conversation.HasActiveTurn() &&
-        !backendNetwork.IsVoiceBusy() && !dance.Reserved() && !offline.HasPendingStorage() && !offline.Active() &&
-        !backendNetwork.ReadPendingProposal(pendingProposal, clock.NowMs());
-    if (ownsControlPass) {
-      if (needsOtaReservation) {
-        // No idle publication window may admit STA/pairing between enqueueing
-        // an exclusive OTA/SD operation and transferring its reservation.
-        maintenance.ownership.TransferControl(controlPass, ControlMaintenanceGate::Owner::Ota, maintenance.ota);
-      } else {
-        maintenance.ownership.EndControl(controlPass, completedSafeIdle);
-      }
-    } else if (otaHeld && !needsOtaReservation) {
-      maintenance.ownership.Release(ControlMaintenanceGate::Owner::Ota, maintenance.ota);
-    }
-    vTaskDelay(pdMS_TO_TICKS(ControlLoopPeriodMs));
-  }
+  static kufr::runtime::EspIdfControlServices services(
+      server, advertisement, station, identity, tlsIdentity, pairing, maintenance);
+  static kufr::runtime::DeviceRuntime runtime({
+      hardware,
+      observedHardware,
+      effects,
+      selectionSequence,
+      deviceControl,
+      controlRuntime,
+      presentationPort,
+      presentation,
+      conversation,
+      runtimeState,
+      maintenance,
+      station,
+      backendNetwork,
+      firmwareUpdate,
+      sdAssets,
+      dance,
+      inbox,
+      provisioning,
+      owner,
+      offline,
+      deviceShow,
+      showTrace,
+      clock,
+      steps,
+      twinMailbox,
+      observedAudio,
+      storageStartup,
+      offlineAudio,
+      sharedStorage,
+      nvsStatus == ESP_OK,
+      storageStarted,
+      stationStarted,
+      calibrated,
+  });
+  services.BindDiagnostics(runtime.Diagnostics(), storageStartup, storageWorker,
+      hardware, firmwareUpdate, backendNetwork, calibrated, xTaskGetCurrentTaskHandle());
+  output.BindDiagnostics(services);
+  if (!services.Start()) ESP_LOGE(LogTag, "Local control service worker unavailable");
+  ESP_LOGI(LogTag, "ESP-IDF runtime started; physical outputs require verified service configuration");
+  runtime.Run();
 }

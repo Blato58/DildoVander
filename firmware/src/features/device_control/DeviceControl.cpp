@@ -558,9 +558,9 @@ bool DeviceControl::CanAdmitAutonomousPresentation(
 
 bool DeviceControl::ReserveAutonomousPresentation(
     const std::string& proposalId, uint8_t compartment,
-    uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch) {
+    uint64_t expectedRevision, uint64_t fingerprint, uint64_t operationEpoch, bool technicalTest) {
   return AdvanceAutonomousAdmission(AutonomousAdmissionKind::Reserve, proposalId,
-      compartment, expectedRevision, fingerprint, operationEpoch);
+      compartment, expectedRevision, fingerprint, operationEpoch, technicalTest);
 }
 
 bool DeviceControl::BeginAutonomousPresentation(
@@ -572,10 +572,11 @@ bool DeviceControl::BeginAutonomousPresentation(
 
 bool DeviceControl::AdvanceAutonomousAdmission(AutonomousAdmissionKind kind,
     const std::string& proposalId, uint8_t compartment, uint64_t expectedRevision,
-    uint64_t fingerprint, uint64_t operationEpoch) {
+    uint64_t fingerprint, uint64_t operationEpoch, bool technicalTest) {
   autonomousAdmissionProgress_ = AutonomousAdmissionProgress::Rejected;
   const bool retry = deferredAutonomousAdmission_.kind != AutonomousAdmissionKind::None;
   if (retry && (deferredAutonomousAdmission_.kind != kind ||
+      deferredAutonomousAdmission_.technicalTest != technicalTest ||
       !HasPendingAutonomousAdmission(proposalId, compartment, expectedRevision,
           fingerprint, operationEpoch))) return false;
   PollStorage();
@@ -598,9 +599,11 @@ bool DeviceControl::AdvanceAutonomousAdmission(AutonomousAdmissionKind kind,
     deferred.fingerprint = fingerprint;
     deferred.operationEpoch = operationEpoch;
     deferred.calibrationRevision = calibrationRevision_;
+    deferred.technicalTest = technicalTest;
   }
   const bool recorded = kind == AutonomousAdmissionKind::Reserve
-      ? journal_.ReservePresentation(operationEpoch, proposalId, compartment, fingerprint)
+      ? technicalTest ? journal_.ReserveTechnicalPresentation(operationEpoch, proposalId, compartment, fingerprint)
+                      : journal_.ReservePresentation(operationEpoch, proposalId, compartment, fingerprint)
       : operationEpoch == 0
           ? journal_.BeginWithIdentity(proposalId, compartment, fingerprint)
           : journal_.BeginReservedPresentation(operationEpoch, proposalId, compartment, fingerprint);

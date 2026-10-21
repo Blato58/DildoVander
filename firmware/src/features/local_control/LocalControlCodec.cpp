@@ -3,6 +3,7 @@
 #include "../conversation/ConversationSession.h"
 #include "../conversation/ConversationStartCodec.h"
 #include "../../protocol/JsonCursor.h"
+#include "../voice_turn/VoiceTestContext.h"
 
 namespace {
 
@@ -37,6 +38,9 @@ enum Field : uint32_t {
   Acknowledge = 1U << 23,
   OperationEpoch = 1U << 24,
   IncludeOperationEpoch = 1U << 25,
+  TestContext = 1U << 26,
+  TestContextId = 1U << 27,
+  IncludeDiagnostics = 1U << 28,
 };
 
 bool ReadSafeInteger(JsonCursor& cursor, uint64_t& value) {
@@ -271,6 +275,12 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
     } else if (key == "bootId") {
       field = BootId;
       valid = ReadUuid(cursor, message.bootId);
+    } else if (key == "testContext") {
+      field = TestContext;
+      valid = cursor.ReadString(message.testContext, 43) && ValidVoiceTestContext(message.testContext);
+    } else if (key == "testContextId") {
+      field = TestContextId;
+      valid = cursor.ReadString(message.testContextId, 64) && ValidVoiceTestContextId(message.testContextId);
     } else if (key == "controlLeaseId") {
       field = LeaseId;
       valid = ReadUuid(cursor, message.controlLeaseId);
@@ -337,6 +347,10 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
       field = IncludeOperationEpoch;
       valid = cursor.ReadTrue();
       message.includeOperationEpoch = true;
+    } else if (key == "includeDiagnostics") {
+      field = IncludeDiagnostics;
+      valid = cursor.ReadTrue();
+      message.includeDiagnostics = valid;
     } else if (key == "acknowledge") {
       field = Acknowledge;
       valid = cursor.ReadTrue();
@@ -355,7 +369,9 @@ bool Parse(JsonCursor& cursor, LocalControlMessage& message, size_t length) {
       message.kind == LocalControlMessageKind::Reset) {
     optionalFields |= Acknowledge;
   }
-  if (message.kind == LocalControlMessageKind::StateGet) optionalFields |= IncludeOperationEpoch;
+  if (message.kind == LocalControlMessageKind::StateGet) optionalFields |= IncludeOperationEpoch | IncludeDiagnostics;
+  if (message.kind == LocalControlMessageKind::VoiceStart) optionalFields |= TestContext;
+  if (message.kind == LocalControlMessageKind::VoiceStop) optionalFields |= TestContextId;
   if (message.kind == LocalControlMessageKind::Selection ||
       message.kind == LocalControlMessageKind::Reload ||
       message.kind == LocalControlMessageKind::OfflineStart ||

@@ -59,6 +59,11 @@ def main():
     compiler, env, msvc = compiler_environment()
     checks = [
         ("firmware_update_test", ["firmware_update/OtaManifest", "firmware_update/OtaPolicy"], []),
+        ("runtime_schedule_test", ["device_runtime/DeviceDiagnostics"], []),
+        ("runtime_schedule_output_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlCodec", "local_control/LocalControlOutput", "device_runtime/DeviceDiagnostics"], []),
+        ("physical_io_bound_test", ["physical_effects/EspIdfPhysicalIo", "physical_effects/PhysicalEffects"], ["tests/physical_io_bound_stubs"]),
+        ("conversation_start_codec_test", ["conversation/ConversationStartCodec"], []),
+        ("production_media_ports_test", ["voice_turn/RealtimeSessionEngine", "conversation/TurnPollGuard", "conversation/ConversationStartCodec"], []),
         ("espidf_firmware_update_test", ["firmware_update/OtaManifest", "firmware_update/OtaPolicy", "firmware_update/EspIdfFirmwareUpdate", "physical_effects/PhysicalEffects", "device_control/PersistentCommandJournal"], ["tests/ota_stubs"]),
         ("physical_effects_test", CORE, []),
         ("show_runtime_test", CORE + ["device_control/PersistentCommandJournal"], []),
@@ -90,7 +95,6 @@ def main():
         ("voice_workflow_test", ["voice_turn/VoiceWorkflow", "conversation/ConversationStartCodec"], []),
         ("realtime_session_engine_test", ["voice_turn/RealtimeSessionEngine", "conversation/TurnPollGuard"], []),
         ("async_realtime_session_engine_test", ["voice_turn/RealtimeSessionEngine", "conversation/TurnPollGuard", "voice_turn/BoundedPlaybackOwner", "voice_turn/BoundedVoicePlayback"], []),
-        ("espidf_realtime_transport_test", ["voice_turn/EspIdfRealtimeTransport", "voice_turn/RealtimeSessionEngine", "voice_turn/RealtimeEventCodec", "conversation/TurnOperationCodec", "conversation/TurnPollGuard", "conversation/ConversationStartCodec", "conversation/ConversationSession", "lib/device_configuration/NetworkSettings"], ["tests/realtime_stubs", "lib/device_configuration/include"]),
         ("bounded_playback_owner_test", ["voice_turn/BoundedPlaybackOwner"], []),
         ("bounded_voice_playback_test", ["voice_turn/BoundedPlaybackOwner", "voice_turn/BoundedVoicePlayback"], []),
         ("device_media_codec_test", ["voice_turn/DeviceMediaCodec", "conversation/ConversationStartCodec"], []),
@@ -106,7 +110,7 @@ def main():
         ("local_control_inbox_test", ["local_control/LocalControlInbox"], []),
         ("local_socket_admission_test", ["provisioning/LocalPairingCredential", "local_control/LocalBearerAuthenticator", "local_control/LocalSocketAdmission"], ["lib/device_configuration/include"]),
         ("local_control_codec_test", ["conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlCodec"], []),
-        ("local_control_output_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal", "conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlOutput"], []),
+        ("local_control_output_test", ["safety/SafetyController", "wand_selection/SelectionSequence", "device_control/DeviceControl", "device_control/PersistentCommandJournal", "conversation/ConversationSession", "conversation/ConversationStartCodec", "local_control/LocalControlOutput", "device_runtime/DeviceDiagnostics"], []),
         ("show_trace_replay", CORE, []),
     ]
     unknown_checks = set(args.only or ()) - {name for name, _, _ in checks}
@@ -138,6 +142,8 @@ def main():
             else:
                 flags = ["-std=c++14", "-Wall", "-Wextra", "-Werror", "-pthread", "-o", str(executable)]
                 flags += ["-I" + str(ROOT / include) for include in includes]
+            if name == "production_media_ports_test":
+                flags += ["/DESP_PLATFORM" if msvc else "-DESP_PLATFORM"]
             subprocess.run([compiler, *flags, *files], cwd=output, env=env, check=True)
             if name == "show_trace_replay":
                 for scenario in ("success", "stop"):

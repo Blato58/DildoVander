@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(FEATURES "${CMAKE_CURRENT_SOURCE_DIR}/../../src/features")
 add_executable(kufr-native-twin
-  main.cpp VirtualHardware.cpp FileJournal.cpp BrowserMedia.cpp
+  main.cpp VirtualHardware.cpp FileJournal.cpp BrowserMedia.cpp NativeDeviceMediaSocket.cpp
   ${FEATURES}/safety/SafetyController.cpp
   ${FEATURES}/wand_selection/SelectionSequence.cpp
   ${FEATURES}/device_control/DeviceControl.cpp
@@ -22,6 +22,10 @@ add_executable(kufr-native-twin
   ${FEATURES}/physical_effects/PhysicalPresentation.cpp
   ${FEATURES}/physical_effects/PresentationDiagnostics.cpp
   ${FEATURES}/dance/DanceCoordinator.cpp
+  ${FEATURES}/voice_turn/BoundedPlaybackOwner.cpp
+  ${FEATURES}/voice_turn/BoundedVoicePlayback.cpp
+  ${FEATURES}/voice_turn/DeviceMediaCodec.cpp
+  ${FEATURES}/voice_turn/DeviceMediaSession.cpp
   ${FEATURES}/voice_turn/RealtimeEventCodec.cpp
   ${FEATURES}/voice_turn/RealtimeSessionEngine.cpp
   ${FEATURES}/voice_turn/VoiceWorkflow.cpp

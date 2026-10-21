@@ -10,7 +10,8 @@ AsyncCommandJournal::AsyncCommandJournal(JournalStorageOwner& owner, JournalTran
 
 bool AsyncCommandJournal::Same(const Request& left, const Request& right) {
   return left.operation == right.operation && left.epoch == right.epoch && left.id == right.id &&
-      left.slot == right.slot && left.readyMask == right.readyMask && left.fingerprint == right.fingerprint;
+      left.slot == right.slot && left.readyMask == right.readyMask && left.fingerprint == right.fingerprint &&
+      left.technicalTest == right.technicalTest;
 }
 
 void AsyncCommandJournal::Adopt(const JournalStorageOwner::Completion& completion) {
@@ -67,10 +68,11 @@ bool AsyncCommandJournal::Apply(const Request& request, Purpose purpose) {
 }
 
 bool AsyncCommandJournal::Identified(JournalStorageOwner::Operation operation, Purpose purpose,
-    uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) {
+    uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint, bool technicalTest) {
   if (id.size() != 36) { lastState_ = StorageState::Rejected; return false; }
   Request request;
   request.operation = operation; request.epoch = epoch; request.slot = slot; request.fingerprint = fingerprint;
+  request.technicalTest = technicalTest;
   std::copy(id.begin(), id.end(), request.id.begin());
   return Apply(request, purpose);
 }
@@ -82,6 +84,9 @@ bool AsyncCommandJournal::BeginScoped(uint64_t epoch, const std::string& id, uin
 }
 bool AsyncCommandJournal::ReservePresentation(uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) {
   return Identified(JournalStorageOwner::Operation::Reserve, Purpose::Admission, epoch, id, slot, fingerprint);
+}
+bool AsyncCommandJournal::ReserveTechnicalPresentation(uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) {
+  return Identified(JournalStorageOwner::Operation::Reserve, Purpose::Admission, epoch, id, slot, fingerprint, true);
 }
 bool AsyncCommandJournal::BeginReservedPresentation(uint64_t epoch, const std::string& id, uint8_t slot, uint64_t fingerprint) {
   return Identified(JournalStorageOwner::Operation::BeginReserved, Purpose::Admission, epoch, id, slot, fingerprint);

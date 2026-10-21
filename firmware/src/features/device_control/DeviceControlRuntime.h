@@ -140,6 +140,7 @@ class DeviceControlRuntime final {
     uint64_t generation = 0, revision = 0, epoch = 0, snapshotVersion = 0;
     uint8_t slot = 0;
     bool offline = false;
+    bool technicalTest = false;
   } admission_;
   struct OfflinePreparation {
     bool active = false;

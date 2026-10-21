@@ -16,6 +16,7 @@ struct JournalHistoryEntry {
   JournalOperationIdentity identity;
   bool timedCompleted = false;
   bool evidencePinned = false;
+  bool technicalTest = false;
 };
 
 inline char JournalIdentityLower(char value) {

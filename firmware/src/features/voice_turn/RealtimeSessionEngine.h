@@ -20,12 +20,23 @@ class RealtimeSessionEngine final {
     VoiceControlPort& control;
     std::function<void(bool)> capture;
   };
+  // Synchronous per-batch compatibility belongs only to explicit host fixtures.
+  // ESP production requires AsyncPorts and never stores a legacy HTTP port.
+#if defined(ESP_PLATFORM)
+  RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive,
+      std::function<bool()> current, std::function<uint64_t()> now,
+      std::function<uint64_t()> utc, std::function<void(const char*)> phase,
+      PostPort post, const TurnCorrelation& opening,
+      const ConversationRuntimeSnapshot& snapshot,
+      std::function<bool(const TurnOperationObservation&)> completed) = delete;
+#else
   RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive,
       std::function<bool()> current, std::function<uint64_t()> now,
       std::function<uint64_t()> utc, std::function<void(const char*)> phase,
       PostPort post, const TurnCorrelation& opening,
       const ConversationRuntimeSnapshot& snapshot,
       std::function<bool(const TurnOperationObservation&)> completed);
+#endif
   RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive,
       std::function<bool()> current, std::function<uint64_t()> now,
       std::function<uint64_t()> utc, std::function<void(const char*)> phase,
@@ -47,8 +58,10 @@ class RealtimeSessionEngine final {
   void Stop();
   const std::string& Error() const { return error_; }
  private:
+#if !defined(ESP_PLATFORM)
   int Post(const std::string& path, const void* data, size_t size,
       const char* type, const std::string& inputId = "", unsigned sequence = 0);
+#endif
   enum class ActionKind { Pause, Checkpoint, Completed };
   struct Action {
     ActionKind kind = ActionKind::Pause;
@@ -65,13 +78,17 @@ class RealtimeSessionEngine final {
   void AbandonActions();
   void Capture(bool enabled);
   void PopAction();
+#if !defined(ESP_PLATFORM)
+  // Explicit host/fake compatibility; absent from the ESP production object.
   VoiceAudioPort& audio_;
+  std::string endpoint_, conversationId_;
+  PostPort post_;
+#endif
   bool gptLive_, segmentPlaying_ = false;
-  std::string endpoint_, conversationId_, streamId_, inputId_, operationId_, error_;
+  std::string streamId_, inputId_, operationId_, error_;
   std::function<bool()> current_;
   std::function<uint64_t()> now_, utc_;
   std::function<void(const char*)> phase_;
-  PostPort post_;
   TurnCorrelation expected_;
   ConversationRuntimeSnapshot snapshot_;
   std::function<bool(const TurnOperationObservation&)> completed_;

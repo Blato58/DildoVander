@@ -16,6 +16,7 @@ bool JournalStorageOwner::Same(const Token& left, const Token& right) {
 
 bool JournalStorageOwner::ValidRequest(const Request& request, Purpose purpose) {
   if ((request.readyMask & 0xc0) != 0 || request.id.back() != 0) return false;
+  if (request.technicalTest && request.operation != Operation::Reserve) return false;
   switch (request.operation) {
     case Operation::Begin:
     case Operation::Reserve:
@@ -76,7 +77,9 @@ bool JournalStorageOwner::Execute(const Request& request) {
       return request.epoch ? journal_.BeginScoped(request.epoch, id, request.slot, request.fingerprint)
           : journal_.BeginWithIdentity(id, request.slot, request.fingerprint);
     case Operation::Reserve:
-      return journal_.ReservePresentation(request.epoch, id, request.slot, request.fingerprint);
+      return request.technicalTest
+          ? journal_.ReserveTechnicalPresentation(request.epoch, id, request.slot, request.fingerprint)
+          : journal_.ReservePresentation(request.epoch, id, request.slot, request.fingerprint);
     case Operation::BeginReserved:
       return journal_.BeginReservedPresentation(request.epoch, id, request.slot, request.fingerprint);
     case Operation::Resolve: return journal_.Resolve(request.readyMask);

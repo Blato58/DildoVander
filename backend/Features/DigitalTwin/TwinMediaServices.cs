@@ -44,15 +44,21 @@ internal sealed partial class TwinMediaSessions
     {
         var request = reply.Service!;
         var bytes = reply.Attachment ?? [];
-        var streamAdmitted = false;
         try
         {
+            // A late private reply from a replaced native session cannot open
+            // a fresh conversation or socket under the successor actor.
+            if (request.Kind != "conversation-delete" && (reply.State is null
+                || reply.State.SessionId != actor.SessionId || reply.State.BootId != actor.BootId
+                || reply.State.Epoch != actor.State?.Epoch || actor.Cancelled)) { return; }
             if (!ValidService(actor, request, bytes))
             { await ResultAsync(actor, request.RequestId, 400, "application/json", []); return; }
+            if (request.Kind.StartsWith("media-socket-", StringComparison.Ordinal))
+            { await SocketServiceAsync(actor, request, bytes); return; }
             if (actor.Settings.Engine == "fake" && request.Kind.StartsWith("realtime-", StringComparison.Ordinal))
             { await FakeServiceAsync(actor, request, bytes); return; }
             using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(actor.Lifetime.Token);
-            lifetime.CancelAfter(request.Kind == "realtime-start" ? TimeSpan.FromMinutes(8) : TimeSpan.FromSeconds(4));
+            lifetime.CancelAfter(TimeSpan.FromSeconds(4));
             using var message = new HttpRequestMessage(new HttpMethod(request.Method), request.Path.TrimStart('/'));
             if (request.Method == "POST")
             {
@@ -62,36 +68,18 @@ internal sealed partial class TwinMediaSessions
             if (!string.IsNullOrEmpty(request.IdempotencyKey)) { message.Headers.Add("Idempotency-Key", request.IdempotencyKey); }
             foreach (var header in request.Headers) { message.Headers.Add(header.Key, header.Value); }
             using var response = await actor.Http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, lifetime.Token);
-            if (request.Kind == "realtime-start" && response.IsSuccessStatusCode
-                && response.Content.Headers.ContentType?.MediaType == "application/x-ndjson")
-            {
-                streamAdmitted = true;
-                await ResultAsync(actor, request.RequestId, (int)response.StatusCode, "application/x-ndjson", []);
-                await StreamEventsAsync(actor, response, lifetime.Token);
-                return;
-            }
             var body = await ReadBoundedAsync(await response.Content.ReadAsStreamAsync(lifetime.Token), 65536, lifetime.Token);
             if (response.IsSuccessStatusCode) { BindResponse(actor, request, body); }
             await ResultAsync(actor, request.RequestId, (int)response.StatusCode, "application/json", body);
             Array.Clear(body);
         }
         catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or JsonException or OperationCanceledException
-            or InvalidOperationException or TimeoutException or FormatException)
+            or InvalidOperationException or TimeoutException or FormatException or System.Net.WebSockets.WebSocketException)
         {
             if (!actor.Cancelled)
             {
-                if (streamAdmitted)
-                {
-                    // The initial 200 was already handed to native. Its request
-                    // ID cannot receive a second result; retire this stream now.
-                    InvalidateActor(actor, "media_stream_failed");
-                    await CleanupActorAsync(actor);
-                }
-                else
-                {
-                    try { await ResultAsync(actor, request.RequestId, 503, "application/json", []); }
-                    catch (TimeoutException) { }
-                }
+                try { await ResultAsync(actor, request.RequestId, 503, "application/json", []); }
+                catch (TimeoutException) { }
             }
         }
         finally { Array.Clear(bytes); }
@@ -123,8 +111,17 @@ internal sealed partial class TwinMediaSessions
         {
             "conversation-delete" => request.Method == "DELETE" && request.Path == prefix && bytes.Length == 0,
             "image-upload" => request.Method == "POST" && request.Path == prefix + "/image" && bytes.Length is > 0 and <= 262144 && request.ContentType == "image/jpeg",
-            "realtime-start" => request.Method == "POST" && request.Path == prefix + (actor.Settings.Engine == "gpt-live" ? "/gpt-live" : "/realtime-live") && bytes.Length <= 4096 && request.ContentType == "application/json",
-            "realtime-input" or "realtime-played" or "realtime-playback" => request.Method == "POST" && actor.StreamId is not null
+            "media-socket-open" => request.Method == "POST" && request.Path == prefix + "/device-media"
+                && bytes.Length == 0 && request.Headers.Count == 0 && request.ContentType == "application/json"
+                && request.IdempotencyKey.Length > 0,
+            "media-socket-send" => request.Method == "POST" && request.Path == prefix + "/device-media"
+                && bytes.Length is > 0 and <= 8184 && request.Headers.Count == 0 && request.IdempotencyKey.Length == 0
+                && request.ContentType is "application/json" or "application/octet-stream",
+            "media-socket-receive" or "media-socket-close" => request.Method == "POST"
+                && request.Path == prefix + "/device-media" && bytes.Length == 0 && request.Headers.Count == 0
+                && request.IdempotencyKey.Length == 0 && request.ContentType == "application/json",
+            "realtime-start" => actor.Settings.Engine == "fake" && request.Method == "POST" && request.Path == prefix + (actor.Settings.Engine == "gpt-live" ? "/gpt-live" : "/realtime-live") && bytes.Length <= 4096 && request.ContentType == "application/json",
+            "realtime-input" or "realtime-played" or "realtime-playback" => actor.Settings.Engine == "fake" && request.Method == "POST" && actor.StreamId is not null
                 && request.Path == prefix + (actor.Settings.Engine == "gpt-live" ? "/gpt-live/" : "/realtime-live/") + actor.StreamId
                     + (request.Kind == "realtime-input" ? "/audio" : request.Kind == "realtime-played" ? "/played" : "/playback")
                 && bytes.Length <= 32768 && (request.Kind != "realtime-input" || bytes.Length > 0 && bytes.Length % 2 == 0),

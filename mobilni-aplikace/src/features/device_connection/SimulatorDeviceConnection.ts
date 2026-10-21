@@ -5,6 +5,7 @@ import { LocalConversationClient, type ConversationDeviceState } from './LocalCo
 
 interface ProtocolSnapshot extends ConversationDeviceState {
   type: 'state.snapshot';
+  diagnostics?: Record<string, unknown>;
   operationEpoch?: string;
   voice?: VoiceSettings;
   dance?: DanceSettings;
@@ -838,6 +839,10 @@ export class ProtocolDeviceConnection {
       return false;
     }
     const snapshot = value as Partial<ProtocolSnapshot>;
+    // The native transport applies the shared strict schema before this owner.
+    // The development adapter retains its existing structural snapshot checks.
+    if (snapshot.diagnostics !== undefined && (typeof snapshot.diagnostics !== 'object' ||
+        snapshot.diagnostics === null || Array.isArray(snapshot.diagnostics))) return false;
     return (snapshot.operationEpoch === undefined || validOperationEpoch(snapshot.operationEpoch)) &&
       snapshot.type === 'state.snapshot' &&
       typeof snapshot.deviceId === 'string' &&
@@ -858,6 +863,8 @@ export class ProtocolDeviceConnection {
     const sent = this.send({ type, messageId, ...fields,
       ...(type === 'state.get' && this.device?.capabilities?.includes('operationEpoch')
         ? { includeOperationEpoch: true } : {}),
+      ...(type === 'state.get' && this.device?.capabilities?.includes('runtimeDiagnostics')
+        ? { includeDiagnostics: true } : {}),
     });
     if (sent && type === 'heartbeat') {
       this.requests.set(messageId, performance.now());

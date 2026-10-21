@@ -55,7 +55,12 @@ export function parseStrictJson(bytes, maximumBytes = Infinity) {
 export function createControlValidator(validateSchema) {
   return function validateControlMessage(bytes) {
     const message = parseStrictJson(bytes, maximumConversationTextBytes);
-    if (bytes.length > maximumControlMessageBytes &&
+    const diagnosticSnapshot = message.type === 'state.snapshot' &&
+      Object.prototype.hasOwnProperty.call(message, 'diagnostics');
+    if (diagnosticSnapshot && bytes.length > 4096) {
+      throw new Error('message exceeds 4096 UTF-8 bytes');
+    }
+    if (bytes.length > maximumControlMessageBytes && !diagnosticSnapshot &&
         message.type !== 'conversation.text' &&
         message.type !== 'conversation.result' && message.type !== 'offline.outbox') {
       throw new Error(`message exceeds ${maximumControlMessageBytes} UTF-8 bytes`);

@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -44,6 +45,8 @@ int shutdowns = 0;
 httpd_ws_type_t lastSentType = HTTPD_WS_TYPE_TEXT;
 std::map<int, httpd_req_t*> sessions;
 std::deque<std::pair<httpd_work_fn_t, void*>> work;
+EspIdfLocalControlServer* serviceServer = nullptr;
+std::function<void()> queueHook;
 
 class Trace final : public ShowTraceReadPort {
  public:
@@ -52,11 +55,13 @@ class Trace final : public ShowTraceReadPort {
   std::string json = "{\"schemaVersion\":1}";
 };
 
-void DrainWork() {
+void DrainWork(bool pump = true) {
+  if (pump && serviceServer) serviceServer->Pump();
   while (!work.empty()) {
     auto item = work.front();
     work.pop_front();
     item.first(item.second);
+    if (pump && serviceServer) serviceServer->Pump();
   }
 }
 
@@ -155,7 +160,7 @@ esp_err_t httpd_ssl_start(httpd_handle_t* handle,
   return ESP_OK;
 }
 esp_err_t httpd_ssl_stop(httpd_handle_t) {
-  DrainWork();
+  DrainWork(false);
   while (!sessions.empty()) {
     Drop(*sessions.begin()->second);
   }
@@ -249,6 +254,7 @@ esp_err_t httpd_queue_work(httpd_handle_t, httpd_work_fn_t callback,
   if (failQueue) {
     return ESP_FAIL;
   }
+  if (queueHook) queueHook();
   work.emplace_back(callback, context);
   return ESP_OK;
 }
@@ -278,6 +284,7 @@ int main(int argc, char** argv) {
   LocalSocketAdmission admission(authenticator);
   LocalControlInbox inbox("kufr-001", "c85743d5-1b72-41b8-8500-ae3c102b27d6");
   EspIdfLocalControlServer server(identity, credential, admission, inbox);
+  serviceServer = &server;
   assert(!server.Start());
   const char certificate[] = "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n";
   const char key[] = "-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----\n";
@@ -475,12 +482,21 @@ int main(int argc, char** argv) {
   assert(!inbox.Take(event));
   const int beforeSend = sends;
   assert(server.Send(first, "{}"));
+  assert(work.empty()); // Control enqueues without entering the SDK work queue.
+  queueHook = [&]() {
+    // Model SDK queue admission calling back while blocked. Neither the RAM
+    // output mutex nor a recursive queue call may be held by the service pump.
+    assert(server.Send(first, "{}"));
+  };
+  server.Pump();
+  queueHook = nullptr;
   assert(work.size() == 1);
   DrainWork();
-  assert(sends == beforeSend + 1);
+  assert(sends == beforeSend + 2);
   failQueue = true;
   for (size_t index = 0; index < EspIdfLocalControlServer::OutputCapacity; ++index) {
     assert(server.Send(first, "{}"));
+    server.Pump();
   }
   assert(!server.Send(first, "{}"));
   assert(inbox.Take(event) && event.kind == LocalControlEventKind::Disconnected);

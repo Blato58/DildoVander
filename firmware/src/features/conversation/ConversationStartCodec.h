@@ -14,6 +14,8 @@ struct ConversationStartRequest {
   bool audioConsent = false;
   bool imageConsent = false;
   uint64_t operationEpoch = 0;
+  // RAM-only; never copied into an operation journal or diagnostic event.
+  std::string testContext;
 };
 
 struct ConversationStartResponse {

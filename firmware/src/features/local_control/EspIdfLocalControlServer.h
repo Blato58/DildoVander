@@ -12,7 +12,8 @@ class LocalPairingCredential;
 class LocalControlInbox;
 class ShowTraceReadPort;
 
-// Start/Stop/Pump belong to the control owner. Callbacks only validate/enqueue;
+// Start/Stop/Pump belong to the service worker. Control Send/Close only enqueue.
+// Callbacks only validate/enqueue;
 // they never invoke the control runtime or any actuator port.
 class EspIdfLocalControlServer final : public LocalControlTransport {
  public:
@@ -57,6 +58,7 @@ class EspIdfLocalControlServer final : public LocalControlTransport {
   bool MatchesSession(const LocalSocketAdmission::Handle& handle) const;
   void CloseOnServer(const LocalSocketAdmission::Handle& handle);
   void ClearOutput();
+  void StopLocked();
 
   LocalTlsIdentity& identity_;
   LocalPairingCredential& credential_;
@@ -65,9 +67,12 @@ class EspIdfLocalControlServer final : public LocalControlTransport {
   ShowTraceReadPort* showTrace_ = nullptr;
   httpd_handle_t server_ = nullptr;
   std::mutex mutex_;
+  // Worker-only lifetime fence. Never acquired by control Send/Close or Work.
+  std::mutex lifecycleMutex_;
   std::array<Output, OutputCapacity> output_;
   size_t head_ = 0;
   size_t count_ = 0;
   bool workScheduled_ = false;
+  bool stopping_ = false;
   LocalSocketAdmission::Handle closing_;
 };

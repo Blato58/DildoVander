@@ -245,6 +245,7 @@ void LocalControlOwner::Disconnect() {
   handle_ = {};
   hello_ = false;
   includeOperationEpoch_ = false;
+  includeDiagnostics_ = false;
 }
 
 void LocalControlOwner::Close() {
@@ -261,7 +262,7 @@ bool LocalControlOwner::SameHandle(
 
 void LocalControlOwner::Snapshot(uint64_t nowMs) {
   if (session_ && hello_) {
-    if (!output_.ScopedSnapshot(handle_, session_->LeaseId(), nowMs, includeOperationEpoch_)) {
+    if (!output_.ScopedSnapshot(handle_, session_->LeaseId(), nowMs, includeOperationEpoch_, includeDiagnostics_)) {
       Close();
     } else {
       lastSnapshotAtMs_ = nowMs;
@@ -364,6 +365,7 @@ void LocalControlOwner::Handle(
       return;
     case LocalControlMessageKind::StateGet:
       includeOperationEpoch_ = includeOperationEpoch_ || message.includeOperationEpoch;
+      includeDiagnostics_ = includeDiagnostics_ || message.includeDiagnostics;
       Snapshot(nowMs);
       return;
     case LocalControlMessageKind::Acquire: {
@@ -416,14 +418,26 @@ void LocalControlOwner::Handle(
           (!runtime_.OfflineAuthority() || (offline_ && offline_->Leave()));
       const bool ready = online && voice_ && session_->LeaseId().empty() && runtimeState_.Read(snapshot) &&
                          snapshot.deviceRevision == message.expectedRevision;
-      const bool started = ready && voice_->StartVoiceWithImageConsent(message.messageId, snapshot, message.imageConsent);
+      const bool started = ready && voice_->StartVoiceWithTestContext(message.messageId, snapshot,
+          message.imageConsent, message.testContext);
       accepted = output_.VoiceAck(handle_, message, started);
       break;
     }
-    case LocalControlMessageKind::VoiceStop:
-      if (voice_ && !dancing) voice_->StopVoice();
-      accepted = output_.VoiceAck(handle_, message, voice_ != nullptr && !dancing);
+    case LocalControlMessageKind::VoiceStop: {
+      bool stopped = voice_ != nullptr && !dancing;
+      if (stopped && !message.testContextId.empty())
+        stopped = voice_->StopVoiceForTestContext(message.testContextId);
+      else if (stopped) voice_->StopVoice();
+      if (stopped && !message.testContextId.empty()) {
+        // Success is bound to the active Lab before revoking its physical
+        // admission. A mismatched ticket never reaches this global domain gate.
+        SelectionStep step;
+        runtime_.Stop(step);
+        steps_.OnStep(step);
+      }
+      accepted = output_.VoiceAck(handle_, message, stopped);
       break;
+    }
     case LocalControlMessageKind::DanceStart: {
       ConversationRuntimeSnapshot snapshot;
       const auto voice = voice_ ? voice_->VoiceStatus() : LocalVoiceStatus{};

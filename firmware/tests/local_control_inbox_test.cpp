@@ -2,10 +2,41 @@
 #include <chrono>
 #include <future>
 #include <thread>
+#include <atomic>
 
 #include "../src/features/local_control/LocalControlInbox.h"
 
 int main() {
+  {
+    LocalControlInbox urgent("kufr-001", "boot");
+    struct Signal { std::atomic<unsigned> calls{0}; std::promise<void> first; } signal;
+    auto firstStop = signal.first.get_future();
+    urgent.BindUrgentStop([](void* context) {
+      auto& value = *static_cast<Signal*>(context);
+      if (value.calls.fetch_add(1) == 0) value.first.set_value();
+    }, &signal);
+    LocalSocketAdmission::Handle current{10, 99};
+    assert(urgent.Open(current, 0));
+    LocalControlMessage stop;
+    stop.kind = LocalControlMessageKind::Stop;
+    stop.deviceId = "kufr-001"; stop.bootId = "boot";
+    assert(!urgent.Submit({10, 98}, stop) && signal.calls.load() == 0);
+    auto wrong = stop; wrong.bootId = "stale";
+    assert(!urgent.Submit(current, wrong) && signal.calls.load() == 0);
+    // The direct OE callback executes even while domain work owns the inbox
+    // pass lock; the ordinary Stop entry is queued after that pass releases it.
+    std::promise<void> entered, release;
+    auto released = release.get_future();
+    std::thread pass([&] { urgent.RunIfCurrent(current, [&] { entered.set_value(); released.wait(); }); });
+    entered.get_future().wait();
+    auto submit = std::async(std::launch::async, [&] { return urgent.Submit(current, stop); });
+    // Callback and return are separate frontiers. Read its synchronized signal.
+    const bool immediate = firstStop.wait_for(std::chrono::seconds(1)) == std::future_status::ready;
+    release.set_value(); pass.join();
+    assert(submit.get() && immediate && signal.calls.load() == 1);
+    urgent.Disconnect(current);
+    assert(!urgent.Submit(current, stop) && signal.calls.load() == 1);
+  }
   LocalControlInbox inbox("kufr-001", "boot");
   const LocalSocketAdmission::Handle first{7, 1};
   const LocalSocketAdmission::Handle reused{7, 2};

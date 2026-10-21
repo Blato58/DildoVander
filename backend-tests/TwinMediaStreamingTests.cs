@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.WebSockets;
+using Kufr.Backend.Features.DeviceMedia;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -15,21 +17,32 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-// A loopback NDJSON fixture exercises the production HTTP/native bridge. It
+// A loopback WebSocket fixture exercises the production device-media/native bridge. It
 // supplies protocol data only; no provider, dialogue or physical engine runs here.
 internal static class TwinMediaStreamingTests
 {
-    private enum StreamFault { None, Truncated, MissingType, MissingStreamId, StaleGeneration }
+    private enum StreamFault
+    {
+        None, Truncated, MissingType, MissingStreamId, StaleGeneration,
+        SeededJitter, AbruptLoss, DuplicateFrame, OutOfOrderFrame, FullQueue, StallStopRestart
+    }
     internal static async Task RunAsync(string native)
     {
         await CleanupRetryAsync();
         await RunCaseAsync(native, StreamFault.None);
+        await RunCaseAsync(native, StreamFault.None, gptLive: false);
         await RunCaseAsync(native, StreamFault.Truncated);
         await RunCaseAsync(native, StreamFault.MissingType);
         await RunCaseAsync(native, StreamFault.MissingStreamId);
         await RunCaseAsync(native, StreamFault.StaleGeneration);
         await RunCaseAsync(native, StreamFault.StaleGeneration, gptLive: false);
-        Console.WriteLine("PASS Twin HTTP streaming/native: burst backpressure, exact PCM/drain and malformed-stream bounded cleanup");
+        foreach (var engine in new[] { true, false })
+        {
+            foreach (var fault in new[] { StreamFault.SeededJitter, StreamFault.AbruptLoss,
+                StreamFault.DuplicateFrame, StreamFault.OutOfOrderFrame, StreamFault.FullQueue, StreamFault.StallStopRestart })
+            { await RunCaseAsync(native, fault, engine); }
+        }
+        Console.WriteLine("PASS Twin WS streaming/native: paced bounded PCM/drain and malformed-stream cleanup");
     }
 
     private static async Task CleanupRetryAsync()
@@ -62,7 +75,7 @@ internal static class TwinMediaStreamingTests
 
     private static async Task RunCaseAsync(string native, StreamFault fault, bool gptLive = true)
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var cancellation = deadline.Token;
         var root = Path.Combine(Path.GetTempPath(), "twin-stream-http-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -126,11 +139,17 @@ internal static class TwinMediaStreamingTests
                 audioConsent = true, photoConsent = false, micAvailable = true, speakerAvailable = true, cameraAvailable = false
             });
             Check(start.IsSuccessStatusCode, "HTTP streaming media admission");
-            await fixture.StreamStarted.Task.WaitAsync(cancellation);
-            if (fault is not (StreamFault.None or StreamFault.StaleGeneration))
+            try { await fixture.StreamStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellation); }
+            catch (TimeoutException) { throw new InvalidOperationException("WSS fixture not reached: " + (await StateAsync()).ToString()); }
+            if (fault == StreamFault.StallStopRestart)
+            {
+                await VerifyStallRestartAsync();
+                return;
+            }
+            if (fault is not (StreamFault.None or StreamFault.StaleGeneration or StreamFault.SeededJitter))
             {
                 JsonElement state;
-                var invalidationDeadline = DateTimeOffset.UtcNow.AddSeconds(4);
+                var invalidationDeadline = DateTimeOffset.UtcNow.AddSeconds(fault == StreamFault.FullQueue ? 20 : 4);
                 do
                 {
                     await Task.Delay(10, cancellation); state = await StateAsync();
@@ -138,7 +157,7 @@ internal static class TwinMediaStreamingTests
                         $"{fault} stream stayed active: phase={state.GetProperty("phase")}, deletes={fixture.DeleteCount}");
                 }
                 while (state.GetProperty("active").GetBoolean());
-                Check(state.TryGetProperty("error", out var error) && error.GetString() == "media_stream_failed",
+                Check(state.TryGetProperty("error", out var error) && !string.IsNullOrEmpty(error.GetString()),
                     $"post-admission {fault} stream invalidates actor");
                 var until = DateTimeOffset.UtcNow.AddSeconds(1);
                 while (DateTimeOffset.UtcNow < until)
@@ -150,15 +169,25 @@ internal static class TwinMediaStreamingTests
                     Check(snapshot.IsSuccessStatusCode, "failed stream observer remains available");
                     await Task.Delay(20, cancellation);
                 }
+                Check(fixture.Connections == 1, "terminal socket failure never reconnects automatically");
+                if (fault == StreamFault.FullQueue)
+                {
+                    Check(fixture.SentFrames > 16 && !string.IsNullOrEmpty(state.GetProperty("error").GetString()),
+                        "full bounded playback pipeline fails explicitly: " + state.ToString());
+                    var stopAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                    using var stopped = await SendAsync(HttpMethod.Post, "/commands", new { action = "stop" });
+                    Check(stopped.IsSuccessStatusCode && System.Diagnostics.Stopwatch.GetElapsedTime(stopAt) < TimeSpan.FromSeconds(1),
+                        "Stop stays independent after full playback queue");
+                }
                 Check(fixture.DeleteCount is >= 1 and <= 2, "cleanup bounded to native and HTTP actor DELETE");
                 Check(store.Read(instance)!.Snapshot.Reported.Slot == 0, $"{fault} stream has no physical proposal");
-                Console.WriteLine($"PASS Twin HTTP {fault} stream: inactive actor and bounded DELETE cleanup");
+                Console.WriteLine($"PASS Twin WS {fault} stream: inactive actor and bounded DELETE cleanup");
                 return;
             }
 
-            // Deliberately hold the browser HAL while the real upstream stream
-            // fills 32 coalesced PCM slots and eight pending native events.
-            await Task.Delay(TimeSpan.FromSeconds(5), cancellation);
+            // Briefly hold the browser HAL, then consume through the real
+            // bounded playback owner while the fixture streams binary frames.
+            await Task.Delay(TimeSpan.FromMilliseconds(200), cancellation);
             using var received = new MemoryStream();
             ulong lastSequence = 0;
             var completed = false;
@@ -209,14 +238,94 @@ internal static class TwinMediaStreamingTests
                 else if (kind == "failed") { throw new InvalidOperationException("Burst unexpectedly failed native workflow."); }
                 else if (kind == "completed") { completed = true; }
             }
-            Check(drained && dialogue && pcmFrames < 260 && fixture.PlayedCount == 1, "completed stream used coalescing and genuine software playback ACK");
+            Check(drained && dialogue && pcmFrames is > 0 and <= Upstream.FrameCount * 2 && fixture.PlayedCount == 1, $"completed stream preserved bounded binary frames and genuine software playback ACK: drained={drained}, dialogue={dialogue}, frames={pcmFrames}, played={fixture.PlayedCount}");
             var finalState = await StateAsync();
             Check(finalState.GetProperty("phase").GetString() == "completed"
                 && (!finalState.TryGetProperty("error", out var finalError) || finalError.ValueKind == JsonValueKind.Null),
                 "burst finishes without a hidden actor or stream failure");
             Check(store.Read(instance)!.Snapshot.Reported.Slot == 0 && !store.Read(instance)!.Snapshot.Reported.NeedsRecovery,
                 "no-selection fixture does not admit a physical proposal or claim hardware feedback");
-            Console.WriteLine($"PASS Twin HTTP {engine} {fault} stream: 260 PCM frames, exact bytes/drain and generation-bound completion");
+            Console.WriteLine($"PASS Twin WS {engine} {fault} stream: {fixture.Count} PCM frames, exact bytes/drain and generation-bound completion");
+
+            async Task VerifyStallRestartAsync()
+            {
+                await fixture.Stalled.Task.WaitAsync(cancellation);
+                var original = await StateAsync();
+                var stopAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                using (var stop = await SendAsync(HttpMethod.Post, "/commands", new { action = "stop" }))
+                { Check(stop.IsSuccessStatusCode, "Stop accepted during multi-second real socket stall"); }
+                var stopLatency = System.Diagnostics.Stopwatch.GetElapsedTime(stopAt);
+                Check(stopLatency < TimeSpan.FromSeconds(1) && !(await StateAsync()).GetProperty("active").GetBoolean(),
+                    "native Stop stays independent of stalled receive/playback");
+                Check(fixture.Connections == 1, "stopped original socket never reconnects");
+                using (var inspection = await SendAsync(HttpMethod.Post, "/commands", new { action = "inspect" }))
+                { Check(inspection.IsSuccessStatusCode, "explicit recovery before replacement"); }
+                fixture.NextSession();
+                var replacement = await StartReplacementAsync();
+                Check(replacement != original.GetProperty("sessionId").GetString(), "replacement has fresh native authority");
+                await fixture.DelayedCallback.Task.WaitAsync(cancellation);
+                var afterLate = await StateAsync();
+                Check(afterLate.GetProperty("sessionId").GetString() == replacement && afterLate.GetProperty("active").GetBoolean(),
+                    "delayed old callback cannot close or revive replacement");
+                await ConsumeReplacementAsync();
+
+                // Actually stop Kestrel and bind a fresh backend fixture at the
+                // same address. Recovery requires a fresh explicit actor/start.
+                var backendAddress = upstream.Urls.Single();
+                await upstream.StopAsync(cancellation);
+                var restartedBuilder = WebApplication.CreateBuilder();
+                restartedBuilder.Logging.ClearProviders(); restartedBuilder.WebHost.UseUrls(backendAddress);
+                await using var restarted = restartedBuilder.Build();
+                fixture.NextSession(); fixture.Map(restarted);
+                await restarted.StartAsync(cancellation);
+                try
+                {
+                    var restartedSession = await StartReplacementAsync();
+                    Check(restartedSession != replacement, "backend restart uses fresh native session");
+                    await ConsumeReplacementAsync();
+                    Check(fixture.Connections == 3 && fixture.PlayedCount == 2,
+                        "only explicit replacements connect and acknowledge; cancelled audio never replays");
+                }
+                finally { await restarted.StopAsync(CancellationToken.None); }
+                Check(store.Read(instance)!.Snapshot.Reported.Slot == 0, "network recovery never admits a physical action");
+                Console.WriteLine($"PASS Twin real WS {engine}: 2500ms stall, Stop {stopLatency.TotalMilliseconds:F0}ms, delayed old callback, explicit replacement/backend restart without replay");
+            }
+            async Task<string> StartReplacementAsync()
+            {
+                using var response = await SendAsync(HttpMethod.Post, "/media/start", new
+                {
+                    operationId = Guid.NewGuid().ToString("D"), expectedBootId = store.Read(instance)!.Snapshot.Source.BootId,
+                    audioConsent = true, photoConsent = false, micAvailable = true, speakerAvailable = true, cameraAvailable = false
+                });
+                Check(response.IsSuccessStatusCode, "explicit replacement media admission");
+                return (await response.Content.ReadFromJsonAsync<JsonElement>(cancellation)).GetProperty("sessionId").GetString()!;
+            }
+            async Task ConsumeReplacementAsync()
+            {
+                using var bytes = new MemoryStream();
+                while (true)
+                {
+                    using var response = await SendAsync(HttpMethod.Get, "/media/output");
+                    Check(response.IsSuccessStatusCode, "replacement output access");
+                    if (response.StatusCode == HttpStatusCode.NoContent) { await Task.Delay(5, cancellation); continue; }
+                    var frame = await response.Content.ReadFromJsonAsync<JsonElement>(cancellation);
+                    var kind = frame.GetProperty("kind").GetString();
+                    if (kind == "failed") { throw new InvalidOperationException("Replacement actor failed: " + (await StateAsync()).ToString()); }
+                    if (kind == "pcm") { bytes.Write(Convert.FromBase64String(frame.GetProperty("pcmBase64").GetString()!)); }
+                    if (kind == "drain")
+                    {
+                        Check(bytes.ToArray().SequenceEqual(fixture.Expected), "replacement output excludes cancelled audio and preserves exact bytes");
+                        using var played = await SendAsync(HttpMethod.Post, "/media/played", new
+                        {
+                            sessionId = frame.GetProperty("sessionId").GetString(), bootId = frame.GetProperty("bootId").GetString(),
+                            epoch = frame.GetProperty("epoch").GetString(), outputEpoch = frame.GetProperty("outputEpoch").GetString(),
+                            sequence = frame.GetProperty("sequence").GetString(), pcmBytes = bytes.Length.ToString(), drained = true
+                        });
+                        Check(played.IsSuccessStatusCode, "replacement drain receipt admitted");
+                    }
+                    if (kind == "completed") { return; }
+                }
+            }
 
             async Task<HttpResponseMessage> SendAsync(HttpMethod method, string route, object? body = null)
             {
@@ -251,15 +360,29 @@ internal static class TwinMediaStreamingTests
 
     private sealed class Upstream(StreamFault fault, bool gptLive)
     {
+        internal const int FrameCount = 64;
+        internal const int JitterSeed = 82421;
+        internal int Count => Mode == StreamFault.SeededJitter ? 16 : Mode == StreamFault.FullQueue ? 300 : FrameCount;
+        internal StreamFault Mode { get; set; } = fault;
+        private int connections, sentFrames;
+        internal int SentFrames => Volatile.Read(ref sentFrames);
+        internal int Connections => Volatile.Read(ref connections);
+        internal readonly TaskCompletionSource Stalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal readonly TaskCompletionSource DelayedCallback = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal const string Reply = "Offline stream completed.";
         internal readonly TaskCompletionSource StreamStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource played = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly string conversation = Guid.NewGuid().ToString("D"), stream = Guid.NewGuid().ToString("D"), operation = Guid.NewGuid().ToString("D");
+        private string conversation = Guid.NewGuid().ToString("D"), stream = Guid.NewGuid().ToString("D"), operation = Guid.NewGuid().ToString("D");
+        internal void NextSession()
+        {
+            Mode = StreamFault.None;
+            conversation = Guid.NewGuid().ToString("D"); stream = Guid.NewGuid().ToString("D"); operation = Guid.NewGuid().ToString("D");
+        }
         private int deletes, playedCount;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> createdConversations = new();
         private string? device, boot;
         internal int DeleteCount => Volatile.Read(ref deletes);
         internal int PlayedCount => Volatile.Read(ref playedCount);
-        internal byte[] Expected { get; } = Enumerable.Range(0, 260).SelectMany(Frame).ToArray();
+        internal byte[] Expected => Enumerable.Range(0, Count).SelectMany(Frame).ToArray();
         private static byte[] Frame(int index)
         {
             var bytes = Enumerable.Repeat((byte)(index % 251), 4800).ToArray();
@@ -272,27 +395,50 @@ internal static class TwinMediaStreamingTests
             {
                 using var body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
                 device = body.RootElement.GetProperty("deviceId").GetString(); boot = body.RootElement.GetProperty("bootId").GetString();
+                createdConversations.TryAdd(conversation, 0);
                 context.Response.StatusCode = 201;
                 await context.Response.WriteAsJsonAsync(new { conversationId = conversation, expiresAt = "2099-01-01T00:00:00Z",
                     limits = new { maxTurns = 10, maxTextCharacters = 1000, idleSeconds = 900, maxLifetimeSeconds = 1800 } }, context.RequestAborted);
             });
-            app.MapPost("/v1/conversations/{conversationId}/" + (gptLive ? "gpt-live" : "realtime-live"), async (HttpContext context) =>
+            app.UseWebSockets();
+            app.MapGet("/v1/conversations/{conversationId}/device-media", async (HttpContext context) =>
             {
+                var conversation = this.conversation;
+                var stream = this.stream;
+                var operation = this.operation;
+                var fault = Mode;
+                Interlocked.Increment(ref connections);
                 Check(context.Request.RouteValues["conversationId"]?.ToString() == conversation, "fixture conversation route");
-                using var body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
-                var actual = body.RootElement;
+                Check(context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.Ordinal)
+                    && Guid.TryParse(context.Request.Headers["Idempotency-Key"], out _), "device bearer and original key stay server-side");
+                using var websocket = await context.WebSockets.AcceptWebSocketAsync(DeviceMediaProtocol.Subprotocol);
+                using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+                var transport = new DeviceMediaSocket(websocket, lifetime);
+                var sink = new DeviceMediaEventSink(transport, lifetime, _ => { });
+                var received = new byte[8193];
+                var opening = await transport.ReceiveAsync(received, context.RequestAborted);
+                using var body = JsonDocument.Parse(received.AsMemory(0, opening.Count));
+                Check(body.RootElement.GetProperty("engine").GetString() == (gptLive ? "gpt-live" : "realtime"), "selected engine through shared WSS opening");
+                var actual = body.RootElement.GetProperty("request");
                 Check(actual.GetProperty("bootId").GetString() == boot, "actual native start boot correlation");
-                var correlation = new { deviceId = device, bootId = boot, conversationId = conversation,
-                    clientTurnId = actual.GetProperty("clientTurnId").GetString(), generation = actual.GetProperty("generation").Clone(),
-                    deviceRevision = actual.GetProperty("deviceRevision").Clone() };
-                context.Response.ContentType = "application/x-ndjson";
+                var correlation = new Dictionary<string, object?>
+                {
+                    ["deviceId"] = device, ["bootId"] = boot, ["conversationId"] = conversation,
+                    ["clientTurnId"] = actual.GetProperty("clientTurnId").GetString(),
+                    ["generation"] = actual.GetProperty("generation").Clone(),
+                    ["deviceRevision"] = actual.GetProperty("deviceRevision").Clone()
+                };
+                if (actual.TryGetProperty("operationEpoch", out var epoch)) { correlation["operationEpoch"] = epoch.Clone(); }
+                var responseGeneration = 0;
+                var played = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var controls = ReadControlsAsync();
+                _ = controls.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
                 await EmitAsync(new { type = "session", streamId = stream, audioFormat = "pcm16-mono-24000" });
                 await EmitAsync(new { type = "started", operationId = operation, correlation, responseGeneration = 0 });
                 StreamStarted.TrySetResult();
                 if (fault == StreamFault.Truncated)
                 {
-                    await context.Response.WriteAsync("{\"type\":\"audio\"", context.RequestAborted);
-                    await context.Response.Body.FlushAsync(context.RequestAborted);
+                    await transport.SendAsync(Encoding.UTF8.GetBytes("{\"type\":\"audio\""), WebSocketMessageType.Text, context.RequestAborted);
                     return;
                 }
                 if (fault == StreamFault.MissingType)
@@ -305,16 +451,36 @@ internal static class TwinMediaStreamingTests
                     await EmitAsync(new { type = "session", audioFormat = "pcm16-mono-24000" });
                     return;
                 }
-                var responseGeneration = fault == StreamFault.StaleGeneration ? 1 : 0;
+                if (fault is StreamFault.DuplicateFrame or StreamFault.OutOfOrderFrame)
+                {
+                    await transport.SendJsonAsync(new { type = "media.output", stream = 1,
+                        responseGeneration = 0, format = "pcm16-mono-24000" }, context.RequestAborted);
+                    var invalid = new byte[18];
+                    DeviceMediaProtocol.WritePcmHeader(invalid, 1, fault == StreamFault.OutOfOrderFrame ? 1U : 0U, 2);
+                    await transport.SendAsync(invalid, WebSocketMessageType.Binary, context.RequestAborted);
+                    if (fault == StreamFault.DuplicateFrame)
+                    { await transport.SendAsync(invalid, WebSocketMessageType.Binary, context.RequestAborted); }
+                    await Task.Delay(100, context.RequestAborted);
+                    return;
+                }
+                if (fault == StreamFault.StallStopRestart)
+                {
+                    await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(Frame(999)), responseGeneration = 0 });
+                    Stalled.TrySetResult();
+                    // Intentionally late, even after peer cancellation: this is
+                    // a delayed old transport callback, never current authority.
+                    await Task.Delay(2500);
+                    try { await transport.SendJsonAsync(new { type = "closed", reason = "conversation_terminal", responseGeneration = 0 }, CancellationToken.None); }
+                    catch (Exception error) when (error is WebSocketException or OperationCanceledException or ObjectDisposedException) { }
+                    finally { DelayedCallback.TrySetResult(); }
+                    return;
+                }
+                responseGeneration = fault == StreamFault.StaleGeneration ? 1 : 0;
                 if (fault == StreamFault.StaleGeneration)
                 {
                     await EmitAsync(new { type = "audio_cancel", responseGeneration });
                     // Late work from the same operation must not restart audio,
                     // publish a result or satisfy the replacement playback.
-                    await EmitAsync(new { type = "started", operationId = operation, correlation, responseGeneration = 0 });
-                    await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(Frame(999)), responseGeneration = 0 });
-                    await EmitAsync(new { type = "completed", operationId = operation, correlation, responseGeneration = 0,
-                        result = new { reply = "Obsolete source must not publish.", decision = "no_selection", reason = "", proposal = (object?)null }, costMicroUsd = 0 });
                     await EmitAsync(new { type = "visitor", text = "Obsolete visitor.", responseGeneration = 0 });
                     await EmitAsync(new { type = "pause", responseGeneration = 0 });
                     await EmitAsync(new { type = "playback_checkpoint", playbackId = Guid.NewGuid().ToString("D"),
@@ -327,36 +493,53 @@ internal static class TwinMediaStreamingTests
                         await EmitAsync(new { type = "started", operationId = operation, correlation, responseGeneration });
                     }
                 }
-                for (var index = 0; index < 260; index++)
+                var random = new Random(JitterSeed);
+                for (var index = 0; index < Count; index++)
                 {
                     await EmitAsync(new { type = "audio", delta = Convert.ToBase64String(Frame(index)), responseGeneration });
-                    // Twenty times realtime, matching the reported provider
-                    // burst while leaving room before the five-second stall cap.
-                    await Task.Delay(5, context.RequestAborted);
+                    Interlocked.Increment(ref sentFrames);
+                    // Pace a software fixture burst without claiming that the
+                    // fixed playback RAM can absorb an unbounded provider burst.
+                    if (fault == StreamFault.AbruptLoss && index == 4) { websocket.Abort(); return; }
+                    var pause = fault == StreamFault.FullQueue ? 0
+                        : fault == StreamFault.SeededJitter ? index == 4 ? 500 : index == 10 ? 2500 : random.Next(50, 301) : 100;
+                    if (pause > 0) { await Task.Delay(pause, context.RequestAborted); }
                 }
                 await EmitAsync(new { type = "completed", operationId = operation, correlation,
                     result = new { reply = Reply, decision = "no_selection", reason = "", proposal = (object?)null }, costMicroUsd = 0, responseGeneration });
                 await played.Task.WaitAsync(TimeSpan.FromSeconds(25), context.RequestAborted);
                 await EmitAsync(new { type = "closed", reason = "conversation_terminal", responseGeneration });
+                await controls;
 
                 async Task EmitAsync(object value)
                 {
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(value, RealtimeProtocol.JsonOptions) + "\n", context.RequestAborted);
-                    await context.Response.Body.FlushAsync(context.RequestAborted);
+                    using var item = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(value, RealtimeProtocol.JsonOptions));
+                    if (item.RootElement.TryGetProperty("type", out var type) && type.GetString() == "started")
+                    {
+                        sink.BindOperation(operation);
+                        await sink.WriteAsync(new ConversationOperationBinding(operation, item.RootElement.GetProperty("responseGeneration").GetInt64()), context.RequestAborted);
+                    }
+                    await sink.WriteAsync(value, context.RequestAborted);
                 }
-            });
-            app.MapPost("/v1/conversations/{conversationId}/" + (gptLive ? "gpt-live" : "realtime-live") + "/{streamId}/played", async (HttpContext context) =>
-            {
-                Check(context.Request.RouteValues["conversationId"]?.ToString() == conversation
-                    && context.Request.RouteValues["streamId"]?.ToString() == stream, "fixture played route");
-                using var body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
-                Check(body.RootElement.GetProperty("responseGeneration").GetInt64() == (fault == StreamFault.StaleGeneration ? 1 : 0),
-                    "native ACK binds the current response generation");
-                Interlocked.Increment(ref playedCount); played.TrySetResult(); return Results.NoContent();
+                async Task ReadControlsAsync()
+                {
+                    var buffer = new byte[8193];
+                    while (!played.Task.IsCompleted)
+                    {
+                        var frame = await transport.ReceiveAsync(buffer, context.RequestAborted);
+                        Check(frame.Kind == WebSocketMessageType.Text, "fixture receives typed controls");
+                        using var control = JsonDocument.Parse(buffer.AsMemory(0, frame.Count));
+                        var root = control.RootElement;
+                        Check(root.GetProperty("type").GetString() == "played" && root.GetProperty("operationId").GetString() == operation
+                            && root.GetProperty("responseGeneration").GetInt64() == (fault == StreamFault.StaleGeneration ? 1 : 0), "WSS played identity");
+                        await transport.SendJsonAsync(new { type = "control.ack", requestId = root.GetProperty("requestId").GetString(), status = 204 }, context.RequestAborted);
+                        Interlocked.Increment(ref playedCount); played.TrySetResult();
+                    }
+                }
             });
             app.MapDelete("/v1/conversations/{conversationId}", (HttpContext context) =>
             {
-                Check(context.Request.RouteValues["conversationId"]?.ToString() == conversation, "fixture delete route");
+                Check(createdConversations.ContainsKey(context.Request.RouteValues["conversationId"]?.ToString() ?? ""), "fixture delete route");
                 Interlocked.Increment(ref deletes); return Results.NoContent();
             });
         }

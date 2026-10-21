@@ -30,7 +30,15 @@ class TwinObservedAudio final : public PresentationAudioPort {
 class TwinObservedIo final : public PhysicalIo {
  public:
   explicit TwinObservedIo(PhysicalIo& io) : io_(io) {}
-  void EnableOutputs(bool enabled) override { io_.EnableOutputs(enabled); enabled_ = enabled; }
+  void EnableOutputs(bool enabled) override {
+    io_.EnableOutputs(enabled);
+    enabled_ = enabled && (io_.StopEpoch() & 1u) == 0;
+  }
+  void RequestUrgentStop() override { io_.RequestUrgentStop(); enabled_ = false; }
+  uint32_t StopEpoch() const override { return io_.StopEpoch(); }
+  bool ClearUrgentStopAfterInspection(uint32_t epoch) override {
+    return io_.ClearUrgentStopAfterInspection(epoch);
+  }
   bool FullOff() override {
     if (!io_.FullOff()) return false;
     vibrationMask_ = 0;

@@ -1,24 +1,43 @@
 #include "EspIdfPhysicalIo.h"
 
 #include <cstring>
+#include <algorithm>
+#include "esp_timer.h"
 #include "driver/gpio.h"
 #include "esp_rom_sys.h"
 #include "nvs.h"
 
 namespace {
 constexpr gpio_num_t OePin = static_cast<gpio_num_t>(KufrBoard::ProfileB.oe);
-constexpr int IoTimeoutMs = 10;
+
 
 }
 
 bool EspIdfPhysicalIo::Fail() {
   failed_.store(true);
-  if (profileVerified_) gpio_set_level(OePin, 1);
+  RequestUrgentStop();
   return false;
 }
 
 void EspIdfPhysicalIo::EnableOutputs(bool enabled) {
-  if (profileVerified_) gpio_set_level(OePin, enabled && Available() ? 0 : 1);
+  // Only GPIO plus atomic loads share this critical section. No bus operation,
+  // allocator, worker wait or transfer timeout can delay an urgent OE request.
+  portENTER_CRITICAL(&outputMux_);
+  if (profileVerified_) gpio_set_level(OePin, enabled && Available() && !UrgentStopPending() ? 0 : 1);
+  portEXIT_CRITICAL(&outputMux_);
+}
+
+void EspIdfPhysicalIo::RequestUrgentStop() {
+  portENTER_CRITICAL(&outputMux_);
+  stopEpoch_.fetch_add(2);
+  stopEpoch_.fetch_or(1u);
+  if (profileVerified_) gpio_set_level(OePin, 1);
+  portEXIT_CRITICAL(&outputMux_);
+}
+
+bool EspIdfPhysicalIo::ClearUrgentStopAfterInspection(uint32_t expectedEpoch) {
+  if (!Available()) return false;
+  return stopEpoch_.compare_exchange_strong(expectedEpoch, expectedEpoch & ~1u);
 }
 
 bool EspIdfPhysicalIo::Write(i2c_master_dev_handle_t device, uint8_t reg,
@@ -27,12 +46,22 @@ bool EspIdfPhysicalIo::Write(i2c_master_dev_handle_t device, uint8_t reg,
   uint8_t data[66]{};
   data[0] = reg;
   std::memcpy(data + 1, bytes, size);
-  return i2c_master_transmit(device, data, size + 1, IoTimeoutMs) == ESP_OK || Fail();
+  const int timeoutMs = TransferTimeout();
+  if (timeoutMs == 0) return Fail();
+  const auto startedAtUs = static_cast<uint64_t>(esp_timer_get_time());
+  const bool result = i2c_master_transmit(device, data, size + 1, timeoutMs) == ESP_OK;
+  RecordTransfer(startedAtUs);
+  return result || Fail();
 }
 
 bool EspIdfPhysicalIo::Read(i2c_master_dev_handle_t device, uint8_t reg,
                            uint8_t* bytes, size_t size) {
-  return device && (i2c_master_transmit_receive(device, &reg, 1, bytes, size, IoTimeoutMs) == ESP_OK || Fail());
+  const int timeoutMs = TransferTimeout();
+  if (!device || timeoutMs == 0) return Fail();
+  const auto startedAtUs = static_cast<uint64_t>(esp_timer_get_time());
+  const bool result = i2c_master_transmit_receive(device, &reg, 1, bytes, size, timeoutMs) == ESP_OK;
+  RecordTransfer(startedAtUs);
+  return result || Fail();
 }
 
 bool EspIdfPhysicalIo::Initialize(bool nvsReady) {
@@ -105,14 +134,31 @@ bool EspIdfPhysicalIo::LoadCalibration(std::array<ServoCalibration, 6>& calibrat
 }
 
 bool EspIdfPhysicalIo::FullOff() {
+  // GPIO shutdown precedes every attempt to obtain the shared bus.
+  EnableOutputs(false);
   if (!pca_) return !failed_.load();
   // Clear per-channel FULL_ON as well as ALL_LED override. Future writes must
   // not resurrect a latched motor. OE is already HIGH on every caller.
-  if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(20)) != pdTRUE) return Fail();
-  uint8_t channels[64]{};
-  for (unsigned i = 0; i < 16; ++i) channels[i * 4 + 3] = 0x10;
-  const uint8_t all[] = {0, 0, 0, 0};
-  const bool result = Write(pca_, 0x06, channels, sizeof(channels)) && Write(pca_, 0xfa, all, 4);
+  if (!TakeBus()) return Fail();
+  bool result = true;
+  if (!channelsReset_) {
+    uint8_t channels[64]{};
+    for (unsigned i = 0; i < 16; ++i) channels[i * 4 + 3] = 0x10;
+    const uint8_t all[] = {0, 0, 0, 0};
+    result = Write(pca_, 0x06, channels, sizeof(channels)) && Write(pca_, 0xfa, all, 4);
+    channelsReset_ = result;
+  } else {
+    // This adapter is the only PCA owner. After the boot reset only a channel
+    // explicitly written by Servo/Vibration can differ from FULL_OFF. Clear
+    // those channels, including FULL_ON, instead of rewriting all 64 bytes on
+    // every input/Stop pass. The domain permits one active actuator at a time.
+    const uint8_t off[] = {0, 0, 0, 0x10};
+    for (uint8_t channel = 0; channel < 16 && result; ++channel) {
+      if (dirtyChannels_ & (1u << channel))
+        result = Write(pca_, static_cast<uint8_t>(0x06 + channel * 4), off, sizeof(off));
+    }
+  }
+  if (result) dirtyChannels_ = 0;
   xSemaphoreGive(mutex_);
   return result;
 }
@@ -121,7 +167,8 @@ bool EspIdfPhysicalIo::Servo(uint8_t channel, uint16_t pulseUs) {
   if (!Available() || channel >= 6 || pulseUs < 500 || pulseUs > 2500) return false;
   const uint16_t ticks = static_cast<uint16_t>((static_cast<uint32_t>(pulseUs) * 25 + 61) / 122);
   const uint8_t bytes[] = {0, 0, static_cast<uint8_t>(ticks), static_cast<uint8_t>(ticks >> 8)};
-  if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(20)) != pdTRUE) return Fail();
+  if (!TakeBus()) return Fail();
+  dirtyChannels_ |= static_cast<uint16_t>(1u << channel);
   const bool result = Write(pca_, static_cast<uint8_t>(0x06 + channel * 4), bytes, 4);
   xSemaphoreGive(mutex_);
   return result;
@@ -131,7 +178,8 @@ bool EspIdfPhysicalIo::Vibration(uint8_t channel, bool enabled) {
   if (!Available() || channel < 6 || channel > 11) return false;
   const uint8_t bytes[] = {0, static_cast<uint8_t>(enabled ? 0x10 : 0), 0,
                          static_cast<uint8_t>(enabled ? 0 : 0x10)};
-  if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(20)) != pdTRUE) return Fail();
+  if (!TakeBus()) return Fail();
+  dirtyChannels_ |= static_cast<uint16_t>(1u << channel);
   const bool result = Write(pca_, static_cast<uint8_t>(0x06 + channel * 4), bytes, 4);
   xSemaphoreGive(mutex_);
   return result;
@@ -139,6 +187,24 @@ bool EspIdfPhysicalIo::Vibration(uint8_t channel, bool enabled) {
 
 bool EspIdfPhysicalIo::Lights(const std::array<uint8_t, 108>& grb) {
   if (!Available()) return false;
+  if (lightPending_) ++timing_.coalescedLedFrames;
+  pendingGrb_ = grb;
+  lightPending_ = true;
+  return FlushLights();
+}
+
+bool EspIdfPhysicalIo::FlushLights() {
+  if (!lightPending_) return true;
+  if (lightInFlight_) {
+    const auto result = rmt_tx_wait_all_done(rgb_, 0);
+    if (result == ESP_ERR_TIMEOUT) return true;
+    if (result != ESP_OK) return Fail();
+    lightInFlight_ = false;
+  }
+  // The retained symbols belong to RMT until completion. Multiple same-pass
+  // requests coalesce in pendingGrb_, never overwrite a transmitting frame.
+  if (lightSubmitted_ && pendingGrb_ == submittedGrb_) { lightPending_ = false; return true; }
+  const auto& grb = pendingGrb_;
   size_t index = 0;
   for (auto byte : grb) for (int bit = 7; bit >= 0; --bit) {
     auto& symbol = symbols_[index++];
@@ -150,18 +216,54 @@ bool EspIdfPhysicalIo::Lights(const std::array<uint8_t, 108>& grb) {
   reset.level0 = 0; reset.duration0 = 500;
   reset.level1 = 0; reset.duration1 = 500;
   rmt_transmit_config_t tx{};
-  return (rmt_transmit(rgb_, encoder_, symbols_.data(), sizeof(symbols_), &tx) == ESP_OK &&
-          rmt_tx_wait_all_done(rgb_, 10) == ESP_OK) || Fail();
+  tx.flags.queue_nonblocking = 1;
+  if (rmt_transmit(rgb_, encoder_, symbols_.data(), sizeof(symbols_), &tx) != ESP_OK) return Fail();
+  submittedGrb_ = pendingGrb_;
+  lightPending_ = false;
+  lightInFlight_ = true;
+  lightSubmitted_ = true;
+  return true;
 }
 
 bool EspIdfPhysicalIo::ReadInputs(PhysicalInputs& inputs) {
   if (!Available()) return false;
   uint8_t gpio[2]{};
-  if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(20)) != pdTRUE) return Fail();
+  if (!TakeBus()) return Fail();
   const bool result = Read(mcp_, 0x12, gpio, 2);
   xSemaphoreGive(mutex_);
   if (!result) return false;
   const uint16_t levels = static_cast<uint16_t>(gpio[0] | gpio[1] << 8);
   inputs.button = (levels & 1) == 0;
   return true;
+}
+
+void EspIdfPhysicalIo::BeginControlPass(uint64_t nowUs) {
+  budget_.Begin(nowUs);
+  passBusUs_ = 0;
+  passOverBudget_ = false;
+  if (Available() && !FlushLights()) Fail();
+}
+
+bool EspIdfPhysicalIo::TakeBus() {
+  if (mutex_ && xSemaphoreTake(mutex_, 0) == pdTRUE) return true;
+  ++timing_.lockRefusals;
+  return false;
+}
+
+int EspIdfPhysicalIo::TransferTimeout() {
+  const int remaining = budget_.RemainingMs(static_cast<uint64_t>(esp_timer_get_time()));
+  if (remaining == 0) ++timing_.budgetRefusals;
+  return remaining;
+}
+
+void EspIdfPhysicalIo::RecordTransfer(uint64_t startedAtUs) {
+  const auto duration = static_cast<uint32_t>(static_cast<uint64_t>(esp_timer_get_time()) - startedAtUs);
+  if (!budget_.Active()) return;
+  passBusUs_ += duration;
+  if (passBusUs_ > kufr::runtime::PhysicalIoBudget::ControlBudgetUs && !passOverBudget_) {
+    ++timing_.overBudgetPasses;
+    passOverBudget_ = true;
+  }
+  timing_.maximumTransferUs = std::max(timing_.maximumTransferUs, duration);
+  timing_.maximumPassBusUs = std::max(timing_.maximumPassBusUs, passBusUs_);
 }

@@ -237,7 +237,8 @@ bool DeviceControlRuntime::ValidateClaimedAutonomousPresentation(
         admission_.calibration != calibrationRevision || admission_.storedAt != claim.StoredAtMs() ||
         admission_.deadline != claim.DeadlineMs() || admission_.generation != snapshot.generation ||
         admission_.revision != snapshot.deviceRevision || admission_.epoch != snapshot.operationEpoch ||
-        admission_.snapshotVersion != snapshot.version || admission_.offline != offlineAuthority_) return false;
+        admission_.snapshotVersion != snapshot.version || admission_.offline != offlineAuthority_ ||
+        admission_.technicalTest != proposal.technicalTest) return false;
   } else if ((offlineAuthority_ && !offlineAdmission_) || !runtime_.Matches(snapshot)) {
     return false;
   }
@@ -266,6 +267,7 @@ bool DeviceControlRuntime::CaptureClaimedAdmission(const PendingProposal::Claime
   admission_.epoch = snapshot.operationEpoch;
   admission_.snapshotVersion = snapshot.version;
   admission_.offline = offlineAuthority_;
+  admission_.technicalTest = proposal.technicalTest;
   return true;
 }
 
@@ -280,7 +282,7 @@ DeviceControlRuntime::PresentationProgress DeviceControlRuntime::ReserveClaimedA
       proposal.compartment, proposal.deviceRevision, fingerprint, proposal.operationEpoch);
   const bool reserved = (!waitingForAck && control_.HasAutonomousReservation(proposal.proposalId,
       proposal.compartment, fingerprint, proposal.operationEpoch)) || control_.ReserveAutonomousPresentation(proposal.proposalId,
-          proposal.compartment, proposal.deviceRevision, fingerprint, proposal.operationEpoch);
+          proposal.compartment, proposal.deviceRevision, fingerprint, proposal.operationEpoch, proposal.technicalTest);
   PublishCurrent();
   if (reserved) return PresentationProgress::Succeeded;
   if (control_.LastAutonomousAdmissionProgress() == DeviceControl::AutonomousAdmissionProgress::Pending)

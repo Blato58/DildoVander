@@ -27,6 +27,9 @@ class LocalControlInbox final {
   static constexpr size_t QueueCapacity = 4;
 
   LocalControlInbox(const std::string& deviceId, const std::string& bootId);
+  // Bind before networking starts. This callback may only latch direct OE off;
+  // no bus I/O, domain mutation or worker join is permitted.
+  void BindUrgentStop(void (*stop)(void*), void* context) { urgentStop_ = stop; urgentContext_ = context; }
 
   bool Open(const LocalSocketAdmission::Handle& handle, uint64_t nowMs);
   bool Submit(const LocalSocketAdmission::Handle& handle,
@@ -84,6 +87,10 @@ class LocalControlInbox final {
   void ClearQueue();
 
   std::mutex mutex_;
+  std::mutex urgentMutex_;
+  LocalSocketAdmission::Handle urgentHandle_;
+  void (*urgentStop_)(void*) = nullptr;
+  void* urgentContext_ = nullptr;
   std::string deviceId_;
   std::string bootId_;
   LocalSocketAdmission::Handle handle_;

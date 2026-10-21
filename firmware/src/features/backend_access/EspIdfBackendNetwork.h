@@ -3,6 +3,7 @@
 #include <atomic>
 #include <mutex>
 #include "../voice_turn/LocalVoicePort.h"
+#include "../voice_turn/VoiceMediaHealth.h"
 #include "../voice_turn/EspIdfVoiceAudio.h"
 #include "../keepsake/EspIdfKeepsakeNotifier.h"
 #include "../costume_photo/EspIdfCostumeCamera.h"
@@ -12,9 +13,6 @@
 
 #include "NetworkSettings.h"
 #include "../conversation/ConversationRuntimeState.h"
-#include "../conversation/ConversationTextInbox.h"
-#include "../conversation/ConversationReplyInbox.h"
-#include "../conversation/ConversationTurnFailureInbox.h"
 #include "../conversation/PendingProposal.h"
 #include "../local_control/LocalConversationNetworkPort.h"
 #include "../local_control/LocalConversationReplyPort.h"
@@ -42,40 +40,34 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   VoiceAudioPort& DanceAudio() { return voiceAudio_; }
   void InitializeCamera(bool nvsInitialized, bool profileBVerified);
   LocalVoiceStatus VoiceStatus() const override;
+  bool SupportsVoiceTestContext() const override { return keepsake_.UsesSharedStorage(); }
   bool ConfigureVoice(const std::string& mode, const std::string& voice) override;
   bool StartVoice(const std::string& requestId,
                   const ConversationRuntimeSnapshot& snapshot) override;
   bool StartVoiceWithImageConsent(const std::string& requestId,
       const ConversationRuntimeSnapshot& snapshot, bool imageConsent) override;
+  bool StartVoiceWithTestContext(const std::string& requestId,
+      const ConversationRuntimeSnapshot& snapshot, bool imageConsent,
+      const std::string& testContext) override;
+  bool StopVoiceForTestContext(const std::string& testContextId) override;
   void StopVoice() override;
   bool Start(bool nvsInitialized);
   bool IsOnline() const { return online_.load(); }
+  uint32_t AuthenticationState() const;
+  uint32_t TrustedTimeState() const { return timeState_.load(); }
+  bool ReadVoiceMediaHealth(VoiceMediaHealth& health) const;
   bool IsConversationVoiceBusy() const { return voiceBusy_.load() || voicePending_.load(); }
   bool IsVoiceBusy() const { return IsConversationVoiceBusy() || showCues_.IsActive(); }
   DeviceShowMailbox& ShowCues() { return showCues_; }
-  bool QueueTextTurn(const std::string& text,
-                     const std::string& conversationId,
-                     const std::string& clientTurnId,
-                     const ConversationRuntimeSnapshot& expectedSnapshot) override;
-  // Called only for a deliberate local start event, never by reconnect.
-  bool QueueOpening(const std::string& conversationId,
-                    const ConversationRuntimeSnapshot& expectedSnapshot);
+  // Explicit retired-text compatibility port. No old HTTP route can be queued.
+  bool QueueTextTurn(const std::string&, const std::string&, const std::string&,
+                    const ConversationRuntimeSnapshot&) override { return false; }
   void QueueCancel();
-  bool QueueCancelFor(
-      const std::string& conversationId,
-      uint64_t snapshotVersion) override;
-  bool TakeFailedTurnFor(
-      const std::string& conversationId,
-      const std::string& clientTurnId,
-      uint64_t snapshotVersion) override;
-  // The caller must check IsReplyCurrent before and during playback, then
-  // FinishReply. Stop/cancel must also stop the actual output port.
-  bool TakeReply(std::string& reply, std::string& conversationId,
-                 std::string& clientTurnId,
-                 ConversationRuntimeSnapshot& snapshot, uint64_t& token) override;
-  bool IsReplyCurrent(
-      uint64_t token, const ConversationRuntimeSnapshot& snapshot) const override;
-  bool FinishReply(uint64_t token) override;
+  bool QueueCancelFor(const std::string&, uint64_t) override { return false; }
+  bool TakeFailedTurnFor(const std::string&, const std::string&, uint64_t) override { return false; }
+  bool TakeReply(std::string&, std::string&, std::string&, ConversationRuntimeSnapshot&, uint64_t&) override { return false; }
+  bool IsReplyCurrent(uint64_t, const ConversationRuntimeSnapshot&) const override { return false; }
+  bool FinishReply(uint64_t) override { return false; }
   bool ReadPendingProposal(TurnProposal& proposal, uint64_t nowMs) const;
   // Control owner calls this after completing the announcement. Network
   // polling never invokes it and cannot directly move an actuator.
@@ -94,28 +86,10 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   static void ShowTaskEntry(void* argument);
   void RunShowCues();
   void PumpShowCues(const char* token);
-  void RunTurn(const std::string& text,
-               const std::string& conversationId,
-               const std::string& clientTurnId, bool opening,
-               uint64_t snapshotVersion,
-               class DeviceTokenSession& tokens,
-               EspIdfStationNetwork& station,
-               class ConversationStartCoordinator& coordinator,
-               struct ConversationStartRequest& startRequest);
   bool CloseConversation(class ConversationStartCoordinator& coordinator,
-                         class EspIdfConversationTextTransport& transport,
+                         class EspIdfConversationCleanup& transport,
                          class DeviceTokenSession& tokens,
                          struct ConversationStartRequest& startRequest);
-  bool IsLocalConversationAdmitted(
-      const std::string& normalizedConversationId,
-      uint64_t snapshotVersion);
-  bool StoreReplyIfAdmitted(
-      const std::string& reply, const std::string& conversationId,
-      const std::string& clientTurnId,
-      const ConversationRuntimeSnapshot& snapshot);
-  void FailQueuedText();
-  void DiscardTextUnless(const std::string& conversationId);
-
   void RunVoice(class DeviceTokenSession& tokens,
                  class ConversationStartCoordinator& coordinator,
                  struct ConversationStartRequest& startRequest);
@@ -123,6 +97,7 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   EspIdfVoiceAudio voiceAudio_;
   EspIdfCostumeCamera camera_;
   bool voiceImageConsent_ = false;
+  std::string voiceTestContext_;
   mutable std::mutex voiceMutex_;
   LocalVoiceStatus voiceStatus_;
   ConversationRuntimeSnapshot voiceSnapshot_;
@@ -135,9 +110,6 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   ConversationRuntimeState& runtimeState_;
   EspIdfStationNetwork& station_;
   const NetworkSettings& settings_;
-  ConversationTextInbox textInbox_;
-  ConversationReplyInbox replyInbox_;
-  ConversationTurnFailureInbox failedTurns_;
   PendingProposal pendingProposal_;
   std::mutex presentationMutex_;
   bool terminalProposalOutstanding_ = false;
@@ -145,24 +117,20 @@ class EspIdfBackendNetwork final : public LocalConversationNetworkPort,
   // Protected by presentationMutex_. The original proposal is now owned by
   // Wand, so network expiry must not reread the consumed PendingProposal.
   bool presentationClaimed_ = false;
-  std::mutex openingMutex_;
-  bool openingPending_ = false;
-  std::string openingConversationId_;
-  uint64_t openingSnapshotVersion_ = 0;
-  // Admission survives a failed backend start until the device snapshot changes.
-  std::string admittedLocalConversationId_;
-  uint64_t admittedSnapshotVersion_ = 0;
   std::atomic<bool> online_{false};
+  std::atomic<uint32_t> authState_{0}, timeState_{0};
+  std::atomic<uint64_t> authExpiresAtMs_{0};
+  mutable std::mutex mediaHealthMutex_;
+  VoiceMediaHealth mediaHealth_;
+  void PublishVoiceMediaHealth(const VoiceMediaHealth& health);
   EspIdfKeepsakeNotifier keepsake_;
   KeepsakeOutcome keepsakeCandidate_;
   bool keepsakeCandidatePrepared_ = false;
+  bool technicalCandidate_ = false;
   EspIdfKeepsakeNotifier::Handle keepsakeHandle_;
   std::array<char, 65> keepsakeRetirementReason_{};
   std::atomic<bool> cancelRequested_{false};
   std::string bootId_;
-  // Only the network task mutates this binding. Local and backend IDs differ.
-  std::string activeLocalConversationId_;
-  uint64_t startSnapshotVersion_ = 0;
   bool closePending_ = false;
   uint64_t closeRetryAtMs_ = 0;
   uint32_t closeRetryDelayMs_ = 1000;

@@ -104,6 +104,7 @@ class LocalControlOwner final {
   bool recoveryPending_ = false, recoveryAdmission_ = false;
   bool hello_ = false;
   bool includeOperationEpoch_ = false;
+  bool includeDiagnostics_ = false;
   bool maintenance_ = false;
   bool danceAdmission_ = false;
   kufr::offline::OfflineShow* offline_ = nullptr;

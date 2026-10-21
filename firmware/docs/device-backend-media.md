@@ -5,8 +5,9 @@ WebSocket for an autonomous physical device. The application subprotocol is
 `kufr-device-media-v1`. This is a device/backend connection; the phone is not a
 relay. Production clients must use WSS with normal hostname/certificate checks.
 The production ESP caller uses the shared asynchronous engine and independent
-bounded playback worker over this connection. Native simulator bridge migration
-is separate. Source composition does not prove physical audio operation.
+bounded playback worker over this connection. The native simulator uses the same
+session/playback owners through a bounded backend-owned WSS I/O bridge. Source
+composition and loopback tests do not prove physical audio or deployed WAN TLS.
 
 The upgrade requires a current device `Authorization: Bearer ...`, a nonempty
 UUID `Idempotency-Key` header, and the exact subprotocol. Browser account cookies

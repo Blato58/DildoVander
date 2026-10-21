@@ -254,9 +254,35 @@ void CompletedMarkerWinsLateRetirementAndInterruptedCleanup() {
   assert(restarted.RecoverPrepared(journal));
   assert(restarted.Snapshot().size() == 1 && restarted.Snapshot().front().outcomeId == "exact-outcome");
 }
+void TechnicalCompletionNeverRecoversAsProductionDelivery() {
+  Storage storage;
+  PersistentCommandJournal journal(storage);
+  assert(journal.EstablishScopedIdentity("technical-device", true));
+  assert(journal.PersistReadyMask(63));
+  auto outcome = Prepared();
+  outcome.operationEpoch = 1; outcome.physicalFingerprint = 1234;
+  assert(journal.ReserveTechnicalPresentation(1, PhysicalId, 3, 1234));
+  assert(journal.BeginReservedPresentation(1, PhysicalId, 3, 1234));
+  assert(journal.ResolveRestored(3));
+  assert(journal.ConfirmTimedPresentationScoped(1, PhysicalId, 3, 1234));
+  PersistentCommandJournal reopened(storage);
+  assert(reopened.WasTimedPresentationCompletedHistorical(1, PhysicalId, 3, 1234));
+  assert(reopened.IsTechnicalTestOperation(1, PhysicalId, 3, 1234));
+  assert(!HasKeepsakePhysicalEvidence(reopened, outcome));
+  KeepsakeOutbox outbox;
+  assert(outbox.Restore({}, {}, {outcome})); // imported/malicious prepared row cannot borrow Lab timing proof
+  assert(outbox.RecoverPrepared(reopened));
+  assert(outbox.Snapshot().empty() && outbox.State().prepared.empty());
+  assert(outbox.State().quarantined.size() == 1);
+  assert(outbox.State().quarantined.front().reason == "physical_outcome_unknown");
+  const auto before = storage.bytes;
+  assert(outbox.RecoverPrepared(reopened));
+  assert(storage.bytes == before && outbox.Snapshot().empty());
+}
 }  // namespace
 
 int main() {
+  TechnicalCompletionNeverRecoversAsProductionDelivery();
   RecoveryRequiresConfirmedPhysicalJournal();
   CommittedMarkerDespiteAckFailureIsHistoricalEvidence();
   LateFailedStoppedAndLegacyNeverRecover();

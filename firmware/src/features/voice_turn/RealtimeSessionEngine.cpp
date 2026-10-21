@@ -26,26 +26,40 @@ bool DecodeRealtimePcm(const std::string& encoded, uint8_t* output, size_t capac
   }
   return true;
 }
+#if !defined(ESP_PLATFORM)
 RealtimeSessionEngine::RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive,
     std::function<bool()> current, std::function<uint64_t()> now,
     std::function<uint64_t()> utc, std::function<void(const char*)> phase,
     PostPort post, const TurnCorrelation& opening,
     const ConversationRuntimeSnapshot& snapshot,
     std::function<bool(const TurnOperationObservation&)> completed)
-    : audio_(audio), gptLive_(gptLive), endpoint_(gptLive ? "gpt-live" : "realtime-live"),
-      conversationId_(opening.conversationId), current_(std::move(current)),
-      now_(std::move(now)), utc_(std::move(utc)), phase_(std::move(phase)),
-      post_(std::move(post)), expected_(opening), snapshot_(snapshot), completed_(std::move(completed)) {
+    : audio_(audio), endpoint_(gptLive ? "gpt-live" : "realtime-live"),
+      conversationId_(opening.conversationId), post_(std::move(post)), gptLive_(gptLive),
+      current_(std::move(current)), now_(std::move(now)), utc_(std::move(utc)), phase_(std::move(phase)),
+      expected_(opening), snapshot_(snapshot), completed_(std::move(completed)) {
   startedAtMs_.store(now_()); lastTurnAtMs_.store(now_());
 }
+#endif
 RealtimeSessionEngine::RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive,
     std::function<bool()> current, std::function<uint64_t()> now,
     std::function<uint64_t()> utc, std::function<void(const char*)> phase,
     PostPort post, const TurnCorrelation& opening,
     const ConversationRuntimeSnapshot& snapshot,
     std::function<bool(const TurnOperationObservation&)> completed, AsyncPorts ports)
-    : RealtimeSessionEngine(audio, gptLive, std::move(current), std::move(now),
-          std::move(utc), std::move(phase), std::move(post), opening, snapshot, std::move(completed)) {
+#if !defined(ESP_PLATFORM)
+    : audio_(audio), endpoint_(gptLive ? "gpt-live" : "realtime-live"),
+      conversationId_(opening.conversationId), post_(std::move(post)),
+#else
+    :
+#endif
+      gptLive_(gptLive), current_(std::move(current)), now_(std::move(now)),
+      utc_(std::move(utc)), phase_(std::move(phase)), expected_(opening),
+      snapshot_(snapshot), completed_(std::move(completed)) {
+#if defined(ESP_PLATFORM)
+  (void)audio;
+  (void)post;
+#endif
+  startedAtMs_.store(now_()); lastTurnAtMs_.store(now_());
   playback_ = &ports.playback;
   control_ = &ports.control;
   capture_ = std::move(ports.capture);
@@ -53,7 +67,9 @@ RealtimeSessionEngine::RealtimeSessionEngine(VoiceAudioPort& audio, bool gptLive
 }
 void RealtimeSessionEngine::Capture(bool enabled) {
   if (playback_) capture_(enabled);
+#if !defined(ESP_PLATFORM)
   else audio_.Listen(enabled);
+#endif
 }
 void RealtimeSessionEngine::Stop() {
   stop_.store(true); uploading_.store(false); inputEpoch_.fetch_add(1);
@@ -67,15 +83,30 @@ void RealtimeSessionEngine::Fail() {
   if (playback_) Stop();
 }
 bool RealtimeSessionEngine::Current() const {
-  return !stop_.load() && !failed_.load() && (playback_ ? !playback_->Failed() : !audio_.Failed()) && current_() &&
+#if defined(ESP_PLATFORM)
+  const bool mediaReady = playback_ && !playback_->Failed();
+#else
+  const bool mediaReady = playback_ ? !playback_->Failed() : !audio_.Failed();
+#endif
+  return !stop_.load() && !failed_.load() && mediaReady && current_() &&
       expected_.operationEpoch == snapshot_.operationEpoch &&
       now_() - startedAtMs_ < 480000 && now_() - lastTurnAtMs_ < (gptLive_ ? 190000 : 80000);
 }
+#if !defined(ESP_PLATFORM)
 int RealtimeSessionEngine::Post(const std::string& path, const void* data, size_t size,
     const char* type, const std::string& inputId, unsigned sequence) {
   return Current() ? post_(path, data, size, type, inputId, sequence) : 0;
 }
+#endif
 bool RealtimeSessionEngine::SendInput(const std::vector<uint8_t>& pcm, uint32_t capturedEpoch) {
+#if defined(ESP_PLATFORM)
+  (void)pcm;
+  (void)capturedEpoch;
+  Fail();
+  return false;
+#else
+  // An async session never falls back to a host-only per-batch HTTP port.
+  if (playback_) { Fail(); return false; }
   std::string path, input;
   unsigned sequence;
   uint64_t claim;
@@ -98,7 +129,9 @@ bool RealtimeSessionEngine::SendInput(const std::vector<uint8_t>& pcm, uint32_t 
   }
   if (status != 204) { Fail(); return false; }
   return true;
+#endif
 }
+
 bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
   if (!Current()) return false;
   if (event.type == "failed") {
@@ -162,7 +195,10 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
       const auto cancelled = playback_->Cancel(event.responseGeneration);
       if (cancelled == VoicePlaybackPort::Progress::Failed) { Fail(); return false; }
       cancelPending_ = cancelled == VoicePlaybackPort::Progress::Pending;
-    } else if (!audio_.CancelPlayback()) return false;
+    }
+#if !defined(ESP_PLATFORM)
+    else if (!audio_.CancelPlayback()) return false;
+#endif
     responseGeneration_ = event.responseGeneration;
     responseRestartPending_ = !gptLive_ && !operationId_.empty();
     segmentPlaying_ = false;
@@ -183,26 +219,35 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
       std::fill(pcm.begin(), pcm.end(), 0);
       return queued;
     }
+#if !defined(ESP_PLATFORM)
     audioBytes_ += size;
     if (audioBytes_ > (gptLive_ ? 9120000u : 1440000u)) { std::fill(pcm.begin(), pcm.end(), 0); return false; }
     pcm.resize(size); segmentPlaying_ = true; phase_("speaking");
     const bool played = Current() && audio_.Play(pcm);
     std::fill(pcm.begin(), pcm.end(), 0);
     return played;
+#else
+    return false;
+#endif
   }
   if (event.type == "pause") {
     if (!gptLive_ || operationId_.empty()) return false;
     if (playback_) return AdmitAction(ActionKind::Pause, event);
+#if !defined(ESP_PLATFORM)
     if (segmentPlaying_) {
       if (!audio_.Drain() || !Current()) return false;
       segmentPlaying_ = false;
     }
     audio_.Listen(uploading_.load());
     phase_("listening"); return true;
+#else
+    return false;
+#endif
   }
   if (event.type == "completed") {
     if (operationId_.empty() || responseRestartPending_ || event.operationId != operationId_ || audioBytes_ == 0 || !Current()) return false;
     if (playback_) return AdmitAction(ActionKind::Completed, event);
+#if !defined(ESP_PLATFORM)
     const uint64_t utc = utc_();
     if (utc <= 0) return false;
     const auto decision = EvaluateTurnOperationWithProposal(operationId_, expected_, snapshot_.generation,
@@ -217,10 +262,14 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     if (Post(path, body.data(), body.size(), "application/json") != 204) return false;
     terminal_ = event.operation.decision != "ask" || turns_ == 10;
     operationId_.clear(); phase_(terminal_ ? "completed" : "thinking"); return true;
+#else
+    return false;
+#endif
   }
   if (event.type == "playback_checkpoint") {
     if (!gptLive_ || operationId_.empty() || event.pcmBytes != audioBytes_ || !Current()) return false;
     if (playback_) return AdmitAction(ActionKind::Checkpoint, event);
+#if !defined(ESP_PLATFORM)
     if (segmentPlaying_) {
       if (!audio_.Drain() || !Current()) return false;
       segmentPlaying_ = false;
@@ -233,6 +282,9 @@ bool RealtimeSessionEngine::Event(const RealtimeEvent& event) {
     if (Post(path, body.data(), body.size(), "application/json") != 204)
       (void)Post(path, body.data(), body.size(), "application/json"); // same idempotent ACK, no operation replay
     phase_("listening"); return Current();
+#else
+    return false;
+#endif
   }
   if (event.type == "closed") {
     if (playback_ && actionCount_ != 0) { closedPending_ = true; return true; }

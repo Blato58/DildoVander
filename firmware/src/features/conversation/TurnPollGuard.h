@@ -33,6 +33,8 @@ struct TurnProposal {
   uint64_t deviceRevision = 0;
   uint8_t compartment = 0;
   uint64_t operationEpoch = 0;
+  // Trusted local carrier only: never read from provider proposal JSON.
+  bool technicalTest = false;
 };
 
 struct TurnCorrelation {

@@ -1,4 +1,8 @@
 #include "BrowserMedia.h"
+#include "NativeDeviceMediaSocket.h"
+#include "voice_turn/DeviceMediaSession.h"
+#include "voice_turn/BoundedVoicePlayback.h"
+#include "voice_turn/PlaybackAuthorityPort.h"
 #include "conversation/ConversationStartCodec.h"
 #include <algorithm>
 #include <chrono>
@@ -36,6 +40,25 @@ class BrowserCamera final : public CostumeCameraPort {
  private:
   BrowserMedia& owner_;
   bool available_;
+};
+class BrowserPlayback final : public BoundedPlaybackOwner::Port {
+ public:
+  explicit BrowserPlayback(BrowserMedia& audio) : audio_(audio) {}
+  bool Begin(const BoundedPlaybackOwner::Fence& fence) override {
+    if (!fence.Current()) return false;
+    audio_.Begin(); return fence.Current();
+  }
+  bool Play(const BoundedPlaybackOwner::Fence& fence, const uint8_t* pcm, size_t count) override {
+    return fence.Current() && audio_.PlayFenced(fence, pcm, count) && fence.Current();
+  }
+  bool Drain(const BoundedPlaybackOwner::Fence& fence) override {
+    return fence.Current() && audio_.DrainFenced(fence) && fence.Current();
+  }
+  bool CancelPlayback(const BoundedPlaybackOwner::Fence& fence) override {
+    return fence.Current() && audio_.CancelPlayback() && fence.Current();
+  }
+ private:
+  BrowserMedia& audio_;
 };
 uint64_t Utc() { const auto utc = std::time(nullptr); return utc > 0 ? static_cast<uint64_t>(utc) : 0; }
 }
@@ -78,11 +101,12 @@ bool BrowserMedia::Start(const std::string& session, const std::string& requestI
   request.requestId = requestId; request.voice = voice; request.speed = speed;
   request.imageConsent = imageConsent; request.snapshot = snapshot;
   request.correlation.deviceId = device_; request.correlation.bootId = boot_;
+  request.correlation.operationEpoch = snapshot.operationEpoch;
   request.correlation.generation = snapshot.generation; request.correlation.deviceRevision = snapshot.deviceRevision;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     ClearLocked(); session_ = session; snapshot_ = snapshot; lastRequestId_ = requestId;
-    cameraAvailable_ = cameraAvailable; photoWarning_.clear(); ++epoch_; ++outputEpoch_;
+    cameraAvailable_ = cameraAvailable; photoWarning_.clear(); mediaError_.clear(); ++epoch_; ++outputEpoch_;
     if (!audioObservation_.empty()) audioObservation_ = "browser-playback-unknown";
     playbackPending_ = false;
     inputEpoch_ = inputSequence_ = jpegSequence_ = sequence_ = pcmBytes_ = 0;
@@ -137,11 +161,11 @@ std::string BrowserMedia::StateHeader() {
       ",\"inputEpoch\":" + Json(std::to_string(inputEpoch_)) + ",\"outputEpoch\":" + Json(std::to_string(outputEpoch_)) +
       ",\"phase\":" + Json(phase_) + ",\"inputEnabled\":" + (listening_ ? "true" : "false") + ",\"active\":" + (busy_.load() && !cancelled_.load() ? "true" : "false") +
       (photoWarning_.empty() ? "" : ",\"photoWarning\":" + Json(photoWarning_)) +
-      (failed_.load() ? ",\"error\":\"media_failed\"" : "") + "}";
+      (failed_.load() ? ",\"error\":" + Json(mediaError_.empty() ? "media_failed" : mediaError_) : "") + "}";
 }
-bool BrowserMedia::Emit(const std::string& kind, const std::vector<uint8_t>& bytes, bool drain, const std::string& text) {
+bool BrowserMedia::Emit(const std::string& kind, const std::vector<uint8_t>& bytes, bool drain, const std::string& text, const BoundedPlaybackOwner::Fence* fence) {
   std::unique_lock<std::mutex> lock(mutex_);
-  if (!Current()) return false;
+  if (!Current() || (fence && !fence->Current())) return false;
   if (bytes.size() > 32768) { failed_.store(true); changed_.notify_all(); return false; }
   const auto canMerge = [&]() {
     return kind == "pcm" && !output_.empty() && output_.back().kind == "pcm"
@@ -157,7 +181,7 @@ bool BrowserMedia::Emit(const std::string& kind, const std::vector<uint8_t>& byt
         return !output.service;
       }) < 32 || canMerge();
   })) { failed_.store(true); changed_.notify_all(); return false; }
-  if (!Current()) return false;
+  if (!Current() || (fence && !fence->Current())) return false;
   ++sequence_;
   if (kind == "pcm") {
     pcmBytes_ += bytes.size(); playbackPending_ = true; audioObservation_ = "browser-pcm-enqueued";
@@ -244,6 +268,30 @@ bool BrowserMedia::TakeInput(std::vector<uint8_t>& pcm) {
   if (!input_.empty()) { pcm = std::move(input_.front()); input_.pop_front(); inputBytes_ -= pcm.size(); }
   return true;
 }
+void BrowserMedia::SetDeviceListening(bool enabled) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  const bool admitted = enabled && Current();
+  // The shared engine reapplies disabled capture on each output frame. Only a
+  // real gate transition may retire the browser's epoch/sequence and queue.
+  if (listening_ == admitted) return;
+  ++inputEpoch_; inputSequence_ = 0; listening_ = admitted;
+  for (auto& input : input_) Wipe(input);
+  input_.clear(); inputBytes_ = 0; changed_.notify_all();
+}
+bool BrowserMedia::TakeDeviceInput(std::vector<uint8_t>& pcm) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  Wipe(pcm);
+  if (!Current()) return false;
+  if (!listening_ || input_.empty()) return true;
+  auto& front = input_.front();
+  const auto count = std::min<size_t>(front.size(), 4800);
+  pcm.assign(front.begin(), front.begin() + count);
+  std::fill(front.begin(), front.begin() + count, 0);
+  front.erase(front.begin(), front.begin() + count);
+  inputBytes_ -= count;
+  if (front.empty()) input_.pop_front();
+  return true;
+}
 bool BrowserMedia::TakeInputForEpoch(std::vector<uint8_t>& pcm,
     const RealtimeSessionEngine& engine, uint32_t engineEpoch) {
   std::unique_lock<std::mutex> lock(mutex_);
@@ -266,6 +314,11 @@ bool BrowserMedia::Play(const std::vector<uint8_t>& pcm) {
   if (pcm.empty() || pcm.size() % 2 || pcm.size() > 32768) return false;
   return Emit("pcm", pcm);
 }
+bool BrowserMedia::PlayFenced(const BoundedPlaybackOwner::Fence& fence, const uint8_t* pcm, size_t count) {
+  std::vector<uint8_t> bytes(pcm, pcm + count);
+  const bool result = Emit("pcm", bytes, false, "", &fence);
+  Wipe(bytes); return result;
+}
 bool BrowserMedia::Drain() {
   if (!Emit("drain", {}, true)) return false;
   std::unique_lock<std::mutex> lock(mutex_);
@@ -276,6 +329,17 @@ bool BrowserMedia::Drain() {
   const bool drained = Current() && outputEpoch == outputEpoch_ && drainAcknowledged_;
   if (drained) { playbackPending_ = false; audioObservation_ = "browser-playback-drained"; }
   else if (outputEpoch == outputEpoch_ && playbackPending_) audioObservation_ = "browser-playback-unknown";
+  return drained;
+}
+bool BrowserMedia::DrainFenced(const BoundedPlaybackOwner::Fence& fence) {
+  if (!Emit("drain", {}, true, "", &fence)) return false;
+  std::unique_lock<std::mutex> lock(mutex_);
+  const uint64_t outputEpoch = outputEpoch_;
+  changed_.wait_for(lock, std::chrono::seconds(30), [&]() {
+    return drainAcknowledged_ || !Current() || !fence.Current() || outputEpoch != outputEpoch_;
+  });
+  const bool drained = Current() && fence.Current() && outputEpoch == outputEpoch_ && drainAcknowledged_;
+  if (drained) { playbackPending_ = false; audioObservation_ = "browser-playback-drained"; }
   return drained;
 }
 void BrowserMedia::Stop() {
@@ -292,8 +356,11 @@ bool BrowserMedia::CancelPlayback() {
     for (auto item = output_.begin(); item != output_.end();) {
       if (!item->service) { Wipe(item->bytes); item = output_.erase(item); } else ++item;
     }
+    if (Current()) {
+      ++sequence_; output_.push_back({HeaderLocked("audio_cancel", 0, false, ""), {}, false});
+    }
   }
-  changed_.notify_all(); return Emit("audio_cancel");
+  changed_.notify_all(); return Current();
 }
 bool BrowserMedia::Capture(std::vector<uint8_t>& jpeg) {
   { std::lock_guard<std::mutex> lock(mutex_); photoRequested_ = true; photoReady_ = photoDeclined_ = false; jpegSequence_ = 0; Wipe(jpeg_); }
@@ -416,6 +483,7 @@ bool BrowserMedia::TakeCompletion(MediaCompletion& completion) {
 }
 void BrowserMedia::Worker(VoiceWorkflowRequest request) {
   VoiceWorkflowResult result;
+  bool deviceMedia = false;
   try {
     VoiceWorkflowPorts ports;
     ports.current = [this]() { return Current(); }; ports.uuid = MediaUuid;
@@ -423,6 +491,7 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
     ports.create = [this](bool photo, const std::string& key, std::string& conversation) {
       ConversationStartRequest start;
       start.deviceId = device_; start.bootId = boot_; start.idempotencyKey = key;
+      start.operationEpoch = snapshot_.operationEpoch;
       start.generation = snapshot_.generation; start.catalogVersion = snapshot_.catalogVersion;
       start.audioConsent = true; start.imageConsent = photo;
       std::string body;
@@ -449,8 +518,20 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
       return photo;
     };
     ports.beginAudio = [this]() { Begin(); };
-    ports.realtime = [this](const std::string& body, const std::string& key, const TurnCorrelation& correlation,
+    ports.realtime = [this, &deviceMedia](const std::string& body, const std::string& key, const TurnCorrelation& correlation,
         const std::function<bool(const TurnOperationObservation&)>& completed) {
+      NativeDeviceMediaSocket socket([this](const std::string& action, const std::string& path,
+          const std::string& key, const std::string& type, const uint8_t* bytes, size_t size) {
+        auto response = Request("media-socket-" + action, "POST", path, key, "{}", type.c_str(), bytes, size);
+        return NativeDeviceMediaSocket::Reply{response.status, response.type, std::move(response.bytes)};
+      });
+      // Probe only the explicit fake carveout. A failed real socket never falls
+      // back to REST and never replays captured microphone bytes.
+      if (socket.Open("", correlation.conversationId, "", key)) {
+        deviceMedia = true;
+        return RunDeviceMedia(socket, body, key, correlation, completed);
+      }
+      if (!socket.Fake()) return false;
       RealtimeSessionEngine engine(*this, endpoint_ == "gpt-live", [this]() { return Current(); }, MediaWallMs, Utc,
           [this](const char* phase) { Phase(phase); },
           [this](const std::string& path, const void* data, size_t size, const char* type, const std::string& inputId, unsigned sequence) {
@@ -509,6 +590,10 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
     result = RunVoiceWorkflow(request, ports);
     Stop();
     if (!result.succeeded || !result.final.hasProposal) (void)CloseConversation();
+    // Shared playback teardown revokes/clears its old HAL epoch. Publish the
+    // terminal caption only after that fence, so Stop cannot discard it.
+    if (deviceMedia && result.succeeded && Current() && !result.final.reply.empty())
+      (void)Emit("dialogue", {}, false, result.final.reply);
   } catch (...) { failed_.store(true); }
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -531,4 +616,52 @@ void BrowserMedia::Worker(VoiceWorkflowRequest request) {
     busy_.store(false); done_ = true; changed_.notify_all();
   }
   std::fill(result.final.reply.begin(), result.final.reply.end(), '\0');
+}
+
+bool BrowserMedia::RunDeviceMedia(DeviceMediaSocketPort& socket, const std::string& body,
+    const std::string& key, const TurnCorrelation& correlation,
+    const std::function<bool(const TurnOperationObservation&)>& completed) {
+  std::vector<uint8_t> pcm(BoundedPlaybackOwner::WorkspaceBytes), receive(65536);
+  BrowserPlayback raw(*this);
+  PlaybackAuthorityPort guarded(raw, [this]() { return Current(); });
+  BoundedPlaybackOwner owner(guarded, pcm.data(), pcm.size(),
+      [](void* context) {
+        auto& audio = *static_cast<BrowserMedia*>(context); (void)audio.CancelPlayback(); audio.Stop();
+      },
+      [](void* context) { return static_cast<BrowserMedia*>(context)->CancelPlayback(); }, this);
+  BoundedVoicePlayback playback(owner, 1);
+  std::atomic<bool> stopped{false};
+  std::thread worker([&]() {
+    while (!stopped.load()) {
+      if (!owner.RunOne()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+  bool success = false;
+  try {
+    auto begin = playback.Begin();
+    const auto deadline = MediaWallMs() + 2000;
+    while (begin == VoicePlaybackPort::Progress::Pending && Current() && MediaWallMs() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1)); begin = playback.Begin();
+    }
+    if (begin == VoicePlaybackPort::Progress::Succeeded && Current()) {
+      DeviceMediaSession channel(socket, MediaWallMs, MediaUuid,
+          [this](std::vector<uint8_t>& bytes) { return TakeDeviceInput(bytes); }, receive.data(), receive.size());
+      RealtimeSessionEngine engine(*this, endpoint_ == "gpt-live", [this]() { return Current(); }, MediaWallMs, Utc,
+          [this](const char* phase) { Phase(phase); },
+          [](const std::string&, const void*, size_t, const char*, const std::string&, unsigned) { return 0; },
+          correlation, snapshot_, completed, {playback, channel, [this](bool enabled) { SetDeviceListening(enabled); }});
+      channel.Attach(engine);
+      bool valid = channel.Open("", correlation, "", key, endpoint_ == "gpt-live", body);
+      while (valid && Current() && (!engine.Closed() || engine.HasPendingActions())) valid = channel.Step();
+      success = valid && Current() && engine.Closed() && !engine.Failed();
+      if (!success) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        mediaError_ = *channel.Error() ? channel.Error() : engine.Error();
+      }
+      engine.Stop();
+    }
+  } catch (...) { failed_.store(true); }
+  playback.Stop(); stopped.store(true); changed_.notify_all(); worker.join();
+  Wipe(pcm); Wipe(receive);
+  return success;
 }

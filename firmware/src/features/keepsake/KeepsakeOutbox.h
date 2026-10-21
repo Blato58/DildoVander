@@ -61,6 +61,8 @@ inline bool SameKeepsakeDisposition(const KeepsakeDisposition& left, const Keeps
 
 // Epoch zero is immutable legacy evidence; it must never borrow current admission.
 inline bool HasKeepsakePhysicalEvidence(const CommandJournal& journal, const KeepsakeOutcome& outcome) {
+  if (journal.IsTechnicalTestOperation(outcome.operationEpoch, outcome.physicalOperationId,
+      outcome.compartment, outcome.physicalFingerprint)) return false;
   if (!outcome.operationEpoch && !outcome.physicalFingerprint)
     return journal.WasLegacyTimedPresentationCompleted(outcome.physicalOperationId, outcome.compartment);
   return outcome.physicalFingerprint && journal.WasTimedPresentationCompletedHistorical(

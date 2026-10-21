@@ -5,6 +5,7 @@
 #include "LocalControlTransport.h"
 #include "../conversation/ConversationStartCodec.h"
 #include "../device_control/CommandJournal.h"
+#include "../device_runtime/DeviceDiagnostics.h"
 #include "../safety/SafetyController.h"
 #include "../../protocol/JsonWriter.h"
 
@@ -106,9 +107,18 @@ bool LocalControlOutput::AdvanceEvent() {
 }
 
 bool LocalControlOutput::Send(
-    const LocalSocketAdmission::Handle& handle, const std::string& json) {
+    const LocalSocketAdmission::Handle& handle, const std::string& json,
+    size_t maximumBytes) {
   return ValidDeviceId(deviceId_) && IsConversationUuid(bootId_) &&
-         json.size() <= 2048 && transport_.Send(handle, json);
+         json.size() <= maximumBytes && transport_.Send(handle, json);
+}
+
+std::string LocalControlOutput::CapabilitiesJson() const {
+  std::string capabilities = LocalControlCapabilities::Json;
+  capabilities.pop_back();
+  if (voice_ && voice_->SupportsVoiceTestContext()) capabilities += ",\"voiceTestContext\"";
+  if (diagnostics_) capabilities += ",\"runtimeDiagnostics\"";
+  return capabilities + "]";
 }
 
 const char* LocalControlOutput::Phase(bool liveLease) const {
@@ -174,7 +184,7 @@ bool LocalControlOutput::BuildResult(
 
 bool LocalControlOutput::BuildSnapshot(
     const std::string& leaseId, uint64_t nowMs, std::string& json,
-    bool includeOperationEpoch) {
+    bool includeOperationEpoch, bool includeDiagnostics) {
   if (!ValidDeviceId(deviceId_) || !IsConversationUuid(bootId_) ||
       !IsConversationUuid(conversation_.ConversationId()) ||
       !OptionalUuid(conversation_.ActiveTurnId()) || !OptionalUuid(leaseId) ||
@@ -216,13 +226,20 @@ bool LocalControlOutput::BuildSnapshot(
       ",\"calibrationRevision\":" + std::to_string(control_.CalibrationRevision()) +
       ",\"faults\":" + (!journal_.HasStorageFault() ? "[]" : "[\"journal_failed\"]") +
       ",\"microphoneState\":\"" + microphone + "\",\"capabilities\":" +
-      LocalControlCapabilities::Json +
+      CapabilitiesJson() +
       ",\"lastResult\":" + lastResult +
       ",\"conversation\":{\"conversationId\":\"" + conversation_.ConversationId() +
       "\",\"generation\":" + std::to_string(conversation_.Generation()) +
       ",\"activeTurnId\":" + NullableUuid(conversation_.ActiveTurnId()) + "}" +
       (voice_ ? ",\"voice\":" + VoiceStatusJson(voiceStatus) : "") +
       (dance_ ? ",\"dance\":" + DanceStatusJson(dance_->DanceState()) : "") + "}";
+  if (includeDiagnostics && diagnostics_) {
+    const auto diagnostics = diagnostics_->Json();
+    if (!diagnostics.empty()) {
+      json.pop_back();
+      json += ",\"diagnostics\":" + diagnostics + "}";
+    }
+  }
   return true;
 }
 
@@ -245,6 +262,12 @@ bool LocalControlOutput::Snapshot(
 bool LocalControlOutput::ScopedSnapshot(
     const LocalSocketAdmission::Handle& handle, const std::string& leaseId,
     uint64_t nowMs, bool includeOperationEpoch) {
+  return ScopedSnapshot(handle, leaseId, nowMs, includeOperationEpoch, false);
+}
+
+bool LocalControlOutput::ScopedSnapshot(
+    const LocalSocketAdmission::Handle& handle, const std::string& leaseId,
+    uint64_t nowMs, bool includeOperationEpoch, bool includeDiagnostics) {
   std::string json;
   if (ResultChanged()) {
     if (!AdvanceEvent() || !BuildResult(eventSequence_, json) || !Send(handle, json)) {
@@ -252,7 +275,8 @@ bool LocalControlOutput::ScopedSnapshot(
     }
     RememberResult();
   }
-  return AdvanceEvent() && BuildSnapshot(leaseId, nowMs, json, includeOperationEpoch) && Send(handle, json);
+  return AdvanceEvent() && BuildSnapshot(leaseId, nowMs, json, includeOperationEpoch, includeDiagnostics) &&
+      Send(handle, json, includeDiagnostics ? 4096 : 2048);
 }
 
 bool LocalControlOutput::Heartbeat(
