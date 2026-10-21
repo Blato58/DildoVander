@@ -43,7 +43,7 @@ def build_manifest(parameters, mechanism, effects, component_names, geometry_dig
         slots.append({"slot": slot, "components": components, "liftComponents": moving,
                       "rotationComponents": rotating, "originMm": origin,
                       "servoPivotMm": pivot, "camPivotMm": pivot, "axis": [1, 0, 0],
-                      "pivotEvidence": "CAD design; servo shaft offset provisional",
+                      "pivotEvidence": "Owner-supplied SG90 STEP shaft aligned to CAD cam; physical fit pending",
                       "channels": {"servoPca": index, "vibrationPca": index + 6,
                                    "ledStart": index * leds, "ledCount": leds}})
     samples = [{"angleDegrees": angle, "liftMm": round(mechanism.cam_law(angle)[0] - mechanical["cam_low_radius"], 9)}

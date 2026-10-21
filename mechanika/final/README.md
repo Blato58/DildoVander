@@ -21,6 +21,11 @@ exportovaných dílů uvádí aktuální tiskový seznam.
 
 ## Výrobní revize F2-SF-DFA — 13. 10. 2026
 
+Servo používá od 21. 10. 2026 [STEP dodaný majitelem](reference/SG90-Servo.md)
+včetně montážních patek a vývodu kabelů. Osa serva, vačky a páky je o 1 mm
+výše (lokální Z37); upravené lůžko a vedení zachovávají jejich návaznost.
+Tato změna vyžaduje nové výrobní ověření; starší výrobní výstupy ji nepokrývají.
+
 Elektronika a pevné svazky vznikají na stole před vložením rámu a před
 pohyblivými lůžky. Dvě boční kazety mají sedm šroubů přístupných shora;
 nohy procházejí skutečnými servisními drážkami vedlejších nosičů.
