@@ -200,7 +200,7 @@ Offline checks against fake HTTP/media fixtures:
 
 ```sh
 python firmware/simulator/native/test_media.py --executable /path/to/native-twin
-python firmware/tests/run_show_tests.py --only realtime_session_engine_test --only espidf_realtime_transport_test
+python firmware/tests/run_show_tests.py --only realtime_session_engine_test --only production_media_ports_test
 ```
 
 These check production codec correlation, uncertain photo fallback, bounded
