@@ -320,6 +320,7 @@ jobs:
             src/features/conversation/ConversationSession.cpp \
             src/features/conversation/ConversationStartCodec.cpp \
             src/features/local_control/LocalControlOutput.cpp \
+            src/features/device_runtime/DeviceDiagnostics.cpp \
             tests/local_control_output_test.cpp \
             -o "$RUNNER_TEMP/local-control-output-test"
           "$RUNNER_TEMP/local-control-output-test" > "$RUNNER_TEMP/control-output.jsonl"

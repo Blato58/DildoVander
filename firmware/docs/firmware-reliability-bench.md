@@ -8,18 +8,18 @@ and successful firmware builds do not satisfy these checks.
 ## Prepared production artifact
 
 The local production rebuild on 21 October 2026 used source commit
-`b0edfa10ca6569b80c25acf8f934d3e4da7637c1` (tree
-`fd8c95d2c68bca9665df0262fdb5562d3c1d8cdd`). Its compiled build ID was verified
-in the actual compilation database. Later documentation-only commits do not
+`1ae08ae31c6f0adfda43a4653db92687f9141e70` (tree
+`bc3b62ee5012617e92ee08c92b39725f675b6420`). Its compiled build ID was verified
+in the actual compilation database. Later documentation/CI-only commits do not
 change this artifact's identity.
 
 | Property | Recorded result |
 | --- | --- |
 | Environment / application version | `production` / local `0.1.1` |
-| Application image | `firmware.bin`, 2,123,952 bytes |
-| SHA-256 | `d0c60283806d54a1b92ea0c29793e4b1c007d281bbd6e18e55e38e9c64d43967` |
-| Static RAM / linked flash | 178,508 / 2,123,533 bytes |
-| Build result | Success, 274.71 seconds; ESP-IDF 6.1, pinned PlatformIO platform 7.1.3 |
+| Application image | `firmware.bin`, 2,123,968 bytes |
+| SHA-256 | `2a662e925221171a670bb2741c419dfb68dd27e11866114fd1501475cdc0521e` |
+| Static RAM / linked flash | 178,508 / 2,123,541 bytes |
+| Build result | Success, 254.13 seconds; ESP-IDF 6.1, pinned PlatformIO platform 7.1.3 |
 | Physical execution | **Unrun**; no flash, provisioning or bench activation |
 
 These are build observations, not peak activated heap/stack measurements. CI
