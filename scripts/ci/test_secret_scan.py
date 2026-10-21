@@ -17,6 +17,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 BINARY = os.environ.get("GITLEAKS_BINARY") or shutil.which("gitleaks")
 SCAN_COMMAND = '"$RUNNER_TEMP/gitleaks" git --config=.gitleaks.toml --redact=100 --no-banner --log-opts=HEAD'
+CPP_SOCKET_FIXTURE = "firmware/tests/espidf_device_media_socket_test.cpp"
 # Historical fixtures: full-history secret scans must still handle old commits
 # after their source files have been removed from the current tree.
 INVENTORY_PATHS = (
@@ -58,6 +59,7 @@ class SecretScanWorkflowTests(unittest.TestCase):
             "CAD component identifier, not an API credential": "mechanika/cad/scripts/generate.py",
             "Smoke test passes a generated idempotency key by variable": "backend/tests/deployed_smoke.py",
             "Reviewed synthetic firmware idempotency UUID": "firmware/tests/conversation_text_codec_test.cpp",
+            "Synthetic host-only ESP-IDF socket test token": CPP_SOCKET_FIXTURE,
             "RFC 6455 public example nonce in the synthetic WebSocket handshake":
                 "mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs",
         }
@@ -196,6 +198,14 @@ class SecretScanRepository(unittest.TestCase):
     def synthetic_token():
         return "ghp" + "_" + "Ab3Cd4Ef5Gh6Ij7Kl8Mn9Op0Qr1St2Uv3Wx4"
 
+    def cpp_socket_statements(self):
+        lines = (ROOT / CPP_SOCKET_FIXTURE).read_text(encoding="utf-8").splitlines()
+        token = next(line for line in lines if 'const char* Token = ' in line)
+        nonce = next(line for line in lines if 'Check(request.find("Sec-WebSocket-Key:' in line)
+        self.assertIn(base64.b64encode(b"synthetic-test-token").decode("ascii"), token)
+        self.assertIn(base64.b64encode(b"the sample nonce").decode("ascii"), nonce)
+        return token + "\n" + nonce
+
 
 class SecretScanIntegrationTests(SecretScanRepository):
     def test_file_hashes_survive_new_commits_and_squash_without_exceptions(self):
@@ -241,11 +251,14 @@ class SecretScanIntegrationTests(SecretScanRepository):
                    f'request.idempotencyKey = "{token}";')
         self.write("mobilni-aplikace/tests/native_handsfree/socket_peer.test.mjs",
                    f'const api_key = "{token}";')
+        self.write(CPP_SOCKET_FIXTURE, f'const char* api_key = "{token}";')
         self.commit("Synthetic leaked credentials")
         findings = self.scan(1)
         self.assertIn("github-pat", {finding["RuleID"] for finding in findings})
+        self.assertIn((CPP_SOCKET_FIXTURE, "github-pat"),
+                      {(finding["File"], finding["RuleID"]) for finding in findings})
         self.assertIn("generic-api-key", {finding["RuleID"] for finding in findings})
-        self.assertEqual(7, len({finding["File"] for finding in findings}))
+        self.assertEqual(8, len({finding["File"] for finding in findings}))
         for path in INVENTORY_PATHS:
             self.assertEqual({"github-pat", "generic-api-key"},
                              {finding["RuleID"] for finding in findings if finding["File"] == path})
@@ -262,6 +275,32 @@ class SecretScanIntegrationTests(SecretScanRepository):
         self.write("other-socket.mjs", handshake)
         self.commit("Same value outside its reviewed fixture")
         self.assertEqual({"other-socket.mjs"}, {item["File"] for item in self.scan(1)})
+
+    def test_cpp_socket_fixture_values_pass_at_current_and_legacy_paths(self):
+        for path in (CPP_SOCKET_FIXTURE, "kufr/" + CPP_SOCKET_FIXTURE):
+            self.write(path, self.cpp_socket_statements())
+        self.commit("Reviewed C++ socket fixture values")
+        self.assertEqual([], self.scan(0))
+
+    def test_cpp_socket_exceptions_reject_changed_values_in_same_file(self):
+        content = self.cpp_socket_statements()
+        for original in (b"synthetic-test-token", b"the sample nonce"):
+            value = base64.b64encode(original).decode("ascii")
+            content = content.replace(value, hashlib.sha256(b"different fixture " + original).hexdigest())
+        self.write(CPP_SOCKET_FIXTURE, content)
+        self.commit("Changed C++ socket fixture values")
+        findings = self.scan(1)
+        self.assertEqual(2, len(findings))
+        self.assertEqual({CPP_SOCKET_FIXTURE}, {item["File"] for item in findings})
+        self.assertEqual({"generic-api-key"}, {item["RuleID"] for item in findings})
+
+    def test_cpp_socket_fixture_values_remain_blocked_at_unrelated_paths(self):
+        self.write("firmware/tests/other_socket_test.cpp", self.cpp_socket_statements())
+        self.commit("Same socket values outside the reviewed fixture")
+        findings = self.scan(1)
+        self.assertEqual(2, len(findings))
+        self.assertEqual({"firmware/tests/other_socket_test.cpp"}, {item["File"] for item in findings})
+        self.assertEqual({"generic-api-key"}, {item["RuleID"] for item in findings})
 
     def test_hash_exception_requires_inventory_path(self):
         digest = hashlib.sha256(b"synthetic bytes").hexdigest()
