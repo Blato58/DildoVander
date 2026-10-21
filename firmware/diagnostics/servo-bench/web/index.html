@@ -25,6 +25,7 @@
       <a href="#calibration-title">Ruční pokus</a>
       <a href="#profile-title">Uložit profil</a>
       <a href="#auto-title">Hledání meze</a>
+      <a href="#music-title">Hudba a tanec</a>
       <a href="#diagnostics">Diagnostika</a>
     </nav>
     <div class="bench-workspace">
@@ -61,7 +62,7 @@
       <p class="aw-muted">Zvolte cíl, připravte jeden pokus pomocí Arm a spusťte jej samostatně. Hodnoty jsou ruční záznamy; poloha, úhel ani doraz se neměří.</p>
       <div id="calibration-fields" class="controls"></div>
       <label class="aw-field" for="cal-range">Cílová šířka posuvníkem (µs)</label>
-      <input id="cal-range" class="cal-range" type="range" min="500" max="2400" step="25" value="1500" aria-describedby="cal-help">
+      <input id="cal-range" class="cal-range" type="range" min="600" max="2300" step="25" value="1500" aria-describedby="cal-help">
       <div class="actions presets" aria-label="Změnit cílovou hodnotu bez pohybu">
         <button id="cal-minus" class="aw-button aw-button--secondary" type="button">−25 µs</button>
         <button id="cal-1200" class="aw-button aw-button--secondary" type="button">1200 µs</button>
@@ -100,6 +101,22 @@
     </section>
     </div>
     </div>
+    <section class="bench-section bench-music" aria-labelledby="music-title">
+      <h2 id="music-title">Hudba a tanec serva</h2>
+      <p>Play přehrává zvuk v prohlížeči. Volitelný tanec ovládá vybraný kanál podle odhadu rytmu a energie skladby. Jeden pulz trvá 500 ms; zpožděné kroky se přeskočí. Pauza i Stop vyžádají vypnutí PWM.</p>
+      <p>Majitel fyzicky potvrdil meze <strong>600–2300 µs pro všech šest serv</strong> dne 21. 10. 2026. Poloha ani zatížení nejsou měřené. Tanec je pouze pro jedno volné servo; na mechanismu jej nepoužívejte.</p>
+      <label class="field" for="music-file">Místní skladba · MP3 / WAV, do 32 MiB a 10 minut</label>
+      <input class="aw-input" id="music-file" type="file" accept="audio/*">
+      <p id="music-summary" class="aw-muted"></p>
+      <audio id="music-audio" preload="auto"></audio>
+      <label class="field"><input id="music-dance" type="checkbox"> Servo tančí se zvukem · vybraný kanál</label>
+      <label class="field"><input id="music-consent" type="checkbox"> Volné servo je připravené a zůstávám u vypínače. Povoluji posloupnost pulzů pro toto Play.</label>
+      <label class="field" for="music-strength">Rozsah tance · % potvrzeného rozsahu (40 % na začátek)</label>
+      <input id="music-strength" class="aw-input" type="number" min="1" max="100" value="40">
+      <div class="actions"><button class="aw-button aw-button--primary" id="music-play" type="button" disabled>Play</button><button class="aw-button aw-button--secondary" id="music-pause" type="button" disabled>Pause</button><button class="aw-button aw-button--danger" id="music-stop" type="button" disabled>Stop hudby a tance</button></div>
+      <progress id="music-progress" max="1" value="0" aria-label="Průběh skladby"></progress>
+      <p id="music-time" class="aw-muted"></p><p id="music-status" role="status"></p>
+    </section>
     <details id="diagnostics" class="bench-details bench-diagnostics">
       <summary>Diagnostika · registry a sériový log</summary>
       <p class="aw-muted">Technická hlášení firmwaru. Čtení registrů neověřuje mechanickou polohu, sílu ani odpojení napájení.</p>

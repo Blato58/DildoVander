@@ -4,6 +4,7 @@ import { registerBenchTools } from "./mcp.mjs";
 import { ManualProfiles, canSaveTarget } from "./profiles.mjs";
 import { AutoCalibration, AUTO_CALIBRATION_STEP_US } from "./auto-calibration.mjs";
 import { mountBenchUi, benchGuidance, statusBadge, notice, emptyState } from "./panel-ui.mjs";
+import { mountMusicPanel } from "./music-panel.mjs";
 
 mountBenchUi(document);
 
@@ -38,6 +39,7 @@ const logLines = [];
 const stateListeners = new Set();
 const rawStateListeners = new Set();
 let autoCalibration = null;
+let music = null;
 let autoContext = null;
 let visibilityStopped = false;
 let storage;
@@ -52,7 +54,7 @@ function getRawSnapshot() {
 
 function getSnapshot() {
   const snapshot = getRawSnapshot();
-  if (autoCalibration?.state.active) {
+  if (autoCalibration?.state.active || music?.state.dancing) {
     Object.assign(snapshot.capabilities, { arm: false, pulse: false, calibrate: false });
   }
   snapshot.autoCalibration = autoCalibration ? structuredClone(autoCalibration.state) : { active: false };
@@ -84,7 +86,7 @@ function log(line) {
 }
 
 function render(state, capabilities) {
-  const automatic = !!autoCalibration?.state.active;
+  const automatic = !!autoCalibration?.state.active || !!music?.state.dancing;
   elements["bench-readiness"].innerHTML = notice({
     ...benchGuidance(state, capabilities, { supported, connecting, closing, automatic }),
     live: false,
@@ -130,9 +132,9 @@ function calibrationValues() {
 function displayedCalibrationLimits() {
   return {
     minimumUs: Number.isInteger(controller.state.calibrationMinimumUs) ?
-      controller.state.calibrationMinimumUs : 500,
+      controller.state.calibrationMinimumUs : 600,
     maximumUs: Number.isInteger(controller.state.calibrationMaximumUs) ?
-      controller.state.calibrationMaximumUs : 2400,
+      controller.state.calibrationMaximumUs : 2300,
   };
 }
 
@@ -151,7 +153,7 @@ function renderCalibration(state, capabilities) {
       Math.min(maximumUs, Number(elements["cal-width"].value) || 1500)));
   }
   const values = calibrationValues();
-  const automatic = !!autoCalibration?.state.active;
+  const automatic = !!autoCalibration?.state.active || !!music?.state.dancing;
   const busy = automatic || !!state.pending || state.writing || !!state.armedUntil || closing;
   for (const id of ["cal-width", "cal-duration", "cal-range", "cal-minus", "cal-plus", "cal-1200", "cal-1500", "cal-1800"]) {
     elements[id].disabled = busy;
@@ -187,7 +189,7 @@ function profileError(message) {
 }
 
 function updateProfile(action, message = "Ruční profil uložen v tomto prohlížeči. Poloha nebyla měřena.", candidate = false) {
-  if (autoCalibration?.state.active) return false;
+  if (autoCalibration?.state.active || music?.state.dancing) return false;
   if (!candidate) discardProposal();
   try {
     action();
@@ -231,7 +233,7 @@ function canStartAuto() {
   const channel = Number(elements.channel.value);
   const center = profiles.channels[channel]?.center;
   const state = controller.state;
-  return autoCalibration && !autoCalibration.state.active && !connecting && !closing &&
+  return autoCalibration && !autoCalibration.state.active && !music?.state.dancing && !connecting && !closing &&
     document.visibilityState !== "hidden" && Number.isInteger(center) &&
     center >= state.calibrationMinimumUs && center <= state.calibrationMaximumUs &&
     state.calibrationSupported && !state.error && controller.capabilities.arm &&
@@ -269,12 +271,13 @@ function startAuto(direction) {
 }
 
 function manualAction(action) {
-  if (autoCalibration?.state.active) return false;
+  if (autoCalibration?.state.active || music?.state.dancing) return false;
   discardProposal();
   return action();
 }
 
 function stopAll(reason = "Stop obsluhy") {
+  music?.stop(false);
   autoCalibration?.cancel(reason, { sendStop: false });
   discardProposal();
   return controller.stop();
@@ -310,6 +313,7 @@ async function connectUsb(authorizedOnly = false) {
 
 async function disconnectUsb() {
   if (closing || connecting || !controller.state.connected) return false;
+  music?.pause("USB odpojeno; tanec pozastaven.", false);
   autoCalibration?.cancel("Odpojení USB", { sendStop: false });
   discardProposal();
   // Submit the emergency byte before releasing the port. Close aborts stalled IO;
@@ -398,6 +402,7 @@ elements["auto-save"].addEventListener("click", () => updateProfile(() => {
 function stopForVisibility() {
   if (visibilityStopped) return;
   visibilityStopped = true;
+  music?.pause("Stránka skryta; hudba i tanec pozastaveny.", false);
   autoCalibration?.cancel("Stránka byla skryta; kroky se samy neobnoví", { sendStop: false });
   discardProposal();
   // Hidden-page cleanup is automatic: do not retry failed firmware I2C or an
@@ -414,6 +419,12 @@ window.addEventListener?.("pagehide", stopForVisibility);
 if (!supported) {
   elements.support.textContent = "Web Serial není dostupné. Otevřete tuto localhost adresu v desktopovém Chrome nebo Edge s podporou Web Serial. Panel nemůže ovládat USB v tomto prohlížeči.";
 }
+music = mountMusicPanel(document, {
+  getState: () => ({ ...getRawSnapshot(), automatic: !!autoCalibration?.state.active }),
+  arm: () => controller.arm(), calibrate: (channel, width, duration) => controller.calibrate(channel, width, duration),
+  stop: () => controller.stop(), channel: () => Number(elements.channel.value),
+  onChange: () => render(controller.state, controller.capabilities),
+});
 controller.changed();
 
 void registerBenchTools({

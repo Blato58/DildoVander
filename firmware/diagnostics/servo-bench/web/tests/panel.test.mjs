@@ -18,7 +18,7 @@ test("shared markup preserves every panel hook and calibrated input boundary", a
   for (const id of ids) {
     assert.equal([...rendered.matchAll(new RegExp(`\\bid="${id}"`, "g"))].length, 1, `unique control hook ${id}`);
   }
-  assert.match(fragments.join(""), /min="500" max="2400"/);
+  assert.match(fragments.join(""), /min="600" max="2300"/);
   assert.match(fragments.join(""), /min="500" max="3000"/);
   assert.match(fragments.join(""), /id="stop" disabled>Stop<\/button>/);
   assert.match(html, /REAL USB · skutečný hardware/);
@@ -243,10 +243,10 @@ test("calibration edits never move, explicit Arm/move waits DONE, profiles save 
     await el.connect.click();
     await receive("READY PWM FULL_OFF; calibration=v2 calibration_min_us=500 calibration_max_us=2400");
     await receive("STOP PWM FULL_OFF");
-    assert.equal(el["cal-width"].min, "500");
-    assert.equal(el["cal-width"].max, "2400");
-    assert.equal(el["cal-range"].min, "500");
-    assert.equal(el["cal-range"].max, "2400");
+    assert.equal(el["cal-width"].min, "600");
+    assert.equal(el["cal-width"].max, "2300");
+    assert.equal(el["cal-range"].min, "600");
+    assert.equal(el["cal-range"].max, "2300");
     assert.equal(el["cal-arm"].disabled, false);
     await el["cal-1200"].click();
     await el["cal-arm"].click();

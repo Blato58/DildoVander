@@ -4,10 +4,12 @@ import { SerialTransport, flushStopBeforeClose } from '../../../../firmware/diag
 import { ManualProfiles } from '../../../../firmware/diagnostics/servo-bench/web/profiles.mjs';
 import { AutoCalibration } from '../../../../firmware/diagnostics/servo-bench/web/auto-calibration.mjs';
 import { registerBenchTools } from '../../../../firmware/diagnostics/servo-bench/web/mcp.mjs';
+import { MusicDance } from '../../../../firmware/diagnostics/servo-bench/web/music.mjs';
 
 export interface BenchState {
   connected: boolean; baseline: boolean; fault: boolean; pending: string | null; writing: boolean;
   armedUntil: number; calibrationSupported: boolean; message: string; error: string; errorKind: string;
+  calibrationMinimumUs?: number | null; calibrationMaximumUs?: number | null;
   lastCompleted: { channel: number; pulseWidthUs: number; durationMs: number; calibration: boolean } | null;
   readback: { channel: number; mode1: string; mode2: string; prescale: number; on: number; off: number;
     fullOn: boolean; fullOff: boolean; expectedOff: number; match: boolean } | null;
@@ -51,6 +53,8 @@ const profileError = ref('');
 const toolMessage = ref('WebMCP není zapnuté.');
 const toolsEnabled = ref(false);
 const toolsPending = ref(false);
+const dancing = ref(false);
+let music: MusicDance | null = null;
 const supported = typeof window !== 'undefined' && window.isSecureContext && 'serial' in navigator;
 const rawListeners = new Set<(value: Snapshot) => void>();
 const listeners = new Set<(value: Snapshot) => void>();
@@ -82,7 +86,7 @@ function publish(): void {
       !next.calibrationSupported || next.message.startsWith('Firmware připraven po startu'))) discardProposal();
   for (const listener of [...rawListeners]) listener(next);
   automatic.value = calibration ? structuredClone(calibration.state) : null;
-  if (automatic.value?.active) capabilities.value = { ...next.capabilities, arm: false, pulse: false, calibrate: false };
+  if (automatic.value?.active || dancing.value) capabilities.value = { ...next.capabilities, arm: false, pulse: false, calibrate: false };
   for (const listener of [...listeners]) listener({ ...next, capabilities: capabilities.value });
 }
 function addLog(line: string): void { log.value = [...log.value.slice(-199), `${new Date().toISOString()} ${line}`]; }
@@ -130,6 +134,7 @@ async function connect(authorizedOnly = false): Promise<boolean> {
   } finally { connecting.value = false; publish(); }
 }
 function stop(): Promise<boolean> | false {
+  music?.stop(false);
   if (!controller?.state.connected) return false;
   calibration?.cancel('manual_stop', { sendStop: false }); discardProposal();
   return controller.stop();
@@ -138,6 +143,7 @@ function disconnect(): Promise<void> {
   ++epoch;
   if (disconnecting) return disconnecting;
   if (!controller) return Promise.resolve();
+  music?.pause('USB odpojeno; hudba i tanec pozastaveny.', false);
   disableTools();
   closing.value = true;
   calibration?.cancel('disconnected', { sendStop: false }); discardProposal();
@@ -152,27 +158,44 @@ function disconnect(): Promise<void> {
 }
 function pagehide(): void {
   ++epoch;
+  music?.pause('Stránka skryta; hudba i tanec pozastaveny.');
   if (state.value.connected && !state.value.fault && state.value.pending !== 'stop') void stop();
 }
 function visibility(): void { if (document.hidden) pagehide(); }
 function manual(action: (value: Controller) => Promise<boolean> | false): Promise<boolean> | false {
-  if (!controller || calibration?.state.active || !visible || document.hidden || closing.value) return false;
+  if (!controller || calibration?.state.active || dancing.value || !visible || document.hidden || closing.value) return false;
   discardProposal(); return action(controller);
 }
 function updateProfile(action: (value: Profiles) => void): void {
+  if (dancing.value) return;
   ensure();
   try { action(storedProfiles!); profiles.value = structuredClone(storedProfiles!.channels); profileError.value = ''; discardProposal(); }
   catch (error) { profileError.value = error instanceof Error ? error.message : 'Profil se nepodařilo uložit.'; }
 }
 
 export const servoBench = {
-  state, capabilities, automatic, profiles, log, profileError, connected, connecting, closing, supported, toolsEnabled, toolsPending, toolMessage,
+  state, capabilities, automatic, profiles, log, profileError, connected, connecting, closing, supported, toolsEnabled, toolsPending, toolMessage, dancing,
+  createMusic(audio: HTMLAudioElement, onChange: () => void): MusicDance {
+    ensure(); music?.dispose();
+    music = new MusicDance({ audio,
+      getState: () => ({ ...snapshot(), automatic: !!calibration?.state.active || !visible || document.hidden }),
+      arm: () => controller!.arm(), calibrate: (channel: number, width: number, duration: number) => controller!.calibrate(channel, width, duration),
+      stop: () => controller!.stop(), onChange: () => {
+        const started = !!music?.state.dancing && !dancing.value;
+        dancing.value = !!music?.state.dancing;
+        if (started) discardProposal();
+        publish(); onChange();
+      },
+    });
+    return music;
+  },
+  releaseMusic(): void { music?.dispose(); music = null; dancing.value = false; publish(); },
   canStartAutomatic: computed(() => capabilities.value.arm && !automatic.value?.active && state.value.calibrationSupported && !state.value.error && !connecting.value && !closing.value),
   connect, disconnect, stop,
   show(value: boolean): void {
     visible = value;
     if (value) { ensure(); document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', pagehide); }
-    else { document.removeEventListener('visibilitychange', visibility); window.removeEventListener('pagehide', pagehide); void disconnect(); }
+    else { music?.stop(false); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('pagehide', pagehide); void disconnect(); }
   },
   arm: () => manual(value => value.arm()), pulse: (channel: number, width: number) => manual(value => value.pulse(channel, width)),
   calibrate: (channel: number, width: number, duration: number) => manual(value => value.calibrate(channel, width, duration)),
@@ -184,7 +207,7 @@ export const servoBench = {
     return calibration.start({ channel, direction, centerUs: profile.center });
   },
   changeContext: discardProposal,
-  canSavePoint: (channel: number, width: number) => !!state.value.lastCompleted?.calibration && state.value.calibrationSupported &&
+  canSavePoint: (channel: number, width: number) => !dancing.value && !!state.value.lastCompleted?.calibration && state.value.calibrationSupported &&
     state.value.connected && state.value.baseline && !state.value.fault && !state.value.pending && !state.value.writing &&
     state.value.lastCompleted.channel === channel && state.value.lastCompleted.pulseWidthUs === width,
   savePoint: (channel: number, point: 'min' | 'center' | 'max', width: number) => updateProfile(value => value.savePoint(channel, point, width, state.value)),

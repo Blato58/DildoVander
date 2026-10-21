@@ -324,8 +324,8 @@ test("calibration requires advertised support, Arm and strict integer bounds", a
     assert.equal(f.controller.calibrate(...args), false);
   }
   assert.equal(f.controller.capabilities.calibrate, true);
-  await f.controller.calibrate(0, 2400, 500);
-  assert.equal(f.writes.at(-1).text, "cal 0 2400 0500\n");
+  await f.controller.calibrate(0, 2300, 500);
+  assert.equal(f.writes.at(-1).text, "cal 0 2300 0500\n");
   assert.equal(f.writes.at(-1).text.trim().length, 15);
   assert.equal(f.controller.calibrate(0, 1500, 1500), false);
 });
@@ -352,11 +352,11 @@ test("firmware-advertised calibration bounds are enforced and malformed bounds d
   await f.controller.stop();
   f.controller.receive("SERVO_BENCH STOP PWM FULL_OFF");
   assert.equal(f.controller.state.calibrationSupported, true);
-  assert.equal(f.controller.state.calibrationMinimumUs, 500);
-  assert.equal(f.controller.state.calibrationMaximumUs, 2400);
+  assert.equal(f.controller.state.calibrationMinimumUs, 600);
+  assert.equal(f.controller.state.calibrationMaximumUs, 2300);
   await f.controller.arm();
   f.controller.receive("SERVO_BENCH ARMED for one pulse, 10 seconds");
-  assert.equal(await f.controller.calibrate(0, 500, 500), true);
+  assert.equal(await f.controller.calibrate(0, 600, 500), true);
   f.controller.receive("SERVO_BENCH DONE PWM FULL_OFF; arm again for another pulse");
 
   f.controller.receive("SERVO_BENCH READY PWM FULL_OFF; calibration=v2 calibration_min_us=2400 calibration_max_us=0500");

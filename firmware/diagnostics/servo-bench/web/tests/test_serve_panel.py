@@ -38,6 +38,8 @@ class PanelTests(unittest.TestCase):
             ("/", b"Servo bench"),
             ("/controller.mjs", b"BenchController"),
             ("/panel-ui.mjs", b"mountBenchUi"),
+            ("/music.mjs", b"MusicDance"),
+            ("/music-panel.mjs", b"mountMusicPanel"),
             ("/design-system/ui.js", b"export function button"),
             ("/design-system/theme.js", b"DildoVanderTheme"),
             ("/design-system/arcane-workshop.css", b"palette.css"),
@@ -46,6 +48,7 @@ class PanelTests(unittest.TestCase):
             self.assertTrue(response.startswith(b"HTTP/1.0 200"), response[:200])
             self.assertIn(expected, response)
             self.assertIn(b"connect-src 'none'", response)
+            self.assertIn(b"media-src 'self' blob:", response)
             self.assertIn(b"frame-ancestors 'none'", response)
             self.assertIn(b"X-Content-Type-Options: nosniff", response)
 
