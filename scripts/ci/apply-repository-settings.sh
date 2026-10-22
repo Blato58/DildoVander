@@ -2,7 +2,7 @@
 # Requires repository administration permission; private rulesets require Pro.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-repo='Blato58/DildoVander'
+repo='Duloc-Dungeon/DildoVander'
 if [[ "${1:-}" != '--apply' ]]; then
   echo "Target: $repo"
   cat .github/repository-settings.json .github/main-ruleset.json

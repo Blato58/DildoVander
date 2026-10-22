@@ -2,6 +2,10 @@ name: Build DildoVander application
 
 on:
   workflow_call:
+    inputs:
+      reuse-web-dist:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -50,11 +54,22 @@ jobs:
           node --test firmware/diagnostics/servo-bench/web/tests/*.test.mjs
           python -m unittest discover -s firmware/diagnostics/servo-bench/web/tests -p 'test_*.py'
           node firmware/simulator/verify-dashboard.mjs
-      - name: Build shared application at its canonical root
+      - name: Install shared application browser dependencies
         working-directory: mobilni-aplikace
         run: |
           npm ci
           npm ci --prefix ../contracts
+      - name: Reuse compiled application from web checks
+        if: inputs.reuse-web-dist
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: shared-web-dist
+          path: mobilni-aplikace/dist/
+      - name: Build shared application at its canonical root
+        if: '!inputs.reuse-web-dist'
+        working-directory: mobilni-aplikace
+        run: |
+          npm test --prefix ../contracts
           npm test
           npm run build
       - name: Verify shared application browser journeys

@@ -1,9 +1,9 @@
 # CI/CD a oddeleni produkce
 
-Zdrojovy [Blato58/DildoVander](https://github.com/Blato58/DildoVander) obsahuje
+Zdrojovy [Duloc-Dungeon/DildoVander](https://github.com/Duloc-Dungeon/DildoVander) obsahuje
 hostovane buildy. Produkcni runner, administrace, diagnostika a placene AI
 workflow patri do privatniho
-[Blato58/DildoVander-deploy](https://github.com/Blato58/DildoVander-deploy).
+[Duloc-Dungeon/DildoVander-deploy](https://github.com/Duloc-Dungeon/DildoVander-deploy).
 Priprava hranice sama nemeni viditelnost zdrojoveho repozitare.
 
 ## Zdrojove buildy
@@ -12,6 +12,15 @@ Zdrojova workflow pouzivaji GitHub-hosted runners. PR CI nema
 produkcni prostredi, SSH ani provider credentials. `pr-sync.yml` pouziva pouze
 API a duveryhodny kod vychozi vetve; jeho private guard po skutecnem
 zverejneni vypne controller. Fork PR se nemeni.
+
+Zmeny pouze nazvu nebo popisu PR preskoci build jobs a pouzivaji oddelenou
+concurrency skupinu, aby nezrusily probihajici validaci kodu. Zmena cilove vetve
+znovu validuje uplny diff. Pri soubeznem vyberu `web` a `site` provede web job
+sdilene unit testy a build jednou; site prevezme `shared-web-dist` ze stejneho
+runu a zachova browser testy, sestaveni webu a baleni. Samostatny site build
+provede i sdilene testy a build. Tento interni artefakt neni zdrojem pro podpis
+ani produkcni promotion; stavajici `web-dist` a `arcane-site` zustavaji
+vystupy explicitniho buildu aktualniho `main`.
 
 | Workflow | Ucel |
 | --- | --- |

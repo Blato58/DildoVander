@@ -14,7 +14,7 @@ concurrency:
 jobs:
   publish:
     if: >-
-      github.repository == 'Blato58/DildoVander' &&
+      github.repository == 'Duloc-Dungeon/DildoVander' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.head_repository.full_name == github.repository

@@ -2,6 +2,10 @@ name: Check Kufr mobile web
 
 on:
   workflow_call:
+    inputs:
+      share-web-dist:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,6 +34,15 @@ jobs:
       - run: npm test --prefix ../contracts
       - run: npm test
       - run: npm run build
+      - name: Share compiled application with site checks
+        if: inputs.share-web-dist
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shared-web-dist
+          path: mobilni-aplikace/dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
       - run: bash -n scripts/build-ios-ipa.sh
       - run: python3 -m unittest discover -s scripts -p 'test_publish_*.py'
       - name: Test app-only iOS signing settings and source restoration

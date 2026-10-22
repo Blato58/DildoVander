@@ -81,7 +81,7 @@ class PublicWorkflowTests(unittest.TestCase):
         source = (WORKFLOWS / 'kufr-ios-sign.yml').read_text()
         for block in [source.split('  verify:', 1)[1].split('  signed-ipa:', 1)[0],
                       source.split('  signed-ipa:', 1)[1]]:
-            self.assertIn("github.repository == 'Blato58/DildoVander'", block)
+            self.assertIn("github.repository == 'Duloc-Dungeon/DildoVander'", block)
             self.assertIn("github.event_name == 'workflow_dispatch'", block)
             self.assertIn("github.ref == 'refs/heads/main'", block)
             self.assertNotIn('repository.private', block)
