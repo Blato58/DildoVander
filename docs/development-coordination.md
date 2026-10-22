@@ -15,11 +15,15 @@ uses a project, one implementation brief and bounded issues. Projects end with
 their delivery outcome.
 
 Keep the contract short: outcome, scope, prerequisites, acceptance and focused
-verification. When useful, maintain one execution capsule with lead/session,
-checkout/branch, shared-file writer and next action. Only the lead updates the
-shared summary; workers report inside the session. Assignment is advisory, not
-an atomic lock. Stop conflicting edits and resolve ownership with the integration
-owner. Silence or age never authorizes taking over another task.
+verification. Architects define goals, contracts and acceptance in the private
+planning system. For large work, one to three independent Engineer chats own
+separate features, worktrees and delivery stacks. Engineers are peers; an
+integration responsibility does not introduce a permanent supervising chat.
+Each Engineer gives direct Coders concrete outcomes, exclusive paths, contracts
+and relevant checks. Coders decide implementation details within their scope
+and report to their own Engineer. Assignment is advisory, not an atomic lock.
+Stop conflicting edits and resolve ownership with the integration owner.
+Silence or age never authorizes taking over another task.
 
 Read relevant current context. The former Hub, tracking Issues and archive are
 historical evidence. Do not replay complete comment histories, publish claims,
@@ -33,20 +37,29 @@ Small low-risk work uses one agent, targeted checks, self-review and one PR.
 Normal publishable units receive one independent review. Plan substantial work
 once with bounded paths, acceptance, dependencies, shared contracts and checks.
 Use disjoint paths/worktrees and one integration owner for coupled changes.
-Prefer independent PRs for independently deliverable slices or one integration
-PR for coupled work. Internal handoffs need no separate PR/review/CI cycle.
+Independent features use independent PRs or stacks. Substantial dependent work
+can use a small native GitHub stack: the bottom PR targets trunk and each higher
+PR targets its predecessor. A branch chain alone does not register a native
+stack. Each layer includes the tests for its behavior; layers need not match
+Coder assignments. Internal handoffs need no separate PR/review/CI cycle.
 
 Risk is independent of size. Authentication, authorization, secrets, persistent
 data, migrations, deployment, shared protocols and physical behavior can require
-contract or specialist scrutiny even for a short diff. Review the delivery
-boundary once; after changes review the delta and affected interactions. Record
+contract or specialist scrutiny even for a short diff. Review the completed
+feature stack once with a fresh independent reviewer and relevant acceptance,
+cumulative diff and checks. Add reviewers only for distinct justified risk
+scopes. After changes review the delta and affected interactions. Record
 the reviewed commit/tree privately. Checkpoint commits need no repeated full
 review. Same-account technical review is not a separate author's GitHub approval.
 Use installed project policy for available models and per-session agent limits;
 never delegate recursively.
 
-Communicate when another worker must act: blockers, contract changes, ownership
-collisions, decisions or completed handoffs. Routine progress belongs in issue
+Communicate with an affected peer only when it must act: blockers, contract
+changes, ownership collisions or integration handoffs. Distinguish an agreed
+contract, implementation available in a PR, and a dependency merged at an exact
+commit. Use registered real top-level chats and the private targeted helper;
+native subagent messaging does not imply cross-chat delivery. Queue acceptance
+and actual consumption are separate evidence. Routine progress belongs in issue
 fields or the active session. No greetings, acknowledgments, heartbeat comments
 or STARTED/DONE broadcasts are required.
 
@@ -72,7 +85,13 @@ CI passes. The parent verifies an exact-head delivery review it witnessed from
 an independent reviewer, or obtains the required review automatically. Never
 trust only an implementer-written file, receipt or PR checkbox. Read current
 reviews, unresolved threads, selected check results and effective protections
-immediately before a normal merge guarded by the expected head SHA. Findings
+immediately before finalization guarded by the expected head SHA. For native
+stacks use the supported asynchronous squash merge of the selected complete
+stack or deliberate prefix. Reconcile native membership, order, trunk, all
+selected heads/bases and current review/CI coverage first. A top pass does not
+establish every lower prefix is independently safe. The API expected-head guard
+applies to the selected tip; do not claim a stronger local whole-stack atomic
+comparison guarantee. Findings
 return to the parent for repair; changed heads invalidate earlier review.
 
 This bounded finalization is not queued GitHub native auto-merge, which remains
@@ -84,8 +103,13 @@ candidate is eligible; this is not permission to merge unrelated work.
 ## Asynchronous PR follow-up
 
 Continue available authorized work while CI runs. After a prepared handoff,
-do not keep a local coding agent polling checks. For an actual long queued or
-running CI wait with no independent work, automatically arm one native follow-up
+do not keep a local coding agent polling checks. Use the installed publisher
+and exact originating-chat binding. Prefer the accepted private webhook relay
+when its installed repository coverage and owning-user queue path are verified.
+Stack notifications report actionable failure or selected delivery readiness;
+routine successful layers remain quiet, with per-run evidence retained.
+If that path is unavailable, for an actual long queued or running CI wait with
+no independent work, arm one native follow-up
 in the originating parent chat, normally every five minutes. Bind it to the
 issue, PR, candidate and review handoff; reuse that chat's delivery follow-up.
 Stay quiet while pending. On failure, cancellation or an unexpected selected-job
@@ -93,10 +117,12 @@ skip/missing result, pause first and resume repair in that parent. On success,
 pause first, verify/review the current candidate and finalize as above. Rearm
 only after a new candidate actually awaits CI. Keep idle follow-ups paused.
 
-This is native scheduled continuation, not an instantaneous CI webhook. The
-computer and app must be available. If the native integration is unavailable,
+Never arm the relay and native fallback for the same candidate. The computer
+and app must be available. If the selected integration is unavailable,
 record the exact gap rather than promising automatic return; do not add a
-daemon, dispatcher, service or broader permissions as a workaround.
+daemon, dispatcher, service or broader permissions as a workaround. Accepted,
+pending, enqueued, failed and actually merged are distinct outcomes; record
+completion only after authoritative confirmation of the selected group.
 
 Preserve explicit stops and paused automations. Scheduled implementation follow-up
 is allowed only for a long actual running/queued CI/CD wait after independent
