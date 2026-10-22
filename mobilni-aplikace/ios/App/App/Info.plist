@@ -28,6 +28,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Připojení ke kufru v místní síti pro pozorování a ruční ovládání.</string>
     <key>NSBluetoothAlwaysUsageDescription</key>

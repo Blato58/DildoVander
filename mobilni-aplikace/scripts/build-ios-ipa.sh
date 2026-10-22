@@ -221,7 +221,8 @@ if [[ "${IOS_SIGNING_KIND}" == app_store ]]; then
     echo 'Exported App Store app metadata does not match.' >&2
     exit 1
   fi
-  codesign --display --entitlements - "${app_path}" > "${work_dir}/signed-entitlements.plist"
+  # Modern codesign defaults to human-readable DER entitlements, not a plist.
+  codesign --display --entitlements - --xml "${app_path}" > "${work_dir}/signed-entitlements.plist"
   python3 - "${work_dir}/signed-entitlements.plist" "${IOS_TEAM_ID}.${IOS_BUNDLE_ID}" <<'PY'
 import plistlib
 import sys
