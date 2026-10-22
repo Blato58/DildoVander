@@ -183,9 +183,23 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    private void RequireSession(SqliteConnection connection, SqliteTransaction? transaction, string session)
+    private void RequireSession(SqliteConnection connection, SqliteTransaction? transaction, KeepsakeActor actor)
     {
-        if (!ValidSecret(session)) { throw new KeepsakeException("invalid_session", 401); }
+        if (actor.IsAccount)
+        {
+            if (actor.ValidateAccountSession?.Invoke() != true)
+            {
+                throw new KeepsakeException("invalid_session", 401);
+            }
+            using var fence = Command(connection, transaction,
+                "SELECT 1 FROM dv10_account_fences WHERE owner_id=$owner",
+                ("$owner", actor.AccountId));
+            if (fence.ExecuteScalar() is not null) { throw new KeepsakeException("account_deleted", 403); }
+            return;
+        }
+
+        var session = actor.GuestSession;
+        if (session is null || !ValidSecret(session)) { throw new KeepsakeException("invalid_session", 401); }
         using var command = Command(connection, transaction,
             "SELECT 1 FROM dv10_sessions WHERE secret_hash=$s AND expires>$e",
             ("$s", Hash(session)), ("$e", Now.ToUnixTimeSeconds()));
@@ -193,9 +207,23 @@ internal sealed partial class KeepsakeStore
     }
 
     private string? RequireAccess(SqliteConnection connection, SqliteTransaction? transaction,
-        string id, string session, KeepsakeScope scope, bool shareOnly = false, string? shareEditionId = null)
+        string id, KeepsakeActor actor, KeepsakeScope scope, bool shareOnly = false, string? shareEditionId = null)
     {
-        RequireSession(connection, transaction, session);
+        RequireSession(connection, transaction, actor);
+        if (actor.IsAccount)
+        {
+            if (shareOnly) { throw new KeepsakeException("keepsake_not_found", 404); }
+            using var owner = Command(connection, transaction, """
+                SELECT 1 FROM dv10_customer_owners o
+                JOIN dv10_keepsakes k ON k.id=o.keepsake_id
+                WHERE o.owner_id=$owner AND o.keepsake_id=$id
+                  AND o.epoch=k.account_access_epoch AND k.deleted=0
+                """, ("$owner", actor.AccountId), ("$id", id));
+            if (owner.ExecuteScalar() is null) { throw new KeepsakeException("keepsake_not_found", 404); }
+            return null;
+        }
+
+        var session = actor.GuestSession!;
         var kind = shareOnly ? "share" : "owner";
         if (shareOnly && (scope != KeepsakeScope.Read || shareEditionId is null)) { throw new KeepsakeException("keepsake_not_found", 404); }
         using var command = Command(connection, transaction,
@@ -211,7 +239,7 @@ internal sealed partial class KeepsakeStore
         return string.IsNullOrEmpty(edition) ? null : edition;
     }
 
-    public bool Authorize(string id, string session, KeepsakeScope scope, bool shareOnly = false, string? shareEditionId = null)
+    public bool Authorize(string id, KeepsakeActor session, KeepsakeScope scope, bool shareOnly = false, string? shareEditionId = null)
     {
         lock (gate)
         {
@@ -236,12 +264,12 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public KeepsakeLink CreateRecovery(string id, string session, string idempotencyKey) =>
+    public KeepsakeLink CreateRecovery(string id, KeepsakeActor session, string idempotencyKey) =>
         CreateOwnerLink(id, session, null, "recovery", idempotencyKey);
-    public KeepsakeLink CreateShare(string id, string session, string editionId, string idempotencyKey) =>
+    public KeepsakeLink CreateShare(string id, KeepsakeActor session, string editionId, string idempotencyKey) =>
         CreateOwnerLink(id, session, editionId, "share", idempotencyKey);
 
-    private KeepsakeLink CreateOwnerLink(string id, string session, string? edition, string kind, string key)
+    private KeepsakeLink CreateOwnerLink(string id, KeepsakeActor session, string? edition, string kind, string key)
     {
         lock (gate)
         {
@@ -254,7 +282,7 @@ internal sealed partial class KeepsakeStore
             {
                 throw new KeepsakeException("edition_not_found", 404);
             }
-            var scope = kind + ":" + id + ":" + Hash(session);
+            var scope = kind + ":" + id + ":" + Hash(session.StableIdentity);
             var body = edition ?? "";
             var replay = Replay(connection, transaction, scope, key, body);
             if (replay is not null)
@@ -273,9 +301,9 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public void RevokeRecovery(string id, string session) => RevokeLinks(id, session, "recovery");
-    public void RevokeShares(string id, string session) => RevokeLinks(id, session, "share");
-    private void RevokeLinks(string id, string session, string kind)
+    public void RevokeRecovery(string id, KeepsakeActor session) => RevokeLinks(id, session, "recovery");
+    public void RevokeShares(string id, KeepsakeActor session) => RevokeLinks(id, session, "share");
+    private void RevokeLinks(string id, KeepsakeActor session, string kind)
     {
         lock (gate)
         {
@@ -289,7 +317,7 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public void RevokeAllAccess(string id, string session)
+    public void RevokeAllAccess(string id, KeepsakeActor session)
     {
         lock (gate)
         {

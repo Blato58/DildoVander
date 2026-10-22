@@ -5,7 +5,7 @@ namespace Kufr.Backend.Features.Keepsakes;
 
 internal sealed partial class KeepsakeStore
 {
-    public KeepsakeDeletionReceipt Delete(string id, string session, KeepsakeDeleteScope deleteScope,
+    public KeepsakeDeletionReceipt Delete(string id, KeepsakeActor session, KeepsakeDeleteScope deleteScope,
         string key, int? expectedRevision = null)
     {
         string receiptId;
@@ -13,7 +13,7 @@ internal sealed partial class KeepsakeStore
         {
             using var connection = Open();
             RequireSession(connection, null, session);
-            var scope = "delete:" + id + ":" + Hash(session);
+            var scope = "delete:" + id + ":" + Hash(session.StableIdentity);
             var body = deleteScope + ":" + expectedRevision;
             var replay = Replay(connection, null, scope, key, body);
             if (replay is not null) { return GetDeletionReceipt(replay, session); }
@@ -36,7 +36,7 @@ internal sealed partial class KeepsakeStore
             {
                 throw new KeepsakeException("revision_changed", 409);
             }
-            receiptId = PrepareDeletion(connection, transaction, id, document, deleteScope, Hash(session));
+            receiptId = PrepareDeletion(connection, transaction, id, document, deleteScope, Hash(session.StableIdentity));
             Remember(connection, transaction, scope, key, body, receiptId);
             transaction.Commit();
         }
@@ -136,7 +136,7 @@ internal sealed partial class KeepsakeStore
         return receiptId;
     }
 
-    public KeepsakeDeletionReceipt GetDeletionReceipt(string receiptId, string session)
+    public KeepsakeDeletionReceipt GetDeletionReceipt(string receiptId, KeepsakeActor session)
     {
         lock (gate)
         {
@@ -144,7 +144,7 @@ internal sealed partial class KeepsakeStore
             RequireSession(connection, null, session);
             using var command = Command(connection, null,
                 "SELECT scope,local_state,requested FROM dv10_deletions WHERE id=$id AND session_hash=$s",
-                ("$id", receiptId), ("$s", Hash(session)));
+                ("$id", receiptId), ("$s", Hash(session.StableIdentity)));
             using var reader = command.ExecuteReader();
             if (!reader.Read()) { throw new KeepsakeException("deletion_receipt_not_found", 404); }
             return new(receiptId, reader.GetString(0), reader.GetString(1), "unknown_not_provider_confirmed",

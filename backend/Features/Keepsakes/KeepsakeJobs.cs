@@ -10,7 +10,7 @@ internal sealed partial class KeepsakeStore
     internal sealed record LeasedJob(string Id, string KeepsakeId, string Kind, int Fence,
         int Epoch, int PhotoEpoch, string RequestJson);
 
-    public KeepsakeJob EnqueueBase(string id, string session, KeepsakeBrief brief, string key)
+    public KeepsakeJob EnqueueBase(string id, KeepsakeActor session, KeepsakeBrief brief, string key)
     {
         RequireFeature("GenerationEnabled");
         if ((brief.DisplayName?.Length ?? 0) > 80 || (brief.PersonalMotif?.Length ?? 0) > 400
@@ -21,7 +21,7 @@ internal sealed partial class KeepsakeStore
         return Enqueue(id, session, "base", new(brief), key);
     }
 
-    public KeepsakeJob EnqueuePortrait(string id, string session, string uploadId, string editionId,
+    public KeepsakeJob EnqueuePortrait(string id, KeepsakeActor session, string uploadId, string editionId,
         string variant, bool consent, string key)
     {
         RequireFeature("PortraitEnabled");
@@ -43,7 +43,7 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    private KeepsakeJob Enqueue(string id, string session, string kind, JobRequest request, string key)
+    private KeepsakeJob Enqueue(string id, KeepsakeActor session, string kind, JobRequest request, string key)
     {
         lock (gate)
         {
@@ -353,7 +353,7 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public void Cancel(string id, string session, string jobId, string key)
+    public void Cancel(string id, KeepsakeActor session, string jobId, string key)
     {
         lock (gate)
         {

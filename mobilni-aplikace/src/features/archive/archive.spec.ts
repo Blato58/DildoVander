@@ -12,6 +12,8 @@ const view = { schemaVersion: 1, locator: id, revision: 1, state: 'ready', readO
   snapshot: { officialName: '<script>catalog</script>', slot: 1 },
   editions: [{ id, story: { title: 'Fiction edition', text: 'One paragraph.\n\nAnother paragraph.' }, synthetic: true, publicationState: 'ready' }],
   portraits: [], jobs: [], assets: [] };
+const ownerProjection = { ...view, readOnly: false, accountLinked: true, accessKind: 'originalOwner', canManage: true, canReadPrivate: true, canUnlink: false, uploads: [], prophecies: [] };
+const linkedProjection = { ...view, readOnly: true, accountLinked: true, accessKind: 'linkedViewer', canManage: false, canReadPrivate: false, canUnlink: true, uploads: [], prophecies: [] };
 let wrappers: VueWrapper[] = [];
 async function render(component: typeof ArchiveView | typeof KeepsakeView, location: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/archive', component: ArchiveView }, { path: '/keepsake/', component: KeepsakeView }, { path: '/other', component: { template: '<p>other</p>' } }] });
@@ -183,27 +185,135 @@ describe('real archive SFC routes', () => {
     expect(wrapper.text()).toContain('byly připojeny k tomuto účtu'); expect(wrapper.find('input[type=file]').exists()).toBe(true);
   });
   it('associated account reads private portrait results without guest mutations or raw photo upload controls', async () => {
-    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
-    const linked = { ...view, readOnly: true, accountLinked: true, portraits: [{ id: secondId, editionId: id, assetId: secondId, synthetic: true }], assets: [{ id: secondId, kind: 'portrait_image', mediaType: 'image/png' }] };
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Owner'] };
+    const linked = { ...linkedProjection, portraits: [{ id: secondId, editionId: id, assetId: secondId, synthetic: true }], assets: [{ id: secondId, kind: 'portrait_image', mediaType: 'image/png' }] };
     const fetchMock = vi.fn(async (path: string, _init?: RequestInit) => path.includes('/assets/') ? new Response(new Blob(['synthetic portrait'], { type: 'image/png' })) : Response.json(linked));
     vi.stubGlobal('fetch', fetchMock);
     const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
     expect(fetchMock.mock.calls.every(([path]) => path.startsWith('/app/v1/archive/associations/'))).toBe(true);
-    expect(wrapper.text()).toContain('Soukromý archiv účtu · pouze čtení'); expect(wrapper.find('img[alt="Soukromý kouzelnický portrét"]').exists()).toBe(true);
-    expect(wrapper.find('input[type=file]').exists()).toBe(false); expect(wrapper.text()).not.toContain('Odvolat všechny přístupy'); expect(wrapper.text()).not.toContain('Připojit k mému účtu');
+    expect(wrapper.text()).toContain('Propojená památka · pouze čtení'); expect(wrapper.find('img[alt="Soukromý kouzelnický portrét"]').exists()).toBe(true);
+    expect(wrapper.find('input[type=file]').exists()).toBe(false); expect(wrapper.text()).not.toContain('Smazat celou památku'); expect(wrapper.text()).not.toContain('Připojit k mému účtu');
+    expect(wrapper.text()).toContain('Odpojit tuto památku od účtu');
+  });
+  it('account original owner gets private owner controls and share revocation targets only the owned route', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const owner = { ...ownerProjection, prophecies: [{ editionId: id, state: 'revealed', unlockAt: 'past', revelation: 'PRIVATE ACCOUNT OWNER PROPHECY' }] };
+    let deleteAttempts = 0;
+    const fetchMock = vi.fn(async (_path: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return ++deleteAttempts === 1 ? Response.json({}, { status: 503 }) : new Response(null, { status: 204 });
+      return Response.json(owner);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    expect(wrapper.text()).toContain('Soukromá památka · vlastník účtu');
+    expect(wrapper.text()).toContain('PRIVATE ACCOUNT OWNER PROPHECY');
+    expect(wrapper.find('input[type=file]').exists()).toBe(true);
+    await wrapper.findAll('button').find(button => button.text() === 'Odvolat sdílené odkazy')!.trigger('click'); await flushPromises();
+    expect(wrapper.text()).toContain('Výsledek akce ještě nemáme potvrzený.');
+    await wrapper.findAll('button').find(button => button.text() === 'Odvolat sdílené odkazy')!.trigger('click'); await flushPromises();
+    const revocations = fetchMock.mock.calls.filter(([path, init]) => path === `/app/v1/archive/owned/${id}/share-links` && init?.method === 'DELETE');
+    expect(revocations).toHaveLength(2);
+    const headers = new Headers(revocations[0][1]?.headers);
+    expect(headers.get('X-DV-CSRF')).toBe('');
+    expect(headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(headers.get('Idempotency-Key')).toBe(new Headers(revocations[1][1]?.headers).get('Idempotency-Key'));
+    expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith('/guest/v1/'))).toBe(false);
+    expect(wrapper.text()).toContain('Sdílené odkazy byly odvolány. Památka zůstává uložená.');
+  });
+  it('account owner recovery-link button sends a POST with its JSON body and idempotency key', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const fetchMock = vi.fn(async (path: string, init?: RequestInit) => path.endsWith('/recovery-links')
+      ? Response.json({ url: `${location.origin}/keepsake/#r=${'r'.repeat(40)}` })
+      : Response.json(ownerProjection));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    await wrapper.findAll('button').find(button => button.text() === 'Vytvořit soukromý návratový odkaz')!.trigger('click'); await flushPromises();
+    const create = fetchMock.mock.calls.find(([path]) => path === `/app/v1/archive/owned/${id}/recovery-links`);
+    expect(create?.[1]?.method).toBe('POST');
+    expect(JSON.parse(create?.[1]?.body as string)).toEqual({ schemaVersion: 1 });
+    expect(new Headers(create?.[1]?.headers).get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(wrapper.find('#archive-issued-link').exists()).toBe(true);
+  });
+  it('account owner deletion requires the distinct confirmation and submits to the owned delete endpoint', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const receipt = { id: secondId, scope: 'all', localState: 'pending', providerState: 'unknown', backupState: 'pending' };
+    const fetchMock = vi.fn(async (_path: string, init?: RequestInit) => init?.method === 'DELETE'
+      ? Response.json({ schemaVersion: 1, receipt }, { status: 202 }) : Response.json(ownerProjection));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    await wrapper.findAll('button').find(button => button.text() === 'Smazat celou památku')!.trigger('click');
+    const confirm = wrapper.findAll('button').find(button => button.text() === 'Potvrdit smazání')!;
+    expect(confirm.attributes('disabled')).toBeDefined();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+    await wrapper.find('#archive-delete-confirm').setValue('SMAZAT'); await confirm.trigger('click'); await flushPromises();
+    const deletion = fetchMock.mock.calls.find(([path, init]) => path === `/app/v1/archive/owned/${id}` && init?.method === 'DELETE');
+    expect(deletion).toBeDefined();
+    expect(JSON.parse(deletion?.[1]?.body as string)).toMatchObject({ schemaVersion: 1, confirm: 'delete', expectedRevision: 1 });
+    expect(new Headers(deletion?.[1]?.headers).get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith('/guest/v1/'))).toBe(false);
+    expect(wrapper.text()).toContain('Požadavek na smazání');
+  });
+  it('linked viewer confirmation only removes the account association and preserves the content boundary', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const fetchMock = vi.fn(async (_path: string, init?: RequestInit) => init?.method === 'DELETE' ? new Response(null, { status: 204 }) : Response.json(linkedProjection));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    await wrapper.findAll('button').find(button => button.text() === 'Odpojit tuto památku od účtu')!.trigger('click');
+    expect(wrapper.text()).toContain('Obsah, uložené soubory a návštěvnický přístup původního vlastníka zůstanou zachované.');
+    const confirm = wrapper.findAll('button').find(button => button.text() === 'Potvrdit odpojení od účtu')!;
+    expect(confirm.attributes('disabled')).toBeDefined();
+    await wrapper.find('#archive-unlink-confirm').setValue('ODPOJIT'); await confirm.trigger('click'); await flushPromises();
+    const unlink = fetchMock.mock.calls.find(([path, init]) => path === `/app/v1/archive/associations/${id}` && init?.method === 'DELETE');
+    expect(unlink).toBeDefined();
+    expect(new Headers(unlink?.[1]?.headers).get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(fetchMock.mock.calls.some(([path, init]) => String(path).endsWith('/portrait') && init?.method === 'DELETE')).toBe(false);
+    expect(wrapper.text()).toContain('Památka byla odpojena od tohoto účtu.');
+  });
+  it('a mismatched account capability response fails closed even when the signed-in role is Owner', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Owner'] };
+    const fetchMock = vi.fn(async (_path: string) => Response.json({ ...linkedProjection, canManage: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    expect(wrapper.text()).not.toContain('Fiction edition');
+    expect(wrapper.text()).not.toContain('Smazat celou památku');
+    expect(wrapper.find('input[type=file]').exists()).toBe(false);
+    expect(fetchMock.mock.calls.every(([path]) => String(path).startsWith('/app/v1/archive/associations/'))).toBe(true);
+  });
+  it('account switching during an owner mutation ignores the old response and clears the old private view', async () => {
+    account.value = { id: 'account-a', displayName: 'First account', roles: ['Viewer'] };
+    let resolveDelete!: (response: Response) => void;
+    const pendingDelete = new Promise<Response>(resolve => resolveDelete = resolve);
+    let reads = 0;
+    const fetchMock = vi.fn(async (_path: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return pendingDelete;
+      reads++;
+      return reads === 1 ? Response.json(ownerProjection) : new Response('', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    expect(wrapper.text()).toContain('Fiction edition');
+    await wrapper.findAll('button').find(button => button.text() === 'Odvolat sdílené odkazy')!.trigger('click'); await flushPromises();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
+    account.value = { id: 'account-b', displayName: 'Second account', roles: ['Owner'] }; await flushPromises();
+    expect(wrapper.text()).not.toContain('Fiction edition');
+    resolveDelete(new Response(null, { status: 204 })); await flushPromises();
+    expect(wrapper.text()).not.toContain('Sdílené odkazy byly odvolány.');
+    expect(wrapper.text()).not.toContain('Testovací hůlka');
   });
   it('account switching immediately redacts private results and ignores an old noncooperative account response', async () => {
     account.value = { id: 'account-a', displayName: 'First account', roles: ['Viewer'] };
     let resolveOld!: (response: Response) => void;
     const old = new Promise<Response>(resolve => resolveOld = resolve); let reads = 0;
-    const fetchMock = vi.fn(async () => { reads++; if (reads === 1) return Response.json({ ...view, readOnly: true, accountLinked: true }); if (reads === 2) return old; return new Response('', { status: 404 }); });
+    const fetchMock = vi.fn(async () => { reads++; if (reads === 1) return Response.json(linkedProjection); if (reads === 2) return old; return new Response('', { status: 404 }); });
     vi.stubGlobal('fetch', fetchMock);
     const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
     expect(wrapper.text()).toContain('Fiction edition');
     await wrapper.findAll('button').find(button => button.text() === 'Obnovit stav památky')!.trigger('click'); await flushPromises();
     account.value = { id: 'account-b', displayName: 'Second account', roles: ['Viewer'] }; await flushPromises();
     expect(wrapper.text()).not.toContain('Fiction edition');
-    resolveOld(Response.json({ ...view, readOnly: true, accountLinked: true, snapshot: { officialName: 'OLD ACCOUNT PRIVATE DATA', slot: 1 } })); await flushPromises();
+    resolveOld(Response.json({ ...linkedProjection, snapshot: { officialName: 'OLD ACCOUNT PRIVATE DATA', slot: 1 } })); await flushPromises();
     expect(wrapper.text()).not.toContain('OLD ACCOUNT PRIVATE DATA'); expect(wrapper.text()).not.toContain('Fiction edition');
   });
   it('account switching during owner proof issuance never consumes the previous account ticket', async () => {
