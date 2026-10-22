@@ -38,6 +38,57 @@ identity still in use. Confirm backend relying-party/origin settings match that
 domain. The build derives Associated Domains and account origin from this value;
 a successful signature does not prove production passkey registration or login.
 
+## Native screenshot candidates
+
+After the reviewed changes reach `main`, run **Check Kufr iOS** directly from
+the Actions page with branch `main`. Screenshot capture runs only for this
+workflow's own `workflow_dispatch` on `refs/heads/main`. General manual **CI**
+runs that call the reusable workflow, PR checks, merge-queue checks and non-main
+runs retain their normal unsigned build without capturing or exporting
+screenshots. Set the public repository
+variable `KUFR_PASSKEY_RP_DOMAIN` to the canonical domain first. A missing or
+invalid value fails the manual capture build instead of substituting a fake
+server. The matching HTTPS account origin and RP domain are passed as build
+settings without signing credentials.
+
+Download `ios-store-preview-<source-sha>` within seven days. The workflow reuses
+the compiled, unsigned Debug Simulator app and creates two temporary devices
+from installed runtimes: an iPhone 17/16 Pro Max and a 13-inch iPad Pro or Air.
+It installs and launches the actual app, waits twenty seconds for the public
+home to render, checks that the process remains alive, and captures the native
+portrait screen. It does not sign in, open guest archives, navigate to a paid
+model, or invoke accessory functions. Only devices created by this capture are
+shut down and deleted, including on failure or cancellation; existing simulator
+devices remain untouched. No runtime is downloaded automatically.
+
+Each device supplies an unchanged `*-home-native.png` and an opaque
+`*-home.jpg` metadata candidate. The JPEG is a quality-100 conversion at the
+same native resolution, without cropping, frames, overlays, or resizing. The
+script rejects dimensions other than **1320 x 2868** for the iPhone and
+**2064 x 2752** or **2048 x 2732** for the iPad. These dimensions and the opaque
+JPEG format match Apple's [screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications).
+
+Inspect both images and `manifest.json` before the owner uploads screenshots to
+App Store Connect. Confirm the manifest's source revision, app identity, shared
+web-index hash and image checksums. Reject a splash screen, system screen,
+permission dialog, loading failure or clipped layout; an elapsed wait and a
+live process alone do not prove that the web view rendered correctly. These
+are genuine Simulator captures, not evidence from a signed App Store build or
+physical hardware. The manifest records the actual Debug bundle identity, which
+may differ from the App Store identity. Local macOS regeneration after the same
+unsigned Simulator build uses:
+
+```sh
+IOS_STORE_PREVIEW_CONFIGURATION=Debug bash scripts/capture-ios-store-preview.sh \
+  /path/to/Debug-iphonesimulator/App.app /new/screenshot-output-directory
+```
+
+Run this from `mobilni-aplikace/`; the app must already include compiled web
+assets and matching canonical account-origin/RP build settings. Capture does
+not export or upload an IPA, upload screenshots, or select the final review
+submission. Build upload and the final **Submit for Review** action remain with
+the owner.
+
 ## Build and inspect
 
 1. Merge reviewed source through normal delivery and wait for a successful

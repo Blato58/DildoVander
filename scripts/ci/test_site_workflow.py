@@ -61,6 +61,26 @@ class PublicWorkflowTests(unittest.TestCase):
         self.assertNotIn('inputs.publish', source)
         self.assertFalse((WORKFLOWS / 'kufr-site-deploy.yml').exists())
 
+    def test_native_store_capture_requires_its_direct_main_dispatch(self):
+        source = (WORKFLOWS / 'kufr-ios.yml').read_text()
+        build_condition = re.search(r'CAPTURE_STORE_PREVIEW: \$\{\{ (.+) \}\}', source).group(1)
+        capture = source.split('      - name: Capture native App Store preview candidates', 1)[1].split('      - name:', 1)[0]
+        capture_condition = re.search(r'^        if: (.+)$', capture, re.MULTILINE).group(1)
+        cases = [
+            {'workflow': 'Check Kufr iOS', 'event_name': 'workflow_dispatch', 'ref': 'refs/heads/main'},
+            {'workflow': 'CI', 'event_name': 'workflow_dispatch', 'ref': 'refs/heads/main'},
+            {'workflow': 'CI', 'event_name': 'pull_request', 'ref': 'refs/pull/42/merge'},
+            {'workflow': 'Check Kufr iOS', 'event_name': 'workflow_dispatch', 'ref': 'refs/heads/feature'},
+            {'workflow': 'Check Kufr iOS', 'event_name': 'push', 'ref': 'refs/heads/main'},
+        ]
+        script = "const check = new Function('github', 'return (' + process.argv[1] + ')'); process.stdout.write(JSON.stringify(JSON.parse(process.argv[2]).map(c => !!check(c))));"
+        for condition in (build_condition, capture_condition):
+            with self.subTest(condition=condition):
+                result = subprocess.check_output(['node', '-e', script, condition, json.dumps(cases)], text=True)
+                self.assertEqual(json.loads(result), [True, False, False, False, False])
+        export = source.split('      - name: Export native App Store preview candidates', 1)[1]
+        self.assertIn("steps.store-preview.outcome == 'success'", export)
+
     def test_main_only_artifact_retention_excludes_pr_and_feature_builds(self):
         source = (WORKFLOWS / 'kufr-site.yml').read_text()
         upload = source.split('      - name: Upload immutable main package', 1)[1].split('      - name:', 1)[0]

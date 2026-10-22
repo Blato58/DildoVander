@@ -22,8 +22,10 @@ class ViewerDocumentTests(unittest.TestCase):
             {"name": "Synthetic wiring", "sha256": "def456", "text": "Unchanged source text"},
         ])
         self.assertIn('data-theme-select', result)
-        self.assertIn('Lord Voldemort', result)
-        self.assertIn('Olivander', result)
+        self.assertIn(json.dumps('Stínový čaroděj'), result)
+        self.assertIn(json.dumps('Mistr hůlek'), result)
+        self.assertNotIn('Lord Voldemort', result)
+        self.assertNotIn('Olivander', result)
         self.assertLess(result.index('globalThis.DildoVanderTheme'), result.index('<style>'))
         self.assertIn('&lt;/script&gt;&lt;img src=x&gt;', result)
         self.assertIn('Unchanged source text', result)

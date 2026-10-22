@@ -142,3 +142,24 @@ s odpovědí „Petr“ po každém opening nejsou důkaz adaptivní kvality.
 D141 odstraňuje hotové ukázky ze společné persony. AI vytváří vlastní
 otázky a pointy; otázky jsou otevřené a nechávají hosta vyprávět, bez
 nabídky dvou odpovědí. Totéž platí pro opening evaluátoru.
+
+### Current authored DV01 reference
+
+`dv01-baseline.json` preserves the historical capture and its old prompt hashes.
+`dv01-current-reference.json` separately pins the three authored original-role
+prompts as `original-personas-v1`; catalog and baseline cases still use the
+historical byte pins. Current authored-prompt hashes use UTF-8 with LF for
+checkout-independent text identity.
+A source replacement is captured explicitly, never by CI or replay:
+
+```powershell
+python ai-eval/dv01_replay.py --capture-current-reference --reason "Explain the intentional authored persona replacement and its evidence limits"
+```
+
+Run this command from the repository root only when those authored prompt
+changes are intended and reviewed. It cannot override catalog or case changes.
+Replay receipts record the historical base, current reference ID/hash and
+current source digest. This is offline structural evidence: provider behavior
+for the new authored reference remains unmeasured and needs a separately
+authorized provider evaluation. Existing reports and measured numbers are not
+reassigned to the new prompts.
