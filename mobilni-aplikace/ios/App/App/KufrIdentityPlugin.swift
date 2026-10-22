@@ -225,6 +225,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             guard let http = result.1 as? HTTPURLResponse, result.0.count <= (archiveAsset ? 33554432 : 1048576),
                   http.url?.host == origin.host, http.url?.scheme == origin.scheme, http.url?.port == origin.port else { throw AccountError.invalidResponse }
             if [401, 403].contains(http.statusCode) { try clearOfflineSession(origin: origin) }
+            try acceptAccountDeletion(path: path, method: method, status: http.statusCode, body: result.0, origin: origin)
             if !priority { try persistAccountCookie(origin: origin) }
             var headers: [String: String] = [:]
             for name in ["Content-Type", "X-Twin-Media-Accepted-Bytes", "Retry-After"] {
@@ -606,8 +607,20 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         guard let http = response as? HTTPURLResponse, data.count <= 1048576,
               http.url?.host == origin.host else { throw AccountError.invalidResponse }
         if [401, 403].contains(http.statusCode) { try clearOfflineSession(origin: origin) }
+        try acceptAccountDeletion(path: path, method: method, status: http.statusCode, body: data, origin: origin)
         try persistAccountCookie(origin: origin)
         return (http.statusCode, String(data: data, encoding: .utf8) ?? "")
+    }
+
+    @MainActor private func acceptAccountDeletion(path: String, method: String, status: Int, body: Data, origin: URL) throws {
+        guard AccountTransportPolicy.accountDeletionAccepted(path: path, method: method, status: status, body: body) else { return }
+        // A last-owner rejection is not deletion authority. Durable acceptance
+        // fences queued work and removes offline resurrection rights; ordinary
+        // unauthorized-response expiry remains handled by the caller.
+        try clearOfflineSession(origin: origin)
+        csrf = ""
+        publishedPrioritySession = nil
+        requestScheduler.invalidateQueuedScope()
     }
 
     // Exact route grammar prevents a compromised view from turning this cookie
@@ -680,6 +693,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     }
     private func restoreCookies(origin: URL) {
         guard !restoredCookies else { return }; restoredCookies = true
+        restoreDeletionReceipt(origin: origin)
         var query = keychainQuery(origin: origin); query[kSecReturnData as String] = true
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
@@ -690,6 +704,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
            cookie.domain == origin.host, cookie.path == "/" { session.configuration.httpCookieStorage?.setCookie(cookie) }
     }
     @MainActor private func persistAccountCookie(origin: URL) throws {
+        try persistDeletionReceipt(origin: origin)
         let query = keychainQuery(origin: origin)
         let cookies = session.configuration.httpCookieStorage?.cookies(for: origin) ?? []
         guard let cookie = cookies.first(where: { $0.name == "__Host-dv-account" && $0.domain == origin.host && $0.isSecure }),
@@ -703,6 +718,46 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             guard SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess else { throw AccountError.storageFailed }
         } else if result != errSecSuccess { throw AccountError.storageFailed }
         publishCookieChange(cookie.value, origin: origin)
+    }
+
+    private func deletionReceiptQuery(origin: URL) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: "DildoVander.AccountDeletionReceipt.v1",
+         kSecAttrAccount as String: origin.absoluteString]
+    }
+
+    private func restoreDeletionReceipt(origin: URL) {
+        var query = deletionReceiptQuery(origin: origin)
+        query[kSecReturnData as String] = true
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data, data.count <= 8192,
+              let properties = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { return }
+        let converted = Dictionary(uniqueKeysWithValues: properties.map { (HTTPCookiePropertyKey($0.key), $0.value) })
+        guard let cookie = HTTPCookie(properties: converted), cookie.name == "__Host-dv-account-deletion",
+              cookie.isSecure, cookie.isHTTPOnly, cookie.domain == origin.host, cookie.path == "/",
+              let expires = cookie.expiresDate, expires > Date() else {
+            SecItemDelete(deletionReceiptQuery(origin: origin) as CFDictionary)
+            return
+        }
+        session.configuration.httpCookieStorage?.setCookie(cookie)
+    }
+
+    private func persistDeletionReceipt(origin: URL) throws {
+        let query = deletionReceiptQuery(origin: origin)
+        let cookies = session.configuration.httpCookieStorage?.cookies(for: origin) ?? []
+        guard let cookie = cookies.first(where: { $0.name == "__Host-dv-account-deletion" && $0.domain == origin.host
+            && $0.path == "/" && $0.isSecure && $0.isHTTPOnly && ($0.expiresDate ?? .distantPast) > Date() }),
+              let properties = cookie.properties else { SecItemDelete(query as CFDictionary); return }
+        let converted = Dictionary(uniqueKeysWithValues: properties.map { ($0.key.rawValue, $0.value) })
+        let data = try PropertyListSerialization.data(fromPropertyList: converted, format: .binary, options: 0)
+        var attributes = query
+        attributes[kSecValueData as String] = data
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        let result = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if result == errSecItemNotFound {
+            guard SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess else { throw AccountError.storageFailed }
+        } else if result != errSecSuccess { throw AccountError.storageFailed }
     }
 
     @MainActor private func publishCookieChange(_ cookie: String?, origin: URL) {

@@ -21,7 +21,7 @@ interface CustomerSession {
 }
 interface StartTicketRequest {
   protocolVersion: 1; operationId: string; deviceId: string; bootId: string; challenge: string;
-  profileId: string; profileRevision: number; personalMemoryConsent?: true;
+  profileId: string; profileRevision: number; personalMemoryConsent?: true; openAiConsent: true;
 }
 const route = useRoute();
 const pane = computed(() => route.path.split('/').at(-1) ?? 'character');
@@ -35,6 +35,8 @@ const devices = ref<CustomerBleDevice[]>([]);
 const connected = ref<CustomerBleStatus | null>(null);
 const selectedDevice = ref('');
 const personalMemoryConsent = ref(false);
+const enrichmentOpenAiConsent = ref(false);
+const conversationOpenAiConsent = ref(false);
 const form = ref({ name: '', world: '', version: '', description: '', language: '' });
 let generation = 0;
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -50,7 +52,7 @@ const headings: Record<string, string> = {
   character: 'Moje postava', conversation: 'Rozhovor s kufrem', keepsakes: 'Moje památky', account: 'Můj účet',
 };
 const startInProgress = computed(() => sessions.value.some(session => ['starting', 'context_ready', 'running', 'recovering'].includes(session.state)));
-const characterStatusLabels: Record<string, string> = { queued: 'Čeká na přípravu', running: 'Příprava probíhá', ready: 'Připraveno', needs_clarification: 'Potřebuje upřesnění', failed: 'Příprava se nezdařila' };
+const characterStatusLabels: Record<string, string> = { saved: 'Uloženo bez AI přípravy', queued: 'Čeká na přípravu', running: 'Příprava probíhá', ready: 'Připraveno', needs_clarification: 'Potřebuje upřesnění', failed: 'Příprava se nezdařila' };
 const sessionStatusLabels: Record<string, string> = { queued: 'Čeká na kufr', starting: 'Kufr se připravuje', context_ready: 'Rozhovor se připravuje', running: 'Probíhá', completed: 'Dokončen', ended: 'Ukončen', failed: 'Nepodařilo se spustit', recovering: 'Obnovuje se' };
 const enrichmentText = computed(() => {
   if (!profile.value?.enrichment) return '';
@@ -94,7 +96,7 @@ function resetPrivateState(): void {
   profile.value = null; sessions.value = []; devices.value = []; connected.value = null; profileLoading.value = Boolean(account.value);
   busy.value = false;
   selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; pendingPollCount = 0; error.value = ''; notice.value = '';
-  form.value = { name: '', world: '', version: '', description: '', language: '' }; personalMemoryConsent.value = false;
+  form.value = { name: '', world: '', version: '', description: '', language: '' }; personalMemoryConsent.value = false; enrichmentOpenAiConsent.value = false; conversationOpenAiConsent.value = false;
   void Promise.resolve(customerBle.disconnect()).catch(() => {});
 }
 
@@ -131,13 +133,14 @@ async function saveCharacter(newCharacter = false): Promise<void> {
   try {
     const expectedRevision = profile.value?.revision ?? 0;
     const result = await accountRequest<{ profile: CharacterProfile }>('/app/v1/customer/character', 'PUT', {
-      expectedRevision, expectedProfileId: profile.value?.profileId ?? null,
+      expectedRevision, expectedProfileId: profile.value?.profileId ?? null, openAiConsent: enrichmentOpenAiConsent.value,
       userInput: { name: form.value.name.trim(), world: form.value.world.trim(), version: form.value.version.trim() || undefined,
         description: form.value.description.trim() || undefined, language: form.value.language.trim() || undefined },
       ...(newCharacter && profile.value ? { newCharacter: true } : {}),
     });
     if (epoch !== generation) return;
     profile.value = result.profile;
+    enrichmentOpenAiConsent.value = false;
     scheduleEnrichmentRefresh(epoch);
     notice.value = newCharacter ? 'Nová postava byla založena. Historie předchozí postavy zůstává uložená.' : 'Profil postavy byl uložen.';
   } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
@@ -145,13 +148,13 @@ async function saveCharacter(newCharacter = false): Promise<void> {
 }
 
 async function requestCorrection(): Promise<void> {
-  if (!profile.value) return;
+  if (!profile.value || !enrichmentOpenAiConsent.value) return;
   error.value = ''; busy.value = true; const epoch = generation;
   try {
     await accountRequest('/app/v1/customer/character/correction', 'POST', {
-      expectedRevision: profile.value.revision, expectedProfileId: profile.value.profileId,
+      expectedRevision: profile.value.revision, expectedProfileId: profile.value.profileId, openAiConsent: true,
     });
-    if (epoch === generation) { notice.value = 'Označili jste, že tato postava není vaše. Příprava informací se obnoví.'; await refreshEnrichment(epoch); }
+    if (epoch === generation) { enrichmentOpenAiConsent.value = false; notice.value = 'Označili jste, že tato postava není vaše. Příprava informací se obnoví.'; await refreshEnrichment(epoch); }
   } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
   finally { if (epoch === generation) busy.value = false; }
 }
@@ -184,7 +187,8 @@ async function connect(): Promise<void> {
 }
 
 async function startConversation(): Promise<void> {
-  if (!profile.value || !connected.value || !connected.value.capabilities.customerStart) return;
+  if (!profile.value || !connected.value || !connected.value.capabilities.customerStart
+    || (!conversationOpenAiConsent.value && !pendingTicketRequest.value)) return;
   error.value = ''; notice.value = ''; busy.value = true; const epoch = generation;
   // A retried operation keeps its ID; a rejected or unknown outcome is reconciled first.
   const hadPendingOperation = Boolean(pendingOperationId.value);
@@ -210,9 +214,16 @@ async function startConversation(): Promise<void> {
       // Only a new operation gets a new challenge/profile snapshot. Retries reuse this exact body.
       await reconcileBle(epoch);
       if (epoch !== generation || !connected.value || !profile.value) return;
+      // Consent can be withdrawn while session/BLE reconciliation is awaiting a reply.
+      // Once issuance is attempted, retries keep the original immutable consent-bearing body.
+      if (!conversationOpenAiConsent.value) {
+        pendingOperationId.value = undefined; bleStartAttempted = false; pendingPollCount = 0;
+        notice.value = 'Souhlas s OpenAI byl odvolán před odesláním žádosti. Rozhovor jsme nespustili.';
+        return;
+      }
       request = {
         protocolVersion: 1, operationId, deviceId: connected.value.deviceId, bootId: connected.value.bootId,
-        challenge: connected.value.challenge, profileId: profile.value.profileId, profileRevision: profile.value.revision,
+        challenge: connected.value.challenge, profileId: profile.value.profileId, profileRevision: profile.value.revision, openAiConsent: true,
         ...(personalMemoryConsent.value ? { personalMemoryConsent: true } : {}),
       };
       pendingTicketRequest.value = request;
@@ -329,7 +340,7 @@ onBeforeUnmount(resetPrivateState);
 
 <template>
   <section class="page-stack customer-page" :aria-labelledby="`customer-${pane}-title`">
-    <header><p class="eyebrow">Můj prostor</p><h1 :id="`customer-${pane}-title`">{{ headings[pane] ?? 'Můj prostor' }}</h1><p v-if="pane === 'character'">Vyberte postavu a její svět. Ověřené informace připraví server na pozadí.</p><p v-else-if="pane === 'conversation'">Rozhovor spustíte ručně po připojení ke kufru.</p></header>
+    <header><p class="eyebrow">Můj prostor</p><h1 :id="`customer-${pane}-title`">{{ headings[pane] ?? 'Můj prostor' }}</h1><p v-if="pane === 'character'">Vyberte postavu a její svět. Profil můžete uložit bez AI. Informace od OpenAI připravíme pouze s vaším souhlasem.</p><p v-else-if="pane === 'conversation'">Rozhovor spustíte ručně po připojení ke kufru.</p></header>
     <AwNotice v-if="error" tone="warning" role="alert">{{ error }}</AwNotice>
     <AwNotice v-if="notice" tone="info" role="status">{{ notice }}</AwNotice>
 
@@ -340,11 +351,13 @@ onBeforeUnmount(resetPrivateState);
       <AwField id="character-version" label="Verze nebo období (nepovinné)"><input id="character-version" v-model="form.version" class="aw-input" maxlength="120" /></AwField>
       <AwField id="character-description" label="Co je pro vás důležité? (nepovinné)"><textarea id="character-description" v-model="form.description" class="aw-input" maxlength="1200" rows="4" /></AwField>
       <AwField id="character-language" label="Jazyk (nepovinné)"><input id="character-language" v-model="form.language" class="aw-input" maxlength="35" /></AwField>
+      <AwField id="character-openai-consent" label="Volitelná příprava pomocí AI"><label><input id="character-openai-consent" v-model="enrichmentOpenAiConsent" type="checkbox" /> Souhlasím s odesláním jména postavy, jejího světa, verze, popisu a jazyka společnosti OpenAI pro přípravu informací a nápadů k rozhovoru, případně s vyhledáním veřejných zdrojů. Při opravě se odešle také předchozí výklad postavy.</label></AwField>
+      <p class="aw-muted">Bez zaškrtnutí profil uložíme bez odeslání k AI přípravě.</p>
       <p v-if="profile" class="aw-muted">Stav přípravy: {{ characterStatusLabels[profile.status] ?? 'Stav se ověřuje' }}<span v-if="profile.errorCode"> · {{ profile.errorCode }}</span></p>
       <AwNotice v-if="profile && clarificationText" tone="info">Server potřebuje upřesnit některé informace: {{ clarificationText }}</AwNotice>
       <p v-if="enrichmentText" class="character-enrichment">{{ enrichmentText }}</p>
       <section v-for="section in evidenceSections" :key="section.title" class="aw-card"><h2>{{ section.title }}</h2><ul><li v-for="line in section.lines" :key="line">{{ line }}</li></ul></section>
-      <div class="customer-actions"><AwButton type="submit" variant="primary" :busy="busy">{{ profile ? 'Uložit změny' : 'Vytvořit postavu' }}</AwButton><AwButton v-if="profile" :disabled="busy" @click="saveCharacter(true)">Nová postava</AwButton><AwButton v-if="profile" :disabled="busy" @click="requestCorrection">Tohle není moje postava</AwButton><AwButton v-if="profile" variant="danger" :disabled="busy" @click="deleteCharacter">Smazat profil</AwButton></div>
+      <div class="customer-actions"><AwButton type="submit" variant="primary" :busy="busy">{{ profile ? 'Uložit změny' : 'Vytvořit postavu' }}</AwButton><AwButton v-if="profile" :disabled="busy" @click="saveCharacter(true)">Nová postava</AwButton><AwButton v-if="profile" :disabled="busy || !enrichmentOpenAiConsent" @click="requestCorrection">Tohle není moje postava</AwButton><AwButton v-if="profile" variant="danger" :disabled="busy" @click="deleteCharacter">Smazat profil</AwButton></div>
       <p v-if="profile" class="aw-muted">Revize {{ profile.revision }}</p>
     </form>
 
@@ -355,8 +368,10 @@ onBeforeUnmount(resetPrivateState);
         <AwButton variant="primary" :disabled="busy || !profile || !customerBle.supported()" @click="discover">Najít kufr poblíž</AwButton>
         <div v-if="devices.length" class="customer-actions"><label for="customer-device">Kufr</label><select id="customer-device" v-model="selectedDevice" class="aw-input"><option value="">Vyberte kufr</option><option v-for="device in devices" :key="device.id" :value="device.id">{{ device.name }}</option></select><AwButton :disabled="busy || !selectedDevice" @click="connect">Připojit</AwButton></div>
         <p v-if="connected" role="status">{{ connected.state === 'running' ? 'Rozhovor právě probíhá' : connected.state === 'starting' ? 'Rozhovor se připravuje' : connected.state === 'idle' ? 'Kufr je připojený' : 'Stav kufru byl obnoven' }}</p>
+        <AwField id="conversation-openai-consent" label="Souhlas s AI rozhovorem"><label><input id="conversation-openai-consent" v-model="conversationOpenAiConsent" type="checkbox" /> Souhlasím s odesíláním zvuku mého hlasu, přepisu rozhovoru a kontextu postavy (jméno, svět, verze, popis, jazyk a připravené informace) společnosti OpenAI pro porozumění řeči a tvorbu hlasových odpovědí během tohoto rozhovoru.</label></AwField>
+        <p class="aw-muted">Bez tohoto souhlasu rozhovor nespustíme. Pokud níže povolíte soukromou kontinuitu, součástí kontextu pro OpenAI bude také povolená osobní paměť.</p>
         <AwField id="personal-memory-consent" label="Soukromá kontinuita"><label><input id="personal-memory-consent" v-model="personalMemoryConsent" type="checkbox" /> Souhlasím s použitím mé ověřené osobní paměti v tomto rozhovoru</label></AwField>
-        <AwButton variant="primary" :busy="busy" :disabled="busy || !profile || !connected?.capabilities.customerStart || startInProgress" @click="startConversation">Promluvit s kufrem</AwButton>
+        <AwButton variant="primary" :busy="busy" :disabled="busy || !profile || !connected?.capabilities.customerStart || startInProgress || (!conversationOpenAiConsent && !pendingOperationId)" @click="startConversation">Promluvit s kufrem</AwButton>
         <p v-if="pendingOperationId" role="status">Ověřujeme, zda kufr rozhovor přijal. Telefonní spojení rozhovor neukončuje.</p>
         <AwButton v-if="pendingOperationId" :disabled="busy" variant="secondary" @click="refreshConversationStatus">Obnovit stav rozhovoru</AwButton>
       </div>

@@ -35,6 +35,15 @@ internal static partial class AccountIdentityTests
             "only authenticated device registers a fresh boot challenge");
         var firstOp = Guid.NewGuid().ToString("D");
         var secondOp = Guid.NewGuid().ToString("D");
+        var denied = await first.PostAsJsonAsync("/app/v1/customer/start-tickets", new
+        {
+            protocolVersion = 1, operationId = firstOp, deviceId = "granted-device", bootId = boot,
+            challenge = challenge.Challenge, profileId = firstProfile.GetProperty("profileId").GetString(),
+            profileRevision = firstProfile.GetProperty("revision").GetInt64()
+        });
+        Check(denied.StatusCode == HttpStatusCode.Conflict
+            && (await denied.Content.ReadAsStringAsync()).Contains("openai_consent_required"),
+            "real HTTPS customer start rejects omitted OpenAI consent before issuing a ticket");
         var issuedFirst = await TicketAsync(first, firstProfile, firstOp);
         var issuedSecond = await TicketAsync(second, secondProfile, secondOp);
         var redeemFirst = new CustomerRedemption(1, issuedFirst.GetProperty("ticket").GetString()!, firstOp, boot, challenge.Challenge);
@@ -98,7 +107,7 @@ internal static partial class AccountIdentityTests
             {
                 protocolVersion = 1, operationId = operation, deviceId = "granted-device", bootId = boot,
                 challenge = challenge.Challenge, profileId = profile.GetProperty("profileId").GetString(),
-                profileRevision = profile.GetProperty("revision").GetInt64()
+                profileRevision = profile.GetProperty("revision").GetInt64(), openAiConsent = true
             }));
     }
 

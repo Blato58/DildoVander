@@ -2,6 +2,12 @@ import Foundation
 
 // Shared by the live native bridge and standalone macOS regression tests.
 enum AccountTransportPolicy {
+    static func accountDeletionAccepted(path: String, method: String, status: Int, body: Data) -> Bool {
+        guard path == "/app/v1/account", method == "DELETE", status == 202,
+              let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return false }
+        return object["status"] as? String == "deletion_requested"
+    }
+
     static func credentialCommit(path: String, method: String) -> Bool {
         method == "POST" && ["/app/v1/passkeys/sign-in", "/app/v1/passkeys/reauthenticate",
             "/app/v1/enrollment/complete", "/app/v1/customer/enrollment/complete", "/app/v1/passkeys/complete"].contains(path)
@@ -268,7 +274,8 @@ enum AccountTransportPolicy {
         let evening = path.split(separator: "/").map(String.init)
         if evening.count == 4, evening[0] == "v1", evening[1] == "evenings", UUID(uuidString: evening[2]) != nil, evening[3] == "active" { return method == "PUT" }
         let exact: [String: Set<String>] = [
-            "/app/v1/session": ["GET", "DELETE"], "/app/v1/account": ["GET"],
+            "/app/v1/session": ["GET", "DELETE"], "/app/v1/account": ["GET", "DELETE"],
+            "/app/v1/account/deletion": ["GET"],
             "/app/v1/passkeys/request-options": ["POST"], "/app/v1/passkeys/sign-in": ["POST"],
             "/app/v1/passkeys/reauthentication-options": ["POST"], "/app/v1/passkeys/reauthenticate": ["POST"],
             "/app/v1/enrollment/options": ["POST"], "/app/v1/enrollment/complete": ["POST"],

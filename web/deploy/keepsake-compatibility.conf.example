@@ -410,6 +410,18 @@ location = /api { return 404; }
 if ($host != keepsake.example.invalid) { return 421; }
 # One application. Exact route allowlist never catches APIs, callbacks or downloads.
 # Preserve installer /ios/, websocket and explicit backend locations in the server shell.
+location = /account-deletion {
+    if ($request_uri !~ "^/account-deletion(?:[?]|$)") { return 404; }
+    if ($request_method !~ "^(GET|HEAD)$") { return 405; }
+    root /var/www/dildovander/current;
+    try_files /index.html =404;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    access_log off;
+}
 location = /support {
     if ($request_uri !~ "^/support(?:[?]|$)") { return 404; }
     if ($request_method !~ "^(GET|HEAD)$") { return 405; }

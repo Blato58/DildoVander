@@ -136,6 +136,8 @@ try {
   assert.equal(await page.getByRole('navigation', { name: 'Sekce aplikace' }).getByRole('link').count(), 4);
   assert.equal(await page.getByRole('button', { name: 'Stop', exact: true }).count(), 0);
   assert.equal(await page.getByLabel('Jméno postavy').inputValue(), 'Luna');
+  assert.equal(await page.locator('#character-openai-consent').isChecked(), false, 'character enrichment requires an unchecked OpenAI opt-in');
+  assert(await page.getByText(/společnosti OpenAI/).first().isVisible());
   assert.equal(await page.getByText('Public character guide').count(), 1);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
@@ -144,6 +146,8 @@ try {
   }
   const customerNav = page.getByRole('navigation', { name: 'Sekce aplikace' });
   await customerNav.getByRole('link', { name: 'Rozhovor', exact: true }).click(); await hasHeading('Rozhovor s kufrem');
+  assert.equal(await page.locator('#conversation-openai-consent').isChecked(), false, 'voice consent is separate and unchecked');
+  assert(await page.getByRole('button', { name: 'Promluvit s kufrem', exact: true }).isDisabled());
   assert(await page.getByText(/Bluetooth připojení je dostupné v instalované aplikaci/).isVisible());
   assert.equal(requests.filter(request => request.path.includes('customerBle') || request.path.includes('start-tickets')).length, 0);
   await page.goto(origin + '/me/account'); await hasHeading('Můj účet');

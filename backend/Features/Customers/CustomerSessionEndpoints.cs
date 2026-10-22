@@ -89,12 +89,13 @@ internal static class CustomerSessionEndpoints
                 || request.ProfileRevision < 1 || !Opaque(request.DeviceId, 1, 128)
                 || !Opaque(request.Challenge, 16, 128))
             { throw new CustomerSessionException(400, "invalid_start_request"); }
+            if (!request.OpenAiConsent) { throw new CustomerSessionException(409, "openai_consent_required"); }
             var owner = Owner(http);
             var snapshot = await profiles.CaptureAsync(owner, request.ProfileId, request.ProfileRevision, http.RequestAborted);
             if (snapshot is null) { throw new CustomerSessionException(409, "character_revision_mismatch"); }
             var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
             var protector = protection.CreateProtector("DildoVander.CustomerStartTicket.v1");
-            var result = journal.IssueCustomerTicket(owner, request, JsonSerializer.Serialize(new CustomerConversationSnapshot(snapshot, request.PersonalMemoryConsent), Json),
+            var result = journal.IssueCustomerTicket(owner, request, JsonSerializer.Serialize(new CustomerConversationSnapshot(snapshot, request.PersonalMemoryConsent, OpenAiConsent: true), Json),
                 OperationJournal.CustomerHash(token), protector.Protect(token));
             if (result.ProtectedToken.Length == 0) { throw new CustomerSessionException(410, "start_ticket_revoked"); }
             return Results.Ok(new { protocolVersion = 1, ticket = protector.Unprotect(result.ProtectedToken),
@@ -266,4 +267,4 @@ internal static class CustomerSessionEndpoints
     private sealed record CustomerModeChange(bool Enabled);
 }
 
-internal sealed record CustomerConversationSnapshot(CharacterConversationSnapshot Profile, bool PersonalMemoryConsent);
+internal sealed record CustomerConversationSnapshot(CharacterConversationSnapshot Profile, bool PersonalMemoryConsent, bool OpenAiConsent = false);

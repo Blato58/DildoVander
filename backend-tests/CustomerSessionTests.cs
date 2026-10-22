@@ -20,6 +20,7 @@ internal static class CustomerSessionTests
             ExpiredUnacceptedStart(root);
             await ExpiryWaitsForRedemptionAsync(root);
             await SharedStartupAsync(root);
+            ConsentAdmission(root);
             NoncustomerCleanup(root);
             OwnershipAndRevocation(root);
             Console.WriteLine("PASS customer sessions: SQLite arbitration/restart, ticket bindings/replay/expiry, profile deletion, shared engine startup and private keepsake ownership");
@@ -91,7 +92,7 @@ internal static class CustomerSessionTests
         journal.RegisterCustomerChallenge("device-a", Challenge(boot));
         var request = Request(boot);
         var token = new string('c', 43);
-        const string profile = "{\"profile\":{\"userInput\":{\"name\":\"Harry fixture\",\"world\":\"fictional source\"}},\"personalMemoryConsent\":false}";
+        const string profile = "{\"profile\":{\"userInput\":{\"name\":\"Harry fixture\",\"world\":\"fictional source\"}},\"personalMemoryConsent\":false,\"openAiConsent\":true}";
         journal.IssueCustomerTicket("account-a", request, profile, OperationJournal.CustomerHash(token), "protected");
         var session = journal.RedeemCustomerTicket("device-a", Redeem(request, token));
         var store = new ConversationStore(new CustomerClock(), journal);
@@ -195,6 +196,32 @@ internal static class CustomerSessionTests
         Check((await evidence).Length == 0, "committed accepted ticket is never reported as definitively unused");
     }
 
+    private static void ConsentAdmission(string root)
+    {
+        var config = Configuration(root, "consent");
+        var boot = Guid.NewGuid().ToString("D");
+        using var journal = new OperationJournal(config, new CustomerClock());
+        journal.SetCustomerMode("device-a", true);
+        journal.RegisterCustomerChallenge("device-a", Challenge(boot));
+        var request = Request(boot);
+        Expect("openai_consent_required", () => journal.IssueCustomerTicket("account-a", request with { OpenAiConsent = false },
+            "snapshot", "hash", "protected"));
+        var token = new string('c', 43);
+        journal.IssueCustomerTicket("account-a", request, "snapshot", OperationJournal.CustomerHash(token), "protected");
+        using var connection = new SqliteConnection("Data Source=" + Path.Combine(root, "consent.sqlite"));
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE customer_start_tickets SET openai_consent=0";
+        command.ExecuteNonQuery();
+        Expect("openai_consent_required", () => journal.RedeemCustomerTicket("device-a", Redeem(request, token)));
+        try
+        {
+            CustomerContextBuilder.Build("{\"profile\":{\"userInput\":{\"name\":\"Private\",\"world\":\"Original\"}}}");
+            throw new InvalidOperationException("Legacy context admitted without consent.");
+        }
+        catch (InvalidDataException) { }
+    }
+
     private static void OwnershipAndRevocation(string root)
     {
         var config = Configuration(root, "ownership");
@@ -234,7 +261,7 @@ internal static class CustomerSessionTests
     }).Build();
     private static CustomerDeviceChallenge Challenge(string boot) => new(1, boot, "01234567-89ab-cdef-0123-456789abcdef", 0, PartyWandCatalog.Version, null);
     private static CustomerTicketRequest Request(string boot) => new(1, Guid.NewGuid().ToString("D"), "device-a", boot,
-        Challenge(boot).Challenge, Guid.NewGuid().ToString("D"), 1);
+        Challenge(boot).Challenge, Guid.NewGuid().ToString("D"), 1, OpenAiConsent: true);
     private static CustomerRedemption Redeem(CustomerTicketRequest request, string token) => new(1, token, request.OperationId, request.BootId, request.Challenge);
     private static void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException(message); } }
     private static void Expect(string code, Action action)

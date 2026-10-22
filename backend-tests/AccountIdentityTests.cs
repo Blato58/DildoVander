@@ -29,7 +29,7 @@ internal static partial class AccountIdentityTests
 {
     public static async Task RunBrowserFixtureAsync()
     {
-        await using var fixture = await Fixture.StartAsync(browserMode: true);
+        await using var fixture = await Fixture.StartAsync(browserMode: true, deletionFeatures: true);
         Check(await AccountProvisioning.RunAsync(fixture.App, ["--account-bootstrap"]) == 0, "browser fixture bootstrap delivery");
         var deliveryRoot = Path.Combine(fixture.App.Services.GetRequiredService<AccountConfiguration>().DataRoot, "owner-delivery");
         Console.WriteLine("ACCOUNT_BROWSER_DELIVERY " + Directory.EnumerateFiles(deliveryRoot, "*.txt").Single());
@@ -54,6 +54,7 @@ internal static partial class AccountIdentityTests
     {
         ServiceCredentialBoundaries();
         await DisabledIdentitySessionAsync();
+        await AppleAppSiteAssociationAsync();
         await PersistentAccountAuthorizationAsync();
         await AdditionalPasskeyRecentAuthenticationAsync();
         await ModelReleaseTests.RunAsync();
@@ -550,7 +551,7 @@ internal static partial class AccountIdentityTests
             jars[client] = jar; return client;
         }
         public CookieContainer Cookies(HttpClient client) => jars[client];
-        public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false)
+        public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false, bool deletionFeatures = false)
         {
             var root = Path.Combine(Path.GetTempPath(), "dv-account-tests-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
@@ -608,10 +609,17 @@ internal static partial class AccountIdentityTests
                 options.AddPolicy("keepsake-public", _ => System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("fixture"));
             });
             builder.Services.AddSingleton<TwinAccess>(); builder.Services.AddSingleton<TwinStore>(); builder.Services.AddSingleton<TwinHost>();
-            if (customerFeatures)
+            if (customerFeatures || deletionFeatures)
             {
                 builder.Services.AddSingleton<ICharacterEnrichmentProvider>(new CustomerTestEnrichmentProvider());
                 builder.Services.AddCustomerCharacters(builder.Configuration);
+            }
+            if (deletionFeatures)
+            {
+                builder.Services.AddSingleton(_ => new Kufr.Backend.Features.PersonaLab.PersonaLabStore(
+                    Path.Combine(root, "persona-lab.sqlite"),
+                    Kufr.Backend.Features.GptLive.LivePromptSnapshot.Create(
+                        PersonalityCatalog.OllivanderId, new Kufr.Backend.Features.GptLive.GptLiveOptions())));
             }
             var app = builder.Build();
             await AccountProvisioning.MigrateAsync(app.Services);

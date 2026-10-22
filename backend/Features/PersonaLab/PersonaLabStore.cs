@@ -23,6 +23,7 @@ internal sealed partial class PersonaLabStore
         using var command = connection.CreateCommand();
         command.CommandText = """
             PRAGMA journal_mode=WAL;
+            CREATE TABLE IF NOT EXISTS lab_owner_fences(owner TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS lab_documents (
                 kind TEXT NOT NULL, id TEXT NOT NULL, owner TEXT NOT NULL,
                 version INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY(kind,id));
@@ -345,6 +346,7 @@ internal sealed partial class PersonaLabStore
     }
     private static void Insert<T>(SqliteConnection connection, string kind, string id, string owner, int version, T value, SqliteTransaction transaction)
     {
+        RequireOwner(connection, transaction, owner);
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "INSERT INTO lab_documents(kind,id,owner,version,json) VALUES($kind,$id,$owner,$version,$json)";

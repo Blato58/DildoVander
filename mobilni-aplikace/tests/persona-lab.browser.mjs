@@ -185,6 +185,9 @@ async function signInViaProtectedLink(page) {
   await page.getByRole('link', { name: 'Persona Lab', exact: true }).first().waitFor();
   await page.getByRole('heading', { name: 'Persona Lab', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Připravit sezení', exact: true }).waitFor();
+  assert.equal(await page.locator('#lab-provider-consent').isChecked(), false, 'OpenAI data consent starts unchecked');
+  assert(await page.getByRole('button', { name: 'Připravit sezení', exact: true }).isDisabled(), 'new session requires OpenAI data consent');
+  await page.locator('#lab-provider-consent').check();
 }
 
 async function viewerJourney(width) {

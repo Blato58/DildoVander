@@ -6,7 +6,7 @@ import AwButton from '../components/AwButton.vue';
 import AwNotice from '../components/AwNotice.vue';
 import { usePreferences } from './preferences';
 import { notifications, dismissNotice, notify } from './notifications';
-import { account, offlineSession, refreshIdentity } from '../features/identity/session';
+import { account, accountDeletionRequested, offlineSession, refreshIdentity } from '../features/identity/session';
 import { deviceSession } from '../features/suitcase/deviceSession';
 import { nativeDebug } from '../features/suitcase/nativeDebug';
 import { directorStop, clearDirectorStop } from '../features/director/directorStop';
@@ -71,10 +71,15 @@ watch(() => account.value ? `${account.value.id}:${account.value.roles.join(',')
     nativeDebug.invalidatePrivateState();
     void Promise.resolve(deviceSession.clearUserGrants()).catch(() => notify('Oprávnění této instalace se nepodařilo vyčistit. Odpojte ji před změnou uživatele.', 'danger'));
   }
+  if (previous && !next && accountDeletionRequested.value) {
+    void router.replace('/account-deletion');
+    return;
+  }
   const redirect = accessRedirect(route);
   if (redirect) void router.replace(redirect);
 }, { flush: 'sync' });
 watch(offlineSession, () => {
+  if (!account.value && accountDeletionRequested.value) { return; }
   const redirect = accessRedirect(route);
   if (redirect) void router.replace(redirect);
 }, { flush: 'sync' });

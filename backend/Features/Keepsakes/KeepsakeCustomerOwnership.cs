@@ -13,6 +13,9 @@ internal sealed partial class KeepsakeStore
         string id, KeepsakeCustomerOwner? owner)
     {
         if (owner is null) { return; }
+        using var fence = Command(connection, transaction,
+            "SELECT COUNT(*) FROM dv10_account_fences WHERE owner_id=$owner", ("$owner", owner.AccountId));
+        if ((long)fence.ExecuteScalar()! != 0) { throw new KeepsakeException("account_deleted", 409); }
         using var existing = Command(connection, transaction,
             "SELECT owner_id,session_id FROM dv10_customer_owners WHERE keepsake_id=$id", ("$id", id));
         using (var reader = existing.ExecuteReader())

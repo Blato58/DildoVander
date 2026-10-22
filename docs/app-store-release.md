@@ -75,7 +75,7 @@ macOS/Xcode. Those tests do not establish Apple upload or review acceptance.
 ## Upload and Apple review
 
 The application exposes public `/support` and `/privacy` routes, also linked
-from its footer. Publish the reviewed application and add the two exact GET/HEAD
+from its footer. Publish the reviewed application and add their exact GET/HEAD
 locations from `web/deploy/site-locations.conf` to the installed application
 profile. Verify both deep links without a session before entering their canonical
 HTTPS URLs in App Store Connect. The support email is public; reviewer phone
@@ -83,18 +83,25 @@ numbers and credentials belong only in Apple's private review fields.
 
 Before submission, resolve these existing product requirements:
 
-- Customer registration currently creates an account in the app. The identity
-  feature does not yet provide in-app account deletion; a support email alone
-  must not be treated as an implemented deletion flow.
+- Test account deletion from customer and staff settings. Fresh passkey assertion
+  and explicit confirmation precede durable acceptance; the account loses access
+  immediately and local content cleanup retries after failures/restarts. A separate
+  protected seven-day receipt allows signed-out status confirmation through the
+  public `/account-deletion` page. Deploy its exact private-header ingress too.
+  Migrate the identity schema through the existing backup-preserving migration
+  command before starting this backend version; never drop existing passkeys.
 - Operator invitations expire after one hour and are single-use. They do not
   provide durable App Review access. Arrange a dedicated synthetic account and
   repeatable, tested sign-in instructions without publishing an owner credential.
 - Hardware-dependent features need a genuine demonstration of the app on a
   physical Apple device interacting with the accessory. Synthetic browser
   screenshots and simulator evidence do not demonstrate physical operation.
-- The existing backend AASA setting supports a single Apple application ID.
-  Add support for both installed and App Store identities before enabling the
-  new one; replacing the old identifier would break existing passkey access.
+  If submitting without this evidence, explain the hardware dependency accurately;
+  Apple may request it before completing review.
+- Configure `ApplicationIdentity:AppleAppIds` with the installed and App Store
+  identities. The legacy scalar `AppleAppId` remains additive; malformed entries
+  reject the whole AASA response. Verify the HTTPS response before enabling the
+  new app so existing passkey access stays available.
 
 Use the resulting IPA with Transporter on macOS or an authorized App Store
 Connect upload integration. A release operator must provide an Apple-supported

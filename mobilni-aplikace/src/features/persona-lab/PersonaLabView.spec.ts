@@ -51,9 +51,11 @@ beforeEach(() => {
   });
 });
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); vi.useRealTimers(); vi.restoreAllMocks(); });
-async function render() {
+async function render(consent = true) {
   const wrapper = mount(PersonaLabView, { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
-  wrappers.push(wrapper); await flushPromises(); return wrapper;
+  wrappers.push(wrapper); await flushPromises();
+  if (consent) await wrapper.get('#lab-provider-consent').setValue(true);
+  return wrapper;
 }
 function button(wrapper: ReturnType<typeof mount>, label: string) {
   return wrapper.findAll('button').find(item => item.text() === label)!;
@@ -77,6 +79,34 @@ async function startSpokenVoice(wrapper: ReturnType<typeof mount>): Promise<void
   await button(wrapper, 'Spustit hlas').trigger('click'); await flushPromises();
 }
 describe('Persona Lab user journeys', () => {
+  it('requires unchecked recipient/data/purpose consent before session, text or voice submission', async () => {
+    const wrapper = await render(false);
+    expect(wrapper.get('#lab-provider-consent').element).toHaveProperty('checked', false);
+    expect(wrapper.text()).toContain('společnosti OpenAI');
+    expect(wrapper.text()).toContain('zvuk mikrofonu');
+    await wrapper.get('.lab-setup').trigger('submit'); await flushPromises();
+    expect(api.transport.mock.calls.some(([, init]) => init.method === 'POST')).toBe(false);
+    await wrapper.get('#lab-existing').setValue('session');
+    await wrapper.get('#lab-message').setValue('Test bez souhlasu');
+    await wrapper.get('.lab-composer').trigger('submit');
+    await button(wrapper, 'Spustit hlas').trigger('click'); await flushPromises();
+    expect(api.voiceConnect).not.toHaveBeenCalled();
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/turns'))).toBe(false);
+    expect(button(wrapper, 'Odeslat do modelu').attributes('disabled')).toBeDefined();
+    await wrapper.get('#lab-provider-consent').setValue(true);
+    await wrapper.get('.lab-composer').trigger('submit'); await flushPromises();
+    expect(api.transport.mock.calls.some(([path]) => path.endsWith('/turns'))).toBe(true);
+  });
+
+  it('resets provider consent when the account changes while preserving separate transcript opt-in', async () => {
+    const wrapper = await render();
+    expect(wrapper.get('#lab-provider-consent').element).toHaveProperty('checked', true);
+    account.value = {id: 'next-tester', displayName: 'Next tester', roles: ['Tester']};
+    await flushPromises();
+    expect(wrapper.get('#lab-provider-consent').element).toHaveProperty('checked', false);
+    expect(wrapper.get('.lab-setup input[type="checkbox"]').element).toHaveProperty('checked', false);
+  });
+
   it('participates in the application Stop and releases that participant on navigation', async () => {
     const wrapper = await render(); await wrapper.get('#lab-existing').setValue('session');
     expect(directorStop.value?.canStop()).toBe(false);
@@ -183,6 +213,7 @@ describe('Persona Lab user journeys', () => {
     expect(api.transport.mock.calls.some(([path]) => path.endsWith('/image'))).toBe(false);
     let attach = wrapper.findAll('button').find(button => button.text() === 'Připojit fotografii k dalšímu vstupu')!;
     expect(attach.attributes('disabled')).toBeDefined();
+    expect(wrapper.get('.lab-image label.lab-check').text()).toContain('fotografie společnosti OpenAI');
     await wrapper.get('.lab-image input[type="checkbox"]').setValue(true); await attach.trigger('click'); await flushPromises();
     const request = api.transport.mock.calls.find(([path]) => path.endsWith('/image'));
     expect(JSON.parse(request![1].body)).toEqual({ mimeType: 'image/jpeg', dataBase64: 'AA==', consent: true });

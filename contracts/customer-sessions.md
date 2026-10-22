@@ -17,7 +17,12 @@ permissions. Customer passkey enrollment never assigns staff roles or grants.
    The backend, not radio signal strength, verifies the device identity.
 4. The signed-in account posts `/app/v1/customer/start-tickets` with v1,
    `operationId`, device/boot/challenge, and its own `profileId/profileRevision`.
-   `personalMemoryConsent` defaults to false. Ownership is server-derived.
+   `openAiConsent: true` is required after the unchecked disclosure naming
+   OpenAI, voice audio/transcripts and character context for spoken replies.
+   `personalMemoryConsent` remains a separate optional choice and defaults to
+   false. Ownership is server-derived. Missing consent returns
+   `409 openai_consent_required` without issuing a ticket; legacy tickets
+   without recorded consent cannot be redeemed.
 5. The phone sends the compact [BLE message](customer-ble-v1.schema.json).
    The trusted device redeems it at `POST /v1/customer-sessions/redeem` using
    `{protocolVersion:1,ticket,operationId,bootId,challenge}`. Redemption captures

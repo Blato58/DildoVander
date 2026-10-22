@@ -14,7 +14,7 @@
         <label>Hlas<select data-media-voice><option>cedar</option><option>marin</option><option>coral</option></select></label>
         <label>Rychlost<select data-media-speed><option>0.8</option><option selected>1</option><option>1.2</option></select></label>
         <label>Prezentace<select data-media-variant><option>main</option><option>short</option></select></label>
-        <label class="twin-media-checkbox"><input data-media-consent type="checkbox"> Souhlasím s jednou náhledovou fotkou</label>
+        <label class="twin-media-checkbox"><input data-media-consent type="checkbox"> Souhlasím s odesláním jedné fotografie společnosti OpenAI pro popis kostýmu v rozhovoru. Syntetická fixture fotografii do OpenAI neodesílá.</label>
         ${button({"label": "Uložit nastavení", "attributes": {"data-media-save": ""}, "type": "submit"})}${button({"label": "Načíst nastavení", "attributes": {"data-media-reload": ""}})}
         <p data-media-revision></p>
       </form></details>
@@ -25,7 +25,7 @@
       </div>
       <div class="twin-media-actions">${button({"label": "Spustit rozhovor", "attributes": {"data-media-start": ""}, "variant": "primary"})}${button({"label": "Stop médií", "attributes": {"data-media-stop": ""}, "variant": "danger"})}</div>
       <p>Zvuk ukazuje software enqueue/drain evidence, nikoli potvrzení slyšitelnosti. Rozhoduje nativní core.</p>
-      <div data-media-photo hidden><p>Nativní core žádá jednu fotku. Aktivujte kameru, prohlédněte náhled a výslovně přijměte.</p>
+      <div data-media-photo hidden><p>Nativní core žádá jednu fotku. Pořízení lokálního náhledu nic neodesílá. Přijetím potvrdíte předání fotografie společnosti OpenAI pro popis kostýmu v rozhovoru. Syntetická fixture pracuje bez předání OpenAI.</p>
         ${button({"label": "Aktivovat kameru", "attributes": {"data-media-camera": ""}})}<video data-media-video autoplay playsinline muted></video>
         ${button({"label": "Pořídit náhled", "attributes": {"data-media-capture": ""}})}<img data-media-preview alt="Lokální náhled fotky před předáním" hidden>
         ${button({"label": "Přijmout a předat jednu fotku", "attributes": {"data-media-accept": ""}, "variant": "primary"})}${button({"label": "Vymazat náhled", "attributes": {"data-media-retake": ""}})}${button({"label": "Pokračovat bez fotky", "attributes": {"data-media-skip-photo": ""}})}</div>

@@ -13,6 +13,7 @@ internal sealed partial class OperationJournal
         using var connection = Open();
         using var command = connection.CreateCommand();
         command.CommandText = """
+            CREATE TABLE IF NOT EXISTS visual_deleted_conversations(device_id TEXT NOT NULL,conversation_id TEXT NOT NULL,PRIMARY KEY(device_id,conversation_id));
             CREATE TABLE IF NOT EXISTS visual_media (
                 image_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, conversation_id TEXT NOT NULL,
                 revision INTEGER NOT NULL, source TEXT NOT NULL, captured_at TEXT NOT NULL,
@@ -28,6 +29,13 @@ internal sealed partial class OperationJournal
         InitializeVisualMedia();
         using var connection = Open();
         using var command = connection.CreateCommand();
+        using var transaction = connection.BeginTransaction();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT COUNT(*) FROM visual_deleted_conversations WHERE device_id=$device AND conversation_id=$conversation";
+        command.Parameters.AddWithValue("$device", media.DeviceId);
+        command.Parameters.AddWithValue("$conversation", media.ConversationId);
+        if ((long)command.ExecuteScalar()! != 0) { return false; }
+        command.Parameters.Clear();
         // Never resurrect an explicitly deleted image through an upload retry.
         command.CommandText = """
             INSERT OR IGNORE INTO visual_media(image_id,device_id,conversation_id,revision,source,captured_at,jpeg,evening_id,guest_id)
@@ -43,6 +51,7 @@ internal sealed partial class OperationJournal
         command.Parameters.AddWithValue("$evening", (object?)media.EveningId ?? DBNull.Value);
         command.Parameters.AddWithValue("$guest", (object?)media.GuestId ?? DBNull.Value);
         command.ExecuteNonQuery();
+        transaction.Commit();
         var existing = ReadVisualMedia(media.DeviceId, media.ConversationId, media.ImageId);
         return existing is not null && existing.Revision == media.Revision
             && existing.Source == media.Source && existing.Jpeg.AsSpan().SequenceEqual(media.Jpeg);
@@ -86,14 +95,18 @@ internal sealed partial class OperationJournal
         InitializeVisualMedia();
         using var connection = Open();
         using var command = connection.CreateCommand();
+        using var transaction = connection.BeginTransaction();
+        command.Transaction = transaction;
         // Retain a technical tombstone, erase user content, and fence late completion.
         command.CommandText = """
+            INSERT OR IGNORE INTO visual_deleted_conversations(device_id,conversation_id) VALUES($device,$conversation);
             UPDATE visual_media SET deleted=1,jpeg=X'',description=NULL
             WHERE device_id=$device AND conversation_id=$conversation;
             """;
         command.Parameters.AddWithValue("$device", deviceId);
         command.Parameters.AddWithValue("$conversation", conversationId);
         command.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     internal IReadOnlyList<string> VisualConversations(string deviceId, string scope, string subject)

@@ -123,6 +123,22 @@ internal sealed class PersonaLabRuntime(PersonaLabStore store, GptLiveClient liv
             ? session with { Turns = session.Turns.Select(turn => turns.FirstOrDefault(transient => transient.Id == turn.Id) ?? turn).ToArray() }
             : session;
     }
+    internal void DeleteAccountContent(string owner)
+    {
+        lock (admissionGate)
+        {
+            foreach (var session in store.Sessions(owner))
+            {
+                if (active.TryGetValue(session.Id, out var lifetime)) { lifetime.Cancel(); }
+                ephemeral.TryRemove(session.Id, out _);
+                ephemeralExpiry.TryRemove(session.Id, out _);
+                images?.Clear(owner, session.Id);
+            }
+            images?.FenceAccountDeletion(owner);
+            store.DeleteAccountContent(owner);
+        }
+    }
+
     internal LabSession End(string owner, string id)
     {
         lock (admissionGate)

@@ -67,6 +67,10 @@ internal static partial class AccountEndpoints
         await db.Database.ExecuteSqlRawAsync("UPDATE AspNetUsers SET Disabled = Disabled WHERE Id = {0}", id);
         var user = await users.FindByIdAsync(id);
         if (user is null) { return ApiProblem.Create(context, 404, "account_not_found"); }
+        if (!request.Disabled && await db.DeletionRequests.AnyAsync(x => x.UserId == id))
+        {
+            return ApiProblem.Create(context, 409, "account_deletion_pending");
+        }
         var roles = await users.GetRolesAsync(user);
         if (roles.Contains(AccountRoles.Owner) && (!user.Disabled && (request.Disabled || request.Role != AccountRoles.Owner)))
         {

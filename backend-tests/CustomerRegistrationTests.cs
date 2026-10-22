@@ -54,6 +54,8 @@ internal static partial class AccountIdentityTests
         var initial = await JsonAsync(await customer.PutAsJsonAsync("/app/v1/customer/character",
             new CharacterWriteRequest(0, new("  Gandalf  ", "The Lord of the Rings", Description: "My own version"))));
         var profile = initial.GetProperty("profile");
+        Check(profile.GetProperty("status").GetString() == "saved",
+            "HTTP profile save without OpenAI consent remains local");
         var profileId = profile.GetProperty("profileId").GetString()!;
         var revision = profile.GetProperty("revision").GetInt64();
         Check(profile.GetProperty("userInput").GetProperty("name").GetString() == "  Gandalf  ",

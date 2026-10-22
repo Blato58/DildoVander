@@ -1,7 +1,7 @@
 // Real UI + real HTTPS backend fixture + Chrome's virtual authenticator.
 // The fixture clears inherited configuration and registers no AI providers.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const origin = new URL(process.env.ACCOUNT_BROWSER_URL ?? '');
@@ -111,6 +111,37 @@ try {
   await replay.page.getByRole('button', { name: 'Vytvořit přístupový klíč', exact: true }).click();
   await replay.page.getByRole('alert').filter({ hasText: /Pozvánka už není platná/ }).waitFor();
   assert.equal((await (await replay.context.request.get(origin.origin + '/app/v1/session')).json()).account, null);
+
+  await viewer.page.goto(origin.origin + '/settings');
+  await viewer.page.getByRole('button', { name: 'Ověřit účet pro smazání', exact: true }).click();
+  const deleteButton = viewer.page.getByRole('button', { name: 'Trvale smazat můj účet', exact: true });
+  await deleteButton.waitFor();
+  const screenshots = process.env.ACCOUNT_BROWSER_SCREENSHOTS;
+  if (screenshots) {
+    await mkdir(screenshots, { recursive: true });
+    await viewer.page.setViewportSize({ width: 390, height: 844 });
+    await viewer.page.screenshot({ path: `${screenshots}/account-deletion-confirm-390.png`, fullPage: true });
+    assert(await viewer.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'deletion confirmation fits mobile viewport');
+  }
+  const deletionResponse = viewer.page.waitForResponse(response => response.request().method() === 'DELETE' && new URL(response.url()).pathname === '/app/v1/account');
+  await deleteButton.click();
+  assert.equal((await deletionResponse).status(), 202);
+  await viewer.page.waitForURL(url => url.pathname === '/account-deletion' && !url.search && !url.hash);
+  await viewer.page.getByRole('heading', { name: 'Stav smazání účtu', exact: true }).waitFor();
+  const completed = viewer.page.getByText('Smazání účtu a jeho soukromých dat v aplikaci bylo dokončeno.', { exact: true });
+  await completed.waitFor({ timeout: 45000 });
+  assert.equal((await (await viewer.context.request.get(origin.origin + '/app/v1/session')).json()).account, null);
+  assert.equal((await viewer.context.request.get(origin.origin + '/app/v1/account')).status(), 401);
+  assert.equal((await owner.context.request.get(origin.origin + '/app/v1/account')).status(), 200, 'deleting the Viewer preserves the Owner');
+  await viewer.page.reload();
+  await completed.waitFor();
+  if (screenshots) {
+    for (const width of [390, 1440]) {
+      await viewer.page.setViewportSize({ width, height: 900 });
+      assert(await viewer.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'anonymous deletion receipt fits viewport');
+      await viewer.page.screenshot({ path: `${screenshots}/account-deletion-completed-${width}.png`, fullPage: true });
+    }
+  }
   assert.deepEqual(errors, []);
-  console.log('PASS real HTTPS accounts: controlled owner bootstrap, browser passkeys and naming, single-use invitation, Viewer denial, logout and passkey sign-in with safe return. No provider adapters or production state.');
+  console.log('PASS real HTTPS accounts: controlled owner bootstrap, browser passkeys and naming, single-use invitation, Viewer denial, logout and passkey sign-in, verified deletion and anonymous completion receipt after reload, other account preservation. No provider adapters or production state.');
 } finally { await browser?.close(); }

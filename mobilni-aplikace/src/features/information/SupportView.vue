@@ -23,7 +23,9 @@
 
     <section aria-labelledby="support-data">
       <h2 id="support-data">Vaše data</h2>
-      <p>Se žádostí o přístup k údajům, opravu, zrušení účtu nebo smazání památky napište na uvedený e-mail. Sdělte jen údaje nutné k dohledání žádosti. Před předáním nebo odstraněním soukromých údajů ověříme, že vám patří.</p>
+      <p>Smazání účtu zahájíte v části Účet → Smazat účet, případně v Nastavení. Vyžaduje nové ověření přístupovým klíčem a výslovné potvrzení. Odstraní vaše vlastní soukromé fotografie, portréty, příběhy a postavu; údaje ostatních hostů zachová.</p>
+      <p>Po přijetí žádosti se účet odhlásí a zpracování pokračuje automaticky. <RouterLink to="/account-deletion">Stav smazání</RouterLink> lze ověřit i bez přihlášení na stejném zařízení. Pokud zpracování zůstává nedokončené, kontaktujte podporu.</p>
+      <p>Se žádostí o přístup k údajům, opravu, export nebo pomoc se samostatnou památkou napište na uvedený e-mail. Sdělte jen údaje nutné k dohledání žádosti. Před předáním nebo odstraněním soukromých údajů ověříme, že vám patří.</p>
       <p><RouterLink to="/privacy">Jak aplikace zpracovává a uchovává data</RouterLink></p>
     </section>
   </article>

@@ -22,7 +22,7 @@ internal sealed partial class OperationJournal
                 owner_id TEXT NOT NULL, operation_id TEXT NOT NULL, fingerprint TEXT NOT NULL,
                 device_id TEXT NOT NULL, boot_id TEXT NOT NULL, challenge TEXT NOT NULL,
                 profile_id TEXT NOT NULL, profile_revision INTEGER NOT NULL, snapshot TEXT NOT NULL,
-                expires_at INTEGER NOT NULL, session_id TEXT, UNIQUE(owner_id,operation_id));
+                expires_at INTEGER NOT NULL, session_id TEXT, openai_consent INTEGER NOT NULL DEFAULT 0, UNIQUE(owner_id,operation_id));
             CREATE TABLE IF NOT EXISTS customer_sessions(
                 id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, operation_id TEXT NOT NULL,
                 device_id TEXT NOT NULL, boot_id TEXT NOT NULL, profile_id TEXT NOT NULL,
@@ -39,6 +39,13 @@ internal sealed partial class OperationJournal
                 WHERE state IN ('starting','context_ready','running');
             """;
         command.ExecuteNonQuery();
+        using var column = connection.CreateCommand();
+        column.CommandText = "SELECT COUNT(*) FROM pragma_table_info('customer_start_tickets') WHERE name='openai_consent'";
+        if ((long)column.ExecuteScalar()! == 0)
+        {
+            column.CommandText = "ALTER TABLE customer_start_tickets ADD COLUMN openai_consent INTEGER NOT NULL DEFAULT 0";
+            column.ExecuteNonQuery();
+        }
     }
 
     internal bool CustomerMode(string device)
@@ -88,6 +95,7 @@ internal sealed partial class OperationJournal
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
+        if (!request.OpenAiConsent) { throw new CustomerSessionException(409, "openai_consent_required"); }
         var fingerprint = CustomerHash(JsonSerializer.Serialize(request));
         RequireCustomerProfileNotRevoked(connection, transaction, owner, request.ProfileId);
         using (var previous = CustomerCommand(connection, transaction, """
@@ -111,8 +119,9 @@ internal sealed partial class OperationJournal
         }
         var expires = CustomerNow() + 90;
         CustomerExecute(connection, transaction, """
-            INSERT INTO customer_start_tickets VALUES(
-                $hash,$protected,$owner,$op,$fingerprint,$device,$boot,$challenge,$profile,$revision,$snapshot,$expires,NULL)
+            INSERT INTO customer_start_tickets(token_hash,protected_token,owner_id,operation_id,fingerprint,device_id,boot_id,
+                challenge,profile_id,profile_revision,snapshot,expires_at,session_id,openai_consent) VALUES(
+                $hash,$protected,$owner,$op,$fingerprint,$device,$boot,$challenge,$profile,$revision,$snapshot,$expires,NULL,1)
             """, ("$hash", tokenHash), ("$protected", protectedToken), ("$owner", owner),
             ("$op", request.OperationId), ("$fingerprint", fingerprint), ("$device", request.DeviceId),
             ("$boot", request.BootId), ("$challenge", request.Challenge), ("$profile", request.ProfileId),
@@ -138,7 +147,7 @@ internal sealed partial class OperationJournal
         string owner, profile, snapshot;
         long revision;
         using (var lookup = CustomerCommand(connection, transaction, """
-            SELECT owner_id,operation_id,device_id,boot_id,challenge,profile_id,profile_revision,snapshot,expires_at,session_id
+            SELECT owner_id,operation_id,device_id,boot_id,challenge,profile_id,profile_revision,snapshot,expires_at,session_id,openai_consent
             FROM customer_start_tickets WHERE token_hash=$hash
             """, ("$hash", CustomerHash(request.Ticket))))
         using (var reader = lookup.ExecuteReader())
@@ -147,6 +156,7 @@ internal sealed partial class OperationJournal
             if (reader.GetString(1) != request.OperationId || reader.GetString(2) != device
                 || reader.GetString(3) != request.BootId || reader.GetString(4) != request.Challenge)
             { throw new CustomerSessionException(409, "start_ticket_binding_mismatch"); }
+            if (reader.GetInt64(10) != 1) { throw new CustomerSessionException(409, "openai_consent_required"); }
             if (!reader.IsDBNull(9))
             {
                 var id = reader.GetString(9);
@@ -183,11 +193,11 @@ internal sealed partial class OperationJournal
         return row is not null && (owner is null || row.OwnerId == owner) ? row : null;
     }
 
-    internal CustomerSessionRecord[] CustomerSessions(string? owner = null)
+    internal CustomerSessionRecord[] CustomerSessions(string? owner = null, bool deletionInventory = false)
     {
         using var connection = Open();
         using var command = CustomerCommand(connection, null,
-            "SELECT id FROM customer_sessions WHERE ($owner IS NULL OR owner_id=$owner) ORDER BY created_at DESC LIMIT 100", ("$owner", owner));
+            "SELECT id FROM customer_sessions WHERE ($owner IS NULL OR owner_id=$owner) ORDER BY created_at DESC" + (deletionInventory ? "" : " LIMIT 100"), ("$owner", owner));
         var ids = new List<string>();
         using (var reader = command.ExecuteReader()) { while (reader.Read()) { ids.Add(reader.GetString(0)); } }
         return ids.Select(id => ReadCustomerSession(connection, null, id)!).ToArray();
@@ -392,7 +402,7 @@ internal sealed partial class OperationJournal
 
 internal sealed record CustomerDeviceChallenge(int ProtocolVersion, string BootId, string Challenge, int Generation, string CatalogVersion, string? OperationEpoch);
 internal sealed record CustomerTicketRequest(int ProtocolVersion, string OperationId, string DeviceId, string BootId, string Challenge, string ProfileId, long ProfileRevision,
-    bool PersonalMemoryConsent = false);
+    bool PersonalMemoryConsent = false, bool OpenAiConsent = false);
 internal sealed record CustomerRedemption(int ProtocolVersion, string Ticket, string OperationId, string BootId, string Challenge);
 internal sealed record CustomerDeviceState(string BootId, string State, string? ConversationId = null);
 internal sealed record CustomerTicketRecord(string ProtectedToken, long ExpiresAt, string? SessionId);
