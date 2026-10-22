@@ -225,6 +225,17 @@ class ProjectSelectionTests(unittest.TestCase):
         jobs["changes"] = {"result": "success"}
         check_results(selected, jobs)
 
+    def test_every_selected_project_rejects_non_success_and_missing_results(self):
+        selected = dict.fromkeys(PROJECTS, "true")
+        jobs = {name: {"result": "success"} for name in (*PROJECTS, "changes")}
+        check_results(selected, jobs)
+        for name in PROJECTS:
+            for result in ("failure", "cancelled", "skipped", "timed_out", "neutral", ""):
+                with self.subTest(project=name, result=result), self.assertRaises(ValueError):
+                    check_results(selected, {**jobs, name: {"result": result}})
+            with self.subTest(project=name, result="missing"), self.assertRaises(ValueError):
+                check_results(selected, {key: value for key, value in jobs.items() if key != name})
+
 
 
 if __name__ == "__main__":

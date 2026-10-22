@@ -22,6 +22,25 @@ function concurrencyGroup(github, inputs = {}) {
   );
 }
 
+test('main ruleset requires the GitHub Actions aggregate and preserves pull request protections', () => {
+  const ruleset = JSON.parse(fs.readFileSync(path.join(workflows, '../main-ruleset.json'), 'utf8'));
+  assert.equal(ruleset.enforcement, 'active');
+  assert.deepEqual(ruleset.conditions.ref_name, { include: ['refs/heads/main'], exclude: [] });
+  assert.deepEqual(ruleset.bypass_actors, []);
+  const rules = new Map(ruleset.rules.map(rule => [rule.type, rule]));
+  assert.ok(rules.has('deletion'));
+  assert.ok(rules.has('non_fast_forward'));
+  assert.equal(rules.get('pull_request').parameters.required_approving_review_count, 0);
+  assert.equal(rules.get('pull_request').parameters.required_review_thread_resolution, true);
+  assert.deepEqual(rules.get('required_status_checks').parameters, {
+    required_status_checks: [{ context: 'CI required', integration_id: 15368 }],
+    strict_required_status_checks_policy: true,
+  });
+  const nameExpression = job('required').match(/^    name: \$\{\{ (.+) \}\}$/m)[1];
+  const aggregateName = new Function('github', `return ${nameExpression}`)({ event: { changes: {} } });
+  assert.equal(aggregateName, rules.get('required_status_checks').parameters.required_status_checks[0].context);
+});
+
 test('metadata edits skip runners and cannot supersede current product validation', () => {
   const validation = { event: { action: 'synchronize', changes: {}, pull_request: { number: 42 } }, run_id: 1 };
   const metadata = { event: { action: 'edited', changes: {}, pull_request: { number: 42 } }, run_id: 2 };

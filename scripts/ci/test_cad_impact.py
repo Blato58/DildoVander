@@ -115,7 +115,9 @@ class CadImpactTests(unittest.TestCase):
         self.assertIn("merge_group:", triggers)
         self.assertIn("github.event.merge_group.base_sha", ci)
         self.assertIn("github.event.merge_group.head_sha", ci)
-        self.assertIn("name: CI required\n    if: always()", ci)
+        required = ci.split("  required:\n", 1)[1]
+        self.assertIn("'CI required'", required)
+        self.assertIn("    if: always()", required)
 
 
 
