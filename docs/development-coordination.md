@@ -67,18 +67,36 @@ Missing, canceled or unexpectedly skipped selected jobs fail the aggregate gate.
 An amended head invalidates earlier review until its delta and interactions are
 reviewed.
 
-Auto-merge requires authorized protected CI and trusted server-side current-head
-review binding. Local receipts, PR-body checkboxes and implementer-written files
-are insufficient. Until binding is established, leave merge pending for explicit
-maintainer finalization of the reviewed head. Read current reviews, unresolved
-threads, check results and head identity before finalization. Never bypass rules.
+The owner authorizes automatic parent-side source finalization after protected
+CI passes. The parent verifies an exact-head delivery review it witnessed from
+an independent reviewer, or obtains the required review automatically. Never
+trust only an implementer-written file, receipt or PR checkbox. Read current
+reviews, unresolved threads, selected check results and effective protections
+immediately before a normal merge guarded by the expected head SHA. Findings
+return to the parent for repair; changed heads invalidate earlier review.
+
+This bounded finalization is not queued GitHub native auto-merge, which remains
+disabled without trusted server-side review/head enforcement. Do not fabricate
+approvals or bypass rules. Unprotected repositories without proven required CI
+retain deliberate maintainer/operator finalization. Only the parent's owned
+candidate is eligible; this is not permission to merge unrelated work.
 
 ## Asynchronous PR follow-up
 
 Continue available authorized work while CI runs. After a prepared handoff,
-do not keep a local coding agent polling checks. CI does not automatically wake
-local Codex. Failures need explicit continuation or a separately configured
-supported integration; automatic repair is not implied.
+do not keep a local coding agent polling checks. For an actual long queued or
+running CI wait with no independent work, automatically arm one native follow-up
+in the originating parent chat, normally every five minutes. Bind it to the
+issue, PR, candidate and review handoff; reuse that chat's delivery follow-up.
+Stay quiet while pending. On failure, cancellation or an unexpected selected-job
+skip/missing result, pause first and resume repair in that parent. On success,
+pause first, verify/review the current candidate and finalize as above. Rearm
+only after a new candidate actually awaits CI. Keep idle follow-ups paused.
+
+This is native scheduled continuation, not an instantaneous CI webhook. The
+computer and app must be available. If the native integration is unavailable,
+record the exact gap rather than promising automatic return; do not add a
+daemon, dispatcher, service or broader permissions as a workaround.
 
 Preserve explicit stops and paused automations. Scheduled implementation follow-up
 is allowed only for a long actual running/queued CI/CD wait after independent
