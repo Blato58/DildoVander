@@ -83,9 +83,9 @@ for slot in iphone-6.3 ipad-13; do
   device="$(run_bounded 30 xcrun simctl create "WNS store preview $slot $(date +%s)" "$device_type" "$runtime")"
   owned_devices+=("$device")
   run_bounded 30 xcrun simctl boot "$device"
-  run_bounded 120 xcrun simctl bootstatus "$device" -b
-  run_bounded 45 xcrun simctl install "$device" "$app_path"
-  launch_output="$(run_bounded 30 xcrun simctl launch "$device" "$bundle_id")"
+  run_bounded 180 xcrun simctl bootstatus "$device" -b
+  run_bounded 180 xcrun simctl install "$device" "$app_path"
+  launch_output="$(run_bounded 60 xcrun simctl launch "$device" "$bundle_id")"
   app_pid="${launch_output##*: }"
   if [[ ! "$app_pid" =~ ^[0-9]+$ ]]; then
     echo "Simulator did not return the launched app PID." >&2

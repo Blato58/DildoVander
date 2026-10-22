@@ -70,7 +70,7 @@ jobs:
       - name: Capture native App Store preview candidates
         id: store-preview
         if: github.workflow == 'Check Kufr iOS' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-        timeout-minutes: 12
+        timeout-minutes: 20
         env:
           IOS_STORE_PREVIEW_CONFIGURATION: Debug
         run: bash scripts/capture-ios-store-preview.sh "$RUNNER_TEMP/ios-derived-data/Build/Products/Debug-iphonesimulator/App.app" "$RUNNER_TEMP/ios-store-preview"
