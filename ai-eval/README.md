@@ -23,7 +23,7 @@ texty přímo do OpenAI Responses API ze serverového GitHub Actions runneru
 ESP32, Device ID, device credential, běžící backend ani mobilní aplikaci.
 Nevydává žádný příkaz k pohonu. Backendový E8 adaptér existuje odděleně; hlasové testy zůstávají další prací.
 
-Od D140 je společná persona podle GPT Live v `voice-persona.txt`; `prompt.txt` přidává pravidla rozhodovacích funkcí pro Sol/Realtime. Backend i evaluátor skládají stejné instrukce. Persona: mluvící kouzelný kufr prodejce z Ollivanderova obchodu ve světě Harryho Pottera pro soukromou party 18+, s ostrým, vtipným roastem. Původní šestice hůlek je v wand-catalog.json; backend i eval předávají modelu jen dostupné položky. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
+Od D140 je společná persona podle GPT Live v `voice-persona.txt`; `prompt.txt` přidává pravidla rozhodovacích funkcí pro Sol/Realtime. Backend i evaluátor skládají stejné instrukce. Výchozí původní role je Stínový čaroděj, divadelní hlas kufru s ostrým roastem pro dospělé. Alternativní Mistr hůlek je původní hlas pojízdné dílny; není zaměstnancem cizí fikční postavy. Názvy souborů a interní klíče `ollivander-trunk` zůstávají kvůli kompatibilitě; neurčují současnou identitu role. Původní šestice hůlek je v wand-catalog.json; backend i eval předávají modelu jen dostupné položky. Výchozí model je gpt-6.1-sol s nízkým reasoning effort. Stejné scénáře
 nyní používají pouze Sol. STT a TTS se v tomto
 textovém testu nevolají. Model musí vrátit přísné JSON schéma; parser navíc
 kontroluje délky, decision, compartment a aktuální readyMask.
@@ -142,3 +142,24 @@ s odpovědí „Petr“ po každém opening nejsou důkaz adaptivní kvality.
 D141 odstraňuje hotové ukázky ze společné persony. AI vytváří vlastní
 otázky a pointy; otázky jsou otevřené a nechávají hosta vyprávět, bez
 nabídky dvou odpovědí. Totéž platí pro opening evaluátoru.
+
+### Current authored DV01 reference
+
+`dv01-baseline.json` preserves the historical capture and its old prompt hashes.
+`dv01-current-reference.json` separately pins the three authored original-role
+prompts as `original-personas-v1`; catalog and baseline cases still use the
+historical byte pins. Current authored-prompt hashes use UTF-8 with LF for
+checkout-independent text identity.
+A source replacement is captured explicitly, never by CI or replay:
+
+```powershell
+python ai-eval/dv01_replay.py --capture-current-reference --reason "Explain the intentional authored persona replacement and its evidence limits"
+```
+
+Run this command from the repository root only when those authored prompt
+changes are intended and reviewed. It cannot override catalog or case changes.
+Replay receipts record the historical base, current reference ID/hash and
+current source digest. This is offline structural evidence: provider behavior
+for the new authored reference remains unmeasured and needs a separately
+authorized provider evaluation. Existing reports and measured numbers are not
+reassigned to the new prompts.

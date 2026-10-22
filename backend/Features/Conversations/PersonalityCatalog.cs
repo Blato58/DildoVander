@@ -14,8 +14,8 @@ internal static class PersonalityCatalog
     private static readonly string Ollivander = PartyDialoguePrompt.ReadResource("Kufr.Backend.OllivanderPersona", trim: false);
     private static readonly IReadOnlyList<PersonalityInfo> inventory = Array.AsReadOnly(new[]
     {
-        Info(DefaultId, "Původní party kufr", "Současná personalita projektu; obvykle 4–7 otázek.", PartyDialoguePrompt.VoicePersona),
-        Info(OllivanderId, "Ollivanderův kouzelný kufr", "Dodaná personalita beze změn; obvykle 2 odpovědi a výběr hůlky.", Ollivander)
+        Info(DefaultId, "Stínový čaroděj", "Původní divadelní hlas kufru se suchým humorem; obvykle 4–7 otázek.", PartyDialoguePrompt.VoicePersona),
+        Info(OllivanderId, "Mistr hůlek", "Původní komediální hlas pojízdné dílny; obvykle 2 odpovědi a výběr hůlky.", Ollivander)
     });
 
     internal static IReadOnlyList<PersonalityInfo> Inventory => inventory;

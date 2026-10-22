@@ -14,6 +14,21 @@ internal sealed class PersonaLabImages(TimeProvider clock) : IDisposable
     private readonly Lock gate = new();
     private readonly Dictionary<string, Entry> images = new(StringComparer.Ordinal);
 
+    private readonly HashSet<string> deletedOwners = new(StringComparer.Ordinal);
+
+    internal void FenceAccountDeletion(string owner)
+    {
+        lock (gate)
+        {
+            deletedOwners.Add(owner);
+            foreach (var id in images.Where(x => x.Value.Owner == owner).Select(x => x.Key).ToArray())
+            {
+                CryptographicOperations.ZeroMemory(images[id].Bytes);
+                images.Remove(id);
+            }
+        }
+    }
+
     internal bool HasImage(string owner, string id)
     {
         lock (gate)
@@ -46,6 +61,7 @@ internal sealed class PersonaLabImages(TimeProvider clock) : IDisposable
             lock (gate)
             {
                 Expire();
+                if (deletedOwners.Contains(owner)) { throw new LabException(409, "account_deleted"); }
                 if (images.Count >= 100 && !images.ContainsKey(id))
                 {
                     throw new LabException(429, "lab_image_capacity");

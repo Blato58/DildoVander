@@ -15,7 +15,7 @@ namespace Kufr.Backend.Features.Identity.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
             modelBuilder.Entity("Kufr.Backend.Features.Identity.AccountArchiveAssociation", b =>
                 {
@@ -94,6 +94,32 @@ namespace Kufr.Backend.Features.Identity.Migrations
                     b.HasIndex("ExpiresAt");
 
                     b.ToTable("Ceremonies");
+                });
+
+            modelBuilder.Entity("Kufr.Backend.Features.Identity.AccountDeletionRequest", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("CompletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReceiptId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("RequestedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("ReceiptId")
+                        .IsUnique();
+
+                    b.ToTable("DeletionRequests");
                 });
 
             modelBuilder.Entity("Kufr.Backend.Features.Identity.AccountDeviceAssociation", b =>

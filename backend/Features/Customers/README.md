@@ -6,7 +6,13 @@ an owner exists. Customer ownership always comes from the authenticated account,
 never an account identifier supplied in a body or a character's name.
 
 `/app/v1/customer/character` stores exact `userInput` separately from enrichment.
-Writes require the current revision and profile identity. Correction creates a
+Writes require the current revision and profile identity. `openAiConsent` defaults
+false: saving without it stores a local `saved` profile and cancels pending
+preparation. Explicit true queues enrichment; correction also requires true.
+The unchecked UI names OpenAI and the submitted name, world, version, description,
+language, prior interpretation on correction, and public-source lookup purpose.
+Existing pending jobs without durable affirmative consent become local-only on
+startup. No enrichment request is sent for them. Correction creates a
 new revision; explicit `newCharacter` creates a new identity. Queued/running
 enrichment does not block conversation start: the captured input is sufficient.
 The worker uses leased, revision-fenced jobs, a 45-second provider deadline and
@@ -46,3 +52,10 @@ keepsake suites, `npm test` in `contracts/`, the Vue typecheck/build/browser sui
 the macOS native test script and the production firmware build. The contract
 contains the real iPhone/ESP32 acceptance procedure; offline tests do not prove
 physical BLE, autonomous audio or actual provider behavior.
+
+Customer start tickets separately require explicit `openAiConsent: true` for
+voice audio, transcript and character context sent to OpenAI for speech
+understanding and spoken replies. Personal memory remains a separate optional
+consent. Issuance, redemption and provider context reject missing/legacy consent;
+old clients must update and legacy unaccepted tickets must be issued again after
+consent. The BLE redemption shape is unchanged.

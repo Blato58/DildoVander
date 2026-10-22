@@ -21,9 +21,14 @@ fi
 case "${IOS_SIGNING_KIND}" in
   development) export_method=debugging ;;
   ad_hoc) export_method=release-testing ;;
+  app_store) export_method=app-store-connect ;;
   *) echo 'Unsupported iOS signing kind.' >&2; exit 2 ;;
 esac
-if ! xcodebuild -help 2>&1 | grep -q "${export_method}"; then
+if [[ "${IOS_SIGNING_KIND}" == app_store && "${IOS_BUNDLE_ID}" != de.dildovander.companion ]]; then
+  echo 'The App Store build requires the approved Wand Night Stand Bundle ID.' >&2
+  exit 2
+fi
+if ! xcodebuild -help 2>&1 | grep -F -- "${export_method}" >/dev/null; then
   echo "This Xcode does not support the ${export_method} export method." >&2
   exit 1
 fi
@@ -33,12 +38,23 @@ keychain="${work_dir}/signing.keychain-db"
 profile_path=''
 project_path='ios/App/App.xcodeproj/project.pbxproj'
 project_backup=''
+info_path='ios/App/App/Info.plist'
+info_backup=''
 original_keychains="${work_dir}/keychains.txt"
 security list-keychains -d user | sed 's/^[[:space:]]*"//; s/"[[:space:]]*$//' > "${original_keychains}"
 
 cleanup() {
   local restore_failed=0
   local recovery_dir=''
+  if [[ -n "${info_backup}" ]] && ! cp "${info_backup}" "${info_path}"; then
+    restore_failed=1
+    if recovery_dir="$(mktemp -d "${RUNNER_TEMP}/kufr-ios-info-recovery.XXXXXXXX")" \
+      && cp "${info_backup}" "${recovery_dir}/Info-original.plist"; then
+      echo "Could not restore Info.plist; public backup retained at ${recovery_dir}/Info-original.plist." >&2
+    else
+      echo 'Could not restore Info.plist or preserve its public backup.' >&2
+    fi
+  fi
   if [[ -n "${project_backup}" ]]; then
     if ! cp "${project_backup}" "${project_path}"; then
       restore_failed=1
@@ -74,29 +90,8 @@ printf '%s' "${IOS_BUILD_CERTIFICATE_BASE64}" | base64 -D > "${work_dir}/certifi
 printf '%s' "${IOS_PROVISION_PROFILE_BASE64}" | base64 -D > "${work_dir}/profile.mobileprovision"
 security cms -D -i "${work_dir}/profile.mobileprovision" > "${work_dir}/profile.plist"
 
-profile_uuid="$(python3 - "${work_dir}/profile.plist" "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${IOS_SIGNING_KIND}" <<'PY'
-import datetime
-import plistlib
-import sys
-
-with open(sys.argv[1], 'rb') as profile_file:
-    profile = plistlib.load(profile_file)
-
-team_id, bundle_id, signing_kind = sys.argv[2:5]
-entitlements = profile.get('Entitlements', {})
-if profile.get('TeamIdentifier') != [team_id]:
-    raise SystemExit('Provisioning profile Team ID does not match.')
-if entitlements.get('application-identifier') != f'{team_id}.{bundle_id}':
-    raise SystemExit('Provisioning profile Bundle ID does not match.')
-if entitlements.get('get-task-allow') is not (signing_kind == 'development'):
-    raise SystemExit('The provisioning profile type does not match the signing kind.')
-if not profile.get('ProvisionedDevices'):
-    raise SystemExit('The profile does not contain a registered device.')
-if profile['ExpirationDate'] <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
-    raise SystemExit('The provisioning profile has expired.')
-print(profile['UUID'])
-PY
-)"
+profile_uuid="$(python3 scripts/validate-ios-profile.py \
+  "${work_dir}/profile.plist" "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${IOS_SIGNING_KIND}")"
 
 mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
 target_profile_path="$HOME/Library/MobileDevice/Provisioning Profiles/${profile_uuid}.mobileprovision"
@@ -146,33 +141,17 @@ done < "${original_keychains}"
 security list-keychains -d user -s "${keychain}" "${previous_keychains[@]}"
 security find-identity -v -p codesigning "${keychain}" > "${work_dir}/identities.txt"
 
-sign_identity="$(python3 - "${work_dir}/profile.plist" "${work_dir}/identities.txt" <<'PY'
-import hashlib
-import plistlib
-import re
-import sys
-
-with open(sys.argv[1], 'rb') as profile_file:
-    profile = plistlib.load(profile_file)
-with open(sys.argv[2], encoding='utf-8') as identity_file:
-    identities = identity_file.read()
-
-matches = []
-for certificate in profile.get('DeveloperCertificates', []):
-    fingerprint = hashlib.sha1(certificate).hexdigest().upper()
-    if re.search(rf'\b{fingerprint}\b', identities):
-        matches.append(fingerprint)
-if len(matches) != 1:
-    raise SystemExit('Exactly one imported signing identity must match the profile.')
-print(matches[0])
-PY
-)"
+sign_identity="$(python3 scripts/validate-ios-profile.py \
+  "${work_dir}/profile.plist" "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${IOS_SIGNING_KIND}" \
+  --identities "${work_dir}/identities.txt")"
 
 cat > "${work_dir}/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>method</key><string>${export_method}</string>
+  <key>destination</key><string>export</string>
+  <key>manageAppVersionAndBuildNumber</key><false/>
   <key>signingStyle</key><string>manual</string>
   <key>teamID</key><string>${IOS_TEAM_ID}</string>
   <key>signingCertificate</key><string>${sign_identity}</string>
@@ -188,10 +167,17 @@ mkdir -p dist/ipa
 cp "${project_path}" "${work_dir}/project-original.pbxproj"
 project_backup="${work_dir}/project-original.pbxproj"
 plutil -convert json -o "${work_dir}/project.json" "${project_path}"
+version_arguments=()
+if [[ "${IOS_SIGNING_KIND}" == app_store ]]; then
+  version_arguments=(--marketing-version 1.0)
+  cp "${info_path}" "${work_dir}/Info-original.plist"
+  info_backup="${work_dir}/Info-original.plist"
+  plutil -replace CFBundleDisplayName -string 'Wand Night Stand' "${info_path}"
+fi
 python3 scripts/configure-ios-signing.py \
   "${work_dir}/project.json" "${work_dir}/project-signed.pbxproj" \
   "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${sign_identity}" \
-  "${profile_uuid}" "${build_number}" --passkey-domain "${KUFR_PASSKEY_RP_DOMAIN}"
+  "${profile_uuid}" "${build_number}" --passkey-domain "${KUFR_PASSKEY_RP_DOMAIN}" "${version_arguments[@]}"
 plutil -lint "${work_dir}/project-signed.pbxproj"
 cp "${work_dir}/project-signed.pbxproj" "${project_path}"
 
@@ -225,6 +211,24 @@ actual_bundle_id="$(defaults read "${app_path}/Info" CFBundleIdentifier)"
 if [[ "${actual_bundle_id}" != "${IOS_BUNDLE_ID}" ]]; then
   echo 'Exported IPA Bundle ID does not match.' >&2
   exit 1
+fi
+if [[ "${IOS_SIGNING_KIND}" == app_store ]]; then
+  if [[ "$(defaults read "${app_path}/Info" CFBundleShortVersionString)" != 1.0 \
+    || "$(defaults read "${app_path}/Info" CFBundleVersion)" != "${build_number}" \
+    || "$(defaults read "${app_path}/Info" CFBundleDisplayName)" != 'Wand Night Stand' ]]; then
+    echo 'Exported App Store app metadata does not match.' >&2
+    exit 1
+  fi
+  codesign --display --entitlements - "${app_path}" > "${work_dir}/signed-entitlements.plist"
+  python3 - "${work_dir}/signed-entitlements.plist" "${IOS_TEAM_ID}.${IOS_BUNDLE_ID}" <<'PY'
+import plistlib
+import sys
+
+with open(sys.argv[1], 'rb') as source:
+    entitlements = plistlib.load(source)
+if entitlements.get('get-task-allow', False) is not False or entitlements.get('application-identifier') != sys.argv[2]:
+    raise SystemExit('Exported App Store entitlements do not match distribution requirements.')
+PY
 fi
 security cms -D -i "${app_path}/embedded.mobileprovision" > "${work_dir}/embedded.plist"
 python3 - "${work_dir}/profile.plist" "${work_dir}/embedded.plist" <<'PY'

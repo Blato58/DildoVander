@@ -39,6 +39,12 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 .application-footer { padding: 1.5rem 2rem; border-top: 1px solid var(--aw-border-subtle); display: flex; flex-wrap: wrap; justify-content: space-between; gap: .75rem; color: var(--aw-muted); font-size: .7rem; }
 .page-stack { display: grid; gap: 1.25rem; align-content: start; }
 .page-stack > p, .page-stack > h1 { margin: 0; }
+.information-page { max-width: 48rem; margin-inline: auto; line-height: 1.7; overflow-wrap: anywhere; }
+.information-page section { border-top: 1px solid var(--aw-border-subtle); padding-top: 1rem; }
+.information-page h2 { font-size: 1.25rem; line-height: 1.4; }
+.information-page dt { font-weight: 600; margin-top: 1rem; }
+.information-page dd { margin: .25rem 0 1rem; }
+.information-page li + li { margin-top: .75rem; }
 .eyebrow { color: var(--aw-accent); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
 .home-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(16rem, 1fr); gap: 3rem; padding-block: 1rem; }
 .home-introduction { padding: 1rem 0 2rem; max-width: 46rem; }
@@ -115,8 +121,8 @@ textarea { resize: vertical; }
 .application-footer { align-items: center; }
 .application-install-link { display: inline-flex; align-items: center; min-height: 44px; }
 
-/* Lord Voldemort uses the quieter, compact proportions of the desktop workspace.
-   Olivander keeps the original application rules above. */
+/* Stínový čaroděj uses the quieter, compact proportions of the desktop workspace.
+   Mistr hůlek keeps the original application rules above. */
 :root[data-theme="lord-voldemort"] h1 { font-size: var(--application-page-title, clamp(1.7rem, 3vw, 2.25rem)); letter-spacing: -.035em; }
 :root[data-theme="lord-voldemort"] h2 { font-size: 1.05rem; letter-spacing: -.015em; }
 :root[data-theme="lord-voldemort"] .application-shell { grid-template-columns: var(--application-sidebar-width, 14rem) minmax(0, 1fr); }

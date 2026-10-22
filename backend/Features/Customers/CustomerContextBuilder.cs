@@ -13,6 +13,7 @@ internal static class CustomerContextBuilder
     {
         var snapshot = JsonSerializer.Deserialize<CustomerConversationSnapshot>(capturedJson, Json)
             ?? throw new InvalidDataException("Customer snapshot is missing.");
+        if (!snapshot.OpenAiConsent) { throw new InvalidDataException("OpenAI consent is required for customer context."); }
         var input = snapshot.Profile.UserInput;
         var enrichment = snapshot.Profile.Enrichment;
         // The complete immutable snapshot stays in the private journal. The

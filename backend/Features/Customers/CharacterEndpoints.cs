@@ -112,6 +112,7 @@ internal sealed class CharacterEnrichmentWorker(IServiceScopeFactory scopes, Cha
                 {
                     using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                     deadline.CancelAfter(TimeSpan.FromSeconds(45));
+                    if (!await store.CanDispatchAsync(job, deadline.Token)) { continue; }
                     var enrichment = await provider.EnrichAsync(job, deadline.Token);
                     // Recheck revocation after network work and before publishing a result.
                     disabled = await accounts.Users.AsNoTracking().Where(user => user.Id == job.AccountId)

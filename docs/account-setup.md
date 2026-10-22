@@ -20,6 +20,7 @@ doménu jako skutečnou službu.
 | `ApplicationIdentity:RelyingPartyId` | Pevná DNS doména passkeys, bez schématu, portu a cesty. |
 | `ApplicationIdentity:AllowedOrigins:0` | Přesný HTTPS origin, například `https://kufr.example.invalid`; další originy mají samostatné indexy. Žádná cesta ani koncové `/`. Doména musí patřit do RP. |
 | `ApplicationIdentity:AppleAppId` | Volitelně skutečné `TEAMID.bundle.id` pro AASA. Desetiznakové Team ID nesmí být smyšlené. |
+| `ApplicationIdentity:AppleAppIds:0` | Volitelný seznam dalších skutečných `TEAMID.bundle.id`; AASA spojí seznam s původním `AppleAppId` a odstraní duplicity. Neplatná položka zablokuje odpověď. |
 | `ApplicationIdentity:RequestsPerMinute` | Technický limit na IP; výchozí 40, povolený rozsah 10–120. |
 
 Proměnné prostředí používají `__`, například `ApplicationIdentity__DataRoot` a
@@ -204,6 +205,29 @@ Příkaz nemění vlastníka, nevytváří nový účet a nepřijímá plaintext
 Zapíše soukromý jednorázový odkaz s fragmentem `#recovery=` do stejného
 doručovacího adresáře; platnost je 30 minut. Nepotřebujete resetovat databázi,
 mazat návštěvnický archiv ani znovu zapínat první anonymní bootstrap.
+
+## Smazání vlastního účtu
+
+V Nastavení účtu může přihlášený uživatel po novém ověření stejným passkey
+výslovně potvrdit nevratné smazání účtu. Poslední aktivní vlastník musí nejprve
+předat roli jinému účtu. Přijetí žádosti ihned zablokuje účet a zneplatní jeho
+přístupy; odolná úloha následně maže jeho postavu, vlastní fotografie, portréty,
+příběhy a vlastní testovací kontext. Pouhý přístup ke sdílené památce nepřenáší
+vlastnictví a neopravňuje smazat data jiného hosta. Sdílené globální revize
+PersonaLabu a účty ostatních hostů zůstávají zachovány.
+
+Mazání se při nedostupném úložišti opakuje i po restartu. Technické zákazy
+dalšího zápisu zabraňují tomu, aby opožděná úloha obsah obnovila. Oddělené
+neprůhledné potvrzení platné sedm dní dovoluje na původním zařízení sledovat
+stav na `/account-deletion` i po odhlášení; neobnovuje oprávnění účtu. iOS toto
+potvrzení ukládá odděleně od přihlašovacího a offline materiálu v Keychain.
+Při přihlášení k jinému účtu se dřívější potvrzení nezobrazuje.
+
+Dokončení potvrzuje úklid v aplikaci. Požadavky na odstranění cloudových indexů
+zůstávají ve své trvalé frontě; doby uchování poskytovatelů a záloh se řídí
+jejich pravidly. Před nasazením této funkce proveďte standardní
+`--account-migrate` s konzistentní soukromou zálohou; nová migrace pouze přidává
+tabulku žádostí a nemění existující passkeys.
 
 ## iOS a servisní diagnostika
 

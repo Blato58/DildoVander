@@ -44,6 +44,15 @@ def project_fixture():
 
 
 class ConfigureIosSigningTests(unittest.TestCase):
+    def test_optional_marketing_version_changes_only_app_release(self):
+        settings = MODULE.signing_settings(*METADATA, marketing_version="1.0")
+        configured = MODULE.configure_project(project_fixture(), settings)
+        self.assertEqual("1.0", configured["objects"]["app-release"]["buildSettings"]["MARKETING_VERSION"])
+        self.assertNotIn("MARKETING_VERSION", MODULE.signing_settings(*METADATA))
+        for invalid in ("", "1.0<script>", "1.2.3.4"):
+            with self.subTest(version=invalid), self.assertRaises(ValueError):
+                MODULE.signing_settings(*METADATA, marketing_version=invalid)
+
     def configure(self, project):
         return MODULE.configure_project(project, MODULE.signing_settings(*METADATA))
 
@@ -141,23 +150,51 @@ class SigningScriptCleanupTests(unittest.TestCase):
             bash = None  # Windows' System32 bash can be an unconfigured WSL launcher.
         if not bash:
             self.skipTest("Bash is unavailable for the signing script cleanup regression.")
-        for exit_point in ("archive", "export", "success", "helper", "restore", "recovery"):
-            with self.subTest(exit_point=exit_point), tempfile.TemporaryDirectory() as directory:
+        scenarios = [("development", point) for point in ("archive", "export", "success", "helper", "restore", "recovery")]
+        scenarios += [("app_store", point) for point in ("archive", "export", "success", "restore")]
+        for signing_kind, exit_point in scenarios:
+            with self.subTest(signing_kind=signing_kind, exit_point=exit_point), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "scripts").mkdir()
                 shutil.copyfile(SCRIPT, root / "scripts" / SCRIPT.name)
+                shutil.copyfile(SCRIPT.with_name("validate-ios-profile.py"), root / "scripts/validate-ios-profile.py")
                 project = root / "ios/App/App.xcodeproj/project.pbxproj"
                 project.parent.mkdir(parents=True)
                 original = b"// original OpenStep project, kept byte-for-byte\n"
                 project.write_bytes(original)
+                info = root / "ios/App/App/Info.plist"
+                info.parent.mkdir(parents=True)
+                original_info = plistlib.dumps({"CFBundleDisplayName": "AI kufr"})
+                info.write_bytes(original_info)
                 (root / "project.json").write_text(json.dumps(project_fixture()), encoding="utf-8")
                 profile = {
                     "TeamIdentifier": [TEAM], "UUID": PROFILE,
                     "Entitlements": {"application-identifier": f"{TEAM}.{BUNDLE}", "get-task-allow": True},
                     "ProvisionedDevices": ["test-device"], "DeveloperCertificates": [CERTIFICATE],
                     "ExpirationDate": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(days=1),
+                    "CreationDate": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=1),
                 }
+                bundle_id = BUNDLE
+                identity = IDENTITY
+                if signing_kind == "app_store":
+                    bundle_id = "de.dildovander.companion"
+                    profile.pop("ProvisionedDevices")
+                    profile["Entitlements"] = {
+                        "application-identifier": f"{TEAM}.{bundle_id}",
+                        "get-task-allow": False, "beta-reports-active": True,
+                    }
+                    identity = f'1) {IDENTITY} "Apple Distribution: Test ({TEAM})"'
                 (root / "profile.plist").write_bytes(plistlib.dumps(profile))
+                (root / "entitlements.plist").write_bytes(plistlib.dumps(profile["Entitlements"]))
+                (root / "mock-plutil.py").write_text('''import pathlib, plistlib, shutil, sys
+if sys.argv[1] == '-convert':
+    shutil.copyfile('project.json', sys.argv[4])
+elif sys.argv[1] == '-replace':
+    path = pathlib.Path(sys.argv[5])
+    info = plistlib.loads(path.read_bytes())
+    info[sys.argv[2]] = sys.argv[4]
+    path.write_bytes(plistlib.dumps(info))
+''', encoding="ascii")
                 bin_path = root / "bin"
                 bin_path.mkdir()
                 stubs = {
@@ -173,12 +210,12 @@ exec /bin/cp "$@"
 ''',
                     "base64": "cat\n",
                     "security": 'case "$1" in\n list-keychains) ;;\n create-keychain) touch "${@: -1}" ;;\n delete-keychain) rm -f "$2" ;;\n cms) cat profile.plist ;;\n find-identity) printf "%s\\n" "$TEST_IDENTITY" ;;\nesac\n',
-                    "plutil": 'if [[ "$1" == "-convert" ]]; then cp project.json "$4"; fi\n',
+                    "plutil": 'exec "$TEST_PYTHON" mock-plutil.py "$@"\n',
                     "python3": 'exec "$TEST_PYTHON" "$@"\n',
-                    "xcodebuild": 'case "$1" in\n -help) echo debugging ;;\n archive) printf "%s\\n" "$@" > archive-arguments.txt; cp ios/App/App.xcodeproj/project.pbxproj archived-project.plist; [[ "$TEST_EXIT" != archive ]] ;;\n -exportArchive) [[ "$TEST_EXIT" != export ]] ;;\nesac\n',
+                    "xcodebuild": 'case "$1" in\n -help) echo "debugging app-store-connect" ;;\n archive) printf "%s\\n" "$@" > archive-arguments.txt; cp ios/App/App.xcodeproj/project.pbxproj archived-project.plist; cp ios/App/App/Info.plist archived-info.plist; [[ "$TEST_EXIT" != archive ]] ;;\n -exportArchive) cp "${@: -1}" export-options.plist; [[ "$TEST_EXIT" != export ]] ;;\nesac\n',
                     "unzip": 'mkdir -p "$5/Payload/App.app"; touch "$5/Payload/App.app/embedded.mobileprovision"\n',
-                    "codesign": "exit 0\n",
-                    "defaults": 'echo "$IOS_BUNDLE_ID"\n',
+                    "codesign": 'if [[ "$1" == --display ]]; then cat entitlements.plist; fi\n',
+                    "defaults": 'case "$3" in\n CFBundleShortVersionString) echo 1.0 ;;\n CFBundleVersion) echo "$IOS_BUILD_NUMBER" ;;\n CFBundleDisplayName) echo "Wand Night Stand" ;;\n *) echo "$IOS_BUNDLE_ID" ;;\nesac\n',
                     "shasum": 'echo "test checksum"\n',
                 }
                 for name, body in stubs.items():
@@ -192,12 +229,12 @@ exec /bin/cp "$@"
                 environment.update({
                     "PATH": os.pathsep.join((str(bin_path), str(Path(bash).parent), environment["PATH"])),
                     "HOME": str(root / "home"), "RUNNER_TEMP": str(root / "runner-temp"),
-                    "IOS_BUNDLE_ID": BUNDLE, "IOS_TEAM_ID": TEAM if exit_point != "helper" else "invalid",
+                    "IOS_BUNDLE_ID": bundle_id, "IOS_TEAM_ID": TEAM if exit_point != "helper" else "invalid",
                     "KUFR_PASSKEY_RP_DOMAIN": "kufr.example.invalid",
-                    "IOS_SIGNING_KIND": "development", "IOS_BUILD_NUMBER": "42",
+                    "IOS_SIGNING_KIND": signing_kind, "IOS_BUILD_NUMBER": "42",
                     "IOS_BUILD_CERTIFICATE_BASE64": "test", "IOS_PROVISION_PROFILE_BASE64": "test",
                     "IOS_P12_PASSWORD": "test", "IOS_KEYCHAIN_PASSWORD": "test",
-                    "TEST_PYTHON": sys.executable.replace("\\", "/"), "TEST_IDENTITY": IDENTITY, "TEST_EXIT": exit_point,
+                    "TEST_PYTHON": sys.executable.replace("\\", "/"), "TEST_IDENTITY": identity, "TEST_EXIT": exit_point,
                     "TEST_SIGNING_SCRIPT": str(SCRIPT.with_name("build-ios-ipa.sh")).replace("\\", "/"),
                 })
                 if exit_point == "helper":
@@ -210,6 +247,7 @@ exec /bin/cp "$@"
                     cwd=root, env=environment, capture_output=True, text=True,
                 )
                 self.assertEqual(0 if exit_point == "success" else 1, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(original_info, info.read_bytes())
                 if exit_point in ("restore", "recovery"):
                     self.assertNotEqual(original, project.read_bytes())
                     self.assertIn("Could not restore the Xcode project", result.stderr)
@@ -236,11 +274,19 @@ exec /bin/cp "$@"
                 else:
                     self.assertTrue((root / "archived-project.plist").exists(), result.stdout + result.stderr)
                     archived = plistlib.loads((root / "archived-project.plist").read_bytes())
+                    archived_info = plistlib.loads((root / "archived-info.plist").read_bytes())
+                    self.assertEqual("Wand Night Stand" if signing_kind == "app_store" else "AI kufr", archived_info["CFBundleDisplayName"])
                     self.assertEqual(MODULE.configure_project(project_fixture(), MODULE.signing_settings(
-                        *METADATA, passkey_domain="kufr.example.invalid")), archived)
+                        TEAM, bundle_id, IDENTITY, PROFILE, "42", passkey_domain="kufr.example.invalid",
+                        marketing_version="1.0" if signing_kind == "app_store" else None)), archived)
                     arguments = (root / "archive-arguments.txt").read_text(encoding="utf-8")
                     for setting in MODULE.signing_settings(*METADATA):
                         self.assertNotIn(setting + "=", arguments)
+                    if exit_point != "archive":
+                        export_options = plistlib.loads((root / "export-options.plist").read_bytes())
+                        self.assertEqual("app-store-connect" if signing_kind == "app_store" else "debugging", export_options["method"])
+                        self.assertEqual("export", export_options["destination"])
+                        self.assertFalse(export_options["manageAppVersionAndBuildNumber"])
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ internal sealed class CharacterProfileStore
                 id TEXT PRIMARY KEY, account_id TEXT NOT NULL, profile_id TEXT NOT NULL,
                 revision INTEGER NOT NULL, input_json TEXT NOT NULL, rejected TEXT NULL,
                 status TEXT NOT NULL, lease_token TEXT NULL, lease_until INTEGER NOT NULL DEFAULT 0,
-                attempt INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+                attempt INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, openai_consent INTEGER NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS character_jobs_queue ON character_jobs(status, created_at);
             CREATE UNIQUE INDEX IF NOT EXISTS character_jobs_account ON character_jobs(account_id);
             CREATE TABLE IF NOT EXISTS character_account_fences (account_id TEXT PRIMARY KEY);
@@ -43,6 +43,21 @@ internal sealed class CharacterProfileStore
                 input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, processed_at INTEGER NOT NULL);
             """;
         command.ExecuteNonQuery();
+        using var column = connection.CreateCommand();
+        column.CommandText = "SELECT COUNT(*) FROM pragma_table_info('character_jobs') WHERE name='openai_consent'";
+        if ((long)column.ExecuteScalar()! == 0)
+        {
+            column.CommandText = "ALTER TABLE character_jobs ADD COLUMN openai_consent INTEGER NOT NULL DEFAULT 0";
+            column.ExecuteNonQuery();
+        }
+        // Legacy jobs carry no affirmative consent. Keep their saved profile, but never dispatch them.
+        column.CommandText = """
+            UPDATE character_profiles SET status='saved',error_code=NULL
+                WHERE status IN ('queued','running') AND account_id IN
+                    (SELECT account_id FROM character_jobs WHERE openai_consent=0);
+            DELETE FROM character_jobs WHERE openai_consent=0;
+            """;
+        column.ExecuteNonQuery();
     }
 
     internal Task<CharacterProfile?> ReadAsync(string accountId, CancellationToken token = default)
@@ -82,9 +97,10 @@ internal sealed class CharacterProfileStore
     internal async Task<CharacterProfile> CorrectAsync(string accountId, CharacterCorrectionRequest request,
         CancellationToken token = default)
     {
+        if (!request.OpenAiConsent) { throw new CharacterException("openai_consent_required", 409); }
         var current = await ReadAsync(accountId, token) ?? throw new CharacterException("character_not_found", 404);
         return await SaveRevisionAsync(accountId,
-            new(request.ExpectedRevision, current.UserInput, request.ExpectedProfileId), true, token);
+            new(request.ExpectedRevision, current.UserInput, request.ExpectedProfileId, OpenAiConsent: true), true, token);
     }
 
     private Task<CharacterProfile> SaveRevisionAsync(string accountId, CharacterWriteRequest request,
@@ -105,31 +121,34 @@ internal sealed class CharacterProfileStore
         {
             throw new CharacterException("character_revision_conflict", 409);
         }
-        if (!correction && !request.NewCharacter && current is not null && current.UserInput == request.UserInput)
+        if (!correction && !request.NewCharacter && current is not null && current.UserInput == request.UserInput
+            && (request.OpenAiConsent ? current.Status != "saved" : current.Status is not ("queued" or "running")))
         {
             return Task.FromResult(current);
         }
-        if (Scalar(connection, transaction, "SELECT COUNT(*) FROM character_jobs WHERE status IN ('queued','running')", accountId) >= 1000)
+        if (request.OpenAiConsent && Scalar(connection, transaction, "SELECT COUNT(*) FROM character_jobs WHERE status IN ('queued','running')", accountId) >= 1000)
         {
             throw new CharacterException("character_queue_full", 429);
         }
         var profile = new CharacterProfile(request.NewCharacter ? Guid.NewGuid().ToString("N")
                 : current?.ProfileId ?? Guid.NewGuid().ToString("N"),
             request.NewCharacter ? 1 : (current?.Revision ?? 0) + 1,
-            request.UserInput, "queued", null, null, Now());
+            request.UserInput, request.OpenAiConsent ? "queued" : "saved", null, null, Now());
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
             command.CommandText = """
                 INSERT INTO character_profiles(account_id,profile_id,revision,input_json,status,enrichment_json,error_code,updated_at)
-                VALUES($account,$profile,$revision,$input,'queued',NULL,NULL,$now)
+                VALUES($account,$profile,$revision,$input,$status,NULL,NULL,$now)
                 ON CONFLICT(account_id) DO UPDATE SET profile_id=$profile,revision=$revision,input_json=$input,
-                    status='queued',enrichment_json=NULL,error_code=NULL,updated_at=$now;
+                    status=$status,enrichment_json=NULL,error_code=NULL,updated_at=$now;
                 DELETE FROM character_jobs WHERE account_id=$account;
-                INSERT INTO character_jobs(id,account_id,profile_id,revision,input_json,rejected,status,created_at)
-                VALUES($job,$account,$profile,$revision,$input,$rejected,'queued',$now);
+                INSERT INTO character_jobs(id,account_id,profile_id,revision,input_json,rejected,status,created_at,openai_consent)
+                SELECT $job,$account,$profile,$revision,$input,$rejected,'queued',$now,1 WHERE $consent=1;
                 """;
             command.Parameters.AddWithValue("$account", accountId);
+            command.Parameters.AddWithValue("$status", profile.Status);
+            command.Parameters.AddWithValue("$consent", request.OpenAiConsent);
             command.Parameters.AddWithValue("$profile", profile.ProfileId);
             command.Parameters.AddWithValue("$revision", profile.Revision);
             command.Parameters.AddWithValue("$input", JsonSerializer.Serialize(request.UserInput, Json));
@@ -250,7 +269,7 @@ internal sealed class CharacterProfileStore
         command.Transaction = transaction;
         command.CommandText = """
             SELECT id,account_id,profile_id,revision,input_json,rejected,attempt FROM character_jobs
-            WHERE (status='queued' AND lease_until <= $now) OR (status='running' AND lease_until < $now)
+            WHERE openai_consent=1 AND ((status='queued' AND lease_until <= $now) OR (status='running' AND lease_until < $now))
             ORDER BY created_at,id LIMIT 1;
             """;
         command.Parameters.AddWithValue("$now", Now());
@@ -260,7 +279,7 @@ internal sealed class CharacterProfileStore
             if (!reader.Read()) { return Task.FromResult<CharacterJob?>(null); }
             job = new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3),
                 JsonSerializer.Deserialize<CharacterUserInput>(reader.GetString(4), Json)!,
-                reader.IsDBNull(5) ? null : reader.GetString(5), Guid.NewGuid().ToString("N"), reader.GetInt32(6) + 1);
+                reader.IsDBNull(5) ? null : reader.GetString(5), Guid.NewGuid().ToString("N"), reader.GetInt32(6) + 1, OpenAiConsent: true);
         }
         command.Parameters.Clear();
         command.CommandText = """
@@ -275,6 +294,24 @@ internal sealed class CharacterProfileStore
         command.ExecuteNonQuery();
         transaction.Commit();
         return Task.FromResult<CharacterJob?>(job);
+    }
+
+    internal Task<bool> CanDispatchAsync(CharacterJob job, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*) FROM character_jobs j JOIN character_profiles p
+                ON p.account_id=j.account_id AND p.profile_id=j.profile_id AND p.revision=j.revision
+            WHERE j.id=$id AND j.account_id=$account AND j.lease_token=$lease AND j.status='running'
+                AND j.openai_consent=1 AND NOT EXISTS
+                    (SELECT 1 FROM character_account_fences WHERE account_id=$account)
+            """;
+        command.Parameters.AddWithValue("$id", job.Id);
+        command.Parameters.AddWithValue("$account", job.AccountId);
+        command.Parameters.AddWithValue("$lease", job.LeaseToken);
+        return Task.FromResult(job.OpenAiConsent && (long)command.ExecuteScalar()! == 1);
     }
 
     internal Task<bool> CompleteAsync(CharacterJob job, CharacterEnrichment? enrichment, string? errorCode,

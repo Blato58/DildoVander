@@ -90,7 +90,9 @@ class EvalTests(unittest.TestCase):
                                 "gpt-6.1-sol")
         self.assertIn("Kaštanová hůlka Kocovina věštců", request["input"])
         self.assertNotIn("Jasanová hůlka Poslední slovo", request["input"])
-        self.assertIn("Ollivanderova obchodu", request["instructions"])
+        self.assertIn("Jsi Stínový čaroděj", request["instructions"])
+        self.assertNotIn("Ollivander", request["instructions"])
+        self.assertNotIn("Potter", request["instructions"])
         self.assertIn("Nepředstavuj se znovu", request["instructions"])
 
     def test_unavailable_proposal_is_rejected(self):

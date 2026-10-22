@@ -10,6 +10,7 @@ internal static class CustomerProfileTests
         try
         {
             await PersistenceAndFencesAsync(root);
+            await OpenAiConsentAsync(Path.Combine(root, "consent"));
             ProviderEvidence();
             await AccountIdentityTests.RunCustomerRegistrationAsync();
             Console.WriteLine("Customer profile revision, job, deletion and source-evidence tests passed.");
@@ -25,7 +26,7 @@ internal static class CustomerProfileTests
     {
         var store = new CharacterProfileStore(root);
         var input = new CharacterUserInput("  Raven  ", "Original", Description: "My own invented character.");
-        var first = await store.SaveAsync("alice", new(0, input));
+        var first = await store.SaveAsync("alice", new(0, input, OpenAiConsent: true));
         Check(first.Revision == 1 && first.Status == "queued" && first.UserInput == input, "exact input and persistent queued save");
         var restarted = new CharacterProfileStore(root);
         Check((await restarted.ReadAsync("alice"))?.ProfileId == first.ProfileId, "profile survives store restart");
@@ -33,16 +34,16 @@ internal static class CustomerProfileTests
         var job = (await restarted.ClaimAsync())!;
         Check(job.AccountId == "alice" && job.Revision == first.Revision, "job bound to account/profile/revision");
         var snapshot = (await store.CaptureAsync("alice", first.ProfileId, first.Revision))!;
-        var second = await store.SaveAsync("alice", new(first.Revision, input with { Name = "New Raven" }, first.ProfileId));
+        var second = await store.SaveAsync("alice", new(first.Revision, input with { Name = "New Raven" }, first.ProfileId, OpenAiConsent: true));
         Check(!await store.CompleteAsync(job, Result(job), null), "old revision job cannot publish onto new revision");
         Check(snapshot.UserInput.Name == "  Raven  " && snapshot.Revision == 1, "conversation snapshot is immutable across edits");
-        await ExpectAsync("character_revision_conflict", () => store.SaveAsync("alice", new(first.Revision, input, first.ProfileId)));
+        await ExpectAsync("character_revision_conflict", () => store.SaveAsync("alice", new(first.Revision, input, first.ProfileId, OpenAiConsent: true)));
         var secondJob = (await store.ClaimAsync())!;
         Check(await store.CompleteAsync(secondJob, Result(secondJob), null), "current revision result publishes");
         var ready = (await store.ReadAsync("alice"))!;
         Check(ready.Status == "ready" && ready.Enrichment?.Model == "fake" && ready.UserInput == second.UserInput,
             "enrichment remains separate from UserInput");
-        var corrected = await store.CorrectAsync("alice", new(ready.Revision, ready.ProfileId));
+        var corrected = await store.CorrectAsync("alice", new(ready.Revision, ready.ProfileId, OpenAiConsent: true));
         Check(corrected.Revision == ready.Revision + 1 && corrected.Enrichment is null && corrected.UserInput == ready.UserInput,
             "reject interpretation creates revision without rewriting input");
         var correctionJob = (await store.ClaimAsync())!;
@@ -69,24 +70,24 @@ internal static class CustomerProfileTests
             && await deletionRestart.IsDeletedAsync("alice", corrected.ProfileId),
             "successful replay acknowledges work while retaining permanent startup tombstone");
         Check(!await store.CompleteAsync(correctionJob, Result(correctionJob), null), "deleted profile rejects in-flight result");
-        var recreated = await store.SaveAsync("alice", new(0, input));
+        var recreated = await store.SaveAsync("alice", new(0, input, OpenAiConsent: true));
         Check(recreated.ProfileId != first.ProfileId && recreated.Revision == 1, "delete/recreate changes profile identity");
-        await ExpectAsync("character_revision_conflict", () => store.SaveAsync("alice", new(1, input with { Name = "Old edit" }, first.ProfileId)));
+        await ExpectAsync("character_revision_conflict", () => store.SaveAsync("alice", new(1, input with { Name = "Old edit" }, first.ProfileId, OpenAiConsent: true)));
         Check(await store.CaptureAsync("alice", first.ProfileId, 1) is null, "old profile identity cannot produce new snapshot");
         var recreateJob = (await store.ClaimAsync())!;
         await store.FenceAccountDeletionAsync("alice");
         Check(await store.ReadAsync("alice") is null && !await store.CompleteAsync(recreateJob, Result(recreateJob), null),
             "account data fence removes persisted inputs and blocks late result");
-        await ExpectAsync("account_data_deleted", () => store.SaveAsync("alice", new(0, input)));
-        var bob = await store.SaveAsync("bob", new(0, new("Unknown", "Unknown")));
+        await ExpectAsync("account_data_deleted", () => store.SaveAsync("alice", new(0, input, OpenAiConsent: true)));
+        var bob = await store.SaveAsync("bob", new(0, new("Unknown", "Unknown"), OpenAiConsent: true));
         var bobJob = (await store.ClaimAsync())!;
         Check(await store.CompleteAsync(bobJob, Result(bobJob) with { NeedsClarification = true }, null), "clarification result saves");
         Check((await store.ReadAsync("bob"))?.Status == "needs_clarification", "explicit clarification status");
-        await store.SaveAsync("bob", new(bob.Revision, new("Changed", "Unknown"), bob.ProfileId));
+        await store.SaveAsync("bob", new(bob.Revision, new("Changed", "Unknown"), bob.ProfileId, OpenAiConsent: true));
         var failedJob = (await store.ClaimAsync())!;
         await store.CompleteAsync(failedJob, null, "fixture_failure");
         Check((await store.ReadAsync("bob"))?.ErrorCode == "fixture_failure", "persistent failed state");
-        var leaseProfile = await store.SaveAsync("lease-test", new(0, new("Lease", "Original")));
+        var leaseProfile = await store.SaveAsync("lease-test", new(0, new("Lease", "Original"), OpenAiConsent: true));
         var previousWorker = (await store.ClaimAsync())!;
         using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -104,7 +105,7 @@ internal static class CustomerProfileTests
             && recoveryWorker.LeaseToken != previousWorker.LeaseToken, "restart recovers expired persisted worker lease");
         Check(!await store.CompleteAsync(previousWorker, Result(previousWorker), null), "previous worker lease cannot publish after recovery");
         Check(await store.CompleteAsync(recoveryWorker, Result(recoveryWorker), null), "current recovery lease publishes");
-        await store.SaveAsync("retry-test", new(0, input));
+        await store.SaveAsync("retry-test", new(0, input, OpenAiConsent: true));
         var retry = (await store.ClaimAsync())!;
         Check(await store.RetryAsync(retry), "transient provider failure schedules durable retry");
         Check(await store.ClaimAsync() is null, "backoff prevents immediate provider retry");
@@ -122,11 +123,11 @@ internal static class CustomerProfileTests
             "restart consumes same durable retry job after backoff");
         Check(!await store.CompleteAsync(retry, Result(retry), null), "old retry lease cannot publish");
         Check(await store.CompleteAsync(retried, Result(retried), null), "new retry lease publishes");
-        var original = await store.SaveAsync("new-character-test", new(0, input));
+        var original = await store.SaveAsync("new-character-test", new(0, input, OpenAiConsent: true));
         var originalJob = (await store.ClaimAsync())!;
         var originalSnapshot = (await store.CaptureAsync("new-character-test", original.ProfileId, original.Revision))!;
         var newCharacter = await store.SaveAsync("new-character-test",
-            new(original.Revision, input, original.ProfileId, NewCharacter: true));
+            new(original.Revision, input, original.ProfileId, NewCharacter: true, OpenAiConsent: true));
         Check(newCharacter.ProfileId != original.ProfileId && newCharacter.Revision == 1,
             "explicit new character creates a new identity even with identical input");
         Check(!await store.CompleteAsync(originalJob, Result(originalJob), null),
@@ -135,10 +136,45 @@ internal static class CustomerProfileTests
             "explicit new character preserves already captured historical snapshot");
     }
 
+    private static async Task OpenAiConsentAsync(string root)
+    {
+        var store = new CharacterProfileStore(root);
+        var input = new CharacterUserInput("Private fixture", "Original");
+        var local = await store.SaveAsync("local", new(0, input));
+        Check(local.Status == "saved" && await store.ClaimAsync() is null,
+            "omitted OpenAI consent saves locally without creating provider work");
+        await ExpectAsync("openai_consent_required", () => store.CorrectAsync("local", new(local.Revision, local.ProfileId)));
+        var queued = await store.SaveAsync("local", new(local.Revision, input, local.ProfileId, OpenAiConsent: true));
+        var consentJob = await store.ClaimAsync();
+        Check(queued.Status == "queued" && consentJob is { OpenAiConsent: true } && await store.CanDispatchAsync(consentJob),
+            "explicit consent queues a durable consent-bearing provider job");
+        var saved = await store.SaveAsync("local", new(queued.Revision, input, queued.ProfileId));
+        Check(saved.Status == "saved" && await store.ClaimAsync() is null && !await store.CanDispatchAsync(consentJob!),
+            "saving without consent cancels unfinished enrichment work");
+        var legacy = await store.SaveAsync("legacy", new(0, input, OpenAiConsent: true));
+        using (var connection = new SqliteConnection("Data Source=" + Path.Combine(root, "customer-characters.sqlite")))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE character_jobs SET openai_consent=0 WHERE account_id='legacy'";
+            command.ExecuteNonQuery();
+        }
+        var restarted = new CharacterProfileStore(root);
+        Check(await restarted.ClaimAsync() is null && (await restarted.ReadAsync("legacy"))?.Status == "saved",
+            "legacy pending jobs without recorded consent never reach provider after restart");
+        using var provider = new OpenAiCharacterEnrichmentProvider(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), restarted);
+        try
+        {
+            await provider.EnrichAsync(new("job", "local", "profile", 1, input, null, "lease", 1), default);
+            throw new InvalidOperationException("Provider admitted missing consent.");
+        }
+        catch (CharacterException error) when (error.Code == "openai_consent_required") { }
+    }
+
     private static void ProviderEvidence()
     {
         var job = new CharacterJob("private-job", "private-account", "private-profile", 3,
-            new("Wizard", "Fiction"), null, "private-lease", 1);
+            new("Wizard", "Fiction"), null, "private-lease", 1, OpenAiConsent: true);
         var request = OpenAiCharacterEnrichmentProvider.BuildRequest(job, "server-model", true);
         Check(!request.Contains("private-account") && !request.Contains("private-profile"), "provider receives fictional fields only");
         var source = new CharacterSource("Official fiction source", "https://example.com/character");

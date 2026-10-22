@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "referenceId": "original-personas-v1",
+  "capturedAt": "2026-10-22T22:31:39.736497+00:00",
+  "historicalBaseline": "dv01-baseline.json",
+  "historicalBaseCommit": "d34eacedca9011ac1c0f048e2f1acdfb9d986678",
+  "hashEncoding": "utf8-lf",
+  "reason": "Original authored Stinovy carodej and Mistr hulek prompts replace franchise-derived product roles. Historical baseline hashes and reports remain unchanged; provider behavior for this reference has not been measured.",
+  "providerBehaviorVerified": false,
+  "files": {
+    "ai-eval/ollivander-trunk-live-persona.txt": {
+      "sha256": "f7f047bb8c62773849be397b50039383594f07e3b9b9336cf234342efb67699c",
+      "historicalSha256": "c662ba00e849c3636f88b227b7ef33a60248eea82dfda187bd9647e9e0ecc370"
+    },
+    "ai-eval/ollivander-trunk-persona.txt": {
+      "sha256": "56483967482e892adc931ada2c446e66f150d06f2b0eb0a6e7186266d473d0cb",
+      "historicalSha256": "99a72891209ef2bf5ad5a0120a7998c5a08bf46317f38812fb1d3816a5c3099d"
+    },
+    "ai-eval/voice-persona.txt": {
+      "sha256": "6bdfb6d0cda3bdb48406da333020d4847911ad9ab883da3475687004bfa34ae7",
+      "historicalSha256": "202375830426274ace77f62c16d8399c2c4091245a49fd18e253486e65c49c02"
+    }
+  }
+}

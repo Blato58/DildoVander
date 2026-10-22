@@ -25,14 +25,31 @@ import CustomerView from './CustomerView.vue';
 const profile = { profileId: 'profile-1', revision: 1, userInput: { name: 'Luna', world: 'Moon Saga' }, status: 'ready' };
 const bleStatus = { v: 1, deviceId: 'device-1', bootId: 'boot-1', challenge: 'challenge-secret', capabilities: { customerStart: 1 }, state: 'idle' as const };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(complete => { resolve = complete; }); return { promise, resolve }; }
-const router = async () => {
+const router = async (path = '/me/conversation') => {
   const instance = createRouter({ history: createMemoryHistory(), routes: [{ path: '/me/character', component: CustomerView }, { path: '/me/conversation', component: CustomerView }] });
-  await instance.push('/me/conversation'); await instance.isReady(); return instance;
+  await instance.push(path); await instance.isReady(); return instance;
 };
 
 afterEach(() => { vi.clearAllMocks(); api.disconnect.mockResolvedValue(undefined); api.supported = true; api.setAccount({ id: 'customer-1', displayName: 'Guest', roles: ['Customer'] }); vi.useRealTimers(); });
 
 describe('customer conversation', () => {
+  it('keeps OpenAI enrichment optional and submits only explicit consent', async () => {
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
+    await flushPromises();
+    const consent = wrapper.get('#character-openai-consent');
+    expect((consent.element as HTMLInputElement).checked).toBe(false);
+    expect(wrapper.text()).toContain('OpenAI');
+    expect(wrapper.text()).toContain('Bez zaškrtnutí profil uložíme');
+    await wrapper.get('form').trigger('submit'); await flushPromises();
+    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: false }));
+    expect(wrapper.findAll('button').find(button => button.text() === 'Tohle není moje postava')!.attributes('disabled')).toBeDefined();
+    await consent.setValue(true);
+    await wrapper.get('form').trigger('submit'); await flushPromises();
+    expect(api.request).toHaveBeenLastCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: true }));
+    expect((consent.element as HTMLInputElement).checked).toBe(false);
+    wrapper.unmount();
+  });
   it('does not request Bluetooth until the visitor explicitly starts discovery', async () => {
     api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
     api.discover.mockResolvedValue({ devices: [] });
@@ -68,9 +85,13 @@ describe('customer conversation', () => {
     await wrapper.get('select').setValue('device-1');
     const connectButton = wrapper.findAll('button').find(button => button.text() === 'Připojit')!;
     await connectButton.trigger('click'); await flushPromises();
+    expect((wrapper.get('#conversation-openai-consent').element as HTMLInputElement).checked).toBe(false);
+    expect(wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!.attributes('disabled')).toBeDefined();
+    expect(api.request.mock.calls.some(call => call[0].endsWith('/start-tickets'))).toBe(false);
+    await wrapper.get('#conversation-openai-consent').setValue(true);
     const startButton = wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!;
     await startButton.trigger('click'); await flushPromises();
-    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/start-tickets', 'POST', expect.objectContaining({ protocolVersion: 1, deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1 }));
+    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/start-tickets', 'POST', expect.objectContaining({ protocolVersion: 1, deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, openAiConsent: true }));
     expect(api.start).toHaveBeenCalledWith('ephemeral-ticket', expect.any(String));
     expect(api.status).toHaveBeenCalled();
     const operationId = api.start.mock.calls[0][1];
@@ -101,6 +122,7 @@ describe('customer conversation', () => {
     await wrapper.get('button').trigger('click'); await flushPromises();
     await wrapper.get('select').setValue('device-1');
     await wrapper.findAll('button').find(button => button.text() === 'Připojit')!.trigger('click'); await flushPromises();
+    await wrapper.get('#conversation-openai-consent').setValue(true);
     await wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!.trigger('click'); await flushPromises();
     expect(wrapper.text()).toContain('Ověřujeme, zda kufr rozhovor přijal');
     await vi.advanceTimersByTimeAsync(5000); await flushPromises();
@@ -129,12 +151,52 @@ describe('customer conversation', () => {
     await wrapper.get('button').trigger('click'); await flushPromises();
     await wrapper.get('select').setValue('device-1');
     await wrapper.findAll('button').find(button => button.text() === 'Připojit')!.trigger('click'); await flushPromises();
+    await wrapper.get('#conversation-openai-consent').setValue(true);
     const start = () => wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!.trigger('click');
     await start(); await flushPromises(); await start(); await flushPromises();
     const tickets = api.request.mock.calls.filter(call => call[0].endsWith('/start-tickets'));
     expect(tickets).toHaveLength(2);
     expect(tickets.map(call => call[2].challenge)).toEqual(['challenge-one', 'challenge-three']);
     expect(api.status).toHaveBeenCalledTimes(4);
+    wrapper.unmount();
+  });
+
+  it.each(['sessions', 'ble'] as const)('does not issue a ticket when consent is withdrawn during %s reconciliation', async stage => {
+    const sessionReply = deferred<{ items: [] }>();
+    const bleReply = deferred<typeof bleStatus>();
+    let delaying = false;
+    api.request.mockImplementation(async (path: string, _method?: string, body?: Record<string, unknown>) => {
+      if (path.endsWith('/character')) return { profile };
+      if (path.endsWith('/sessions')) return delaying && stage === 'sessions' ? sessionReply.promise : { items: [] };
+      if (path.endsWith('/start-tickets')) return { ticket: 'consented-ticket', operationId: body?.operationId, expiresAt: 'later' };
+      throw new Error(`Unexpected request ${path}`);
+    });
+    api.discover.mockResolvedValue({ devices: [{ id: 'device-1', name: 'Poustevník' }] });
+    api.connect.mockResolvedValue(bleStatus);
+    api.status.mockImplementation(async () => delaying && stage === 'ble' ? bleReply.promise : bleStatus);
+    api.start.mockResolvedValue({ ...bleStatus, state: 'starting', operationId: 'accepted-operation' });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises(); await wrapper.get('button').trigger('click'); await flushPromises();
+    await wrapper.get('select').setValue('device-1');
+    await wrapper.findAll('button').find(button => button.text() === 'Připojit')!.trigger('click'); await flushPromises();
+    const consent = wrapper.get('#conversation-openai-consent');
+    await consent.setValue(true);
+    delaying = true;
+    const startButton = () => wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!;
+    await startButton().trigger('click'); await flushPromises();
+    await consent.setValue(false);
+    delaying = false;
+    sessionReply.resolve({ items: [] }); bleReply.resolve(bleStatus);
+    await flushPromises();
+    expect(api.request.mock.calls.filter(call => call[0].endsWith('/start-tickets'))).toHaveLength(0);
+    expect(api.start).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Souhlas s OpenAI byl odvolán před odesláním žádosti');
+    expect(wrapper.text()).not.toContain('Ověřujeme, zda kufr rozhovor přijal');
+    expect(startButton().attributes('disabled')).toBeDefined();
+    await consent.setValue(true);
+    await startButton().trigger('click'); await flushPromises();
+    expect(api.request.mock.calls.filter(call => call[0].endsWith('/start-tickets'))).toHaveLength(1);
+    expect(api.start).toHaveBeenCalledOnce();
     wrapper.unmount();
   });
 
@@ -155,9 +217,11 @@ describe('customer conversation', () => {
     await flushPromises(); await wrapper.get('button').trigger('click'); await flushPromises();
     await wrapper.get('select').setValue('device-1');
     await wrapper.findAll('button').find(button => button.text() === 'Připojit')!.trigger('click'); await flushPromises();
+    await wrapper.get('#conversation-openai-consent').setValue(true);
     const startButton = () => wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!;
     await startButton().trigger('click'); await flushPromises();
     const original = structuredClone(ticketRequests[0]);
+    await wrapper.get('#conversation-openai-consent').setValue(false);
     await startButton().trigger('click'); await flushPromises();
     expect(ticketRequests).toHaveLength(2);
     expect(ticketRequests[1]).toEqual(original);
@@ -188,6 +252,7 @@ describe('customer conversation', () => {
     await flushPromises(); await wrapper.get('button').trigger('click'); await flushPromises();
     await wrapper.get('select').setValue('device-1');
     await wrapper.findAll('button').find(button => button.text() === 'Připojit')!.trigger('click'); await flushPromises();
+    await wrapper.get('#conversation-openai-consent').setValue(true);
     const startButton = () => wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!;
     await startButton().trigger('click'); await flushPromises();
     expect(api.start).not.toHaveBeenCalled();
@@ -222,6 +287,7 @@ describe('customer conversation', () => {
     await flushPromises(); await wrapper.get('button').trigger('click'); await flushPromises();
     await wrapper.get('select').setValue('device-1');
     await wrapper.findAll('button').find(button => button.text() === 'Připojit')!.trigger('click'); await flushPromises();
+    await wrapper.get('#conversation-openai-consent').setValue(true);
     const startButton = () => wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!;
     await startButton().trigger('click'); await flushPromises();
     await wrapper.findAll('button').find(button => button.text() === 'Obnovit stav rozhovoru')!.trigger('click'); await flushPromises();
@@ -262,6 +328,7 @@ describe('customer conversation', () => {
     await wrapper.get('button').trigger('click'); await flushPromises();
     await wrapper.get('select').setValue('device-1');
     await wrapper.findAll('button').find(button => button.text() === 'Připojit')!.trigger('click'); await flushPromises();
+    await wrapper.get('#conversation-openai-consent').setValue(true);
     await wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!.trigger('click'); await flushPromises();
     expect(wrapper.text()).toContain('Ověřujeme, zda kufr rozhovor přijal');
     const callsBeforeSwitch = listCalls;

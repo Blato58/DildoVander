@@ -1045,7 +1045,7 @@ test('theme changes viewer background and selection without modifying physical m
   assert.equal(app.document.documentElement.getAttribute('data-theme'), 'lord-voldemort');
   app.get('theme-toggle').onclick(); app.flush();
   assert.equal(app.document.documentElement.getAttribute('data-theme'), 'olivander');
-  assert.match(app.get('theme-toggle').getAttribute('aria-label'), /Olivander.*Lord Voldemort/);
+  assert.match(app.get('theme-toggle').getAttribute('aria-label'), /Mistr hůlek.*Stínový čaroděj/);
   assert.deepEqual(app.backgroundColors.at(-1), [27/255,36/255,48/255,1]);
   assert.deepEqual(app.selectionColors.at(-1), [184/255,192/255,1]);
   assert.deepEqual(app.meshes.map(mesh => [...mesh.color]), colors);

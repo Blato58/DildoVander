@@ -22,6 +22,15 @@ a zálohy. API `no-store`, nulování vlastněných bufferů a SQLite `secure_de
 nejsou zárukou odstranění kopií v SDK, OS/TLS, zálohách nebo u poskytovatele.
 `store=false` v Responses není prohlášením o nulové retenci všech provider služeb.
 
+Samostatná funkce **Smazání účtu** v Nastavení po novém ověření passkey a
+konečném potvrzení zablokuje účet a zahájí trvalý úklid jeho soukromých dat.
+Maže vlastní postavu, fotografie, portréty, příběhy a testovací obsah; pouhý
+přístup ke sdílenému archivu neopravňuje smazat obsah jiného hosta. Ostatní účty
+a jejich obsah zůstávají zachovány. Stav lze sledovat na původním zařízení přes
+oddělené neprůhledné potvrzení platné sedm dní. Dokončení úklidu aplikace
+nepotvrzuje konec retence u poskytovatelů ani odstranění provozních záloh;
+požadavky na smazání cloudových indexů mají samostatnou trvalou frontu.
+
 Neumisťuj skutečné přepisy, fotografie, nahrávky, databáze či diagnostické exporty
 s osobními údaji do issues, PR nebo artefaktů. Požadavek na souhlas v protokolu
 sám nedokazuje informovaný souhlas člověka. Režimy a doby uchování skutečného

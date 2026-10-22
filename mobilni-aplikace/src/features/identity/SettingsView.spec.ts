@@ -4,9 +4,9 @@ import SettingsView from './SettingsView.vue';
 const api = vi.hoisted(() => ({request: vi.fn(), signOut: vi.fn()}));
 vi.mock('./session', async () => {
   const {ref} = await import('vue');
-  return {account: ref({id: 'owner', displayName: 'Guest', roles: ['Owner']}), accountRequest: api.request, signOut: api.signOut, refreshIdentity: vi.fn(), authenticatePasskey: vi.fn(), hasRole: () => true};
+  return {account: ref({id: 'owner', displayName: 'Guest', roles: ['Owner']}), accountRequest: api.request, signOut: api.signOut, refreshIdentity: vi.fn(), authenticatePasskey: vi.fn(), deleteAccount: vi.fn(), getAccountDeletionStatus: vi.fn().mockResolvedValue(null), hasRole: () => true};
 });
-vi.mock('../../application/preferences', () => ({usePreferences: () => ({theme: 'lord-voldemort', themes: [{id: 'lord-voldemort', label: 'Lord Voldemort'}, {id: 'olivander', label: 'Olivander'}]})}));
+vi.mock('../../application/preferences', () => ({usePreferences: () => ({theme: 'lord-voldemort', themes: [{id: 'lord-voldemort', label: 'Stínový čaroděj'}, {id: 'olivander', label: 'Mistr hůlek'}]})}));
 beforeEach(() => {
   let name: string | null = null;
   api.signOut.mockReset(); api.request.mockReset(); api.request.mockImplementation(async (_path, method, body) => {
@@ -38,6 +38,7 @@ describe('credential naming settings', () => {
     expect(wrapper.text()).toContain('Uložit název klíče');
     expect(wrapper.text()).toContain('Přihlášená zařízení');
     expect(wrapper.text()).toContain('Odhlásit toto zařízení');
+    expect(wrapper.text()).toContain('Smazání účtu');
     expect(wrapper.text()).not.toContain('Owner');
     expect(wrapper.text()).not.toContain('Přidělené prostředky');
     expect(wrapper.text()).not.toContain('Kufry propojené s účtem');

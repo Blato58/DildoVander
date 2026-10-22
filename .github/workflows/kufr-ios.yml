@@ -2,6 +2,7 @@ name: Check Kufr iOS
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -48,8 +49,36 @@ jobs:
       - name: Test native identity origin policy and authentication bridge
         run: bash scripts/test-native-identity.sh
       - name: Build unsigned iOS Simulator app
+        env:
+          CAPTURE_STORE_PREVIEW: ${{ github.workflow == 'Check Kufr iOS' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+          KUFR_PASSKEY_RP_DOMAIN: ${{ vars.KUFR_PASSKEY_RP_DOMAIN }}
         run: |
+          preview_settings=()
+          if [[ "$CAPTURE_STORE_PREVIEW" == true ]]; then
+            python3 - <<'PY'
+          import os, re
+          domain = os.environ.get('KUFR_PASSKEY_RP_DOMAIN', '')
+          if not re.fullmatch(r'(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?', domain):
+              raise SystemExit('Store preview requires the canonical KUFR_PASSKEY_RP_DOMAIN repository variable.')
+          PY
+            preview_settings+=("KUFR_ACCOUNT_ORIGIN=https://$KUFR_PASSKEY_RP_DOMAIN" "KUFR_PASSKEY_RP_DOMAIN=$KUFR_PASSKEY_RP_DOMAIN")
+          fi
           xcodebuild -project ios/App/App.xcodeproj -scheme App \
             -configuration Debug -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/ios-derived-data" \
-            CODE_SIGNING_ALLOWED=NO build
+            "${preview_settings[@]}" CODE_SIGNING_ALLOWED=NO build
+      - name: Capture native App Store preview candidates
+        id: store-preview
+        if: github.workflow == 'Check Kufr iOS' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        timeout-minutes: 12
+        env:
+          IOS_STORE_PREVIEW_CONFIGURATION: Debug
+        run: bash scripts/capture-ios-store-preview.sh "$RUNNER_TEMP/ios-derived-data/Build/Products/Debug-iphonesimulator/App.app" "$RUNNER_TEMP/ios-store-preview"
+      - name: Export native App Store preview candidates
+        if: success() && steps.store-preview.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-store-preview-${{ github.sha }}
+          path: ${{ runner.temp }}/ios-store-preview/
+          if-no-files-found: error
+          retention-days: 7

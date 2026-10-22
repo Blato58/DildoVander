@@ -13,6 +13,7 @@ vi.mock('../src/features/identity/session', async () => {
   const { ref } = await import('vue');
   return {
     account: ref<{ id: string; displayName: string; roles: string[] } | null>(null),
+    accountDeletionRequested: ref(false),
     offlineSession: ref(false),
     offlineSessionExpiresAt: ref(0),
     refreshIdentity: vi.fn().mockResolvedValue(undefined),
@@ -43,11 +44,15 @@ vi.mock('../src/features/suitcase/servoBench', async () => {
 });
 
 import App from '../src/application/App.vue';
-import { account } from '../src/features/identity/session';
+import { account, accountDeletionRequested } from '../src/features/identity/session';
 import { nativeDebug } from '../src/features/suitcase/nativeDebug';
 import { deviceSession } from '../src/features/suitcase/deviceSession';
 import { directorStop, registerDirectorStop, clearDirectorStop } from '../src/features/director/directorStop';
 import { servoBench } from '../src/features/suitcase/servoBench';
+import type { Ref } from 'vue';
+
+const mockDeletionRequested = accountDeletionRequested as Ref<boolean>;
+beforeEach(() => { mockDeletionRequested.value = false; });
 
 describe('application account boundary', () => {
   beforeEach(() => {

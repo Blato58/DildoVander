@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   if (globalThis.DildoVanderTheme) return;
-  const themes = [{"id": "lord-voldemort", "label": "Lord Voldemort", "background": "#0f0f11"}, {"id": "olivander", "label": "Olivander", "background": "#1B2430"}];
+  const themes = [{"id": "lord-voldemort", "label": "St\u00ednov\u00fd \u010darod\u011bj", "background": "#0f0f11"}, {"id": "olivander", "label": "Mistr h\u016flek", "background": "#1B2430"}];
   const defaultTheme = "lord-voldemort";
   const storageKey = 'dildovander.theme';
   const listeners = new Set();

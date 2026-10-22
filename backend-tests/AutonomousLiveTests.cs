@@ -866,7 +866,7 @@ internal static class AutonomousLiveTests
         var olli = LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, options);
         var party = LivePromptSnapshot.Create(PersonalityCatalog.DefaultId, options);
         Check(olli.Policy == new LiveConversationPolicy(2, 3, true) && party.Policy == new LiveConversationPolicy(4, 7, false), "per-personality policy");
-        Check(olli.Instructions.Contains("Nejsi Ollivander osobně") && !party.Instructions.Contains("Ollivanderův prastarý")
+        Check(olli.Instructions.Contains("Jsi Mistr hůlek") && party.Instructions.Contains("Jsi Stínový čaroděj")
             && !party.Instructions.Contains("dvě zodpovězené"), "dedicated adaptation never overwrites party identity");
         Check(!olli.Instructions.Contains("Vyslov dodanou") && !party.Instructions.Contains("server nedodá repliku"), "autonomous prompt has no mandatory scripted-response gate");
         Check(olli.Sha256 != PersonalityCatalog.Inventory.Single(p => p.Id == PersonalityCatalog.OllivanderId).PromptSha256, "source hash and derived prompt hash differ");

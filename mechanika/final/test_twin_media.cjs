@@ -327,6 +327,7 @@ test('native photo request prompts no permissions/upload; explicit preview and a
   await app.api.handle(output('photo_request'));assert.equal(app.permissions.length,1);
   await app.get('camera').onclick();assert.equal(app.permissions.length,2);assert.equal(app.permissions[1].audio,false);
   await app.get('capture').onclick();assert.equal(app.requests.filter(item=>item.path==='/media/photo').length,0);
+  assert.match(app.get('status').textContent,/syntetické fixture.*OpenAI neodesílá/);
   assert.equal(app.canvases.at(-1).width,640);assert.equal(app.canvases.at(-1).height,360);
   await app.get('accept').onclick();await app.get('accept').onclick();
   const photos=app.requests.filter(item=>item.path==='/media/photo');assert.equal(photos.length,1);

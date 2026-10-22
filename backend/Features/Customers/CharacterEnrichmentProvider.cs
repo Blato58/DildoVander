@@ -33,6 +33,7 @@ internal sealed class OpenAiCharacterEnrichmentProvider : ICharacterEnrichmentPr
 
     public async Task<CharacterEnrichment> EnrichAsync(CharacterJob job, CancellationToken cancellationToken)
     {
+        if (!await store.CanDispatchAsync(job, cancellationToken)) { throw new CharacterException("openai_consent_required", 409); }
         if (string.IsNullOrWhiteSpace(key)) { throw new CharacterException("character_provider_unavailable", 503); }
         using var bounded = BoundedSdkTransport.Create(http, 131_072, ["application/json"]);
         var client = new ResponsesClient(new ApiKeyCredential(key), new ResponsesClientOptions

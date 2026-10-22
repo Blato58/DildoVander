@@ -7,6 +7,116 @@ let request: ReturnType<typeof vi.fn>;
 beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+describe('durable account deletion', () => {
+  async function signedIn() {
+    const identity = await import('./session');
+    request.mockResolvedValueOnce(new Response(JSON.stringify(user('current'))));
+    await identity.refreshIdentity();
+    return identity;
+  }
+
+  it('requires a deletion-specific confirmation before sending a mutation', async () => {
+    const identity = await signedIn();
+    const confirmation = vi.fn().mockReturnValue(false); vi.stubGlobal('confirm', confirmation);
+    await expect(identity.deleteAccount('current')).rejects.toThrow('nebyla potvrzena');
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('Trvale smazat můj účet?'));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(identity.account.value?.id).toBe('current');
+  });
+
+  it.each([409, 500, 200])('retains identity for an unaccepted deletion response %s', async status => {
+    const identity = await signedIn();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    request.mockResolvedValueOnce(new Response(JSON.stringify({code: 'last_owner_required', status: 'deletion_requested'}), {status}));
+    await expect(identity.deleteAccount('current')).rejects.toThrow();
+    expect(identity.account.value?.id).toBe('current');
+  });
+
+  it('preserves identity on an unknown network outcome', async () => {
+    const identity = await signedIn();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    request.mockRejectedValueOnce(new TypeError('Connection lost'));
+    await expect(identity.deleteAccount('current')).rejects.toThrow('Connection lost');
+    expect(identity.account.value?.id).toBe('current');
+  });
+
+  it('clears local account authority and fences private requests only after accepted202', async () => {
+    const identity = await signedIn();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    const old = deferred<Response>();
+    request.mockReturnValueOnce(old.promise);
+    const pending = identity.accountRequest('/app/v1/account');
+    const rejected = expect(pending).rejects.toMatchObject({name: 'AbortError'});
+    request.mockResolvedValueOnce(new Response('{"status":"deletion_requested"}', {status: 202}));
+    await identity.deleteAccount('current');
+    expect(request.mock.calls.at(-1)?.[1]).toMatchObject({ method: 'DELETE', headers: {'X-DV-CSRF': 'current', 'X-DV-Confirm': 'yes'} });
+    expect(identity.account.value).toBeNull();
+    expect(identity.accountDeletionRequested.value).toBe(true);
+    expect(identity.offlineSession.value).toBe(false);
+    old.resolve(new Response('{}'));
+    await rejected;
+  });
+
+  it('does not delete a different current account or clear a later sign-in', async () => {
+    const identity = await signedIn();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    await expect(identity.deleteAccount('other')).rejects.toMatchObject({name: 'AbortError'});
+    expect(request).toHaveBeenCalledTimes(1);
+    const deletion = deferred<Response>();
+    request.mockReturnValueOnce(deletion.promise);
+    const pending = identity.deleteAccount('current');
+    const rejected = expect(pending).rejects.toMatchObject({name: 'AbortError'});
+    request.mockResolvedValueOnce(new Response(JSON.stringify(user('other'))));
+    await identity.refreshIdentity();
+    deletion.resolve(new Response('{"status":"deletion_requested"}', {status: 202}));
+    await rejected;
+    expect(identity.account.value?.id).toBe('other');
+    expect(identity.accountDeletionRequested.value).toBe(false);
+  });
+
+  it('reads an anonymous status receipt and silently accepts its absence', async () => {
+    const identity = await import('./session');
+    request.mockResolvedValueOnce(new Response('{"status":"deletion_requested"}'));
+    expect(await identity.getAccountDeletionStatus()).toBe('deletion_requested');
+    request.mockResolvedValueOnce(new Response('{"status":"deleted"}'));
+    expect(await identity.getAccountDeletionStatus()).toBe('deleted');
+    request.mockResolvedValueOnce(new Response('{}', {status: 404}));
+    expect(await identity.getAccountDeletionStatus()).toBeNull();
+    expect(request.mock.calls.every(call => call[0] === '/app/v1/account/deletion')).toBe(true);
+    expect(identity.account.value).toBeNull();
+  });
+
+  it.each([202, 409])('uses the exact native deletion bridge and retains state unless accepted (%s)', async status => {
+    bridge.native = true;
+    const identity = await import('./session');
+    bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current'))});
+    await identity.refreshIdentity();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    bridge.request.mockResolvedValueOnce({status, body: JSON.stringify({status: 'deletion_requested', code: 'last_owner_required'})});
+    const deletion = identity.deleteAccount('current');
+    if (status === 202) await deletion;
+    else await expect(deletion).rejects.toThrow('aktivní vlastník');
+    expect(bridge.request.mock.calls.at(-1)![0]).toMatchObject({path: '/app/v1/account', method: 'DELETE', confirmed: true});
+    expect(identity.account.value?.id ?? null).toBe(status === 202 ? null : 'current');
+  });
+
+  it('rejects an accepted response after the account changes away and back', async () => {
+    const identity = await signedIn();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    const response = deferred<Response>();
+    request.mockReturnValueOnce(response.promise);
+    const operation = identity.deleteAccount('current');
+    const rejected = expect(operation).rejects.toMatchObject({name: 'AbortError'});
+    const previous = identity.account.value;
+    identity.account.value = {id: 'other', displayName: 'Other', roles: ['Customer']};
+    identity.account.value = previous;
+    response.resolve(new Response('{"status":"deletion_requested"}', {status: 202}));
+    await rejected;
+    expect(identity.account.value?.id).toBe('current');
+    expect(identity.accountDeletionRequested.value).toBe(false);
+  });
+});
+
 describe('customer passkey enrollment', () => {
   it('uses the native customer-enroll contract without an invite token', async () => {
     bridge.native = true;

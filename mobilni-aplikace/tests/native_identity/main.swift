@@ -11,6 +11,21 @@ require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", q
 
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+require(AccountTransportPolicy.account(path: "/app/v1/account", method: "DELETE"), "account deletion unavailable")
+require(AccountTransportPolicy.account(path: "/app/v1/account/deletion", method: "GET"), "anonymous deletion receipt unavailable")
+for invalid in ["/app/v1/account/", "/app/v1/account?x=1", "/app/v1/account#fragment", "/app/v1/%61ccount", "/app/v1/account/../account", "/app/v1//account", "/app/v1/account/deletion", "/guest/v1/account"] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "DELETE"), "account deletion route broadened: \(invalid)")
+}
+for method in ["POST", "PUT", "PATCH", "DELETE"] {
+    require(!AccountTransportPolicy.account(path: "/app/v1/account/deletion", method: method), "deletion receipt allowed mutation")
+}
+let deletionAcceptedBody = Data("{\"status\":\"deletion_requested\"}".utf8)
+require(AccountTransportPolicy.accountDeletionAccepted(path: "/app/v1/account", method: "DELETE", status: 202, body: deletionAcceptedBody), "durable deletion acceptance missing")
+for status in [200, 204, 400, 401, 403, 409, 500] {
+    require(!AccountTransportPolicy.accountDeletionAccepted(path: "/app/v1/account", method: "DELETE", status: status, body: deletionAcceptedBody), "unaccepted response became durable deletion authority")
+}
+require(!AccountTransportPolicy.accountDeletionAccepted(path: "/app/v1/account", method: "DELETE", status: 202, body: Data("{}".utf8)), "invalid receipt revoked offline authority")
+require(!AccountTransportPolicy.accountDeletionAccepted(path: "/app/v1/account/deletion", method: "GET", status: 202, body: deletionAcceptedBody), "status lookup revoked offline authority")
 let publicHash = String(repeating: "a", count: 64)
 let labID = String(repeating: "a", count: 32)
 let labPrefix = "/app/v1/persona-lab"
@@ -616,6 +631,28 @@ private final class DelayedIdentityProtocol: URLProtocol, @unchecked Sendable {
     } catch AccountRequestScheduler.Failure.contextChanged { }
     gate.release(sessionRead)
     require(!offlineSnapshotPresent, "late response restored local offline authority")
+
+    // The live bridge invalidates only after durable deletion acceptance. A
+    // last-owner rejection keeps both the queue epoch and offline envelope.
+    let deleting = try await gate.acquire()
+    let beforeDeletion = gate.epoch
+    offlineSnapshotPresent = true
+    if AccountTransportPolicy.accountDeletionAccepted(path: "/app/v1/account", method: "DELETE", status: 409, body: deletionAcceptedBody) {
+        offlineSnapshotPresent = false
+        gate.invalidateQueuedScope()
+    }
+    require(gate.epoch == beforeDeletion && offlineSnapshotPresent, "rejected deletion destroyed local authority")
+    var deletionWaitStarted = false
+    let afterDeletion = Task { @MainActor in deletionWaitStarted = true; return try await gate.acquire() }
+    await eventually { deletionWaitStarted }
+    if AccountTransportPolicy.accountDeletionAccepted(path: "/app/v1/account", method: "DELETE", status: 202, body: deletionAcceptedBody) {
+        offlineSnapshotPresent = false
+        gate.invalidateQueuedScope()
+    }
+    require(!offlineSnapshotPresent, "accepted deletion retained offline account")
+    do { _ = try await afterDeletion.value; fatalError("queued private request survived accepted deletion") }
+    catch AccountRequestScheduler.Failure.contextChanged { }
+    gate.release(deleting)
     print("PASS native account request-scoped cancellation/zero-obsolete-HTTP, delayed URLSession FIFO, ceremony/credential-commit Stop, credential scope fence, stale/logout fencing, cookie isolation and bounded admission")
 }
 

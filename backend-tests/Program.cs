@@ -32,12 +32,15 @@ if (args is ["--persona-provider-soak", var seconds])
     return;
 }
 if (args is ["--model-releases"]) { await ModelReleaseTests.RunAsync(); return; }
+if (args is ["--account-deletion"]) { await AccountIdentityTests.RunAccountDeletionAsync(); await AccountIdentityTests.RunAccountDeletionHttpAsync(); return; }
 if (args is ["--identity"])
 {
     await AccountIdentityTests.RunAsync();
     await CustomerProfileTests.RunAsync();
     await CustomerSessionTests.RunAsync();
     await AccountIdentityTests.RunCustomerSessionsAsync();
+    await AccountIdentityTests.RunAccountDeletionAsync();
+    await AccountIdentityTests.RunAccountDeletionHttpAsync();
     return;
 }
 if (args is ["--customer-profiles"]) { await CustomerProfileTests.RunAsync(); return; }

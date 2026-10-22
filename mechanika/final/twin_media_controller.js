@@ -412,7 +412,9 @@
         if (own!==generation || photoRequest!==requested) return;
         blob=new Blob([bytes],{type:'image/jpeg'});
         clearPhoto(); photoBlob=blob; photoUrl=root.URL.createObjectURL(blob);
-        notice='Prohlédněte lokální fotku a potvrďte předání.'; render();
+        notice=configuration?.engine==='fake'
+          ? 'Prohlédněte lokální fotku a potvrďte předání syntetické fixture. Fotografie se do OpenAI neodesílá.'
+          : 'Prohlédněte lokální fotku. Přijetím potvrdíte odeslání společnosti OpenAI pro popis kostýmu v rozhovoru.'; render();
       } catch(error) { if (own===generation) { failure=error.message; render(); } }
     };
     actions['retake']=()=>{ clearPhoto(); render(); };
@@ -430,7 +432,11 @@
       const selected=actor, own=generation, bytes=photoBlob, requested=photoRequest; photoRequest=null; clearPhoto(); stopCamera(); render();
       try {
         await request(context.instanceId,'/media/photo',{method:'POST',headers:{...headers(selected,requested.inputEpoch,'0'),'Content-Type':'image/jpeg'},body:bytes});
-        if (own===generation && actor===selected && selected.inputEpoch===requested.inputEpoch) { notice='Jedna schválená fotka předána nativnímu validátoru.'; render(); }
+        if (own===generation && actor===selected && selected.inputEpoch===requested.inputEpoch) {
+          notice=configuration?.engine==='fake'
+            ? 'Jedna schválená fotka předána syntetické fixture bez poskytovatele OpenAI.'
+            : 'Jedna schválená fotka předána ke zpracování OpenAI pro popis kostýmu v rozhovoru.'; render();
+        }
       } catch(error) { if (own===generation && actor===selected && selected.inputEpoch===requested.inputEpoch) fail(error); }
     };
     const pagehide=()=>{ void cancel('Stránka zavřena; média zastavena.',true); };

@@ -27,6 +27,7 @@ export function usePersonaLab() {
   const partial = ref({ user: '', assistant: '' });
   const revisionId = ref(''); const engine = ref<LabEngine>('gpt-live-1'); const scenarioId = ref(''); const fixtureId = ref('');
   const label = ref(''); const comparisonId = ref(''); const text = ref(''); const recordContent = ref(false);
+  const providerConsent = ref(false);
   const scores = ref<Partial<Scores>>({}); const comment = ref(''); const turnComments = ref<Record<string, string>>({});
   const draftName = ref(''); const draftInstructions = ref(''); const draftVoice = ref(''); const draftEngine = ref<LabEngine>('gpt-live-1');
   const configRevisionId = ref(''); const configConfirmed = ref(false);
@@ -134,7 +135,7 @@ export function usePersonaLab() {
   }
   function clearFailure(): void { error.value = ''; failure.value = null; }
   const hardware = useLabHardware({ selected, catalog, busy, identity: identityKey, ownerId: () => account.value?.id ?? '',
-    isolatedBusy: () => voiceActive.value || conversationPending.value || recoveryPending.value || imagePreparing.value || !!selected.value?.hasImage || !!image.value,
+    isolatedBusy: () => !providerConsent.value || voiceActive.value || conversationPending.value || recoveryPending.value || imagePreparing.value || !!selected.value?.hasImage || !!image.value,
     remember, failure: cause => { error.value = message(cause); }, notice: value => { notice.value = value; } });
   const simulationBlocked = computed(() => hardware.mode.value || hardware.bound.value || hardware.pending.value);
   const noticeTone = computed(() => hardware.mode.value || hardware.bound.value ? 'warning' as const : 'success' as const);
@@ -166,7 +167,7 @@ export function usePersonaLab() {
     finally { if (epoch === generation && request === listGeneration) loading.value = false; }
   }
   async function createSession(input: SessionInput): Promise<void> {
-    if (voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !input.revisionId || !input.scenarioId || !input.fixtureId) return;
+    if (!providerConsent.value || voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !input.revisionId || !input.scenarioId || !input.fixtureId) return;
     await run(async () => {
       const session = await client.createSession(input);
       remember(session); selected.value = session; scores.value = {}; comment.value = ''; turnComments.value = {};
@@ -182,7 +183,7 @@ export function usePersonaLab() {
   }
   const canCreateVisualTest = computed(() => {
     const session = selected.value;
-    return !!session && session.status === 'open' && session.engine === 'gpt-live-1'
+    return providerConsent.value && !!session && session.status === 'open' && session.engine === 'gpt-live-1'
       && !busy.value && !voiceActive.value && !recoveryPending.value && !simulationBlocked.value
       && !session.hardware && online.value && !!catalog.value?.capabilities.realtime && !!catalog.value?.capabilities.imageRealtime
       && !!catalog.value.versions.some(item => item.id === session.config.id)
@@ -198,7 +199,7 @@ export function usePersonaLab() {
   }
   async function send(): Promise<void> {
     const session = selected.value; const input = text.value.trim();
-    if (!session || session.status !== 'open' || !input || busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || !online.value) return;
+    if (!providerConsent.value || !session || session.status !== 'open' || !input || busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || !online.value) return;
     const epoch = generation; conversationPending.value = true;
     try { await run(async () => { const result = await client.text(session.id, input); remember(result); text.value = ''; }); }
     finally { if (epoch === generation) conversationPending.value = false; }
@@ -215,7 +216,7 @@ export function usePersonaLab() {
   }
   async function startVoice(retry = false): Promise<void> {
     const session = selected.value;
-    if (!session || session.status !== 'open' || busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || !online.value || !selectedEngineReady.value) return;
+    if (!providerConsent.value || !session || session.status !== 'open' || busy.value || voiceActive.value || recoveryPending.value || simulationBlocked.value || !online.value || !selectedEngineReady.value) return;
     if (retry && (!recoverable.value || reconnects.value >= 2)) return;
     if (retry) {
       reconnects.value++; recoveryPending.value = true; recoverable.value = false;
@@ -224,7 +225,7 @@ export function usePersonaLab() {
       const proceed = await waitForRecovery(500 * 2 ** (reconnects.value - 1) + Math.floor(Math.random() * 250));
       if (epoch !== generation) return;
       recoveryPending.value = false;
-      if (!proceed || selected.value?.id !== session.id || !online.value) return;
+      if (!proceed || !providerConsent.value || selected.value?.id !== session.id || !online.value) return;
     }
     recoverable.value = false; manualVoiceRestart.value = false; clearFailure(); muted.value = false;
     if (retry) notice.value = 'Nové hlasové spojení vytváří nový modelový kontext. Obnovují se pouze archivované tahy.';
@@ -274,7 +275,7 @@ export function usePersonaLab() {
   }
   async function attachImage(): Promise<void> {
     const session = selected.value; const prepared = image.value;
-    if (!session || session.status !== 'open' || !prepared || !imageConsent.value || voiceActive.value || recoveryPending.value
+    if (!providerConsent.value || !session || session.status !== 'open' || !prepared || !imageConsent.value || voiceActive.value || recoveryPending.value
       || simulationBlocked.value || !online.value || !catalog.value?.capabilities.imageRealtime || session.engine !== 'gpt-realtime-2.1') return;
     await run(async () => { remember(await client.attachImage(session.id, prepared.dataBase64)); imageAttachedSession.value = session.id;
       imageConsent.value = false; notice.value = 'Fotografie je dočasně připojená k testu. Model ji dostane při další skutečné odpovědi; na serveru se nearchivuje.'; });
@@ -311,7 +312,7 @@ export function usePersonaLab() {
     await run(async () => { remember(await client.evaluate(session.id, evaluation)); analytics.value = await client.analytics(); notice.value = 'Hodnocení je uložené u přesných tahů tohoto sezení.'; });
   }
   async function runSuite(): Promise<void> {
-    if (!suiteScenarioIds.value.length || voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !engineReady.value) return;
+    if (!providerConsent.value || !suiteScenarioIds.value.length || voiceActive.value || recoveryPending.value || hardware.active.value || !online.value || !engineReady.value) return;
     await run(async () => {
       const suite = await client.createSuite({ revisionId: revisionId.value, engine: engine.value,
         fixtureId: fixtureId.value, scenarioIds: [...suiteScenarioIds.value], label: label.value.trim() || 'Scénářová sada', recordContent: recordContent.value });
@@ -393,7 +394,7 @@ export function usePersonaLab() {
     scores.value = {}; comment.value = ''; turnComments.value = {}; text.value = ''; partial.value = { user: '', assistant: '' };
     draftName.value = draftInstructions.value = draftVoice.value = ''; configRevisionId.value = revisionId.value = '';
     scenarioId.value = fixtureId.value = label.value = comparisonId.value = ''; configConfirmed.value = false;
-    clearFailure(); notice.value = ''; voicePhase.value = 'idle'; recoverable.value = false; manualVoiceRestart.value = false; reconnects.value = 0; recordContent.value = false;
+    clearFailure(); notice.value = ''; voicePhase.value = 'idle'; recoverable.value = false; manualVoiceRestart.value = false; reconnects.value = 0; recordContent.value = false; providerConsent.value = false;
   }
   watch(identityKey, () => { clear(); void load(); }, { flush: 'sync' });
   watch(revisionId, id => { const revision = catalog.value?.versions.find(item => item.id === id); if (revision) engine.value = revision.engine; });
@@ -433,7 +434,7 @@ export function usePersonaLab() {
   return { account, admin, catalog, sessions, selected, analytics, suites, suiteScenarioIds, runSuite, loading, busy, error, failure, notice, voicePhase, voiceActive,
     hardware, simulationBlocked, noticeTone,
     recoveryPending, online, conversationPending, sessionAgeSeconds, manualVoiceRestart,
-    muted, recoverable, reconnects, partial, revisionId, engine, engineReady, selectedEngineReady, scenarioId, fixtureId, label, comparisonId, recordContent, text,
+    muted, recoverable, reconnects, partial, revisionId, engine, engineReady, selectedEngineReady, scenarioId, fixtureId, label, comparisonId, recordContent, providerConsent, text,
     scores, comment, turnComments, validEvaluation, image, imageConsent, imagePreparing, imageAttachedSession, chooseImage, attachImage, discardImage, removeImage,
     draftName, draftInstructions, draftVoice, draftEngine, configRevisionId,
     configRevision, configConfirmed, load, create, createVisualTest, canCreateVisualTest, selectSession, openSuiteSession, send, startVoice, stopVoice, end, toggleMute, interrupt: () => voice.interrupt(),

@@ -1,4 +1,4 @@
-import { ref, readonly } from 'vue';
+import { ref, readonly, watch } from 'vue';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isTwinAccountPath, isShowAccountPath, isChronicleAdminPath } from './accountPaths';
 import { throwIfAborted } from '../../application/cancellation.mjs';
@@ -18,6 +18,8 @@ interface IdentityBridge {
 const nativeIdentity = registerPlugin<IdentityBridge>('KufrIdentity');
 const native = Capacitor.isNativePlatform();
 export const account = ref<Account | null>(null);
+const deletionRequested = ref(false);
+export const accountDeletionRequested = readonly(deletionRequested);
 export const offlineSession = ref(false);
 export const offlineSessionExpiresAt = ref(0);
 let offlineExpiryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -115,13 +117,20 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
 
 export async function accountRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const generation = authGeneration;
+  const deletingAccountId = path === '/app/v1/account' && method === 'DELETE' ? account.value?.id : undefined;
   throwIfAborted(signal);
   if (!path.startsWith('/app/v1/') && !isTwinAccountPath(path) && !isShowAccountPath(path, method) && !isChronicleAdminPath(path, method)) throw new Error('Neplatná cesta účtu.');
   const serialized = body === undefined ? undefined : JSON.stringify(body);
   const sensitive = method !== 'GET' && path.startsWith('/app/v1/admin/')
-    || method === 'DELETE' && path.startsWith('/app/v1/passkeys/');
-  const confirmed = sensitive && window.confirm('Potvrdit tuto změnu správy? Změna může ovlivnit přístup uživatelů nebo provoz serveru.');
-  if (sensitive && !confirmed) throw new Error('Změna nebyla potvrzena.');
+    || method === 'DELETE' && path.startsWith('/app/v1/passkeys/')
+    || method === 'DELETE' && path === '/app/v1/account';
+  const confirmation = path === '/app/v1/account' && method === 'DELETE'
+    ? 'Trvale smazat můj účet? Ztratíte přístup na všech zařízeních. Vaše soukromé fotografie, portréty, příběhy a postava budou nevratně smazány a vaše sdílené odkazy zneplatněny. Data ostatních hostů zůstanou zachována. Smazání nelze vrátit zpět.'
+    : 'Potvrdit tuto změnu správy? Změna může ovlivnit přístup uživatelů nebo provoz serveru.';
+  const confirmed = sensitive && window.confirm(confirmation);
+  if (sensitive && !confirmed) throw new IdentityRequestError('Změna nebyla potvrzena.', 0, 'confirmation_cancelled');
+  requireCurrentAuthentication(generation);
+  if (path === '/app/v1/account' && method === 'DELETE' && (!deletingAccountId || deletingAccountId !== account.value?.id)) throw new AccountContextChangedError();
   let status: number;
   let text: string;
   if (native) {
@@ -175,8 +184,40 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
     };
     throw new IdentityRequestError(explanations[code ?? ''] ?? (status === 403 ? 'K této akci nemáte oprávnění.' : 'Akci účtu se nepodařilo dokončit.'), status, code, rejectedGeneration);
   }
+  if (path === '/app/v1/account' && method === 'DELETE') {
+    if (status !== 202 || (value as { status?: string } | undefined)?.status !== 'deletion_requested') {
+      throw new Error('Server nepotvrdil přijetí žádosti o smazání účtu. Ověřte stav účtu před dalším pokusem.');
+    }
+  }
   if (path !== '/app/v1/session' || method !== 'DELETE') requireCurrentAuthentication(generation);
   return value as T;
+}
+
+export async function deleteAccount(expectedAccountId: string): Promise<void> {
+  if (account.value?.id !== expectedAccountId || authenticationPending || logoutPending) throw new AccountContextChangedError();
+  const generation = authGeneration;
+  let contextChanged = false;
+  const stop = watch(() => account.value?.id, () => { contextChanged = true; }, { flush: 'sync' });
+  try {
+    await accountRequest<{ status: 'deletion_requested' }>('/app/v1/account', 'DELETE');
+    requireCurrentAuthentication(generation);
+    if (contextChanged || account.value?.id !== expectedAccountId) throw new AccountContextChangedError();
+    // Only a durable server acknowledgement revokes local account authority.
+    deletionRequested.value = true;
+    advanceAuthentication(true);
+    initialized.value = true;
+  } finally { stop(); }
+}
+
+export async function getAccountDeletionStatus(signal?: AbortSignal): Promise<'deletion_requested' | 'deleted' | null> {
+  try {
+    const result = await accountRequest<{ status: string }>('/app/v1/account/deletion', 'GET', undefined, signal);
+    if (result.status !== 'deletion_requested' && result.status !== 'deleted') throw new Error('Server nevrátil platný stav smazání.');
+    return result.status;
+  } catch (error) {
+    if (error instanceof IdentityRequestError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export function refreshIdentity(): Promise<void> {
@@ -195,6 +236,7 @@ export function refreshIdentity(): Promise<void> {
     offlineSession.value = offline;
     offlineSessionExpiresAt.value = offline ? expiry : 0;
     account.value = session.account;
+    if (session.account) deletionRequested.value = false;
     accountsEnabled.value = session.enabled;
     csrfToken = offline ? '' : session.csrfToken ?? '';
     accountOrigin.value = session.origin ?? '';

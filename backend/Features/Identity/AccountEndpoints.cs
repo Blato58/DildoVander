@@ -52,9 +52,13 @@ internal static partial class AccountEndpoints
         }
         app.MapMethods("/.well-known/apple-app-site-association", ["GET", "HEAD"], (IConfiguration configuration) =>
         {
-            var id = configuration["ApplicationIdentity:AppleAppId"];
-            return id is not null && System.Text.RegularExpressions.Regex.IsMatch(id, "^[A-Z0-9]{10}\\.[A-Za-z0-9.-]+$")
-                ? Results.Json(new { webcredentials = new { apps = new[] { id } } })
+            var legacyId = configuration["ApplicationIdentity:AppleAppId"];
+            var configuredIds = configuration.GetSection("ApplicationIdentity:AppleAppIds").Get<string[]>() ?? [];
+            var ids = (legacyId is null ? configuredIds : new[] { legacyId }.Concat(configuredIds))
+                .Distinct(StringComparer.Ordinal).ToArray();
+            return ids.Length > 0 && ids.All(id => id is not null
+                    && System.Text.RegularExpressions.Regex.IsMatch(id, "^[A-Z0-9]{10}\\.[A-Za-z0-9.-]+$"))
+                ? Results.Json(new { webcredentials = new { apps = ids } })
                 : Results.NotFound();
         });
         group.MapDelete("/session", SignOutAsync).RequireAuthorization();
@@ -73,6 +77,8 @@ internal static partial class AccountEndpoints
         group.MapDelete("/passkeys/{credentialId}", DeletePasskeyAsync).RequireAuthorization();
         group.MapPut("/passkeys/{credentialId}", RenamePasskeyAsync).RequireAuthorization();
         group.MapGet("/account", AccountDetailsAsync).RequireAuthorization();
+        group.MapDelete("/account", DeleteAccountAsync).RequireAuthorization();
+        group.MapGet("/account/deletion", AccountDeletionStatusAsync);
         group.MapGet("/workshop/{id}/engines", async (string id, HttpContext context, IConfiguration configuration) =>
         {
             if (!Kufr.Backend.Features.DigitalTwin.TwinSnapshot.Id(id))

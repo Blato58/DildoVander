@@ -143,7 +143,7 @@ export const motion = freeze({
 });
 export const themeRegistry = freeze({
   "lord-voldemort": {
-    "label": "Lord Voldemort",
+    "label": "St\u00ednov\u00fd \u010darod\u011bj",
     "palette": "lord-voldemort",
     "presentation": {
       "radius-card": "8px",
@@ -158,7 +158,7 @@ export const themeRegistry = freeze({
     }
   },
   "olivander": {
-    "label": "Olivander",
+    "label": "Mistr h\u016flek",
     "palette": "dark",
     "presentation": {
       "radius-card": "10px",

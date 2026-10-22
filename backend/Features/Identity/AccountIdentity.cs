@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using Kufr.Backend.Features.Access;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kufr.Backend.Features.Identity;
 
@@ -99,6 +100,9 @@ internal static class AccountIdentity
             {
                 DataSource = Path.Combine(config.DataRoot, "identity.sqlite"), ForeignKeys = true
             }.ToString()));
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<AccountDeletionService>();
+        services.AddHostedService<AccountDeletionWorker>();
         services.AddIdentityCore<AccountUser>(options => options.Stores.SchemaVersion = IdentitySchemaVersions.Version3)
             .AddRoles<IdentityRole>().AddEntityFrameworkStores<AccountDatabase>().AddSignInManager().AddDefaultTokenProviders();
         services.Configure<IdentityPasskeyOptions>(options =>

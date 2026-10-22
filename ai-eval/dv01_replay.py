@@ -1,5 +1,6 @@
 """Offline DV01 receipts for the existing evaluator. Never opens a provider connection."""
 
+import argparse
 import hashlib
 import json
 import re
@@ -9,6 +10,63 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
+CURRENT_REFERENCE_ID = "original-personas-v1"
+CURRENT_REFERENCE_NAME = "dv01-current-reference.json"
+AUTHORED_PERSONAS = frozenset({
+    "ai-eval/ollivander-trunk-live-persona.txt",
+    "ai-eval/ollivander-trunk-persona.txt",
+    "ai-eval/voice-persona.txt",
+})
+
+
+def text_sha256(path):
+    # Git text files may use CRLF locally; reference identity is UTF-8 with LF.
+    return hashlib.sha256(path.read_text(encoding="utf-8").encode("utf-8")).hexdigest()
+
+
+def read_current_reference(baseline):
+    reference = json.loads((HERE / CURRENT_REFERENCE_NAME).read_text(encoding="utf-8"))
+    if (reference.get("schemaVersion") != 1
+            or reference.get("referenceId") != CURRENT_REFERENCE_ID
+            or reference.get("historicalBaseline") != "dv01-baseline.json"
+            or reference.get("historicalBaseCommit") != baseline["baseCommit"]
+            or reference.get("hashEncoding") != "utf8-lf"
+            or reference.get("providerBehaviorVerified") is not False
+            or not isinstance(reference.get("reason"), str) or not reference["reason"].strip()
+            or set(reference.get("files", {})) != AUTHORED_PERSONAS):
+        raise ValueError("Invalid DV01 current authored reference")
+    for path, identity in reference["files"].items():
+        original = baseline["files"]["kufr/" + path]
+        if identity.get("historicalSha256") != original["sha256"]:
+            raise ValueError("Changed DV01 historical identity: " + path)
+    return reference
+
+
+def capture_current_reference(reason):
+    if not isinstance(reason, str) or not 10 <= len(reason.strip()) <= 500:
+        raise ValueError("An explicit 10-500 character capture reason is required")
+    baseline = json.loads((HERE / "dv01-baseline.json").read_text(encoding="utf-8"))
+    files = {}
+    for path, identity in baseline["files"].items():
+        current_path = path.removeprefix("kufr/")
+        if current_path == "ai-eval/evaluate_party.py":
+            continue
+        if current_path in AUTHORED_PERSONAS:
+            files[current_path] = {"sha256": text_sha256(ROOT / current_path), "historicalSha256": identity["sha256"]}
+        elif hashlib.sha256((ROOT / current_path).read_bytes()).hexdigest() != identity["sha256"]:
+            raise ValueError("Changed DV01 baseline: " + path)
+    if set(files) != AUTHORED_PERSONAS:
+        raise ValueError("Historical baseline is missing an allowed authored persona")
+    reference = {
+        "schemaVersion": 1, "referenceId": CURRENT_REFERENCE_ID,
+        "capturedAt": datetime.now(timezone.utc).isoformat(),
+        "historicalBaseline": "dv01-baseline.json", "historicalBaseCommit": baseline["baseCommit"],
+        "hashEncoding": "utf8-lf", "reason": reason.strip(),
+        "providerBehaviorVerified": False, "files": files,
+    }
+    (HERE / CURRENT_REFERENCE_NAME).write_text(
+        json.dumps(reference, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return reference
 
 
 def validate_inputs():
@@ -18,13 +76,21 @@ def validate_inputs():
     if [t["id"] for t in corpus["scenarios"]] != [f"T{i:02}" for i in range(1, 81)]:
         raise ValueError("Incomplete scenario identifiers")
     baseline = json.loads((HERE / "dv01-baseline.json").read_text(encoding="utf-8"))
+    reference = read_current_reference(baseline)
     for path, identity in baseline["files"].items():
-        # The evaluator is deliberately extended; the original persona, catalog
-        # and baseline cases remain byte-identical.
-        if path.endswith("evaluate_party.py"):
+        # Historical measurements and their pins stay intact. Only the explicit
+        # three authored replacements use a separately captured current pin.
+        current_path = path.removeprefix("kufr/")
+        if current_path == "ai-eval/evaluate_party.py":
             continue
-        if hashlib.sha256((ROOT / path.removeprefix("kufr/")).read_bytes()).hexdigest() != identity["sha256"]:
-            raise ValueError("Changed DV01 baseline: " + path)
+        if current_path in AUTHORED_PERSONAS:
+            expected = reference["files"][current_path]["sha256"]
+            actual = text_sha256(ROOT / current_path)
+        else:
+            expected = identity["sha256"]
+            actual = hashlib.sha256((ROOT / current_path).read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValueError("Changed DV01 current source reference: " + path)
     coverage = json.loads((HERE / "dv01-coverage.json").read_text(encoding="utf-8"))
     if set(coverage["scenarios"]) != {f"T{i:02}" for i in range(1, 81)}:
         raise ValueError("Incomplete scenario evidence map")
@@ -56,9 +122,14 @@ def source_digest():
 
 def run_offline(output, check_only=False):
     corpus, baseline, coverage = validate_inputs()
+    reference = read_current_reference(baseline)
     report = {"schemaVersion": 1, "initiative": "DV01", "layer": "A/B", "synthetic": True,
               "recordedAt": datetime.now(timezone.utc).isoformat(), "sourceDigest": source_digest(),
-              "baselineCommit": baseline["baseCommit"], "requirements": len(corpus["requirements"]),
+              "baselineCommit": baseline["baseCommit"],
+              "currentReference": CURRENT_REFERENCE_NAME, "currentReferenceId": reference["referenceId"],
+              "currentReferenceSha256": text_sha256(HERE / CURRENT_REFERENCE_NAME),
+              "currentProviderBehaviorVerified": reference["providerBehaviorVerified"],
+              "requirements": len(corpus["requirements"]),
               "scenarios": len(corpus["scenarios"]), "mapping": "dv01-coverage.json",
               "providerCalls": 0, "actuatorCommands": 0, "offline_verified": False,
               "live_behavior_verified": False, "audio_hardware_verified": False,
@@ -96,3 +167,12 @@ def validate_skills():
             if not link.startswith("https://") and not (path.parent / link).resolve().is_file():
                 raise ValueError("Missing skill reference: " + link)
     return True
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Explicit offline capture of the current authored DV01 prompts.")
+    parser.add_argument("--capture-current-reference", action="store_true", required=True)
+    parser.add_argument("--reason", required=True)
+    options = parser.parse_args()
+    result = capture_current_reference(options.reason)
+    print(json.dumps({"referenceId": result["referenceId"], "providerBehaviorVerified": False}))

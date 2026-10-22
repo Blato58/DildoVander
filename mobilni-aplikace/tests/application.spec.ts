@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, type Ref } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import AwButton from '../src/components/AwButton.vue';
 import AwField from '../src/components/AwField.vue';
@@ -11,13 +11,13 @@ import App from '../src/application/App.vue';
 import { safeReturnPath } from '../src/application/navigation';
 import { deviceSession } from '../src/features/suitcase/deviceSession';
 import { nativeDebug } from '../src/features/suitcase/nativeDebug';
-import { account, offlineSession, offlineSessionExpiresAt, refreshIdentity } from '../src/features/identity/session';
+import { account, accountDeletionRequested, offlineSession, offlineSessionExpiresAt, refreshIdentity } from '../src/features/identity/session';
 import { installAccessGuard } from '../src/application/accessGuard';
 import type { DeviceSnapshot } from '../src/features/device_connection/FakeDeviceConnection';
 
 vi.mock('../src/features/identity/session', async () => {
   const { ref } = await import('vue');
-  return { account: ref(null), offlineSession: ref(false), offlineSessionExpiresAt: ref(0), refreshIdentity: vi.fn(async () => {}), hasRole: () => false };
+  return { account: ref(null), accountDeletionRequested: ref(false), offlineSession: ref(false), offlineSessionExpiresAt: ref(0), refreshIdentity: vi.fn(async () => {}), hasRole: () => false };
 });
 
 function snapshot(revision = 1): DeviceSnapshot {
@@ -26,7 +26,8 @@ function snapshot(revision = 1): DeviceSnapshot {
     conversation: { canSubmit: true, canCancel: false, status: '', pending: false } as DeviceSnapshot['conversation'] };
 }
 const wrappers: Array<ReturnType<typeof mount>> = [];
-beforeEach(() => { account.value = null; offlineSession.value = false; offlineSessionExpiresAt.value = 0; deviceSession.snapshot.value = null; deviceSession.target.value = 'unavailable'; });
+const mockDeletionRequested = accountDeletionRequested as Ref<boolean>;
+beforeEach(() => { account.value = null; mockDeletionRequested.value = false; offlineSession.value = false; offlineSessionExpiresAt.value = 0; deviceSession.snapshot.value = null; deviceSession.target.value = 'unavailable'; });
 afterEach(() => { for (const wrapper of wrappers.splice(0)) wrapper.unmount(); document.body.innerHTML = ''; vi.restoreAllMocks(); });
 function renderSuitcase() {
   const wrapper = mount(SuitcaseView, { attachTo: document.body, global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } });
@@ -34,6 +35,40 @@ function renderSuitcase() {
 }
 
 describe('application boundaries', () => {
+  it.each([
+    { deletion: true, destination: '/account-deletion' },
+    { deletion: false, destination: '/signin' },
+  ])('starts local privacy cleanup before routing account loss to $destination', async ({ deletion, destination }) => {
+    const events: string[] = [];
+    const publicView = { setup() { events.push('public-view'); }, template: '<p>Anonymous view</p>' };
+    const router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/', component: { template: '<p>Landing</p>' } },
+      { path: '/signin', component: publicView },
+      { path: '/account-deletion', component: publicView },
+      { path: '/suitcase', component: { template: '<input aria-label="Private draft" />' }, meta: { requiresAccount: true, operation: true } },
+    ] });
+    account.value = { id: 'owner', displayName: 'Owner', roles: ['Owner'] };
+    await router.push('/suitcase');
+    let finishCleanup!: () => void;
+    const cleanup = new Promise<void>(resolve => { finishCleanup = resolve; });
+    vi.spyOn(nativeDebug, 'invalidatePrivateState').mockImplementation(() => { events.push('redact'); });
+    vi.spyOn(deviceSession, 'clearUserGrants').mockImplementation(() => { events.push('cleanup-start'); return cleanup; });
+    const wrapper = mount(App, { global: { plugins: [router, createPinia()] } }); wrappers.push(wrapper);
+    try {
+      mockDeletionRequested.value = deletion;
+      account.value = null;
+      expect(events).toEqual(['redact', 'cleanup-start']);
+      // A subsequent offline-state change must not replace the deletion receipt
+      // with the ordinary sign-in redirect while navigation is settling.
+      offlineSession.value = true;
+      await flushPromises();
+      expect(router.currentRoute.value.path).toBe(destination);
+      expect(wrapper.find('main input').exists()).toBe(false);
+      expect(events).toEqual(['redact', 'cleanup-start', 'public-view']);
+      expect(router.currentRoute.value.query.return).toBe(deletion ? undefined : '/suitcase');
+    } finally { finishCleanup(); await cleanup; }
+  });
+
   it('removes cloud views on offline transition without retiring the paired local session', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [
       { path: '/', component: { template: '<p>Landing</p>' } },
@@ -107,7 +142,7 @@ describe('application boundaries', () => {
     await input.setValue('Poznámka zůstává');
     (input.element as HTMLInputElement).focus();
     const selector = wrapper.get('select[aria-label="Vzhled aplikace"]');
-    expect(selector.findAll('option').map(option => option.text())).toEqual(['Lord Voldemort', 'Olivander']);
+    expect(selector.findAll('option').map(option => option.text())).toEqual(['Stínový čaroděj', 'Mistr hůlek']);
     for (const theme of ['olivander', 'lord-voldemort']) {
       await selector.setValue(theme);
       expect(document.documentElement.dataset.theme).toBe(theme);

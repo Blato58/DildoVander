@@ -100,6 +100,11 @@ function chooseImage(event: Event): void {
       <RouterLink :to="{ path: '/signin', query: { return: '/persona-lab' } }" class="aw-button aw-button--primary">Přihlásit se</RouterLink>
     </template>
     <template v-else>
+      <section class="aw-card" aria-labelledby="lab-provider-title">
+        <h2 id="lab-provider-title">Předání dat OpenAI</h2>
+        <p>Pro testování zvolené persony a generování odpovědí předáváme společnosti OpenAI instrukce persony, zvolený scénář, testovací paměť a kontext rozhovoru. Odesláním textu předáte svou zprávu; spuštěním hlasu předáte zvuk mikrofonu.</p>
+        <label class="lab-check"><input id="lab-provider-consent" v-model="lab.providerConsent" type="checkbox" :disabled="lab.busy || lab.voiceActive || lab.recoveryPending || lab.hardware.active" /><span>Souhlasím s tímto předáním dat OpenAI pro testy během tohoto otevření Persona Lab.<small>Souhlas je ve výchozím stavu vypnutý. Ukládání přepisu a předání fotografie potvrzujete samostatně.</small></span></label>
+      </section>
       <nav class="lab-navigation" aria-label="Části Persona Lab">
         <AwButton :aria-pressed="section === 'playground'" @click="section = 'playground'">Playground</AwButton>
         <AwButton :aria-pressed="section === 'evaluation'" @click="section = 'evaluation'">Hodnocení</AwButton>
@@ -154,7 +159,7 @@ function chooseImage(event: Event): void {
             <details v-if="fixture"><summary>Co tento test pamatuje</summary><p>{{ fixture.description }}</p><dl class="lab-definition"><dt>Aktuální rozhovor</dt><dd>{{ fixture.current || 'Prázdná paměť' }}</dd><dt>Večer</dt><dd>{{ fixture.evening || 'Prázdná paměť' }}</dd><dt>Vrácený host</dt><dd>{{ fixture.returning || 'Prázdná paměť' }}</dd></dl></details>
             <details><summary>Společné porovnání</summary><AwField id="lab-comparison-id" label="Označení porovnání" hint="Stejné označení použijte u obou variant se stejným scénářem a pamětí."><input class="aw-input" id="lab-comparison-id" v-model="lab.comparisonId" maxlength="80" /></AwField></details>
             <label class="lab-check"><input v-model="lab.recordContent" type="checkbox" /><span>Ukládat přepis pro porovnání<small>Dobrovolné. Bez souhlasu zůstávají po testu jen technické údaje a vámi uložené hodnocení.</small></span></label>
-            <AwButton type="submit" variant="primary" :busy="lab.busy" :disabled="!lab.catalog || lab.voiceActive || lab.recoveryPending || lab.hardware.active || !lab.online || !lab.revisionId">Připravit sezení</AwButton>
+            <AwButton type="submit" variant="primary" :busy="lab.busy" :disabled="!lab.providerConsent || !lab.catalog || lab.voiceActive || lab.recoveryPending || lab.hardware.active || !lab.online || !lab.revisionId">Připravit sezení</AwButton>
           </form>
           <div class="aw-card lab-conversation">
             <template v-if="lab.selected">
@@ -177,8 +182,8 @@ function chooseImage(event: Event): void {
                   <label v-if="!lab.hardware.bound" class="lab-check"><input v-model="lab.hardware.confirmed" type="checkbox" :disabled="lab.hardware.pending || lab.busy" /><span>Výslovně potvrzuji test na tomto zařízení, bootu a revizi se zvoleným modelem a hlasem.</span></label>
                   <p v-if="lab.hardware.uncertain && !lab.selected.hardware" role="status">Výsledek vazby není potvrzený. Běžný text, hlas a fotografie jsou pro toto sezení zablokované. Obnovte přehled nebo ukončete test.</p>
                   <div class="lab-actions">
-                    <AwButton v-if="!lab.hardware.bound" variant="primary" :busy="lab.hardware.pending" :disabled="!lab.hardware.confirmed || !lab.hardware.eligibility.ready || lab.busy || lab.voiceActive || lab.conversationPending || lab.recoveryPending || !!lab.image || !!lab.selected.hasImage" @click="lab.hardware.start">Spustit izolovaný test na kufru</AwButton>
-                    <AwButton v-if="!lab.hardware.bound && lab.hardware.eligibility.canConfigure" :disabled="!lab.hardware.confirmed || lab.busy || lab.hardware.pending" @click="lab.hardware.configure">Nastavit zvolený model a hlas na kufru</AwButton>
+                    <AwButton v-if="!lab.hardware.bound" variant="primary" :busy="lab.hardware.pending" :disabled="!lab.providerConsent || !lab.hardware.confirmed || !lab.hardware.eligibility.ready || lab.busy || lab.voiceActive || lab.conversationPending || lab.recoveryPending || !!lab.image || !!lab.selected.hasImage" @click="lab.hardware.start">Spustit izolovaný test na kufru</AwButton>
+                    <AwButton v-if="!lab.hardware.bound && lab.hardware.eligibility.canConfigure" :disabled="!lab.providerConsent || !lab.hardware.confirmed || lab.busy || lab.hardware.pending" @click="lab.hardware.configure">Nastavit zvolený model a hlas na kufru</AwButton>
                     <AwButton v-if="lab.hardware.bound" variant="danger" @click="lab.end">Ukončit vazbu a vyžádat místní Stop</AwButton>
                   </div>
                 </template>
@@ -199,11 +204,11 @@ function chooseImage(event: Event): void {
                 <article v-if="lab.partial.assistant" class="lab-turn"><strong>DildoVander · průběžná odpověď</strong><p>{{ lab.partial.assistant }}</p></article>
               </div>
               <div v-if="lab.selected.status === 'open'" class="lab-actions">
-                <AwButton v-if="!lab.simulationBlocked && !lab.voiceActive && (lab.voicePhase !== 'error' || lab.manualVoiceRestart)" :disabled="lab.busy || lab.recoveryPending || !lab.online || !lab.catalog?.capabilities.voice || !lab.selectedEngineReady" @click="lab.startVoice()">Spustit hlas</AwButton>
+                <AwButton v-if="!lab.simulationBlocked && !lab.voiceActive && (lab.voicePhase !== 'error' || lab.manualVoiceRestart)" :disabled="!lab.providerConsent || lab.busy || lab.recoveryPending || !lab.online || !lab.catalog?.capabilities.voice || !lab.selectedEngineReady" @click="lab.startVoice()">Spustit hlas</AwButton>
                 <AwButton v-if="lab.voiceActive" :aria-pressed="lab.muted" @click="lab.toggleMute">{{ lab.muted ? 'Zapnout mikrofon' : 'Ztlumit mikrofon' }}</AwButton>
                 <AwButton v-if="lab.voiceActive" :disabled="lab.voicePhase === 'connecting'" @click="lab.interrupt">Přerušit odpověď</AwButton>
                 <AwButton v-if="lab.voiceActive" @click="lab.stopVoice">Vypnout hlas</AwButton>
-                <AwButton v-if="lab.recoverable && !lab.voiceActive" :disabled="lab.busy" @click="lab.startVoice(true)">Zkusit hlas znovu ({{ lab.reconnects + 1 }}/2)</AwButton>
+                <AwButton v-if="lab.recoverable && !lab.voiceActive" :disabled="!lab.providerConsent || lab.busy" @click="lab.startVoice(true)">Zkusit hlas znovu ({{ lab.reconnects + 1 }}/2)</AwButton>
                 <AwButton variant="danger" @click="lab.end">Ukončit test</AwButton>
               </div>
               <p v-if="lab.voiceActive" class="lab-muted">Pro hlasové ukončení řekněte „ukonči test“ nebo „end the test“.</p>
@@ -215,7 +220,7 @@ function chooseImage(event: Event): void {
               </p>
               <form class="lab-composer" @submit.prevent="lab.send">
                 <AwField id="lab-message" label="Vaše zpráva" :hint="lab.voiceActive ? 'Text je během hlasového spojení pozastavený. Pro textové pokračování ukončete hlas.' : undefined"><textarea class="aw-input" id="lab-message" v-model="lab.text" rows="3" maxlength="4000" :disabled="lab.busy || lab.simulationBlocked || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open'" placeholder="Napište hostův vstup…" /></AwField>
-                <div class="lab-actions"><AwButton type="submit" variant="primary" :busy="lab.busy" :disabled="lab.simulationBlocked || !lab.text.trim() || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open' || !lab.selectedEngineReady">Odeslat do modelu</AwButton><AwButton v-if="selectedScenario?.openingText" :disabled="lab.busy || lab.simulationBlocked || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open'" @click="lab.text = selectedScenario.openingText">Vložit úvod scénáře</AwButton></div>
+                <div class="lab-actions"><AwButton type="submit" variant="primary" :busy="lab.busy" :disabled="!lab.providerConsent || lab.simulationBlocked || !lab.text.trim() || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open' || !lab.selectedEngineReady">Odeslat do modelu</AwButton><AwButton v-if="selectedScenario?.openingText" :disabled="lab.busy || lab.simulationBlocked || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open'" @click="lab.text = selectedScenario.openingText">Vložit úvod scénáře</AwButton></div>
               </form>
               <details v-if="lab.selected.engine === 'gpt-realtime-2.1'" class="lab-image">
                 <summary>Fotografie pro vizuální test</summary>
@@ -230,9 +235,9 @@ function chooseImage(event: Event): void {
                   </AwField>
                   <p v-if="lab.imagePreparing" role="status">Připravuji soukromý náhled…</p>
                   <figure v-if="lab.image"><img :src="lab.image.previewUrl" alt="Vybraný testovací snímek před odesláním" /><figcaption>Náhled · {{ lab.image.width }} × {{ lab.image.height }} · {{ Math.ceil(lab.image.bytes / 1024) }} kB. Výběr snímek neodesílá.</figcaption></figure>
-                  <label v-if="lab.image" class="lab-check"><input v-model="lab.imageConsent" type="checkbox" :disabled="lab.busy || lab.voiceActive || lab.recoveryPending || lab.hardware.active" /><span>Mám souhlas zobrazených osob nebo používám syntetický snímek. Souhlasím s odesláním poskytovateli modelu pro tento test.</span></label>
+                  <label v-if="lab.image" class="lab-check"><input v-model="lab.imageConsent" type="checkbox" :disabled="lab.busy || lab.voiceActive || lab.recoveryPending || lab.hardware.active" /><span>Mám souhlas zobrazených osob nebo používám syntetický snímek. Souhlasím s odesláním fotografie společnosti OpenAI pro vizuální testování persony a tvorbu odpovědí v tomto testu.</span></label>
                   <p v-if="lab.selected.hasImage || lab.imageAttachedSession === lab.selected.id" role="status">Server potvrdil dočasné připojení fotografie k tomuto testu.</p>
-                  <div class="lab-actions"><AwButton :busy="lab.busy" :disabled="lab.simulationBlocked || !lab.image || !lab.imageConsent || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open'" @click="lab.attachImage">Připojit fotografii k dalšímu vstupu</AwButton><AwButton v-if="lab.image || lab.imagePreparing" @click="lab.discardImage">Odstranit místní náhled</AwButton><AwButton v-if="lab.selected.hasImage || lab.imageAttachedSession === lab.selected.id" @click="lab.removeImage">Odebrat fotografii z testu</AwButton></div>
+                  <div class="lab-actions"><AwButton :busy="lab.busy" :disabled="!lab.providerConsent || lab.simulationBlocked || !lab.image || !lab.imageConsent || lab.voiceActive || lab.recoveryPending || !lab.online || lab.selected.status !== 'open'" @click="lab.attachImage">Připojit fotografii k dalšímu vstupu</AwButton><AwButton v-if="lab.image || lab.imagePreparing" @click="lab.discardImage">Odstranit místní náhled</AwButton><AwButton v-if="lab.selected.hasImage || lab.imageAttachedSession === lab.selected.id" @click="lab.removeImage">Odebrat fotografii z testu</AwButton></div>
                   <p v-if="lab.voiceActive" class="lab-muted">Pro připojení nového snímku nejprve vypněte hlas. Odebrání snímku hlas vypne okamžitě.</p>
                 </template>
               </details>
@@ -253,7 +258,7 @@ function chooseImage(event: Event): void {
               <span>{{ item.name }}<small>{{ item.description }} · {{ item.script ? `${item.script.length} vstupů` : 'Počet vstupů není uveden' }}</small></span>
             </label>
           </div>
-          <AwButton :busy="lab.busy" :disabled="lab.hardware.active || !lab.suiteScenarioIds.length || !lab.engineReady || lab.voiceActive || lab.recoveryPending || !lab.online" @click="lab.runSuite">Spustit scénáře ({{ lab.suiteScenarioIds.length }})</AwButton>
+          <AwButton :busy="lab.busy" :disabled="!lab.providerConsent || lab.hardware.active || !lab.suiteScenarioIds.length || !lab.engineReady || lab.voiceActive || lab.recoveryPending || !lab.online" @click="lab.runSuite">Spustit scénáře ({{ lab.suiteScenarioIds.length }})</AwButton>
           <article v-for="suite in lab.suites" :key="suite.id" class="lab-suite-result">
             <h3>{{ date(suite.createdAt) }} · {{ suite.engine }}</h3>
             <p>Stav: {{ suite.status === 'completed' ? 'Dokončeno' : suite.status === 'failed' ? 'Selhalo' : 'Probíhá' }}</p>

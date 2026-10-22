@@ -80,6 +80,15 @@ internal sealed class AccountArchiveAssociation
     public long LinkedAt { get; set; }
 }
 
+internal sealed class AccountDeletionRequest
+{
+    public string UserId { get; set; } = "";
+    public string ReceiptId { get; set; } = "";
+    public long RequestedAt { get; set; }
+    public long? CompletedAt { get; set; }
+    public int Attempts { get; set; }
+}
+
 internal sealed class AccountDatabase(DbContextOptions<AccountDatabase> options)
     : IdentityDbContext<AccountUser>(options)
 {
@@ -91,9 +100,13 @@ internal sealed class AccountDatabase(DbContextOptions<AccountDatabase> options)
     public DbSet<AccountArchiveTicket> ArchiveTickets => Set<AccountArchiveTicket>();
     public DbSet<AccountArchiveAssociation> ArchiveAssociations => Set<AccountArchiveAssociation>();
 
+    public DbSet<AccountDeletionRequest> DeletionRequests => Set<AccountDeletionRequest>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<AccountDeletionRequest>().HasKey(x => x.UserId);
+        builder.Entity<AccountDeletionRequest>().HasIndex(x => x.ReceiptId).IsUnique();
         builder.Entity<AccountInvitation>().HasKey(x => x.TokenHash);
         builder.Entity<AccountArchiveTicket>().HasKey(x => x.TokenHash);
         builder.Entity<AccountArchiveAssociation>().HasKey(x => new { x.UserId, x.Locator });

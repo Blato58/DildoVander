@@ -24,6 +24,8 @@ describe('Vue media lifecycle', () => {
     expect(controller.sync).toHaveBeenCalledWith(context);
     expect(controller.action).not.toHaveBeenCalled(); expect(identity.accountTransport).not.toHaveBeenCalled();
     expect(wrapper.find('script').exists()).toBe(false); expect(wrapper.text()).toContain('<script>untrusted dialogue</script>');
+    expect(wrapper.text()).toContain('společnosti OpenAI pro popis kostýmu');
+    expect(wrapper.text()).toContain('pořízení náhledu nic neodesílá');
     identity.account.value = { id: 'owner' }; await flushPromises(); expect(controller.dispose).not.toHaveBeenCalled();
     wrapper.unmount(); expect(controller.dispose).toHaveBeenCalledOnce();
   });

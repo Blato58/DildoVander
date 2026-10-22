@@ -137,7 +137,7 @@ defineExpose({ invalidate });
             <option value="main">main</option><option value="short">short</option>
           </select>
         </AwField>
-        <label><input type="checkbox" :checked="state.settings.consent" :disabled="state.disabled.consent" @change="selection('consent', $event)" /> Souhlasím s jednou náhledovou fotkou</label>
+        <label><input type="checkbox" :checked="state.settings.consent" :disabled="state.disabled.consent" @change="selection('consent', $event)" /> Souhlasím s odesláním jedné fotografie společnosti OpenAI pro popis kostýmu v rozhovoru. Syntetická fixture fotografii do OpenAI neodesílá.</label>
         <div class="media-actions">
           <AwButton type="submit" :disabled="state.disabled.save">Uložit nastavení</AwButton>
           <AwButton :disabled="state.disabled.reload" @click="action('reload')">Načíst nastavení</AwButton>
@@ -161,7 +161,7 @@ defineExpose({ invalidate });
     </div>
     <p>Zvuk dokládá software enqueue/drain, nikoli potvrzení slyšitelnosti. Nativní jádro vlastní poslechovou bránu i dokončení.</p>
     <div v-show="state.photoRequested" class="media-photo">
-      <p>Jádro žádá jednu fotku. Aktivujte kameru, prohlédněte lokální náhled a výslovně potvrďte předání.</p>
+      <p>Jádro žádá jednu fotku. Aktivujte kameru a prohlédněte lokální náhled; pořízení náhledu nic neodesílá. Přijetím fotografie potvrdíte její předání společnosti OpenAI pro popis kostýmu v rozhovoru. Syntetická fixture pracuje bez předání OpenAI.</p>
       <AwButton :disabled="state.disabled.camera" @click="action('camera')">Aktivovat kameru</AwButton>
       <video ref="video" autoplay playsinline muted aria-label="Lokální náhled kamery" />
       <AwButton :disabled="state.disabled.capture" @click="action('capture')">Pořídit náhled</AwButton>

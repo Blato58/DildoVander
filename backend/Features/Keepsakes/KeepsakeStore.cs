@@ -65,6 +65,7 @@ internal sealed partial class KeepsakeStore
             CREATE TABLE IF NOT EXISTS dv10_idempotency (
                 scope TEXT NOT NULL, operation_key TEXT NOT NULL, body_hash TEXT NOT NULL, result TEXT NOT NULL,
                 PRIMARY KEY(scope, operation_key));
+            CREATE TABLE IF NOT EXISTS dv10_account_fences (owner_id TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS dv10_customer_owners (
                 keepsake_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, session_id TEXT NOT NULL,
                 epoch INTEGER NOT NULL, linked_at INTEGER NOT NULL);

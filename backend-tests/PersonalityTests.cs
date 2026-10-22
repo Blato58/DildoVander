@@ -15,11 +15,22 @@ internal static class PersonalityTests
     {
         var persona = PersonalityCatalog.Persona(PersonalityCatalog.OllivanderId);
         Require(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(persona)))
-            == "99a72891209ef2bf5ad5a0120a7998c5a08bf46317f38812fb1d3816a5c3099d",
-            "the supplied prompt remains byte-for-byte unchanged, including TICH0 and its examples");
+            == "56483967482e892adc931ada2c446e66f150d06f2b0eb0a6e7186266d473d0cb",
+            "the authored original craftsman prompt matches the reviewed source bytes");
         Require(PersonalityCatalog.Persona(PersonalityCatalog.DefaultId) == PartyDialoguePrompt.VoicePersona,
-            "existing personality is unchanged");
+            "default role uses its shared authored source");
         Require(PersonalityCatalog.Inventory.Count == 2, "two selectable personalities");
+        Require(PersonalityCatalog.Inventory.Single(x => x.Id == PersonalityCatalog.DefaultId).Name == "Stínový čaroděj"
+            && PersonalityCatalog.Inventory.Single(x => x.Id == PersonalityCatalog.OllivanderId).Name == "Mistr hůlek",
+            "original public role names retain compatible selection identifiers");
+        foreach (var id in new[] { PersonalityCatalog.DefaultId, PersonalityCatalog.OllivanderId })
+        {
+            var publishedText = PersonalityCatalog.Persona(id) + PersonalityCatalog.AutonomousLivePersona(id);
+            Require(!publishedText.Contains("Ollivander", StringComparison.OrdinalIgnoreCase)
+                && !publishedText.Contains("Potter", StringComparison.OrdinalIgnoreCase)
+                && !publishedText.Contains("Voldemort", StringComparison.OrdinalIgnoreCase),
+                "shipped role instructions contain original identities");
+        }
 
         var request = new RealtimeTurnRequest(Guid.NewGuid(), Guid.NewGuid(), 0, 63, 0,
             PartyWandCatalog.Version, true, "", null, "marin", 1);

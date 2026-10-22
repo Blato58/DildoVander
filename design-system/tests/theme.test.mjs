@@ -35,7 +35,15 @@ test('synchronous default, invalid preference fallback and denied storage are sa
   assert.equal(runtime.setTheme('olivander'), 'olivander');
 });
 
-test('explicit preference wins, legacy explicit choices migrate to Olivander', () => {
+test('original display names preserve stored theme identities', () => {
+  const { runtime } = boot();
+  assert.deepEqual(Array.from(runtime.themes, theme => ({ id: theme.id, label: theme.label })), [
+    { id: 'lord-voldemort', label: 'Stínový čaroděj' },
+    { id: 'olivander', label: 'Mistr hůlek' },
+  ]);
+});
+
+test('explicit preference wins, legacy explicit choices migrate to the craftsman theme', () => {
   for (const old of ['dark', 'light', 'system']) assert.equal(boot({ 'aw-theme': old }).runtime.getTheme(), 'olivander');
   assert.equal(boot({ 'dildovander.theme': 'lord-voldemort', 'aw-theme': 'dark' }).runtime.getTheme(), 'lord-voldemort');
   assert.equal(boot({ 'dildovander.theme': 'invalid', 'aw-theme': 'dark' }).runtime.getTheme(), 'lord-voldemort');
@@ -71,7 +79,7 @@ test('cross-tab preference changes apply without rewriting storage or loops', ()
   assert.equal(runtime.getTheme(), 'lord-voldemort');
 });
 
-test('Olivander retains all original palettes, typography, assets and base geometry tokens', () => {
+test('the craftsman theme retains all original palettes, typography, assets and base geometry tokens', () => {
   for (const theme of ['dark', 'light']) {
     for (const [role, value] of Object.entries(original.themes[theme])) assert.equal(tokens.themes[theme][role], value);
   }
