@@ -138,7 +138,9 @@ previous_keychains=()
 while IFS= read -r item; do
   previous_keychains+=("${item}")
 done < "${original_keychains}"
-security list-keychains -d user -s "${keychain}" "${previous_keychains[@]}"
+# Bash 3.2 nounset treats an empty indexed array as unset. Expand optional
+# arrays only when populated, preserving each path and adding no empty argument.
+security list-keychains -d user -s "${keychain}" ${previous_keychains[@]+"${previous_keychains[@]}"}
 security find-identity -v -p codesigning "${keychain}" > "${work_dir}/identities.txt"
 
 sign_identity="$(python3 scripts/validate-ios-profile.py \
@@ -177,7 +179,7 @@ fi
 python3 scripts/configure-ios-signing.py \
   "${work_dir}/project.json" "${work_dir}/project-signed.pbxproj" \
   "${IOS_TEAM_ID}" "${IOS_BUNDLE_ID}" "${sign_identity}" \
-  "${profile_uuid}" "${build_number}" --passkey-domain "${KUFR_PASSKEY_RP_DOMAIN}" "${version_arguments[@]}"
+  "${profile_uuid}" "${build_number}" --passkey-domain "${KUFR_PASSKEY_RP_DOMAIN}" ${version_arguments[@]+"${version_arguments[@]}"}
 plutil -lint "${work_dir}/project-signed.pbxproj"
 cp "${work_dir}/project-signed.pbxproj" "${project_path}"
 
