@@ -68,6 +68,25 @@ class ProjectSelectionTests(unittest.TestCase):
             self.assertEqual(self.selected("mobilni-aplikace/" + path), {"backend", "web", "ios", "site"})
         self.assertEqual(self.selected("mobilni-aplikace/src/application/HomeView.vue"), {"web", "ios", "site"})
 
+    def test_ios_impact_remains_conservative_for_shared_and_native_inputs(self):
+        for path in (
+            "src/application/HomeView.vue", "src/adapters/native-transport.ts",
+            "capacitor.config.ts", "package.json", "package-lock.json", ".nvmrc",
+            "vite.config.ts", "tsconfig.json", "ios/App/App/Info.plist",
+            "ios/App/CapApp-SPM/Package.swift", "scripts/generate-native-assets.mjs",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(select_projects(["mobilni-aplikace/" + path])["ios"])
+        for path in ("contracts/new-contract.schema.json", "design-system/tokens.json",
+                     "firmware/simulator/new-adapter.ts"):
+            with self.subTest(path=path):
+                self.assertTrue(select_projects([path])["ios"])
+
+    def test_unknown_paths_inside_product_roots_keep_their_consumers(self):
+        self.assertEqual(self.selected("mobilni-aplikace/new-adapter/config.custom"), {"web", "ios", "site"})
+        self.assertEqual(self.selected("backend/new-feature/custom.input"), {"backend"})
+        self.assertEqual(self.selected("contracts/new-contract.custom"), {"backend", "firmware", "web", "ios", "site"})
+
     def test_workflow_changes_select_only_the_corresponding_build(self):
         self.assertEqual(self.selected(".github/workflows/kufr-firmware.yml"), {"repository", "firmware"})
         self.assertEqual(self.selected(".github/workflows/ci.yml"), {"repository"})
@@ -152,6 +171,29 @@ class ProjectSelectionTests(unittest.TestCase):
                 self.assertEqual(set(changed_paths(base, head)),
                                  {"firmware/source.cpp", "mobilni-aplikace/source.cpp"})
 
+    def test_git_diff_keeps_deleted_native_inputs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def git(*arguments):
+                return subprocess.check_output(["git", "-C", folder, *arguments], stderr=subprocess.DEVNULL).decode().strip()
+            git("init")
+            git("config", "user.name", "CI test")
+            git("config", "user.email", "ci@example.invalid")
+            source = Path(folder) / "mobilni-aplikace/ios/native-adapter.swift"
+            source.parent.mkdir(parents=True)
+            source.write_text("source\n")
+            git("add", ".")
+            git("commit", "-m", "base")
+            base = git("rev-parse", "HEAD")
+            source.unlink()
+            git("add", "-A")
+            git("commit", "-m", "delete")
+            head = git("rev-parse", "HEAD")
+            original = subprocess.check_output
+            with patch("select_projects.subprocess.check_output", side_effect=lambda arguments: original(arguments, cwd=folder)):
+                paths = changed_paths(base, head)
+            self.assertEqual(paths, ["mobilni-aplikace/ios/native-adapter.swift"])
+            self.assertTrue(select_projects(paths)["ios"])
+
     def test_quality_gate_accepts_only_successful_selected_jobs(self):
         selected = {name: "true" if name == "firmware" else "false" for name in PROJECTS}
         jobs = {name: {"result": "success" if name == "firmware" else "skipped"} for name in PROJECTS}
@@ -182,6 +224,17 @@ class ProjectSelectionTests(unittest.TestCase):
         jobs = {name: {"result": "skipped"} for name in PROJECTS}
         jobs["changes"] = {"result": "success"}
         check_results(selected, jobs)
+
+    def test_every_selected_project_rejects_non_success_and_missing_results(self):
+        selected = dict.fromkeys(PROJECTS, "true")
+        jobs = {name: {"result": "success"} for name in (*PROJECTS, "changes")}
+        check_results(selected, jobs)
+        for name in PROJECTS:
+            for result in ("failure", "cancelled", "skipped", "timed_out", "neutral", ""):
+                with self.subTest(project=name, result=result), self.assertRaises(ValueError):
+                    check_results(selected, {**jobs, name: {"result": result}})
+            with self.subTest(project=name, result="missing"), self.assertRaises(ValueError):
+                check_results(selected, {key: value for key, value in jobs.items() if key != name})
 
 
 

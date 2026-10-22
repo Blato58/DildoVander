@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$expectedRemote = 'https://github.com/Blato58/DildoVander.git'
+$expectedRemote = 'https://github.com/Duloc-Dungeon/DildoVander.git'
 $actualRemote = (& git remote get-url --push origin).Trim()
 if ($LASTEXITCODE -ne 0 -or $actualRemote -ne $expectedRemote) {
     throw "Push target must be $expectedRemote."

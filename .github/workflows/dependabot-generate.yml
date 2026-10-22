@@ -27,7 +27,7 @@ concurrency:
 jobs:
   plan:
     if: >-
-      github.repository == 'Blato58/DildoVander' &&
+      github.repository == 'Duloc-Dungeon/DildoVander' &&
       ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
        (github.event_name == 'pull_request' &&
         github.event.pull_request.user.login == 'dependabot[bot]' &&

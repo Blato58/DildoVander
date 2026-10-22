@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.repository == 'Blato58/DildoVander' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.repository == 'Duloc-Dungeon/DildoVander' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/reuse-build.yml
     with:
       build_run_id: ${{ inputs.build_run_id }}
@@ -26,7 +26,7 @@ jobs:
       artifact: web-dist
 
   signed-ipa:
-    if: github.repository == 'Blato58/DildoVander' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.repository == 'Duloc-Dungeon/DildoVander' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: verify
     timeout-minutes: 25
     runs-on: macos-15

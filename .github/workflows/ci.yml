@@ -1,4 +1,6 @@
 name: CI
+run-name: >-
+  CI ${{ github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation' }} | ${{ github.repository }} | PR ${{ github.event.pull_request.number || 0 }} | ${{ github.event.pull_request.head.sha || github.sha }} | ${{ github.event.pull_request.base.sha || github.sha }}
 
 on:
   pull_request:
@@ -28,12 +30,13 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
+  group: ci-${{ github.event.action == 'edited' && !github.event.changes.base && format('metadata-{0}', github.run_id) || github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || inputs.pr_number != '' }}
 
 jobs:
   secret-scan:
     name: Secret scan
+    if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -59,6 +62,7 @@ jobs:
 
   changes:
     name: Select changed projects
+    if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     outputs:
@@ -146,8 +150,6 @@ jobs:
         run: |
           python3 -m unittest discover -s mechanika/final -p test_fast_build.py
           python3 -m unittest discover -s web/deploy -p test_cad_host.py
-      - name: Test private coordination transport without credentials
-        run: python3 -m unittest discover -s scripts -p 'test_coordination*.py'
       - name: Check whitespace
         run: git diff --check HEAD^ HEAD
       - name: Verify Vapour Chrome design integrity
@@ -169,6 +171,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     uses: ./.github/workflows/kufr-web.yml
+    with:
+      share-web-dist: ${{ needs.changes.outputs.site == 'true' }}
   ios:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
@@ -179,19 +183,26 @@ jobs:
     uses: ./.github/workflows/kufr-ai-eval.yml
 
   site:
-    needs: changes
-    if: needs.changes.outputs.site == 'true'
+    needs: [changes, web]
+    if: always() && needs.changes.result == 'success' && needs.changes.outputs.site == 'true' && ((needs.changes.outputs.web == 'true' && needs.web.result == 'success') || (needs.changes.outputs.web == 'false' && needs.web.result == 'skipped'))
     permissions:
       contents: read
       actions: read
     uses: ./.github/workflows/kufr-site.yml
+    with:
+      reuse-web-dist: ${{ needs.changes.outputs.web == 'true' }}
 
   required:
     name: CI required
     if: always()
     needs: [secret-scan, changes, repository, backend, firmware, web, ios, ai-eval, site]
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
     env:
       RESULTS: ${{ toJSON(needs) }}
       SELECTED_PROJECTS: ${{ toJSON(needs.changes.outputs) }}
@@ -201,9 +212,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Require secret scan and selected builds to succeed
+        if: github.event.action != 'edited' || github.event.changes.base != null
         run: |
           if [ "$SECRET_SCAN_RESULT" != success ]; then
             echo 'Secret scan did not succeed' >&2
             exit 1
           fi
           python3 scripts/ci/select_projects.py check
+      - name: Verify existing validation for metadata-only edits
+        if: github.event.action == 'edited' && github.event.changes.base == null
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/verify_metadata_gate.py

@@ -11,8 +11,8 @@ class ControlRunnerHookTests(unittest.TestCase):
     def run_hook(self, **overrides):
         environment = {
             "PATH": os.environ["PATH"],
-            "GITHUB_REPOSITORY": "Blato58/DildoVander",
-            "GITHUB_WORKFLOW_REF": "Blato58/DildoVander/.github/workflows/pr-sync.yml@refs/heads/main",
+            "GITHUB_REPOSITORY": "Duloc-Dungeon/DildoVander",
+            "GITHUB_WORKFLOW_REF": "Duloc-Dungeon/DildoVander/.github/workflows/pr-sync.yml@refs/heads/main",
             "GITHUB_EVENT_NAME": "workflow_dispatch",
             "GITHUB_REF": "refs/heads/main",
         }
@@ -30,8 +30,8 @@ class ControlRunnerHookTests(unittest.TestCase):
     def test_untrusted_metadata_is_rejected(self):
         cases = (
             {"GITHUB_REPOSITORY": "attacker/DildoVander"},
-            {"GITHUB_WORKFLOW_REF": "Blato58/DildoVander/.github/workflows/ci.yml@refs/heads/main"},
-            {"GITHUB_WORKFLOW_REF": "Blato58/DildoVander/.github/workflows/pr-sync.yml@refs/pull/172/merge"},
+            {"GITHUB_WORKFLOW_REF": "Duloc-Dungeon/DildoVander/.github/workflows/ci.yml@refs/heads/main"},
+            {"GITHUB_WORKFLOW_REF": "Duloc-Dungeon/DildoVander/.github/workflows/pr-sync.yml@refs/pull/172/merge"},
             {"GITHUB_EVENT_NAME": "pull_request"},
             {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/feature"},
             {"GITHUB_WORKFLOW_REF": ""},

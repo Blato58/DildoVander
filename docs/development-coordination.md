@@ -1,59 +1,93 @@
-# Development coordination
+# Development workflow
 
-Public source, technical contracts, implementation PRs and build/test CI live in
-this repository. Internal requirements, priorities, blockers, task decisions and
-agent handoffs live in a private GitHub Issues repository. Authorized agents use
-the [coordination skill](../.agents/skills/dildovander-project-tracking/SKILL.md)
-for discovery; owners do not need to supply task numbers at startup.
+Linear owns private requirements, plans, ownership, dependencies, decisions and
+delivery state. GitHub owns code, PRs, checks and releases. Keep technical
+contracts close to code. Public Issues remain optional contributor intake;
+triage useful reports one way without mirroring private discussion.
 
-Use one PR for one coherent implementation. Public commit messages, PR bodies and
-comments contain technical changes, tests and limitations. Keep private task
-identifiers, links and acceptance discussions in the private task instead; record
-the public PR and verified merge there. No second PR to record CI or update a
-project dashboard. Public Issues remain available for legitimate contributors.
+## Start and resume
 
-Historical tracking evidence is archival, never a live backlog or proof that a
-current build passed hardware, signed-iPhone, provider or production acceptance.
-The source contracts remain in component documentation. See the skill's
-[setup guide](../.agents/skills/dildovander-project-tracking/references/setup.md)
-for permissions, archive publication and provisioning gaps. A missing private
-credential must not trigger public tracking or an unsupported completion claim.
+Read the selected issue, its current brief, blockers and overlapping active
+scope through connected Linear tools. If optional context helpers fail, retrieve
+ordinary issues, project descriptions and documents. A small task is one issue;
+a modest feature can use a parent with a short checklist. A substantial outcome
+uses a project, one implementation brief and bounded issues. Projects end with
+their delivery outcome.
+
+Keep the contract short: outcome, scope, prerequisites, acceptance and focused
+verification. When useful, maintain one execution capsule with lead/session,
+checkout/branch, shared-file writer and next action. Only the lead updates the
+shared summary; workers report inside the session. Assignment is advisory, not
+an atomic lock. Stop conflicting edits and resolve ownership with the integration
+owner. Silence or age never authorizes taking over another task.
+
+Read relevant current context. The former Hub, tracking Issues and archive are
+historical evidence. Do not replay complete comment histories, publish claims,
+update Project cards or create tracking-only commits/PRs. The retired transport
+performs no network calls. A Linear outage permits already-owned isolated work;
+preserve a compact handoff and do not create a public fallback or ambiguous claim.
+
+## Size, risk and review
+
+Small low-risk work uses one agent, targeted checks, self-review and one PR.
+Normal publishable units receive one independent review. Plan substantial work
+once with bounded paths, acceptance, dependencies, shared contracts and checks.
+Use disjoint paths/worktrees and one integration owner for coupled changes.
+Prefer independent PRs for independently deliverable slices or one integration
+PR for coupled work. Internal handoffs need no separate PR/review/CI cycle.
+
+Risk is independent of size. Authentication, authorization, secrets, persistent
+data, migrations, deployment, shared protocols and physical behavior can require
+contract or specialist scrutiny even for a short diff. Review the delivery
+boundary once; after changes review the delta and affected interactions. Record
+the reviewed commit/tree privately. Checkpoint commits need no repeated full
+review. Same-account technical review is not a separate author's GitHub approval.
+Use installed project policy for available models and per-session agent limits;
+never delegate recursively.
+
+Communicate when another worker must act: blockers, contract changes, ownership
+collisions, decisions or completed handoffs. Routine progress belongs in issue
+fields or the active session. No greetings, acknowledgments, heartbeat comments
+or STARTED/DONE broadcasts are required.
+
+## Privacy and delivery
+
+Never place private issue keys, URLs, titles, copied requirements or internal
+decisions in public source, branches, commits, PR metadata, comments, logs or
+artifacts. Public PRs describe technical behavior and actual checks. Native PR
+association requires disabled public linkbacks/context publication and a verified
+controlled privacy pilot. Otherwise attach a generic PR URL privately and update
+status explicitly. Keep GitHub Issues Sync disabled. Ready may map to existing
+Todo and Review to In Review.
+
+After implementation, targeted checks and review, publish within existing
+authority. Record the immutable candidate, actual checks and next owner
+privately. Distinguish awaiting checks, merge, release and physical verification.
+Missing, canceled or unexpectedly skipped selected jobs fail the aggregate gate.
+An amended head invalidates earlier review until its delta and interactions are
+reviewed.
+
+Auto-merge requires authorized protected CI and trusted server-side current-head
+review binding. Local receipts, PR-body checkboxes and implementer-written files
+are insufficient. Until binding is established, leave merge pending for explicit
+maintainer finalization of the reviewed head. Read current reviews, unresolved
+threads, check results and head identity before finalization. Never bypass rules.
 
 ## Asynchronous PR follow-up
 
-Keep working in the active chat while any authorized implementation,
-investigation, validation or actionable fix is available. Do independent work
-while CI/CD runs. A checkpoint, commit, push or preference for quiet progress
-does not justify ending implementation or scheduling its continuation.
+Continue available authorized work while CI runs. After a prepared handoff,
+do not keep a local coding agent polling checks. CI does not automatically wake
+local Codex. Failures need explicit continuation or a separately configured
+supported integration; automatic repair is not implied.
 
-Use a native Codex heartbeat only for a long wait on an actual queued or running
-CI/CD job, after all available independent work is exhausted. Attach it to the
-current chat, normally every five minutes, then end the active turn. Reuse the
-existing follow-up for that wait; do not create a separate chat or a second
-tracker. Stop local watch/poll processes without cancelling remote CI.
+Preserve explicit stops and paused automations. Scheduled implementation follow-up
+is allowed only for a long actual running/queued CI/CD wait after independent
+work is exhausted. Reuse the current follow-up and pause it when action returns.
+Do not schedule ordinary implementation, review-only waits or repeated checks of
+another chat. Coordinate a concrete readiness handoff with its owner. Never
+reactivate a disabled scheduler because this workflow supports follow-up.
 
-Do not schedule ordinary implementation continuation, review-only waits or
-repeated checks on another chat's progress. Coordinate dependencies directly
-with the responsible chat, agree on a concrete readiness handoff and continue
-independent work. If nothing remains available, record the exact blocker and
-next action and await that direct handoff. Escalate only decisions or
-interventions that require the owner; do not replace the handoff with a timer.
-
-Include the repository/PR, current branch and checkout, private task/session,
-credential routing, actual validation, remaining work and existing authorization
-in the private follow-up prompt. Fetch the current head and its checks each run;
-never act on a superseded run. If the same CI/CD wait remains with no available
-work, return quietly. As soon as the wait ends or actionable work becomes
-available, pause the heartbeat and resume work in the active chat. On failure,
-inspect logs and relevant feedback, fix, validate and push; schedule another
-follow-up only if the CI/CD wait criteria above are met again. On success,
-re-read all reviews, unresolved threads and Codex review
-state immediately before any authorized merge. Verify the merge, record evidence
-in the private Issue and synchronize the Project. Never merge failing checks or
-an unresolved relevant finding. Pause the follow-up when work completes or a
-specific owner action blocks progress, and report the outcome or required action.
-
-This is a periodic app follow-up, not a GitHub webhook. If the runtime cannot
-schedule a follow-up, state that limitation and leave precise handoff steps;
-do not promise an automatic wakeup. Private task details stay out of public
-instructions, PR descriptions and comments.
+Software checks, deployment, real providers, actual iPhone/hardware acceptance
+and owner-waived tests remain distinct. Dispatch requests are not completed
+deployments. Simulators do not prove physical acceptance. Deployment, signing,
+paid calls, providers, host operations and hardware keep separate authority.
