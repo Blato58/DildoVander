@@ -53,7 +53,9 @@ settings without signing credentials.
 
 Download `ios-store-preview-<source-sha>` within seven days. The workflow reuses
 the compiled, unsigned Debug Simulator app and creates two temporary devices
-from installed runtimes: an iPhone 17/16 Pro Max and a 13-inch iPad Pro or Air.
+from installed runtimes: an iPhone 17/16 Pro and a 13-inch iPad Pro or Air.
+Use the iPhone capture in Media Manager's **iPhone with Dynamic Island
+(medium display)** group and the iPad capture in its **13-inch** group.
 It installs and launches the actual app, waits twenty seconds for the public
 home to render, checks that the process remains alive, and captures the native
 portrait screen. It does not sign in, open guest archives, navigate to a paid
@@ -64,7 +66,7 @@ devices remain untouched. No runtime is downloaded automatically.
 Each device supplies an unchanged `*-home-native.png` and an opaque
 `*-home.jpg` metadata candidate. The JPEG is a quality-100 conversion at the
 same native resolution, without cropping, frames, overlays, or resizing. The
-script rejects dimensions other than **1320 x 2868** for the iPhone and
+script rejects dimensions other than **1206 x 2622** for the iPhone and
 **2064 x 2752** or **2048 x 2732** for the iPad. These dimensions and the opaque
 JPEG format match Apple's [screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications).
 

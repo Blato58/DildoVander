@@ -152,8 +152,11 @@ class SigningScriptCleanupTests(unittest.TestCase):
             self.skipTest("Bash is unavailable for the signing script cleanup regression.")
         scenarios = [("development", point) for point in ("archive", "export", "success", "helper", "restore", "recovery")]
         scenarios += [("app_store", point) for point in ("archive", "export", "success", "restore")]
-        for signing_kind, exit_point in scenarios:
-            with self.subTest(signing_kind=signing_kind, exit_point=exit_point), tempfile.TemporaryDirectory() as directory:
+        scenarios += [("ad_hoc", point) for point in ("archive", "success")]
+        original_keychain_lists = [[], ["/Users/runner/Library/Keychains/Login Test.keychain-db", "/Library/Keychains/System.keychain"]]
+        cases = [(kind, point, keychains) for kind, point in scenarios for keychains in original_keychain_lists]
+        for signing_kind, exit_point, original_keychains in cases:
+            with self.subTest(signing_kind=signing_kind, exit_point=exit_point, keychains=original_keychains), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "scripts").mkdir()
                 shutil.copyfile(SCRIPT, root / "scripts" / SCRIPT.name)
@@ -176,6 +179,9 @@ class SigningScriptCleanupTests(unittest.TestCase):
                 }
                 bundle_id = BUNDLE
                 identity = IDENTITY
+                if signing_kind == "ad_hoc":
+                    profile["Entitlements"]["get-task-allow"] = False
+                    identity = f'1) {IDENTITY} "Apple Distribution: Test ({TEAM})"'
                 if signing_kind == "app_store":
                     bundle_id = "de.dildovander.companion"
                     profile.pop("ProvisionedDevices")
@@ -209,10 +215,12 @@ fi
 exec /bin/cp "$@"
 ''',
                     "base64": "cat\n",
-                    "security": 'case "$1" in\n list-keychains) ;;\n create-keychain) touch "${@: -1}" ;;\n delete-keychain) rm -f "$2" ;;\n cms) cat profile.plist ;;\n find-identity) printf "%s\\n" "$TEST_IDENTITY" ;;\nesac\n',
+                    # Record argv before any Windows/MSYS native-process path
+                    # conversion. Counts and NULs preserve even empty arguments.
+                    "security": 'printf "%s\\0" "$#" "$@" >> security-calls.bin\ncase "$1" in\n list-keychains) if [[ "$#" == 3 ]]; then printf "%s" "$TEST_KEYCHAINS"; fi ;;\n create-keychain) touch "${@: -1}" ;;\n delete-keychain) rm -f "$2" ;;\n cms) cat profile.plist ;;\n find-identity) printf "%s\\n" "$TEST_IDENTITY" ;;\nesac\n',
                     "plutil": 'exec "$TEST_PYTHON" mock-plutil.py "$@"\n',
                     "python3": 'exec "$TEST_PYTHON" "$@"\n',
-                    "xcodebuild": 'case "$1" in\n -help) echo "debugging app-store-connect" ;;\n archive) printf "%s\\n" "$@" > archive-arguments.txt; cp ios/App/App.xcodeproj/project.pbxproj archived-project.plist; cp ios/App/App/Info.plist archived-info.plist; [[ "$TEST_EXIT" != archive ]] ;;\n -exportArchive) cp "${@: -1}" export-options.plist; [[ "$TEST_EXIT" != export ]] ;;\nesac\n',
+                    "xcodebuild": 'case "$1" in\n -help) echo "debugging release-testing app-store-connect" ;;\n archive) printf "%s\\n" "$@" > archive-arguments.txt; cp ios/App/App.xcodeproj/project.pbxproj archived-project.plist; cp ios/App/App/Info.plist archived-info.plist; [[ "$TEST_EXIT" != archive ]] ;;\n -exportArchive) cp "${@: -1}" export-options.plist; [[ "$TEST_EXIT" != export ]] ;;\nesac\n',
                     "unzip": 'mkdir -p "$5/Payload/App.app"; touch "$5/Payload/App.app/embedded.mobileprovision"\n',
                     "codesign": 'if [[ "$1" == --display ]]; then cat entitlements.plist; fi\n',
                     "defaults": 'case "$3" in\n CFBundleShortVersionString) echo 1.0 ;;\n CFBundleVersion) echo "$IOS_BUILD_NUMBER" ;;\n CFBundleDisplayName) echo "Wand Night Stand" ;;\n *) echo "$IOS_BUNDLE_ID" ;;\nesac\n',
@@ -235,6 +243,7 @@ exec /bin/cp "$@"
                     "IOS_BUILD_CERTIFICATE_BASE64": "test", "IOS_PROVISION_PROFILE_BASE64": "test",
                     "IOS_P12_PASSWORD": "test", "IOS_KEYCHAIN_PASSWORD": "test",
                     "TEST_PYTHON": sys.executable.replace("\\", "/"), "TEST_IDENTITY": identity, "TEST_EXIT": exit_point,
+                    "TEST_KEYCHAINS": ''.join(f'    "{keychain}"\n' for keychain in original_keychains),
                     "TEST_SIGNING_SCRIPT": str(SCRIPT.with_name("build-ios-ipa.sh")).replace("\\", "/"),
                 })
                 if exit_point == "helper":
@@ -247,6 +256,19 @@ exec /bin/cp "$@"
                     cwd=root, env=environment, capture_output=True, text=True,
                 )
                 self.assertEqual(0 if exit_point == "success" else 1, result.returncode, result.stdout + result.stderr)
+                arguments = (root / "security-calls.bin").read_bytes().split(b'\0')[:-1]
+                security_calls = []
+                while arguments:
+                    count = int(arguments.pop(0))
+                    security_calls.append([argument.decode('utf-8') for argument in arguments[:count]])
+                    del arguments[:count]
+                updates = [call for call in security_calls if call[:4] == ["list-keychains", "-d", "user", "-s"]]
+                expected_signing_keychain = next(call[-1] for call in security_calls if call[0] == "create-keychain")
+                self.assertEqual([expected_signing_keychain, *original_keychains], updates[0][4:])
+                self.assertEqual(2 if original_keychains else 1, len(updates))
+                if original_keychains:
+                    self.assertEqual(original_keychains, updates[-1][4:])
+                    self.assertLess(security_calls.index(updates[-1]), next(index for index, call in enumerate(security_calls) if call[0] == "delete-keychain"))
                 self.assertEqual(original_info, info.read_bytes())
                 if exit_point in ("restore", "recovery"):
                     self.assertNotEqual(original, project.read_bytes())
@@ -284,7 +306,7 @@ exec /bin/cp "$@"
                         self.assertNotIn(setting + "=", arguments)
                     if exit_point != "archive":
                         export_options = plistlib.loads((root / "export-options.plist").read_bytes())
-                        self.assertEqual("app-store-connect" if signing_kind == "app_store" else "debugging", export_options["method"])
+                        self.assertEqual({"app_store": "app-store-connect", "ad_hoc": "release-testing", "development": "debugging"}[signing_kind], export_options["method"])
                         self.assertEqual("export", export_options["destination"])
                         self.assertFalse(export_options["manageAppVersionAndBuildNumber"])
 
