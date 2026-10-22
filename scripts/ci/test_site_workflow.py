@@ -11,8 +11,12 @@ WORKFLOWS = ROOT / '.github/workflows'
 
 class PublicWorkflowTests(unittest.TestCase):
     def test_every_public_workflow_uses_hosted_runners_without_production_secrets(self):
-        allowed = {'IOS_DISTRIBUTION_CERTIFICATE_BASE64', 'IOS_DISTRIBUTION_PROFILE_BASE64',
-                   'IOS_P12_PASSWORD', 'IOS_KEYCHAIN_PASSWORD'}
+        signing_secrets = {
+            'kufr-ios-sign.yml': {'IOS_DISTRIBUTION_CERTIFICATE_BASE64', 'IOS_DISTRIBUTION_PROFILE_BASE64',
+                                  'IOS_P12_PASSWORD', 'IOS_KEYCHAIN_PASSWORD'},
+            'kufr-ios-app-store.yml': {'IOS_APP_STORE_CERTIFICATE_BASE64', 'IOS_APP_STORE_PROFILE_BASE64',
+                                      'IOS_APP_STORE_P12_PASSWORD', 'IOS_APP_STORE_KEYCHAIN_PASSWORD'},
+        }
         for path in WORKFLOWS.glob('*.yml'):
             with self.subTest(workflow=path.name):
                 source = path.read_text()
@@ -28,7 +32,25 @@ class PublicWorkflowTests(unittest.TestCase):
                 else:
                     self.assertNotIn('workflow_run:', source)
                 secrets = set(re.findall(r'secrets\.([A-Z0-9_]+)', source))
-                self.assertTrue(secrets <= (allowed if path.name == 'kufr-ios-sign.yml' else set()))
+                self.assertTrue(secrets <= signing_secrets.get(path.name, set()))
+
+    def test_app_store_signing_has_isolated_main_only_credentials_and_no_upload(self):
+        source = (WORKFLOWS / 'kufr-ios-app-store.yml').read_text()
+        for block in [source.split('  verify:', 1)[1].split('  signed-ipa:', 1)[0],
+                      source.split('  signed-ipa:', 1)[1]]:
+            self.assertIn("github.repository == 'Duloc-Dungeon/DildoVander'", block)
+            self.assertIn("github.event_name == 'workflow_dispatch'", block)
+            self.assertIn("github.ref == 'refs/heads/main'", block)
+        self.assertIn('environment: ios-app-store', source)
+        self.assertIn('IOS_SIGNING_KIND: app_store', source)
+        self.assertIn('IOS_BUNDLE_ID: de.dildovander.companion', source)
+        self.assertIn('artifact-ids: ${{ needs.verify.outputs.artifact_id }}', source)
+        self.assertLess(source.index('Recheck main immediately before signing'), source.index('      - name: Export App Store IPA'))
+        self.assertEqual(set(re.findall(r'secrets\.([A-Z0-9_]+)', source)), {
+            'IOS_APP_STORE_CERTIFICATE_BASE64', 'IOS_APP_STORE_PROFILE_BASE64',
+            'IOS_APP_STORE_P12_PASSWORD', 'IOS_APP_STORE_KEYCHAIN_PASSWORD',
+        })
+        self.assertNotRegex(source, r'(?i)altool|iTMSTransporter|--upload-app|destination=upload')
 
     def test_site_workflow_only_builds_and_packages(self):
         source = (WORKFLOWS / 'kufr-site.yml').read_text()
