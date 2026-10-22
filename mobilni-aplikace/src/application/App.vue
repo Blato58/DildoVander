@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
           <component :is="Component" v-if="!renderedRoute.meta.keepAlive" :key="renderedRoute.meta.requiresAccount ? `${String(renderedRoute.name)}:${identityKey}` : renderedRoute.name" />
         </RouterView>
       </main>
-      <footer class="application-footer"><span>DildoVander</span><a v-if="browserMode" class="application-install-link" href="/ios/">Aplikace pro iPhone</a><span>Model, simulace a fyzický kufr mají vlastní stav ověření.</span></footer>
+      <footer class="application-footer"><span>DildoVander</span><RouterLink to="/support">Podpora</RouterLink><RouterLink to="/privacy">Ochrana soukromí</RouterLink><a v-if="browserMode" class="application-install-link" href="/ios/">Aplikace pro iPhone</a><span>Model, simulace a fyzický kufr mají vlastní stav ověření.</span></footer>
     </div>
   </div>
 </template>

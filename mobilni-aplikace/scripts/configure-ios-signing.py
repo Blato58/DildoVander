@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 
-def signing_settings(team_id, bundle_id, identity, profile_uuid, build_number, passkey_domain=None):
+def signing_settings(team_id, bundle_id, identity, profile_uuid, build_number, passkey_domain=None, marketing_version=None):
     formats = (
         (team_id, r"[A-Z0-9]{10}", "Team ID"),
         (bundle_id, r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+", "Bundle ID"),
@@ -27,6 +27,10 @@ def signing_settings(team_id, bundle_id, identity, profile_uuid, build_number, p
         "PRODUCT_BUNDLE_IDENTIFIER": bundle_id,
         "CURRENT_PROJECT_VERSION": build_number,
     }
+    if marketing_version is not None:
+        if not isinstance(marketing_version, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", marketing_version):
+            raise ValueError("Invalid marketing version.")
+        settings["MARKETING_VERSION"] = marketing_version
     if passkey_domain is not None:
         dns = r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?"
         if not isinstance(passkey_domain, str) or not re.fullmatch(dns, passkey_domain):
@@ -108,10 +112,11 @@ def main():
     for argument in ("project_json", "output_plist", "team_id", "bundle_id", "identity", "profile_uuid", "build_number"):
         parser.add_argument(argument)
     parser.add_argument("--passkey-domain", help="Canonical DNS domain for the App Associated Domains entitlement")
+    parser.add_argument("--marketing-version", help="App Release marketing version for this build only")
     arguments = parser.parse_args()
     settings = signing_settings(
         arguments.team_id, arguments.bundle_id, arguments.identity,
-        arguments.profile_uuid, arguments.build_number, arguments.passkey_domain,
+        arguments.profile_uuid, arguments.build_number, arguments.passkey_domain, arguments.marketing_version,
     )
     project = json.loads(Path(arguments.project_json).read_text(encoding="utf-8"))
     configured = configure_project(project, settings)

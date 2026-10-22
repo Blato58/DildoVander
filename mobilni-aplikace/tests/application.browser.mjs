@@ -94,6 +94,20 @@ try {
     await page.screenshot({ path: path.join(screenshots, `public-landing-${width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
+  for (const [route, title] of [['/support', 'S čím potřebujete pomoct?'], ['/privacy', 'Ochrana soukromí']]) {
+    await page.goto(origin + route);
+    await hasHeading(title);
+    assert.equal(new URL(page.url()).pathname, route, 'support and privacy remain public without an account');
+    assert(await page.getByRole('main').getByRole('link', { name: 'vojtech.petrik58@gmail.com', exact: true }).isVisible());
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+      await fits();
+      await page.screenshot({ path: path.join(screenshots, `${route.slice(1)}-${width}.png`), fullPage: true });
+    }
+  }
+  await page.goto(origin);
+  await hasHeading(homeHeading());
+  await page.setViewportSize({ width: 1440, height: 1000 });
   // Anonymous deep links must not render pairing or operational controls.
   assert.equal(await page.locator('.home-readiness').count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Stop', exact: true }).count(), 0);
