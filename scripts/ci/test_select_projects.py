@@ -7,7 +7,7 @@ from unittest.mock import patch
 from io import BytesIO
 import json
 
-from select_projects import changed_paths, check_results, PROJECTS, select_projects, select_recovery_projects
+from select_projects import changed_paths, check_results, main, PROJECTS, select_projects, select_recovery_projects
 
 
 class ProjectSelectionTests(unittest.TestCase):
@@ -281,6 +281,13 @@ class ProjectSelectionTests(unittest.TestCase):
                 check_results(selected, failed)
         with self.assertRaises(ValueError):
             check_results({}, jobs)
+
+    def test_check_command_reports_missing_selection_after_selection_failure(self):
+        with patch("sys.argv", ["select_projects.py", "check"]), patch.dict(
+            "os.environ", {"SELECTED_PROJECTS": "{}", "RESULTS": '{"changes":{"result":"failure"}}'}
+        ):
+            with self.assertRaisesRegex(ValueError, "Missing or invalid project selection"):
+                main()
 
     def test_selected_ios_cannot_be_skipped_or_fail_the_required_gate(self):
         selected = {name: "true" if name == "ios" else "false" for name in PROJECTS}

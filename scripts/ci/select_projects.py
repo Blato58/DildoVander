@@ -223,7 +223,7 @@ def main():
     if args.mode == "check":
         selected = json.loads(os.environ["SELECTED_PROJECTS"])
         results = json.loads(os.environ["RESULTS"])
-        check_results({name: selected[name] for name in PROJECTS}, results,
+        check_results({name: selected.get(name) for name in PROJECTS}, results,
                       os.environ.get("NATIVE_STACK_REVISION"))
         print("Every selected project passed; unrelated projects were skipped")
         return
