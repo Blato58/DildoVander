@@ -11,6 +11,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     env:
+      NPM_CONFIG_FETCH_TIMEOUT: '30000'
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     defaults:
       run:

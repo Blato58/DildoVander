@@ -14,6 +14,8 @@ jobs:
   web:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      NPM_CONFIG_FETCH_TIMEOUT: '30000'
     defaults:
       run:
         working-directory: mobilni-aplikace
