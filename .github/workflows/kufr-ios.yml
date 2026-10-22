@@ -23,6 +23,10 @@ jobs:
           persist-credentials: false
       - name: Check Xcode
         run: test "$(xcodebuild -version | head -n 1)" = "Xcode 26.3"
+      - name: Test signing guards and cleanup without credentials
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_configure_ios_signing.py'
+          python3 -m unittest discover -s scripts -p 'test_validate_ios_profile.py'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: mobilni-aplikace/.nvmrc
