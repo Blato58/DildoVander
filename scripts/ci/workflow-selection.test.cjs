@@ -55,7 +55,12 @@ test('metadata edits reuse exact candidate proof without superseding product val
   assert.match(job('required'), /^    name: CI required$/m);
   assert.match(job('required'), /run: python3 scripts\/ci\/verify_metadata_gate.py/);
   assert.match(job('required'), /if: github.event.action != 'edited' \|\| github.event.changes.base != null/);
-  assert.match(ci, /run-name: >-\s+CI .*'metadata' \|\| 'validation'/);
+  assert.match(ci, /CI candidate \| \{0\} \| PR \{1\} \| \{2\} \| \{3\} \| project=\{4\}/);
+  assert.match(ci, /CI stack \{0\} \{1\} \| \{2\} \| PR \{3\} \| \{4\} \| trunk \{5\} \| layer \{6\}\/\{7\}/);
+  assert.match(ci, /--base "\$CI_BASE_SHA" --head "\$CI_HEAD_SHA" \\\s+--stack-pr/);
+  assert.match(ci, /CI_BASE_SHA: \$\{\{ github\.event\.pull_request\.stack\.base\.sha \|\|/);
+  assert.match(ci, /github\.event\.action == 'edited' && !github\.event\.changes\.base && 'metadata' \|\| 'validation'/);
+  assert.match(ci, /pull_request:\s+types: \[opened, reopened, synchronize, edited, ready_for_review\]\s+branches: \[main\]/);
   assert.match(ci, /cancel-in-progress:.*github.event_name == 'pull_request'/);
   assert.match(ci, /merge_group:\s+types: \[checks_requested\]/);
 });
