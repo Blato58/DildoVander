@@ -39,15 +39,23 @@ def latest_validation(runs, repository, pull_request, current_run):
                and run['path'] == WORKFLOW_PATH
                and run['event'] == 'pull_request'
                and run['head_sha'] == pull_request['head']['sha']
-               and run['display_title'] == validation_title(repository, pull_request)
                and any(item['number'] == pull_request['number']
                        for item in run['pull_requests'])]
     if not matches:
         raise ValueError('No exact head/base product validation exists; run product CI')
+    expected_title = validation_title(repository, pull_request)
+    metadata_title = expected_title.replace(' validation |', ' metadata |', 1)
+    matches = [run for run in matches if run.get('display_title') != metadata_title]
+    if not matches:
+        raise ValueError('No exact head/base product validation exists; run product CI')
+    if any(type(run.get('run_number')) is not int or run['run_number'] <= 0 for run in matches):
+        raise ValueError('Invalid product validation sequence')
     newest = max(run['run_number'] for run in matches)
     latest = [run for run in matches if run['run_number'] == newest]
     if len(latest) != 1:
         raise ValueError('Ambiguous product validation')
+    if latest[0].get('display_title') != expected_title:
+        raise ValueError('Newest product validation has stale or invalid native context')
     return latest[0]
 
 

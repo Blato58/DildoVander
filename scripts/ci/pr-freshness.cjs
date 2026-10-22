@@ -1,7 +1,8 @@
 // API-only controller. The write-token workflow loads this from trusted main.
 async function snapshot({ github, context }, number) {
   const repo = context.repo;
-  const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number });
+  const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number,
+    headers: { 'X-GitHub-Api-Version': '2026-03-10' } });
   const { data: base } = await github.rest.repos.getBranch({ ...repo, branch: pr.base.ref });
   const { data: comparison } = await github.rest.repos.compareCommits({
     ...repo, base: base.commit.sha, head: pr.head.sha,
@@ -16,10 +17,76 @@ async function check(api, { number, head, base }) {
   }
   const current = await snapshot(api, Number(number));
   if (current.pr.state !== 'open' || current.pr.head.sha !== head
-      || current.base !== base || current.behind !== 0) {
+      || current.behind !== 0) {
     throw new Error('PR changed or is behind its target; wait for branch synchronization and current CI');
   }
+  if (current.base !== base) await checkNativeBaseRace(api, current, { number: Number(number), head, base });
   return current;
+}
+
+function nativeContext(pr) {
+  const stack = pr?.stack;
+  if (!stack || !['id', 'number', 'position', 'size'].every(key =>
+    Number.isSafeInteger(stack[key]) && stack[key] > 0)
+      || stack.position > stack.size || !stack.base?.ref
+      || !/^[a-f0-9]{40}$/.test(stack.base.sha || '')) return null;
+  return { id: stack.id, number: stack.number, position: stack.position, size: stack.size,
+    base: { ref: stack.base.ref, sha: stack.base.sha } };
+}
+
+async function nativePrefix(api, current, native) {
+  const { github, context } = api;
+  const { data: stacks } = await github.request('GET /repos/{owner}/{repo}/stacks', {
+    ...context.repo, pull_request: current.pr.number,
+    headers: { 'X-GitHub-Api-Version': '2026-03-10' },
+  });
+  const stack = Array.isArray(stacks) && stacks.length === 1 && stacks[0];
+  const entries = stack?.pull_requests;
+  if (!stack || stack.id !== native.id || stack.number !== native.number
+      || stack.base?.ref !== native.base.ref || !Array.isArray(entries) || entries.length !== native.size
+      || new Set(entries.map(entry => entry.number)).size !== entries.length) {
+    throw new Error('Native stack membership changed during branch synchronization');
+  }
+  const prefix = entries.slice(0, native.position).map(entry => {
+    if (!Number.isSafeInteger(entry.number) || entry.number <= 0 || !entry.head?.ref
+        || !/^[a-f0-9]{40}$/.test(entry.head.sha || '')) throw new Error('Incomplete native stack prefix');
+    return { number: entry.number, ref: entry.head.ref, sha: entry.head.sha };
+  });
+  const selected = prefix.at(-1);
+  const { data: trunk } = await github.rest.repos.getBranch({ ...context.repo, branch: native.base.ref });
+  if (selected.number !== current.pr.number || selected.ref !== current.pr.head.ref
+      || selected.sha !== current.pr.head.sha || trunk.commit.sha !== native.base.sha
+      || (native.position > 1 && (prefix.at(-2).ref !== current.pr.base.ref
+        || prefix.at(-2).sha !== current.base))
+      || (native.position === 1 && (native.base.ref !== current.pr.base.ref
+        || native.base.sha !== current.base))) throw new Error('Native prefix or trunk is no longer current');
+  return prefix;
+}
+
+async function checkNativeBaseRace(api, current, { number, head, base }) {
+  const { github, context } = api;
+  const event = context.payload.pull_request;
+  const native = nativeContext(event);
+  const fullName = `${context.repo.owner}/${context.repo.repo}`;
+  if (context.eventName !== 'pull_request' || !native
+      || JSON.stringify(nativeContext(current.pr)) !== JSON.stringify(native)
+      || event.number !== number || event.head?.sha !== head || event.base?.sha !== base
+      || event.head.ref !== current.pr.head.ref || event.base.ref !== current.pr.base.ref
+      || event.head.repo?.full_name !== fullName || current.pr.head.repo?.full_name !== fullName) {
+    throw new Error('PR target changed outside a matching native stack event');
+  }
+  const prefix = await nativePrefix(api, current, native);
+  // Both merge-checkout inputs must already be in head. Project selection still
+  // uses the pinned native trunk, never the historical immediate event base.
+  const { data: comparison } = await github.rest.repos.compareCommits({ ...context.repo, base, head });
+  const refreshed = await snapshot(api, number);
+  if (comparison.behind_by !== 0 || refreshed.pr.state !== 'open' || refreshed.pr.head.sha !== head
+      || refreshed.pr.head.ref !== current.pr.head.ref || refreshed.pr.base.ref !== current.pr.base.ref
+      || refreshed.pr.head.repo?.full_name !== fullName || refreshed.base !== current.base
+      || refreshed.behind !== 0 || JSON.stringify(nativeContext(refreshed.pr)) !== JSON.stringify(native)
+      || JSON.stringify(await nativePrefix(api, refreshed, native)) !== JSON.stringify(prefix)) {
+    throw new Error('Native stack changed or event base is not contained in the current head');
+  }
 }
 
 async function dispatch(api, current) {

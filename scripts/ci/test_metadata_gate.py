@@ -172,6 +172,21 @@ class MetadataGateTests(unittest.TestCase):
             with self.subTest(conclusion=conclusion), self.assertRaises(ValueError):
                 verify(api, REPOSITORY, PULL_REQUEST, 11)
 
+    def test_newer_invalid_product_context_cannot_inherit_older_success(self):
+        for title in (None, '', 'malformed', RUN['display_title'].replace('b' * 40, 'c' * 40)):
+            api = FakeGitHub()
+            api.runs.append({**RUN, 'id': 12, 'run_number': 21, 'display_title': title,
+                             'status': 'in_progress', 'conclusion': None})
+            with self.subTest(title=title), self.assertRaisesRegex(ValueError, 'Newest product'):
+                verify(api, REPOSITORY, PULL_REQUEST, 11)
+
+    def test_recognized_metadata_only_run_can_reuse_exact_product_scope(self):
+        api = FakeGitHub()
+        api.runs.append({**RUN, 'id': 12, 'run_number': 21,
+                         'display_title': RUN['display_title'].replace(' validation |', ' metadata |')})
+        self.assertEqual(10, latest_validation(api.runs, REPOSITORY, PULL_REQUEST, 11)['id'])
+        verify(api, REPOSITORY, PULL_REQUEST, 11)
+
     def test_pending_validation_has_bounded_wait_and_does_not_mint_success(self):
         api = FakeGitHub()
         api.runs[0]['status'] = 'in_progress'

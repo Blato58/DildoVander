@@ -245,6 +245,32 @@ class ProjectSelectionTests(unittest.TestCase):
                 self.assertEqual(set(changed_paths(base, head)),
                                  {"firmware/source.cpp", "mobilni-aplikace/source.cpp"})
 
+    def test_native_trunk_diff_preserves_changes_canceled_against_event_base(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def git(*arguments):
+                return subprocess.check_output(["git", "-C", folder, *arguments], stderr=subprocess.DEVNULL).decode().strip()
+            git("init")
+            git("config", "user.name", "CI test")
+            git("config", "user.email", "ci@example.invalid")
+            source = Path(folder) / "backend/source.cs"
+            source.parent.mkdir(parents=True)
+            source.write_text("trunk\n")
+            git("add", ".")
+            git("commit", "-m", "trunk")
+            trunk = git("rev-parse", "HEAD")
+            source.write_text("lower\n")
+            git("commit", "-am", "old lower")
+            event_base = git("rev-parse", "HEAD")
+            source.write_text("new lower\n")
+            git("commit", "-am", "current lower")
+            source.write_text("lower\n")
+            git("commit", "-am", "upper cancels lower amendment")
+            head = git("rev-parse", "HEAD")
+            original = subprocess.check_output
+            with patch("select_projects.subprocess.check_output", side_effect=lambda args: original(args, cwd=folder)):
+                self.assertEqual(changed_paths(event_base, head), [])
+                self.assertTrue(select_projects(changed_paths(trunk, head))["backend"])
+
     def test_git_diff_keeps_deleted_native_inputs(self):
         with tempfile.TemporaryDirectory() as folder:
             def git(*arguments):
