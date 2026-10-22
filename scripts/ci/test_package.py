@@ -2,7 +2,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import stat
 import tarfile
 import tempfile
 import unittest
@@ -22,7 +24,7 @@ class PackageTests(unittest.TestCase):
         self.package.mkdir()
         self.destination = self.root / 'output'
 
-    def bundle(self, entries):
+    def bundle(self, entries, archive_mode=0o755):
         archive = self.package / 'payload.tar.gz'
         with tarfile.open(archive, 'w:gz') as stream:
             for name, kind in entries:
@@ -30,7 +32,7 @@ class PackageTests(unittest.TestCase):
                 entry.type = kind
                 if kind == tarfile.REGTYPE:
                     entry.size = 7
-                    entry.mode = 0o755
+                    entry.mode = archive_mode
                     stream.addfile(entry, io.BytesIO(b'backend'))
                 else:
                     entry.linkname = '/etc/passwd'
@@ -100,10 +102,18 @@ class PackageTests(unittest.TestCase):
         self.assertFalse((self.package / 'build-manifest.json').exists())
 
     def test_extracts_executable_with_permissions(self):
-        self.bundle([('backend', tarfile.REGTYPE)])
-        module.unpack(self.package, self.destination)
-        self.assertEqual((self.destination / 'backend').read_bytes(), b'backend')
-        self.assertEqual((self.destination / 'backend').stat().st_mode & 0o777, 0o755)
+        for archive_mode in [0o755, 0o4755, 0o2755, 0o1755]:
+            with self.subTest(archive_mode=oct(archive_mode)):
+                self.bundle([('backend', tarfile.REGTYPE)], archive_mode=archive_mode)
+                destination = self.destination / f'{archive_mode:o}'
+                with patch.object(module.Path, 'chmod', autospec=True,
+                                  side_effect=module.Path.chmod) as chmod:
+                    module.unpack(self.package, destination)
+                executable = destination / 'backend'
+                self.assertEqual(executable.read_bytes(), b'backend')
+                chmod.assert_called_once_with(executable, 0o755)
+                if os.name == 'posix':
+                    self.assertEqual(stat.S_IMODE(executable.stat().st_mode), 0o755)
 
     def test_rejects_corrupted_payload(self):
         self.bundle([('backend', tarfile.REGTYPE)])
