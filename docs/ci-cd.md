@@ -15,7 +15,15 @@ zverejneni vypne controller. Fork PR se nemeni.
 
 Zmeny pouze nazvu nebo popisu PR preskoci build jobs a pouzivaji oddelenou
 concurrency skupinu, aby nezrusily probihajici validaci kodu. Zmena cilove vetve
-znovu validuje uplny diff. Pri soubeznem vyberu `web` a `site` provede web job
+znovu validuje uplny diff. Agregat `CI required` se nikdy nepreskoci: pro
+metadata-only udalost read-only verifier vyzaduje dokonceny uspesny produktovy
+run stejneho workflow, PR, presneho head/base a GitHub Actions checku. Tyto SHA
+jsou ulozeny v nazvu runu od jeho vzniku, nikoli prevzaty z editovatelneho PR
+popisu. Metadata run sam neni dukazem pro dalsi reuse. Na probihajici produktovy
+run ceka nejvyse 20 minut v hostovanem gate jobu; chybejici, neuspesny,
+zruseny, nejednoznacny nebo stary dukaz selze. Po vyprseni cekani lze gate
+opakovat po skutecnem dokonceni produktu; lokalni agent nemusi zustat aktivni.
+Pri soubeznem vyberu `web` a `site` provede web job
 sdilene unit testy a build jednou; site prevezme `shared-web-dist` ze stejneho
 runu a zachova browser testy, sestaveni webu a baleni. Samostatny site build
 provede i sdilene testy a build. Tento interni artefakt neni zdrojem pro podpis

@@ -36,27 +36,26 @@ test('main ruleset requires the GitHub Actions aggregate and preserves pull requ
     required_status_checks: [{ context: 'CI required', integration_id: 15368 }],
     strict_required_status_checks_policy: true,
   });
-  const nameExpression = job('required').match(/^    name: \$\{\{ (.+) \}\}$/m)[1];
-  const aggregateName = new Function('github', `return ${nameExpression}`)({ event: { changes: {} } });
+  const aggregateName = job('required').match(/^    name: (.+)$/m)[1];
   assert.equal(aggregateName, rules.get('required_status_checks').parameters.required_status_checks[0].context);
 });
 
-test('metadata edits skip runners and cannot supersede current product validation', () => {
+test('metadata edits reuse exact candidate proof without superseding product validation', () => {
   const validation = { event: { action: 'synchronize', changes: {}, pull_request: { number: 42 } }, run_id: 1 };
   const metadata = { event: { action: 'edited', changes: {}, pull_request: { number: 42 } }, run_id: 2 };
   const baseChange = { event: { action: 'edited', changes: { base: {} }, pull_request: { number: 42 } }, run_id: 3 };
-  for (const name of ['secret-scan', 'changes', 'required']) {
+  for (const name of ['secret-scan', 'changes']) {
     assert.equal(condition(name, metadata), false, name);
     assert.equal(condition(name, validation), true, name);
     assert.equal(condition(name, baseChange), true, name);
   }
   assert.notEqual(concurrencyGroup(metadata), concurrencyGroup(validation));
   assert.equal(concurrencyGroup(baseChange), concurrencyGroup(validation));
-  const checkNameExpression = job('required').match(/^    name: \$\{\{ (.+) \}\}$/m)[1];
-  const checkName = new Function('github', `return ${checkNameExpression}`);
-  assert.equal(checkName(metadata), 'CI metadata');
-  assert.equal(checkName(validation), 'CI required');
-  assert.equal(checkName(baseChange), 'CI required');
+  assert.equal(condition('required', metadata), true);
+  assert.match(job('required'), /^    name: CI required$/m);
+  assert.match(job('required'), /run: python3 scripts\/ci\/verify_metadata_gate.py/);
+  assert.match(job('required'), /if: github.event.action != 'edited' \|\| github.event.changes.base != null/);
+  assert.match(ci, /run-name: >-\s+CI .*'metadata' \|\| 'validation'/);
   assert.match(ci, /cancel-in-progress:.*github.event_name == 'pull_request'/);
   assert.match(ci, /merge_group:\s+types: \[checks_requested\]/);
 });

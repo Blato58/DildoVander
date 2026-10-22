@@ -1,4 +1,6 @@
 name: CI
+run-name: >-
+  CI ${{ github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation' }} | ${{ github.repository }} | PR ${{ github.event.pull_request.number || 0 }} | ${{ github.event.pull_request.head.sha || github.sha }} | ${{ github.event.pull_request.base.sha || github.sha }}
 
 on:
   pull_request:
@@ -191,11 +193,16 @@ jobs:
       reuse-web-dist: ${{ needs.changes.outputs.web == 'true' }}
 
   required:
-    name: ${{ github.event.action == 'edited' && !github.event.changes.base && 'CI metadata' || 'CI required' }}
-    if: always() && (github.event.action != 'edited' || github.event.changes.base != null)
+    name: CI required
+    if: always()
     needs: [secret-scan, changes, repository, backend, firmware, web, ios, ai-eval, site]
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
     env:
       RESULTS: ${{ toJSON(needs) }}
       SELECTED_PROJECTS: ${{ toJSON(needs.changes.outputs) }}
@@ -205,9 +212,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Require secret scan and selected builds to succeed
+        if: github.event.action != 'edited' || github.event.changes.base != null
         run: |
           if [ "$SECRET_SCAN_RESULT" != success ]; then
             echo 'Secret scan did not succeed' >&2
             exit 1
           fi
           python3 scripts/ci/select_projects.py check
+      - name: Verify existing validation for metadata-only edits
+        if: github.event.action == 'edited' && github.event.changes.base == null
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/verify_metadata_gate.py
