@@ -142,7 +142,7 @@ assert.equal(streamed.requests.length, 1, 'Local filters and clearing must not i
 streamed.nodes.get('#theme-toggle').listeners.click();
 assert.equal(streamed.documentElement.dataset.theme, 'olivander');
 assert.equal(streamed.storedPreferences.get('dildovander.theme'), 'olivander');
-assert.match(streamed.nodes.get('#theme-toggle').attributes['aria-label'], /Olivander.*Lord Voldemort/);
+assert.match(streamed.nodes.get('#theme-toggle').attributes['aria-label'], /Mistr hůlek.*Stínový čaroděj/);
 streamed.nodes.get('#theme-toggle').listeners.click();
 assert.equal(streamed.documentElement.dataset.theme, 'lord-voldemort');
 assert.equal(observerSignal.aborted, false, 'Theme changes preserve the observer connection');

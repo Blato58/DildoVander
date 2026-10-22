@@ -193,7 +193,8 @@ def validate_tokens(data):
     for identifier, definition in registry.items():
         if not re.fullmatch(r"[a-z][a-z0-9-]*", identifier) or not isinstance(definition, dict) or set(definition) != {"label", "palette", "presentation"}:
             raise ValueError("Invalid theme registry entry.")
-        if not isinstance(definition["label"], str) or not re.fullmatch(r"[A-Za-z0-9 -]+", definition["label"]):
+        label = definition["label"]
+        if not isinstance(label, str) or not 1 <= len(label) <= 80 or not all(character.isalnum() or character in " -" for character in label):
             raise ValueError("Invalid theme label.")
         if not isinstance(definition["palette"], str) or definition["palette"] not in data["themes"]:
             raise ValueError("Invalid theme label or palette.")

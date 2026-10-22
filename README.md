@@ -83,7 +83,8 @@ odstraněné obrazové podklady a zbývající distribuční podmínky. Kopie do
 pinové mapy, šest referenčních fotografií CAD a čtyři nativní PNG šablony byly
 odstraněny; iOS ikona se generuje z vlastního geometrického zdroje.
 
-DildoVander je neoficiální fanouškovský projekt inspirovaný světem Harryho
-Pottera. Není přidružený k držitelům práv ani jimi schválený. Toto sdělení
-nenahrazuje svolení k použití cizích postav, značek, fotografií nebo děl.
+DildoVander používá původní divadelní role Stínový čaroděj a Mistr hůlek.
+Aktuální produktové texty a prompty nejsou vystavěné na cizích knižních či
+filmových postavách. Starší interní identifikátory zůstávají kvůli kompatibilitě
+uložených nastavení a zařízení; nejsou názvy nabízených rolí.
 Pro spolupráci platí [pravidla chování](CODE_OF_CONDUCT.md).

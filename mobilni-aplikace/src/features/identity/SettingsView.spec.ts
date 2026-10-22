@@ -6,7 +6,7 @@ vi.mock('./session', async () => {
   const {ref} = await import('vue');
   return {account: ref({id: 'owner', displayName: 'Guest', roles: ['Owner']}), accountRequest: api.request, signOut: api.signOut, refreshIdentity: vi.fn(), authenticatePasskey: vi.fn(), deleteAccount: vi.fn(), getAccountDeletionStatus: vi.fn().mockResolvedValue(null), hasRole: () => true};
 });
-vi.mock('../../application/preferences', () => ({usePreferences: () => ({theme: 'lord-voldemort', themes: [{id: 'lord-voldemort', label: 'Lord Voldemort'}, {id: 'olivander', label: 'Olivander'}]})}));
+vi.mock('../../application/preferences', () => ({usePreferences: () => ({theme: 'lord-voldemort', themes: [{id: 'lord-voldemort', label: 'Stínový čaroděj'}, {id: 'olivander', label: 'Mistr hůlek'}]})}));
 beforeEach(() => {
   let name: string | null = null;
   api.signOut.mockReset(); api.request.mockReset(); api.request.mockImplementation(async (_path, method, body) => {

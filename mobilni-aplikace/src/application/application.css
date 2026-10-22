@@ -121,8 +121,8 @@ textarea { resize: vertical; }
 .application-footer { align-items: center; }
 .application-install-link { display: inline-flex; align-items: center; min-height: 44px; }
 
-/* Lord Voldemort uses the quieter, compact proportions of the desktop workspace.
-   Olivander keeps the original application rules above. */
+/* Stínový čaroděj uses the quieter, compact proportions of the desktop workspace.
+   Mistr hůlek keeps the original application rules above. */
 :root[data-theme="lord-voldemort"] h1 { font-size: var(--application-page-title, clamp(1.7rem, 3vw, 2.25rem)); letter-spacing: -.035em; }
 :root[data-theme="lord-voldemort"] h2 { font-size: 1.05rem; letter-spacing: -.015em; }
 :root[data-theme="lord-voldemort"] .application-shell { grid-template-columns: var(--application-sidebar-width, 14rem) minmax(0, 1fr); }

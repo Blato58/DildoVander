@@ -19,7 +19,7 @@ Zveřejnění samo nenahrazuje licenci; GitHub rozlišuje veřejný repozitář 
 | Šest referenčních fotografií F2 | Kopie PNG odstraněny. [Textová evidence](../mechanika/final/reference/evidence.json) uchovává rozměry potvrzené majitelem, jejich původ a nezměřené položky. | Při doplnění vlastních podkladů doložit původ a potřebná oprávnění; generované CAD podmínky nenahrazují fyzickou akceptaci. |
 | Nativní iOS AppIcon a launch screen | Čtyři PNG šablony odstraněny. [Vlastní geometrický generátor](../mobilni-aplikace/scripts/generate-native-assets.mjs), AGPL-3.0-only, kreslí kufr se šesti přihrádkami z Arcane Workshop tokenů; launch storyboard používá jednobarevné pozadí. Bez stažených obrazových či fontových podkladů. | PNG ikona vzniká jako ignorovaný výstup před nativním buildem; 1024 × 1024, RGB bez alfa kanálu. Nativní kompilace a podpis vyžadují samostatné ověření v existujícím macOS workflow. |
 | CAD, viewer a výrobní exporty | [F2](../mechanika/final/README.md) je parametrický projekt; vlastní zdroje používají AGPL-3.0-only. STL/STEP/ZIP a náhledy se generují skutečným postupem. Aktuální git index neobsahuje STL, STEP ani audio nahrávky. | U generovaných modelů posoudit odvozené prvky a distribuční podmínky; samotná licence generátoru není automatickou licencí všech jeho výstupů. Každý distribuovaný ZIP/web/IPA/firmware potřebuje vlastní inventář. |
-| AI persony a katalog | Texty a názvy v `ai-eval/` používají svět Harryho Pottera a Ollivandera; další replika vzniká při běhu poskytovatele. | Posoudit veřejné použití postav/názvů, výstupů a marketingu; neslibovat oprávnění k cizím značkám nebo dílům. |
+| AI persony a katalog | Aktuální produktové role Stínový čaroděj a Mistr hůlek mají původní popisy a prompty; katalog obsahuje vlastní party rekvizity. Starší názvy souborů a interní klíče zůstávají kvůli kompatibilitě uložených nastavení a zařízení. Další replika vzniká při běhu poskytovatele. | Před distribucí posoudit konkrétní výstupy a marketing; tato náhrada neprohlašuje právní bezrizikovost ani oprávnění k cizím dílům. |
 
 OFL dovoluje bundling za svých podmínek, včetně přiložení licence a copyrightu;
 upravené fonty podléhají pravidlům reserved font names. Viz
@@ -46,9 +46,11 @@ nedokazuje podmínky celého artefaktu. Python requirements nejsou úplný hash
 lock přechodných knihoven. Tento inventář netvrdí úplné licenční schválení
 npm/NuGet/Python/firmware/iOS závislostí.
 
-## Fanouškovský kontext
+## Historický kontext
 
-Projekt není přidružený k držitelům práv Harryho Pottera ani jimi schválený.
+Starší plány a reporty zachycují někdejší fanouškovské reference; současné
+produktové role je nahrazují původními popisy. Historie není zdrojem současné
+identity produktu. Projekt není přidružený k držitelům práv Harryho Pottera ani jimi schválený.
 [Oficiální právní oznámení](https://www.harrypotter.com/legals) uvádí příslušná
 práva Warner Bros. a J. K. Rowlingové. Disclaimer, nekomerční záměr, zakoupení
 rekvizity ani připsání autora nejsou samy svolením k redistribuci chráněných

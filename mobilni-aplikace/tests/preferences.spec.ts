@@ -23,7 +23,7 @@ describe('shared application theme preference', () => {
   it('uses the registry and synchronizes independent Vue consumers immediately', () => {
     const first = preferences();
     const second = preferences();
-    expect(first.themes.map(theme => theme.label)).toEqual(['Lord Voldemort', 'Olivander']);
+    expect(first.themes.map(theme => theme.label)).toEqual(['Stínový čaroděj', 'Mistr hůlek']);
     first.theme = 'olivander';
     expect(second.theme).toBe('olivander');
     expect(getTheme()).toBe('olivander');

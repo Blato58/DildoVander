@@ -142,7 +142,7 @@ describe('application boundaries', () => {
     await input.setValue('Poznámka zůstává');
     (input.element as HTMLInputElement).focus();
     const selector = wrapper.get('select[aria-label="Vzhled aplikace"]');
-    expect(selector.findAll('option').map(option => option.text())).toEqual(['Lord Voldemort', 'Olivander']);
+    expect(selector.findAll('option').map(option => option.text())).toEqual(['Stínový čaroděj', 'Mistr hůlek']);
     for (const theme of ['olivander', 'lord-voldemort']) {
       await selector.setValue(theme);
       expect(document.documentElement.dataset.theme).toBe(theme);

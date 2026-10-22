@@ -38,6 +38,23 @@ class DesignTokenTests(unittest.TestCase):
     def test_committed_outputs_are_current(self):
         self.assertEqual([], GENERATOR.check(ROOT))
 
+    def test_theme_labels_accept_original_localized_names_without_relaxing_identifiers(self):
+        value = copy.deepcopy(self.data)
+        value["themeRegistry"]["lord-voldemort"]["label"] = "Stínový čaroděj"
+        value["themeRegistry"]["olivander"]["label"] = "Mistr hůlek"
+        GENERATOR.validate_tokens(value)
+        value["themeRegistry"]["stínový"] = copy.deepcopy(value["themeRegistry"]["olivander"])
+        with self.assertRaises(ValueError):
+            GENERATOR.validate_tokens(value)
+
+    def test_theme_labels_reject_controls_markup_and_other_punctuation(self):
+        for label in ["", "a" * 81, "Čaroděj\n", "Čaroděj\t", "Čaroděj\x00", "Čaroděj<svg>", "Čaroděj_", "Čaroděj’", "Čaroděj\u202e"]:
+            with self.subTest(label=label):
+                value = copy.deepcopy(self.data)
+                value["themeRegistry"]["olivander"]["label"] = label
+                with self.assertRaises(ValueError):
+                    GENERATOR.validate_tokens(value)
+
     def test_rejects_malformed_and_injected_values(self):
         mutations = [
             lambda value: value.update(defaultTheme="olivander"),
