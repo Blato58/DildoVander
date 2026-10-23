@@ -26,7 +26,7 @@ const profile = { profileId: 'profile-1', revision: 1, userInput: { name: 'Luna'
 const bleStatus = { v: 1, deviceId: 'device-1', bootId: 'boot-1', challenge: 'challenge-secret', capabilities: { customerStart: 1 }, state: 'idle' as const };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(complete => { resolve = complete; }); return { promise, resolve }; }
 const router = async (path = '/me/conversation') => {
-  const instance = createRouter({ history: createMemoryHistory(), routes: [{ path: '/me/character', component: CustomerView }, { path: '/me/conversation', component: CustomerView }] });
+  const instance = createRouter({ history: createMemoryHistory(), routes: [{ path: '/me/character', component: CustomerView }, { path: '/me/conversation', component: CustomerView }, { path: '/me/account', component: { template: '<div />' } }] });
   await instance.push(path); await instance.isReady(); return instance;
 };
 
@@ -42,13 +42,136 @@ describe('customer conversation', () => {
     expect(wrapper.text()).toContain('OpenAI');
     expect(wrapper.text()).toContain('Bez zaškrtnutí profil uložíme');
     await wrapper.get('form').trigger('submit'); await flushPromises();
-    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: false }));
+    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: false }), expect.any(AbortSignal));
     expect(wrapper.findAll('button').find(button => button.text() === 'Tohle není moje postava')!.attributes('disabled')).toBeDefined();
     await consent.setValue(true);
     await wrapper.get('form').trigger('submit'); await flushPromises();
-    expect(api.request).toHaveBeenLastCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: true }));
+    expect(api.request).toHaveBeenLastCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: true }), expect.any(AbortSignal));
     expect((consent.element as HTMLInputElement).checked).toBe(false);
     wrapper.unmount();
+  });
+  it.each(['expired', 'ended', 'cancelled', 'future_runtime_state'])('continues reconciling unrecognized session state %s', async state => {
+    vi.useFakeTimers();
+    let sessionReads = 0;
+    api.request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/character')) return { profile };
+      if (path.endsWith('/sessions')) {
+        sessionReads += 1;
+        return { items: [{ id: 'uncertain-session', operationId: 'original-operation', deviceId: 'device-1', profileId: profile.profileId, profileRevision: 1, state, endRequested: false, createdAt: 1792540800 }] };
+      }
+      throw new Error(`Unexpected request ${path}`);
+    });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    const initialReads = sessionReads;
+    await vi.advanceTimersByTimeAsync(2500);
+    await flushPromises();
+    expect(sessionReads).toBeGreaterThan(initialReads);
+    expect(wrapper.text()).toContain('Stav se ověřuje');
+    expect(api.start).not.toHaveBeenCalled();
+    expect(api.request.mock.calls.some(call => call[0].endsWith('/start-tickets'))).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('recovers a restored session after a failed initial poll and waits for recovering Stop acknowledgement', async () => {
+    vi.useFakeTimers();
+    api.supported = false;
+    let sessionReads = 0;
+    let state = 'recovering';
+    let endRequested = false;
+    api.request.mockImplementation(async (path: string, method?: string) => {
+      if (path.endsWith('/character')) return { profile };
+      if (path.endsWith('/sessions') && method === 'GET') {
+        sessionReads += 1;
+        if (sessionReads === 1) throw new TypeError('Failed to fetch');
+        return { items: [{ id: 'session-recovery', operationId: 'accepted-before-relaunch', deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, state, endRequested, createdAt: 1792540800, characterName: 'Restored' }] };
+      }
+      if (path.endsWith('/session-recovery/end') && method === 'POST') { endRequested = true; return { state: 'ending' }; }
+      throw new Error(`Unexpected request ${path}`);
+    });
+
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Server není dostupný');
+    expect(wrapper.findAll('button').some(button => button.text() === 'Obnovit stav rozhovoru')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushPromises();
+    expect(wrapper.text()).toContain('Stav: Obnovuje se');
+    expect(wrapper.text()).not.toContain('Ověřujeme, zda kufr rozhovor přijal');
+    expect(api.request.mock.calls.some(call => call[0].endsWith('/start-tickets'))).toBe(false);
+    expect(api.start).not.toHaveBeenCalled();
+
+    await wrapper.findAll('button').find(button => button.text() === 'Ukončit rozhovor')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('button').find(button => button.text() === 'Konec požádán')?.attributes('disabled')).toBeDefined();
+    expect(api.end).not.toHaveBeenCalled();
+    expect(api.request.mock.calls.filter(call => call[0].endsWith('/session-recovery/end'))).toHaveLength(1);
+
+    state = 'completed';
+    await wrapper.findAll('button').find(button => button.text() === 'Obnovit stav rozhovoru')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Stav: Dokončen');
+    expect(wrapper.findAll('button').some(button => button.text() === 'Konec požádán')).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('redacts unknown native failures while showing actionable Bluetooth permission feedback', async () => {
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
+    api.discover.mockRejectedValue(new Error('permission_denied'));
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+
+    await wrapper.findAll('button').find(button => button.text() === 'Najít kufr poblíž')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Povolte aplikaci přístup k Bluetooth');
+    expect(wrapper.text()).toContain('Diagnostika: permission_denied');
+
+    api.discover.mockRejectedValueOnce(new Error('Authorization: Bearer sensitive-device-token'));
+    await wrapper.findAll('button').find(button => button.text() === 'Najít kufr poblíž')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('sensitive-device-token');
+    expect(wrapper.text()).toContain('Stav rozhovoru se nepodařilo načíst');
+    wrapper.unmount();
+  });
+
+  it('cancels stale session work while hidden and refreshes when visible or online', async () => {
+    vi.useFakeTimers();
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+    const firstRead = deferred<{ items: Array<{ id: string; operationId: string; deviceId: string; profileId: string; profileRevision: number; state: string; endRequested: boolean; createdAt: number; characterName: string }> }>();
+    let sessionReads = 0;
+    api.request.mockImplementation((path: string) => {
+      if (path.endsWith('/character')) return Promise.resolve({ profile });
+      if (path.endsWith('/sessions')) {
+        sessionReads += 1;
+        return sessionReads === 1 ? firstRead.promise : Promise.resolve({ items: [] });
+      }
+      return Promise.resolve({ items: [] });
+    });
+
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    const firstRequest = api.request.mock.calls.find(call => call[0].endsWith('/sessions'))!;
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    firstRead.resolve({ items: [{ id: 'late-session', operationId: 'late-op', deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, state: 'running', endRequested: false, createdAt: 1792540800, characterName: 'Late response' }] });
+    await flushPromises();
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(firstRequest[3].aborted).toBe(true);
+    expect(sessionReads).toBe(1);
+    expect(wrapper.text()).not.toContain('Late response');
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushPromises();
+    expect(sessionReads).toBe(2);
+    window.dispatchEvent(new Event('online'));
+    await flushPromises();
+    expect(sessionReads).toBe(3);
+    wrapper.unmount();
+    if (originalVisibility) Object.defineProperty(document, 'visibilityState', originalVisibility);
+    else Reflect.deleteProperty(document, 'visibilityState');
   });
   it('does not request Bluetooth until the visitor explicitly starts discovery', async () => {
     api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
@@ -91,7 +214,7 @@ describe('customer conversation', () => {
     await wrapper.get('#conversation-openai-consent').setValue(true);
     const startButton = wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!;
     await startButton.trigger('click'); await flushPromises();
-    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/start-tickets', 'POST', expect.objectContaining({ protocolVersion: 1, deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, openAiConsent: true }));
+    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/start-tickets', 'POST', expect.objectContaining({ protocolVersion: 1, deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, openAiConsent: true }), expect.any(AbortSignal));
     expect(api.start).toHaveBeenCalledWith('ephemeral-ticket', expect.any(String));
     expect(api.status).toHaveBeenCalled();
     const operationId = api.start.mock.calls[0][1];
@@ -334,7 +457,10 @@ describe('customer conversation', () => {
     const callsBeforeSwitch = listCalls;
     api.setAccount({ id: 'customer-2', displayName: 'Second guest', roles: ['Customer'] });
     await flushPromises(); await vi.advanceTimersByTimeAsync(5000); await flushPromises();
-    expect(listCalls).toBe(callsBeforeSwitch);
+    const callsAfterNewAccountLoad = listCalls;
+    expect(callsAfterNewAccountLoad).toBeGreaterThan(callsBeforeSwitch);
+    await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    expect(listCalls).toBe(callsAfterNewAccountLoad);
     expect(wrapper.text()).not.toContain('Ověřujeme, zda kufr rozhovor přijal');
     wrapper.unmount(); vi.useRealTimers();
   });
@@ -381,9 +507,7 @@ describe('customer conversation', () => {
       if (path.endsWith('/sessions')) return { items: [] };
       throw new Error(`Unexpected request ${path}`);
     });
-    const instance = createRouter({ history: createMemoryHistory(), routes: [{ path: '/me/character', component: CustomerView }] });
-    await instance.push('/me/character'); await instance.isReady();
-    const wrapper = mount(CustomerView, { global: { plugins: [instance] } });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
     await flushPromises();
     await wrapper.get('#character-name').setValue('Luna');
     await wrapper.get('#character-world').setValue('Moon Saga');
@@ -392,8 +516,62 @@ describe('customer conversation', () => {
     expect(initial).toMatchObject({ expectedRevision: 0, expectedProfileId: null, userInput: { name: 'Luna', world: 'Moon Saga' } });
     expect(initial).not.toHaveProperty('newCharacter');
     await wrapper.findAll('button').find(button => button.text() === 'Nová postava')!.trigger('click'); await flushPromises();
+    expect(api.request.mock.calls.filter(call => call[1] === 'PUT')).toHaveLength(1);
+    expect(wrapper.get('#new-character-name').element).toHaveProperty('value', '');
+    await wrapper.get('#new-character-name').setValue('Mira');
+    await wrapper.get('#new-character-world').setValue('Star Book');
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
     const writes = api.request.mock.calls.filter(call => call[0].endsWith('/character') && call[1] === 'PUT');
-    expect(writes[1][2]).toMatchObject({ expectedRevision: 1, expectedProfileId: 'profile-1', newCharacter: true });
+    expect(writes[1][2]).toMatchObject({ expectedRevision: 1, expectedProfileId: 'profile-1', newCharacter: true, openAiConsent: false, userInput: { name: 'Mira', world: 'Star Book' } });
+    expect(wrapper.get('#character-name').element).toHaveProperty('value', 'Mira');
+    expect(wrapper.get('#character-confirmation-title').text()).toBe('Mira');
+    wrapper.unmount();
+  });
+
+  it('cancels a new identity without saving or losing existing unsaved corrections and consent', async () => {
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
+    await flushPromises();
+    await wrapper.get('#character-name').setValue('Moje neuložená oprava');
+    await wrapper.get('#character-openai-consent').setValue(true);
+    await wrapper.findAll('button').find(button => button.text() === 'Nová postava')!.trigger('click');
+    expect((wrapper.get('#new-character-openai-consent').element as HTMLInputElement).checked).toBe(false);
+    await wrapper.get('#new-character-name').setValue('Rozpracovaná nová');
+    await wrapper.findAll('button').find(button => button.text() === 'Zrušit')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.get('dialog').element).toHaveProperty('open', false);
+    expect(wrapper.get('#character-name').element).toHaveProperty('value', 'Moje neuložená oprava');
+    expect((wrapper.get('#character-openai-consent').element as HTMLInputElement).checked).toBe(true);
+    expect(api.request.mock.calls.filter(call => call[1] === 'PUT')).toHaveLength(0);
+    wrapper.unmount();
+  });
+
+  it('preserves both drafts after a rejected new identity and retries only on confirmation', async () => {
+    let writes = 0;
+    api.request.mockImplementation(async (path: string, method?: string, body?: Record<string, unknown>) => {
+      if (method === 'PUT') {
+        if (++writes === 1) throw new Error('Profil se mezitím změnil. Obnovte jej.');
+        return { profile: { ...profile, profileId: 'profile-2', userInput: body?.userInput, status: 'saved' } };
+      }
+      return path.endsWith('/character') ? { profile } : { items: [] };
+    });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
+    await flushPromises();
+    await wrapper.get('#character-name').setValue('Původní koncept');
+    await wrapper.findAll('button').find(button => button.text() === 'Nová postava')!.trigger('click');
+    await wrapper.get('#new-character-name').setValue('Mira');
+    await wrapper.get('#new-character-world').setValue('Star Book');
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
+    expect(wrapper.get('dialog').element).toHaveProperty('open', true);
+    expect(wrapper.get('dialog [role="alert"]').text()).toContain('Profil se mezitím změnil');
+    expect(wrapper.get('#character-name').element).toHaveProperty('value', 'Původní koncept');
+    expect(wrapper.get('#new-character-name').element).toHaveProperty('value', 'Mira');
+    expect(wrapper.get('#character-confirmation-title').text()).toBe('Luna');
+    expect(writes).toBe(1);
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
+    expect(writes).toBe(2);
+    expect(wrapper.get('dialog').element).toHaveProperty('open', false);
+    expect(wrapper.text()).toContain('Postava je uložená bez AI přípravy');
     wrapper.unmount();
   });
 

@@ -66,6 +66,32 @@ termination of that exact owned session. BLE `end` is only a poll/wake hint; it
 does not grant global Stop. Operator Stop retains priority. Locking or losing
 the phone after accepted start does not stop the independent suitcase.
 
+## Phone refresh and interruption recovery
+
+Customer and operator views refresh the existing account-authorized sessions.
+Active sessions are polled every 2.5 seconds. A transient read failure marks the
+display stale and retries with delays increasing from one second to a maximum
+of 30 seconds; it never creates a replacement conversation. A restored session
+can be refreshed without a locally pending start operation or a BLE connection.
+
+Backgrounding the page cancels its refresh work. Foreground, network reconnect
+and the manual refresh action request authoritative state again. An account
+change or unmount aborts obsolete reads and fences late responses. Account
+changes clear the previous account's private state before loading the new one.
+
+An uncertain start retains its original operation and ticket request. Only a
+definitive server rejection or an authoritative expired-operation result allows
+that identity to be retired; phone timeouts do not release a device lease.
+Owners may request an end while a session is recovering. The display keeps the
+request pending until runtime acknowledgement rather than presenting the HTTP
+acceptance or BLE disconnect as physical completion. Operator Stop remains a
+separate, higher-priority control.
+
+Known Bluetooth, permission and network failures have actionable messages and
+allowlisted diagnostic codes. Unknown native error strings are not displayed.
+The component/browser fixtures and recovered-journal tests verify software
+reconciliation; they do not prove iPhone background behavior or physical Stop.
+
 ## Private data, jobs and outputs
 
 Character input and enrichment live in the existing account data root's additive

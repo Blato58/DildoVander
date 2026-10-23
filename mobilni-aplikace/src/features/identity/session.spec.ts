@@ -7,6 +7,84 @@ let request: ReturnType<typeof vi.fn>;
 beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+describe('native account archive transport limits', () => {
+  const archiveId = '123e4567-e89b-42d3-a456-426614174000';
+  const uploadPath = `/app/v1/archive/owned/${archiveId}/portrait-uploads`;
+  const uploadResponse = {status: 201, headers: {'content-type': 'application/json'}, bodyBase64: btoa('{}')};
+
+  it('limits expanded roles to exact methods, identifiers, media types and paths', async () => {
+    const identity = await import('./session');
+    for (const path of [uploadPath + '\n', uploadPath + '\u2028', uploadPath + '/', uploadPath + '#x',
+      uploadPath.replace(archiveId, 'not-a-uuid'), uploadPath.replace('/owned/', '//owned/')]) {
+      expect(identity.accountTransportBodyLimit(path, 'POST', 'image/jpeg')).toBe(262144);
+    }
+    for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
+      expect(identity.accountTransportBodyLimit(uploadPath, 'POST', type)).toBe(8 * 1024 * 1024);
+    }
+    expect(identity.accountTransportBodyLimit(uploadPath, 'GET', 'image/jpeg')).toBe(262144);
+    expect(identity.accountTransportBodyLimit(uploadPath, 'POST', 'application/json')).toBe(262144);
+    const assetPath = `/app/v1/archive/owned/${archiveId}/assets/${archiveId}`;
+    for (const path of [assetPath + '\n', assetPath + '?x=1', assetPath.replace('/assets/', '/assets/not-a-uuid/')]) {
+      expect(identity.accountTransportResponseLimit(path, 'GET')).toBe(1024 * 1024);
+    }
+    expect(identity.accountTransportResponseLimit(assetPath, 'POST')).toBe(1024 * 1024);
+  });
+
+  it('sends an original portrait larger than 256 KiB with scoped numeric consent', async () => {
+    bridge.native = true;
+    bridge.accountTransport.mockResolvedValueOnce(uploadResponse);
+    const identity = await import('./session');
+    const original = new Blob([new Uint8Array(300 * 1024)], {type: 'image/jpeg'});
+    await identity.accountTransport(uploadPath, {
+      method: 'POST', body: original, headers: {'Content-Type': 'image/jpeg', 'X-DV10-Consent': '7'},
+    });
+    const request = bridge.accountTransport.mock.calls[0]![0];
+    expect(atob(request.bodyBase64).length).toBe(300 * 1024);
+    expect(request.headers).toMatchObject({'Content-Type': 'image/jpeg', 'X-DV10-Consent': '7'});
+  });
+
+  it('rejects the upload cap plus one and rejects consent outside the upload role', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    await expect(identity.accountTransport(uploadPath, {
+      method: 'POST', body: new Blob([new Uint8Array(8 * 1024 * 1024 + 1)], {type: 'image/jpeg'}),
+      headers: {'Content-Type': 'image/jpeg', 'X-DV10-Consent': '7'},
+    })).rejects.toThrow('povolenou velikost');
+    await expect(identity.accountTransport('/app/v1/account', {
+      method: 'GET', headers: {'X-DV10-Consent': '7'},
+    })).rejects.toThrow('Neplatná cesta účtu');
+    expect(bridge.accountTransport).not.toHaveBeenCalled();
+  });
+
+  it('keeps the generic body cap for unsupported MIME and malformed upload paths', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    await expect(identity.accountTransport(uploadPath, {
+      method: 'POST', body: new Blob([new Uint8Array(262145)], {type: 'image/svg+xml'}),
+      headers: {'Content-Type': 'image/svg+xml', 'X-DV10-Consent': '7'},
+    })).rejects.toThrow('povolenou velikost');
+    await expect(identity.accountTransport(`${uploadPath}?extra=1`, {
+      method: 'POST', body: new Blob([new Uint8Array(262145)], {type: 'image/jpeg'}),
+      headers: {'Content-Type': 'image/jpeg', 'X-DV10-Consent': '7'},
+    })).rejects.toThrow('Neplatná cesta účtu');
+    expect(bridge.accountTransport).not.toHaveBeenCalled();
+  });
+
+  it('admits large owned asset responses while keeping the generic response cap', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    expect(identity.accountTransportResponseAllowed(`/app/v1/archive/owned/${archiveId}/assets/${archiveId}`, 'GET', 32 * 1024 * 1024)).toBe(true);
+    expect(identity.accountTransportResponseAllowed(`/app/v1/archive/owned/${archiveId}/assets/${archiveId}`, 'GET', 32 * 1024 * 1024 + 1)).toBe(false);
+    const oversizedGeneric = btoa('x'.repeat(1024 * 1024 + 1));
+    bridge.accountTransport.mockResolvedValueOnce({status: 200, headers: {}, bodyBase64: oversizedGeneric});
+    await expect(identity.accountTransport('/app/v1/account')).rejects.toThrow('příliš velká');
+
+    bridge.accountTransport.mockResolvedValueOnce({status: 200, headers: {}, bodyBase64: oversizedGeneric});
+    const asset = await identity.accountTransport(`/app/v1/archive/owned/${archiveId}/assets/${archiveId}`);
+    expect((await asset.arrayBuffer()).byteLength).toBe(1024 * 1024 + 1);
+  });
+});
+
 describe('durable account deletion', () => {
   async function signedIn() {
     const identity = await import('./session');

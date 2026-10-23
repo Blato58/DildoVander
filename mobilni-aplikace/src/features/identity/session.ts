@@ -17,6 +17,41 @@ interface IdentityBridge {
 }
 const nativeIdentity = registerPlugin<IdentityBridge>('KufrIdentity');
 const native = Capacitor.isNativePlatform();
+const archiveUuid = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const ownedPortraitUpload = new RegExp(`^/app/v1/archive/owned/${archiveUuid}/portrait-uploads$`, 'i');
+const archiveAsset = new RegExp(`^/app/v1/archive/(?:owned|associations)/${archiveUuid}/assets/${archiveUuid}$`, 'i');
+
+function matchesArchivePath(pattern: RegExp, path: string): boolean {
+  // JavaScript's $ anchor also matches before a final line terminator.
+  return !/\s/.test(path) && pattern.test(path);
+}
+
+export function accountTransportBodyLimit(path: string, method: string, contentType: string | null): number {
+  if (!matchesArchivePath(ownedPortraitUpload, path) || method !== 'POST') return 262144;
+  const mediaType = contentType?.split(';', 1)[0].trim().toLowerCase();
+  return ['image/jpeg', 'image/png', 'image/webp'].includes(mediaType ?? '') ? 8 * 1024 * 1024 : 262144;
+}
+
+export function accountTransportResponseLimit(path: string, method: string): number {
+  return method === 'GET' && matchesArchivePath(archiveAsset, path) ? 32 * 1024 * 1024 : 1024 * 1024;
+}
+
+export function accountTransportResponseAllowed(path: string, method: string, size: number): boolean {
+  return Number.isSafeInteger(size) && size >= 0 && size <= accountTransportResponseLimit(path, method);
+}
+
+function validPortraitConsent(path: string, method: string, value: string | null): boolean {
+  if (value === null) return true;
+  return matchesArchivePath(ownedPortraitUpload, path) && method === 'POST' && /^[0-9]{1,10}$/.test(value)
+    && Number(value) > 0 && Number(value) <= 2147483647;
+}
+function encodeAccountBody(bytes: Uint8Array): string {
+  const chunks: string[] = [];
+  for (let offset = 0; offset < bytes.length; offset += 32768) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + 32768)));
+  }
+  return btoa(chunks.join(''));
+}
 export const account = ref<Account | null>(null);
 const deletionRequested = ref(false);
 export const accountDeletionRequested = readonly(deletionRequested);
@@ -96,22 +131,25 @@ export async function accountTransport(path: string, init: RequestInit = {}): Pr
     requireCurrentAuthentication(generation);
     return response;
   }
+  if (!validPortraitConsent(path, method, headers.get('X-DV10-Consent'))) throw new Error('Neplatná cesta účtu.');
+  const bodyLimit = accountTransportBodyLimit(path, method, headers.get('Content-Type'));
   let bytes: Uint8Array | undefined;
   if (typeof init.body === 'string') bytes = new TextEncoder().encode(init.body);
   else if (init.body instanceof Blob) bytes = new Uint8Array(await init.body.arrayBuffer());
   else if (init.body instanceof ArrayBuffer) bytes = new Uint8Array(init.body);
   else if (ArrayBuffer.isView(init.body)) bytes = new Uint8Array(init.body.buffer, init.body.byteOffset, init.body.byteLength);
   else if (init.body != null) throw new Error('Nepodporovaný formát požadavku účtu.');
-  if (bytes && bytes.length > 262144) throw new Error('Požadavek překročil povolenou velikost.');
-  const encoded = bytes ? btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join('')) : undefined;
+  if (bytes && bytes.length > bodyLimit) throw new Error('Požadavek překročil povolenou velikost.');
+  const encoded = bytes ? encodeAccountBody(bytes) : undefined;
   requireCurrentAuthentication(generation);
   throwIfAborted(init.signal);
   const response = await nativeAccountCall(init.signal, requestId => nativeIdentity.accountTransport({ requestId, path, method, headers: Object.fromEntries(headers), bodyBase64: encoded }));
   requireCurrentAuthentication(generation);
   throwIfAborted(init.signal);
-  const archiveAsset = /^\/app\/v1\/archive\/associations\/[0-9a-f-]{36}\/assets\/[0-9a-f-]{36}$/i.test(path);
-  if (response.bodyBase64.length > (archiveAsset ? 44739244 : 1398104)) throw new Error('Odpověď serveru je příliš velká.');
+  const responseLimit = accountTransportResponseLimit(path, method);
+  if (response.bodyBase64.length > Math.ceil(responseLimit / 3) * 4) throw new Error('Odpověď serveru je příliš velká.');
   const body = Uint8Array.from(atob(response.bodyBase64), char => char.charCodeAt(0));
+  if (!accountTransportResponseAllowed(path, method, body.length)) throw new Error('Odpověď serveru je příliš velká.');
   return new Response([204, 205, 304].includes(response.status) ? null : body, { status: response.status, headers: response.headers });
 }
 

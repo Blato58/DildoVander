@@ -186,14 +186,20 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
             request.httpMethod = method
             request.setValue(origin.absoluteString, forHTTPHeaderField: "Origin")
-            let permitted = ["accept", "content-type", "x-dv-csrf", "x-dv-confirm", "x-dv-device-id", "idempotency-key", "session-id", "boot-id", "media-epoch", "input-epoch", "input-sequence"]
+            let permitted = ["accept", "content-type", "x-dv-csrf", "x-dv-confirm", "x-dv-device-id", "idempotency-key", "session-id", "boot-id", "media-epoch", "input-epoch", "input-sequence", "x-dv10-consent"]
             for (name, value) in call.getObject("headers") ?? [:] {
                 guard permitted.contains(name.lowercased()), let text = value as? String, text.count <= 1024,
-                      !text.contains("\r"), !text.contains("\n") else { throw AccountError.invalidPath }
+                      !text.contains("\r"), !text.contains("\n"),
+                      AccountTransportPolicy.accountHeaderAllowed(path: path, method: method, name: name, value: text) else { throw AccountError.invalidPath }
                 if name.lowercased() != "x-dv-csrf" { request.setValue(text, forHTTPHeaderField: name) }
             }
             if let encoded = call.getString("bodyBase64") {
-                guard encoded.utf8.count <= 349528, let data = Data(base64Encoded: encoded), data.count <= 262144 else { throw AccountError.invalidResponse }
+                let bodyLimit = AccountTransportPolicy.accountRequestBodyLimit(
+                    path: path, method: method, contentType: request.value(forHTTPHeaderField: "Content-Type"))
+                let encodedLimit = ((bodyLimit + 2) / 3) * 4
+                guard encoded.utf8.count <= encodedLimit, let data = Data(base64Encoded: encoded),
+                      AccountTransportPolicy.accountRequestBodyAllowed(path: path, method: method,
+                        contentType: request.value(forHTTPHeaderField: "Content-Type"), size: data.count) else { throw AccountError.invalidResponse }
                 request.httpBody = data
             }
             let device = request.value(forHTTPHeaderField: "X-DV-Device-Id") ?? ""
@@ -221,8 +227,8 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 result = try await session.data(for: request)
                 try Task.checkCancellation()
             }
-            let archiveAsset = path.hasPrefix("/app/v1/archive/associations/") && path.contains("/assets/")
-            guard let http = result.1 as? HTTPURLResponse, result.0.count <= (archiveAsset ? 33554432 : 1048576),
+            guard let http = result.1 as? HTTPURLResponse,
+                  AccountTransportPolicy.accountResponseAllowed(path: path, method: method, size: result.0.count),
                   http.url?.host == origin.host, http.url?.scheme == origin.scheme, http.url?.port == origin.port else { throw AccountError.invalidResponse }
             if [401, 403].contains(http.statusCode) { try clearOfflineSession(origin: origin) }
             try acceptAccountDeletion(path: path, method: method, status: http.statusCode, body: result.0, origin: origin)
