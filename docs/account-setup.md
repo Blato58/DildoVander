@@ -188,10 +188,28 @@ mutace. Odvolání všech přístupů nebo smazání památky zneplatní také �
 
 ## Ztracené klíče a kontrolovaná obnova
 
-Pokud existuje jiný vlastník, vydá ve Správě konkrétnímu účtu hodinový obnovovací
-odkaz. Obnova po úspěšném ověření nového klíče zneplatní původní passkeys a
-relace, zachová účet a jeho granty. Neověřená či neplatná attestation nesmí
-původní přístup odstranit.
+Před obnovou zkuste zálohovaný passkey ve správci hesel nebo jiný klíč již
+registrovaný u účtu. Na důvěryhodném zařízení s platnou relací lze v Nastavení
+účtu zkontrolovat klíče; přidání dalšího vyžaduje příslušné čerstvé ověření.
+
+Pokud žádný klíč nelze použít, podpora převezme žádost s minimálním ne-tajným
+identifikátorem účtu a popisem problému. Nevyžaduje passkeys, obnovovací odkazy,
+párovací QR ani soukromé fotografie či rozhovory. Vlastnictví musí ověřit
+nezávislými důvěryhodnými podklady v existujícím procesu podpory; samotné
+zobrazované jméno nebo sdílený odkaz na památku nestačí. Pokud vlastnictví nelze
+ověřit, podpora přístup nevydá a předá nevyřešenou žádost vlastníkovi služby.
+Ověření podpory samo nemění účet ani jeho oprávnění a nenahrazuje ověření
+nového klíče serverem.
+
+Po ověření předá podpora cílový účet vlastníkovi služby. Obnovu smí vydat pouze
+role `Owner`; role `Administrator` ani `Operator` toto oprávnění nemají.
+Odkaz se předává ověřenému příjemci soukromě, nepatří do logů ani veřejné
+komunikace a nesmí se přeposílat dalším osobám.
+
+Je-li dostupný jiný účet s rolí `Owner`, jeho držitel vydá ve Správě konkrétnímu
+účtu hodinový obnovovací odkaz. Obnova po úspěšném ověření nového klíče zneplatní
+původní passkeys a relace, zachová účet a jeho granty. Neověřená či neplatná
+attestation nesmí původní přístup odstranit.
 
 Při ztrátě klíčů posledního vlastníka má správce infrastruktury kontrolovanou
 lokální cestu pod soukromým prostředím stejné služby:

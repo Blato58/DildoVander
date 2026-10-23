@@ -208,6 +208,28 @@ class SecretScanRepository(unittest.TestCase):
 
 
 class SecretScanIntegrationTests(SecretScanRepository):
+    def test_export_idempotency_exception_is_exact_and_path_bound(self):
+        path = "mobilni-aplikace/src/features/customer/customerDataExport.spec.ts"
+        declarations = [line for line in (ROOT / path).read_text(encoding="utf-8").splitlines()
+                        if line.startswith(("const keyOne = ", "const keyTwo = "))]
+        self.assertEqual(2, len(declarations))
+        self.write(path, "\n".join(declarations))
+        self.commit("Synthetic export idempotency fixtures")
+        self.assertEqual([], self.scan(0))
+        self.write("unrelated/export.spec.ts", "\n".join(declarations))
+        self.commit("Same declarations at unrelated path")
+        findings = self.scan(1)
+        self.assertEqual({"unrelated/export.spec.ts"}, {finding["File"] for finding in findings})
+
+    def test_export_fixture_still_rejects_changed_values_and_credentials(self):
+        path = "mobilni-aplikace/src/features/customer/customerDataExport.spec.ts"
+        changed = hashlib.sha256(b"changed synthetic export idempotency value").hexdigest()
+        self.write(path, f"const keyOne = '{changed}';\nconst keyTwo = '{self.synthetic_token()}';")
+        self.commit("Changed synthetic export values")
+        findings = self.scan(1)
+        self.assertIn("generic-api-key", {finding["RuleID"] for finding in findings})
+        self.assertIn("github-pat", {finding["RuleID"] for finding in findings})
+
     def test_file_hashes_survive_new_commits_and_squash_without_exceptions(self):
         digest = hashlib.sha256(b"synthetic compiled file bytes").hexdigest()
         for path in INVENTORY_PATHS:

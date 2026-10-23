@@ -26,6 +26,9 @@ enum AccountTransportPolicy {
     }
 
     static func accountResponseLimit(path: String, method: String) -> Int {
+        if method == "GET" && (path == "/app/v1/customer/memory" || accountDataExportDownload(path: path, method: method)) {
+            return 32 * 1024 * 1024
+        }
         guard path.hasPrefix("/"), method == "GET", !path.contains("?"), !path.contains("#"), !path.contains("%"),
               !path.contains("//"), !path.contains("\\"), !path.hasSuffix("/") else { return 1024 * 1024 }
         let parts = path.split(separator: "/").map(String.init)
@@ -55,6 +58,44 @@ enum AccountTransportPolicy {
 
     private static func validArchiveUUID(_ value: String) -> Bool {
         value.count == 36 && value.range(of: accountArchiveUUIDPattern, options: .regularExpression) != nil
+    }
+
+    static func accountDataExportDownload(path: String, method: String) -> Bool {
+        guard method == "GET", let parts = customerDataParts(path), parts.count == 7,
+              Array(parts.prefix(5)) == ["app", "v1", "customer", "data", "exports"],
+              parts[6] == "download" else { return false }
+        return canonicalDataUUID(parts[5])
+    }
+
+    static func accountDataDownloadLengthAllowed(path: String, method: String, contentLength: String?, size: Int) -> Bool {
+        guard accountDataExportDownload(path: path, method: method), let value = contentLength else { return true }
+        guard !value.isEmpty, value.utf8.count <= 10, value.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let length = Int(value), length >= 0, length <= 32 * 1024 * 1024 else { return false }
+        return length == size
+    }
+
+    private static func canonicalDataUUID(_ value: String) -> Bool {
+        value.count == 36 && UUID(uuidString: value) != nil
+    }
+
+    private static func customerDataParts(_ path: String) -> [String]? {
+        let parts = path.split(separator: "/").map(String.init)
+        guard path == "/" + parts.joined(separator: "/") else { return nil }
+        return parts
+    }
+
+    private static func customerData(path: String, method: String) -> Bool {
+        if path == "/app/v1/customer/memory" { return method == "GET" }
+        if path == "/app/v1/customer/data/exports" { return method == "POST" }
+        guard let parts = customerDataParts(path) else { return false }
+        if parts.count >= 5, Array(parts.prefix(4)) == ["app", "v1", "customer", "memory"],
+           canonicalDataUUID(parts[4]) {
+            return (parts.count == 5 && method == "PUT")
+                || (parts.count == 6 && parts[5] == "forget" && method == "POST")
+        }
+        guard parts.count == 6, Array(parts.prefix(5)) == ["app", "v1", "customer", "data", "exports"],
+              canonicalDataUUID(parts[5]) else { return accountDataExportDownload(path: path, method: method) }
+        return ["GET", "DELETE"].contains(method)
     }
 
     static func accountDeletionAccepted(path: String, method: String, status: Int, body: Data) -> Bool {
@@ -275,6 +316,7 @@ enum AccountTransportPolicy {
     }
 
     static func customer(path: String, method: String) -> Bool {
+        if customerData(path: path, method: method) { return true }
         let exact: [String: Set<String>] = [
             "/app/v1/customer/enrollment/options": ["POST"],
             "/app/v1/customer/enrollment/complete": ["POST"],
@@ -423,6 +465,129 @@ enum AccountTransportPolicy {
         if parts.count == 8, ["portraits", "generation"].contains(routeParts[5]),
            validArchiveUUID(parts[6]), routeParts[7] == "cancel" { return method == "POST" }
         return false
+    }
+}
+
+enum AccountDataFileFailure: String, LocalizedError {
+    case invalidFile = "ACCOUNT_DATA_FILE_INVALID"
+    case busy = "ACCOUNT_DATA_SHARE_BUSY"
+    case presenterUnavailable = "ACCOUNT_DATA_SHARE_UNAVAILABLE"
+    var errorDescription: String? { rawValue }
+}
+
+struct AccountDataTemporaryFile: Sendable {
+    static let maximumBytes = 32 * 1024 * 1024
+    static let filename = "customer-data-export.json"
+    private static let ownedDirectoryName = "DildoVanderAccountDataShares"
+    let directory: URL
+    let url: URL
+
+    static func valid(filename: String, mediaType: String, data: Data) -> Bool {
+        // UTF-16/32 ASCII JSON can also decode as UTF-8 containing NULs; Foundation
+        // would infer that alternate encoding. Raw NUL is never legal UTF-8 JSON.
+        guard filename == Self.filename, mediaType == "application/json", !data.isEmpty,
+              data.count <= maximumBytes, !data.contains(0), String(data: data, encoding: .utf8) != nil,
+              let object = try? JSONSerialization.jsonObject(with: data), object is [String: Any] else { return false }
+        return true
+    }
+
+    static func prepare(filename: String, mediaType: String, bodyBase64: String,
+                        baseDirectory: URL = FileManager.default.temporaryDirectory) throws -> Self {
+        guard bodyBase64.utf8.count <= ((maximumBytes + 2) / 3) * 4,
+              let data = Data(base64Encoded: bodyBase64), valid(filename: filename, mediaType: mediaType, data: data)
+        else { throw AccountDataFileFailure.invalidFile }
+        let owned = baseDirectory.appendingPathComponent(ownedDirectoryName, isDirectory: true)
+        let directory = owned.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let file = Self(directory: directory, url: directory.appendingPathComponent(Self.filename))
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            #if os(iOS)
+            try data.write(to: file.url, options: [.atomic, .completeFileProtection])
+            #else
+            try data.write(to: file.url, options: [.atomic])
+            #endif
+            return file
+        } catch {
+            try? file.cleanup()
+            throw error
+        }
+    }
+
+    func cleanup() throws {
+        if FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.removeItem(at: directory)
+        }
+    }
+
+    // Call only at launch or before this plugin admits its single share operation.
+    static func removeOrphans(baseDirectory: URL = FileManager.default.temporaryDirectory) throws {
+        let owned = baseDirectory.appendingPathComponent(ownedDirectoryName, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: owned.path) else { return }
+        let entries = try FileManager.default.contentsOfDirectory(at: owned, includingPropertiesForKeys: nil)
+        for entry in entries where UUID(uuidString: entry.lastPathComponent) != nil {
+            try FileManager.default.removeItem(at: entry)
+        }
+    }
+}
+
+@MainActor final class AccountDataShareLifecycle {
+    private var cleanup: (() throws -> Void)?
+    private var cleanupInstalled = false
+    private var completion: ((Result<Bool, Error>) -> Void)?
+    private var dismiss: ((@escaping () -> Void) -> Void)?
+    private(set) var isFinished = false
+    private(set) var cancellationRequested = false
+
+    func ownCleanup(_ action: @escaping () throws -> Void) throws {
+        guard !cleanupInstalled else { throw AccountDataFileFailure.busy }
+        cleanupInstalled = true
+        if isFinished { try action() }
+        else { cleanup = action }
+    }
+
+    func begin(completion: @escaping (Result<Bool, Error>) -> Void,
+               dismiss: @escaping (@escaping () -> Void) -> Void) throws {
+        guard !isFinished, !cancellationRequested else { throw CancellationError() }
+        guard self.completion == nil else { throw AccountDataFileFailure.busy }
+        self.completion = completion
+        self.dismiss = dismiss
+    }
+
+    func cancel() {
+        guard !isFinished, !cancellationRequested else { return }
+        cancellationRequested = true
+        if let action = dismiss {
+            dismiss = nil
+            action { self.finish(.failure(CancellationError())) }
+        } else { finish(.failure(CancellationError())) }
+    }
+
+    func complete(_ completed: Bool, error: Error? = nil) {
+        // Cancellation owns dismissal and settles only after its callback.
+        // UIKit may report activity completion while that dismissal is in flight.
+        guard !cancellationRequested else { return }
+        if let error = error { finish(.failure(error)) }
+        else { finish(.success(completed)) }
+    }
+
+    func fail(_ error: Error) {
+        guard !cancellationRequested else { return }
+        finish(.failure(error))
+    }
+
+    private func finish(_ proposed: Result<Bool, Error>) {
+        guard !isFinished else { return }
+        isFinished = true
+        var result = proposed
+        if let cleanup = cleanup {
+            self.cleanup = nil
+            do { try cleanup() }
+            catch { result = .failure(error) }
+        }
+        let action = completion
+        completion = nil
+        dismiss = nil
+        action?(result)
     }
 }
 

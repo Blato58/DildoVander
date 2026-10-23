@@ -7,10 +7,12 @@ using System.Text;
 using System.Text.Json;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.CustomerData;
 using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.DigitalTwin;
 using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.ModelReleases;
+using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Show;
 using Microsoft.AspNetCore.Builder;
@@ -551,7 +553,9 @@ internal static partial class AccountIdentityTests
             jars[client] = jar; return client;
         }
         public CookieContainer Cookies(HttpClient client) => jars[client];
-        public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false, bool deletionFeatures = false)
+        public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false,
+            bool deletionFeatures = false, bool customerMemoryFeatures = false,
+            bool accountDataExportFeatures = false)
         {
             var root = Path.Combine(Path.GetTempPath(), "dv-account-tests-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
@@ -609,10 +613,21 @@ internal static partial class AccountIdentityTests
                 options.AddPolicy("keepsake-public", _ => System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("fixture"));
             });
             builder.Services.AddSingleton<TwinAccess>(); builder.Services.AddSingleton<TwinStore>(); builder.Services.AddSingleton<TwinHost>();
-            if (customerFeatures || deletionFeatures)
+            if (customerFeatures || deletionFeatures || customerMemoryFeatures || accountDataExportFeatures)
             {
                 builder.Services.AddSingleton<ICharacterEnrichmentProvider>(new CustomerTestEnrichmentProvider());
                 builder.Services.AddCustomerCharacters(builder.Configuration);
+            }
+            if (customerMemoryFeatures || accountDataExportFeatures)
+            {
+                builder.Services.AddSingleton(provider => HybridMemoryOptions.Read(builder.Configuration,
+                    provider.GetRequiredService<OperationJournal>()));
+                builder.Services.AddSingleton(provider => new OpenAiVectorMemoryProvider(
+                    new HttpClient(new OfflineProviderHandler()), null,
+                    provider.GetRequiredService<HybridMemoryOptions>(), ownsHttp: true));
+                builder.Services.AddSingleton<HybridMemoryService>();
+                builder.Services.AddCustomerMemoryData();
+                builder.Services.AddAccountDataExports(builder.Configuration);
             }
             if (deletionFeatures)
             {
@@ -620,12 +635,20 @@ internal static partial class AccountIdentityTests
                     Path.Combine(root, "persona-lab.sqlite"),
                     Kufr.Backend.Features.GptLive.LivePromptSnapshot.Create(
                         PersonalityCatalog.OllivanderId, new Kufr.Backend.Features.GptLive.GptLiveOptions())));
+                if (!customerMemoryFeatures && !accountDataExportFeatures)
+                {
+                    builder.Services.AddSingleton(services => new AccountDataExportStore(
+                        services.GetRequiredService<AccountConfiguration>().DataRoot,
+                        services.GetRequiredService<TimeProvider>()));
+                }
             }
             var app = builder.Build();
             await AccountProvisioning.MigrateAsync(app.Services);
             await app.InitializeAccountsAsync();
             app.UseWebSockets(); app.UseRateLimiter(); app.UseAccountIdentity(); app.MapAccountEndpoints(); app.MapDigitalTwin(); app.MapModelReleases();
-            if (customerFeatures) { app.MapCustomerCharacters(); app.MapCustomerSessions(); }
+            if (customerFeatures || customerMemoryFeatures || accountDataExportFeatures) { app.MapCustomerCharacters(); app.MapCustomerSessions(); }
+            if (customerMemoryFeatures || accountDataExportFeatures) { app.MapCustomerMemoryEndpoints(); }
+            if (accountDataExportFeatures) { app.MapAccountDataExports(); }
             app.MapConversations();
             app.MapShowEndpoints(); app.MapShowDeviceCues(); app.MapDuels(); app.MapShowArchiveEndpoints();
             app.MapOfflineOutcomeEndpoints(); app.MapShowChronicle();

@@ -38,8 +38,8 @@ require(AccountTransportPolicy.accountRequestBodyLimit(path: tonightMemory, meth
         "Tonight memory status received a portrait upload limit")
 require(!AccountTransportPolicy.accountHeaderAllowed(path: tonightMemory, method: "GET", name: "X-DV10-Consent", value: "7"),
         "portrait consent entered Tonight transport")
-require(!AccountTransportPolicy.account(path: "/app/v1/customer/data/exports/\(id)/download", method: "GET"),
-        "future export route accidentally enabled")
+require(!AccountTransportPolicy.account(path: "/app/v1/customer/data/exports/\(id)/download-all", method: "GET"),
+        "unrecognized export download suffix accepted")
 let customerSession = "/app/v1/customer/sessions/\(id)"
 let customerResult = customerSession + "/result"
 require(AccountTransportPolicy.account(path: customerResult, method: "GET"), "customer session result unavailable")
@@ -229,6 +229,135 @@ require(AccountTransportPolicy.accountResponseLimit(path: "/app/v1/archive/assoc
 require(AccountTransportPolicy.accountResponseLimit(path: ownedArchive + "/assets/not-a-uuid", method: "GET") == 1024 * 1024
         && AccountTransportPolicy.accountResponseLimit(path: ownedArchive + "/assets/\(id)", method: "POST") == 1024 * 1024,
         "non-asset or invalid asset response received the expanded limit")
+
+let customerMemoryPath = "/app/v1/customer/memory"
+let exportDownloadPath = "/app/v1/customer/data/exports/\(id)/download"
+let customerDataRoles: [(String, Set<String>)] = [
+    (customerMemoryPath, ["GET"]),
+    (customerMemoryPath + "/\(id)", ["PUT"]),
+    (customerMemoryPath + "/\(id)/forget", ["POST"]),
+    ("/app/v1/customer/data/exports", ["POST"]),
+    ("/app/v1/customer/data/exports/\(id)", ["GET", "DELETE"]),
+    (exportDownloadPath, ["GET"])
+]
+for (path, methods) in customerDataRoles {
+    for method in ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "get"] {
+        require(AccountTransportPolicy.account(path: path, method: method) == methods.contains(method),
+                "customer data route/method scope changed: \(method) \(path)")
+    }
+    for malformed in [path + "/", path + "?x=1", path + "#x", path + "%2F", path + "\n",
+                      path.replacingOccurrences(of: "/customer/", with: "/customer//"),
+                      path.replacingOccurrences(of: id, with: "7fc470e2e25e46a2b51b97d50275ae77")] where malformed != path {
+        for method in methods {
+            require(!AccountTransportPolicy.account(path: malformed, method: method),
+                    "malformed customer data route accepted: \(malformed)")
+        }
+    }
+}
+require(AccountTransportPolicy.account(path: customerMemoryPath, method: "GET"), "customer memory read unavailable")
+require(!AccountTransportPolicy.account(path: customerMemoryPath, method: "POST"), "customer memory read became mutable")
+require(AccountTransportPolicy.account(path: exportDownloadPath, method: "GET"), "customer export download unavailable")
+require(AccountTransportPolicy.accountDataExportDownload(path: exportDownloadPath, method: "GET"), "exact export download role rejected")
+require(AccountTransportPolicy.accountResponseLimit(path: customerMemoryPath, method: "GET") == 32 * 1024 * 1024
+        && AccountTransportPolicy.accountResponseLimit(path: exportDownloadPath, method: "GET") == 32 * 1024 * 1024,
+        "customer data response role did not receive its exact limit")
+require(AccountTransportPolicy.accountResponseAllowed(path: exportDownloadPath, method: "GET", size: 32 * 1024 * 1024)
+        && !AccountTransportPolicy.accountResponseAllowed(path: exportDownloadPath, method: "GET", size: 32 * 1024 * 1024 + 1),
+        "customer export response cap boundary changed")
+require(AccountTransportPolicy.accountDataDownloadLengthAllowed(path: exportDownloadPath, method: "GET", contentLength: "33554432", size: 32 * 1024 * 1024)
+        && !AccountTransportPolicy.accountDataDownloadLengthAllowed(path: exportDownloadPath, method: "GET", contentLength: "33554433", size: 32 * 1024 * 1024)
+        && !AccountTransportPolicy.accountDataDownloadLengthAllowed(path: exportDownloadPath, method: "GET", contentLength: "1", size: 2)
+        && AccountTransportPolicy.accountDataDownloadLengthAllowed(path: exportDownloadPath, method: "GET", contentLength: nil, size: 2),
+        "customer export Content-Length validation changed")
+for invalid in [
+    exportDownloadPath + "?download=1", exportDownloadPath + "#fragment", exportDownloadPath + "%2fextra",
+    exportDownloadPath + "/", exportDownloadPath + "/extra", exportDownloadPath.replacingOccurrences(of: "/exports/", with: "/exports//"),
+    exportDownloadPath.replacingOccurrences(of: id, with: "not-a-uuid"), exportDownloadPath.replacingOccurrences(of: "customer", with: "Customer")
+] {
+    require(!AccountTransportPolicy.accountDataExportDownload(path: invalid, method: "GET"), "malformed customer export role accepted: \(invalid)")
+}
+for method in ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "get"] {
+    require(!AccountTransportPolicy.accountDataExportDownload(path: exportDownloadPath, method: method), "customer export download method broadened: \(method)")
+}
+require(AccountTransportPolicy.accountDataDownloadLengthAllowed(path: customerMemoryPath, method: "GET", contentLength: "bad", size: 1),
+        "non-export route unexpectedly acquired download length validation")
+for malformedLength in ["", " ", " 2", "2 ", "+2", "-2", "2.0", "2e0", "2,2", "\u{0662}", "99999999999"] {
+    require(!AccountTransportPolicy.accountDataDownloadLengthAllowed(path: exportDownloadPath, method: "GET", contentLength: malformedLength, size: 2),
+            "malformed export Content-Length accepted")
+}
+print("PASS bounded customer memory/export route and response roles")
+
+private func accountDataTemporaryFileTests() throws {
+    let validJSON = Data("{\"export\":true}".utf8)
+    require(AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: validJSON),
+            "valid customer export JSON rejected")
+    require(!AccountDataTemporaryFile.valid(filename: "other.json", mediaType: "application/json", data: validJSON), "alternate export filename accepted")
+    require(!AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json; charset=utf-8", data: validJSON),
+            "non-exact export media type accepted")
+    require(!AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: Data()), "empty export accepted")
+    require(!AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: Data([0xff, 0xfe])),
+            "invalid UTF-8 export accepted")
+    require(!AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: Data("{\"x\":".utf8)),
+            "truncated JSON export accepted")
+    require(!AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: Data("[]".utf8)),
+            "non-object export JSON accepted")
+
+    for encoding in [String.Encoding.utf16LittleEndian, .utf16BigEndian, .utf32LittleEndian, .utf32BigEndian] {
+        let alternateEncoding = "{\"x\":1}".data(using: encoding)!
+        require(!AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: alternateEncoding),
+                "non-UTF-8 JSON export accepted")
+    }
+    let exactPayloadLength = AccountDataTemporaryFile.maximumBytes - Data("{\"payload\":\"\"}".utf8).count
+    let exactJSON = Data("{\"payload\":\"\(String(repeating: "a", count: exactPayloadLength))\"}".utf8)
+    require(exactJSON.count == AccountDataTemporaryFile.maximumBytes
+            && AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: exactJSON),
+            "valid exact-limit export rejected")
+    let overLimit = Data("{\"payload\":\"\(String(repeating: "a", count: exactPayloadLength + 1))\"}".utf8)
+    require(overLimit.count == AccountDataTemporaryFile.maximumBytes + 1
+            && !AccountDataTemporaryFile.valid(filename: AccountDataTemporaryFile.filename, mediaType: "application/json", data: overLimit),
+            "export cap plus one accepted")
+
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("native-account-data-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = try AccountDataTemporaryFile.prepare(filename: AccountDataTemporaryFile.filename, mediaType: "application/json",
+                                                   bodyBase64: validJSON.base64EncodedString(), baseDirectory: root)
+    require(FileManager.default.fileExists(atPath: file.url.path), "prepared export temporary file missing")
+    require(try Data(contentsOf: file.url) == validJSON, "prepared export bytes changed")
+    try file.cleanup()
+    try file.cleanup()
+    require(!FileManager.default.fileExists(atPath: file.directory.path), "export cleanup left its private folder")
+
+    let owned = root.appendingPathComponent("DildoVanderAccountDataShares", isDirectory: true)
+    let orphan = owned.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let unrelated = owned.appendingPathComponent("keep-this", isDirectory: true)
+    let sibling = root.appendingPathComponent("unrelated-sibling", isDirectory: true)
+    for directory in [orphan, unrelated, sibling] { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
+    let marker = unrelated.appendingPathComponent("sentinel")
+    try Data("keep".utf8).write(to: marker)
+    try AccountDataTemporaryFile.removeOrphans(baseDirectory: root)
+    require(!FileManager.default.fileExists(atPath: orphan.path), "UUID-named account share orphan was retained")
+    require(FileManager.default.fileExists(atPath: marker.path) && FileManager.default.fileExists(atPath: sibling.path),
+            "orphan cleanup crossed its UUID/account-share boundary")
+    let blockedRoot = root.appendingPathComponent("ordinary-file")
+    try validJSON.write(to: blockedRoot)
+    do {
+        _ = try AccountDataTemporaryFile.prepare(filename: AccountDataTemporaryFile.filename, mediaType: "application/json",
+                                               bodyBase64: validJSON.base64EncodedString(), baseDirectory: blockedRoot)
+        fatalError("export write through an ordinary file unexpectedly succeeded")
+    } catch {}
+    require(try Data(contentsOf: blockedRoot) == validJSON, "failed preparation removed unrelated file")
+    for invalidBase64 in ["!", "e30=\n", Data("[]".utf8).base64EncodedString()] {
+        do {
+            _ = try AccountDataTemporaryFile.prepare(filename: AccountDataTemporaryFile.filename, mediaType: "application/json",
+                                                   bodyBase64: invalidBase64, baseDirectory: root)
+            fatalError("invalid export preparation unexpectedly succeeded")
+        } catch AccountDataFileFailure.invalidFile {}
+    }
+}
+try accountDataTemporaryFileTests()
+print("PASS strict customer export file validation, cap, write, cleanup and orphan isolation")
+
 require(AccountTransportPolicy.account(path: "/app/v1/devices/kufr-1/association", method: "POST"), "association unavailable")
 require(!AccountTransportPolicy.account(path: "/v1/device-access/token", method: "POST"), "account bridge accepted device credentials")
 require(!AccountTransportPolicy.account(path: "/guest/v1/bootstrap", method: "POST"), "account bridge accepted guest credentials")
@@ -814,9 +943,97 @@ for code in [URLError.Code.cancelled, .serverCertificateUntrusted, .secureConnec
 }
 print("PASS bounded origin/cookie/expiry native offline account policy; no cloud CSRF or fallback renewal")
 
+private struct AccountDataCleanupHarnessError: Error {}
+
+@MainActor private func accountDataShareLifecycleTests() async throws {
+    var success: Result<Bool, Error>?
+    var cleanupCount = 0
+    let completed = AccountDataShareLifecycle()
+    try completed.ownCleanup { cleanupCount += 1 }
+    try completed.begin(completion: { success = $0 }, dismiss: { done in done() })
+    do {
+        try completed.begin(completion: { _ in }, dismiss: { done in done() })
+        fatalError("duplicate account data share begin accepted")
+    } catch AccountDataFileFailure.busy {}
+    completed.complete(true)
+    completed.complete(false)
+    require(completed.isFinished && cleanupCount == 1, "successful share did not clean exactly once")
+    if case .success(true)? = success {} else { fatalError("share completion did not preserve the completed result") }
+    var declinedResult: Result<Bool, Error>?
+    let declined = AccountDataShareLifecycle()
+    try declined.begin(completion: { declinedResult = $0 }, dismiss: { done in done() })
+    declined.complete(false)
+    if case .success(false)? = declinedResult {} else { fatalError("dismissal was incorrectly reported as completed") }
+
+    var unavailableResult: Result<Bool, Error>?
+    let unavailable = AccountDataShareLifecycle()
+    try unavailable.ownCleanup { cleanupCount += 1 }
+    try unavailable.begin(completion: { unavailableResult = $0 }, dismiss: { done in done() })
+    unavailable.fail(AccountDataFileFailure.presenterUnavailable)
+    if case .failure(let error)? = unavailableResult, error as? AccountDataFileFailure == .presenterUnavailable {} else {
+        fatalError("presentation failure did not settle its continuation")
+    }
+    require(cleanupCount == 2, "presentation failure did not clean its file")
+
+    var cancelResult: Result<Bool, Error>?
+    var cancellationCleanupCount = 0
+    var dismissCount = 0
+    var finishDismiss: (() -> Void)?
+    let cancelled = AccountDataShareLifecycle()
+    try cancelled.ownCleanup { cancellationCleanupCount += 1 }
+    try cancelled.begin(completion: { cancelResult = $0 }, dismiss: { done in
+        dismissCount += 1
+        finishDismiss = done
+    })
+    cancelled.cancel()
+    require(cancelled.cancellationRequested && !cancelled.isFinished && dismissCount == 1,
+            "cancel did not wait for owned presentation dismissal")
+    cancelled.complete(true)
+    require(!cancelled.isFinished && cancelResult == nil && cancellationCleanupCount == 0,
+            "activity completion settled or cleaned while cancellation dismissal was pending")
+    finishDismiss?()
+    require(cancelled.isFinished && cancellationCleanupCount == 1, "dismiss callback did not finish cancellation and cleanup")
+    if case .failure(let error)? = cancelResult, error is CancellationError {} else { fatalError("cancel did not report CancellationError") }
+    cancelled.cancel()
+    cancelled.complete(true)
+    require(dismissCount == 1 && cancellationCleanupCount == 1, "duplicate cancellation repeated dismissal or cleanup")
+
+    var earlyCancelResult: Result<Bool, Error>?
+    var earlyCleanupCount = 0
+    let earlyCancelled = AccountDataShareLifecycle()
+    try earlyCancelled.ownCleanup { earlyCleanupCount += 1 }
+    earlyCancelled.cancel()
+    require(earlyCancelled.isFinished && earlyCleanupCount == 1, "early cancellation did not clean before presentation")
+    do {
+        try earlyCancelled.begin(completion: { earlyCancelResult = $0 }, dismiss: { done in done() })
+        fatalError("share began after early cancellation")
+    } catch is CancellationError {}
+    let cancelledDuringPreparation = AccountDataShareLifecycle()
+    cancelledDuringPreparation.cancel()
+    try cancelledDuringPreparation.ownCleanup { earlyCleanupCount += 1 }
+    require(earlyCleanupCount == 2, "cleanup installed after settlement did not run immediately")
+    if case .failure(let error)? = earlyCancelResult { fatalError("early cancellation unexpectedly installed completion: \(error)") }
+
+    var cleanupFailureResult: Result<Bool, Error>?
+    let cleanupFailure = AccountDataShareLifecycle()
+    try cleanupFailure.ownCleanup { throw AccountDataCleanupHarnessError() }
+    try cleanupFailure.begin(completion: { cleanupFailureResult = $0 }, dismiss: { done in done() })
+    cleanupFailure.complete(true)
+    if case .failure(let error)? = cleanupFailureResult, error is AccountDataCleanupHarnessError {} else {
+        fatalError("temporary-file cleanup failure did not override share success")
+    }
+    require(cleanupFailure.isFinished, "cleanup failure left the share lifecycle pending")
+}
+
 DispatchQueue.global().asyncAfter(deadline: .now() + 20) { fatalError("Native account scheduling regression timed out") }
 Task { @MainActor in
-    do { try await anonymousAccountBootstrapTests(); try await nativeAccountSchedulingTests(); exit(0) }
+    do {
+        try await anonymousAccountBootstrapTests()
+        try await nativeAccountSchedulingTests()
+        try await accountDataShareLifecycleTests()
+        print("PASS account data share lifecycle success, duplicate, cancellation and cleanup behavior")
+        exit(0)
+    }
     catch { fatalError("Native account scheduling regression failed: \(error)") }
 }
 dispatchMain()

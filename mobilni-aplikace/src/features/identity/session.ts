@@ -9,10 +9,12 @@ export interface ResourceGrant { id: string; userId: string; resourceType: strin
 export interface AccountSession { id: string; expiresAt: number; installationName: string; trusted: boolean; current: boolean }
 export interface AccountDeviceAssociation { id: string; deviceId: string; alias: string; installationId: string; createdAt: number }
 export interface AccountDetails { devices?: {deviceId: string; canOperate: boolean}[]; sessions: AccountSession[]; grants: ResourceGrant[]; associations: AccountDeviceAssociation[]; passkeyCount: number; passkeys: {id: string; name: string | null; createdAt: string; isBackedUp: boolean}[] }
+export interface NativeAccountFileContext { signal?: AbortSignal; check?: () => void }
 interface IdentityBridge {
   request(options: { requestId: string; path: string; method: string; body?: string; confirmed?: boolean }): Promise<{ status: number; body: string }>;
   passkey(options: { mode: 'signin' | 'enroll' | 'customer-enroll' | 'add' | 'reauth'; token?: string; displayName?: string }): Promise<void>;
   accountTransport(options: { requestId: string; path: string; method: string; headers: Record<string, string>; bodyBase64?: string }): Promise<{ status: number; headers: Record<string, string>; bodyBase64: string }>;
+  shareAccountDataFile(options: { requestId: string; filename: string; mediaType: 'application/json'; bodyBase64: string }): Promise<{ completed: boolean }>;
   cancelAccountRequest(options: { requestId: string }): Promise<{ cancelled: boolean }>;
 }
 const nativeIdentity = registerPlugin<IdentityBridge>('KufrIdentity');
@@ -20,20 +22,26 @@ const native = Capacitor.isNativePlatform();
 const archiveUuid = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const ownedPortraitUpload = new RegExp(`^/app/v1/archive/owned/${archiveUuid}/portrait-uploads$`, 'i');
 const archiveAsset = new RegExp(`^/app/v1/archive/(?:owned|associations)/${archiveUuid}/assets/${archiveUuid}$`, 'i');
+const customerMemoryPath = /^\/app\/v1\/customer\/memory$/;
+const customerExportDownloadPath = /^\/app\/v1\/customer\/data\/exports\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/download$/;
 
-function matchesArchivePath(pattern: RegExp, path: string): boolean {
+function matchesExactTransportPath(pattern: RegExp, path: string): boolean {
   // JavaScript's $ anchor also matches before a final line terminator.
   return !/\s/.test(path) && pattern.test(path);
 }
 
 export function accountTransportBodyLimit(path: string, method: string, contentType: string | null): number {
-  if (!matchesArchivePath(ownedPortraitUpload, path) || method !== 'POST') return 262144;
+  if (!matchesExactTransportPath(ownedPortraitUpload, path) || method !== 'POST') return 262144;
   const mediaType = contentType?.split(';', 1)[0].trim().toLowerCase();
   return ['image/jpeg', 'image/png', 'image/webp'].includes(mediaType ?? '') ? 8 * 1024 * 1024 : 262144;
 }
 
 export function accountTransportResponseLimit(path: string, method: string): number {
-  return method === 'GET' && matchesArchivePath(archiveAsset, path) ? 32 * 1024 * 1024 : 1024 * 1024;
+  if (method !== 'GET') return 1024 * 1024;
+  return matchesExactTransportPath(archiveAsset, path)
+    || matchesExactTransportPath(customerMemoryPath, path)
+    || matchesExactTransportPath(customerExportDownloadPath, path)
+    ? 32 * 1024 * 1024 : 1024 * 1024;
 }
 
 export function accountTransportResponseAllowed(path: string, method: string, size: number): boolean {
@@ -42,7 +50,7 @@ export function accountTransportResponseAllowed(path: string, method: string, si
 
 function validPortraitConsent(path: string, method: string, value: string | null): boolean {
   if (value === null) return true;
-  return matchesArchivePath(ownedPortraitUpload, path) && method === 'POST' && /^[0-9]{1,10}$/.test(value)
+  return matchesExactTransportPath(ownedPortraitUpload, path) && method === 'POST' && /^[0-9]{1,10}$/.test(value)
     && Number(value) > 0 && Number(value) <= 2147483647;
 }
 function encodeAccountBody(bytes: Uint8Array): string {
@@ -52,6 +60,65 @@ function encodeAccountBody(bytes: Uint8Array): string {
   }
   return btoa(chunks.join(''));
 }
+
+export async function shareNativeAccountDataFile(
+  blob: Blob,
+  filename: string,
+  context: NativeAccountFileContext = {},
+): Promise<{ completed: boolean }> {
+  const generation = authGeneration;
+  const accountId = account.value?.id;
+  const checkCurrent = () => {
+    context.check?.();
+    throwIfAborted(context.signal);
+    requireCurrentAuthentication(generation);
+    if (!accountId || account.value?.id !== accountId || signingOut.value || logoutPending
+      || deletionRequested.value || authenticationPending) throw new AccountContextChangedError();
+  };
+
+  checkCurrent();
+  if (!native) throw new Error('Sdílení souboru účtu je dostupné pouze v nativní aplikaci.');
+  if (typeof nativeIdentity.shareAccountDataFile !== 'function') throw new Error('Nativní sdílení souboru účtu není dostupné.');
+  if (filename !== 'customer-data-export.json') throw new Error('Neplatný název exportního souboru.');
+  if (!(blob instanceof Blob)) throw new Error('Neplatný exportní soubor.');
+  const mediaType = blob.type.split(';', 1)[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') throw new Error('Exportní soubor musí být JSON.');
+  const expectedSize = blob.size;
+  if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0 || expectedSize > 32 * 1024 * 1024) {
+    throw new Error('Exportní soubor má neplatnou velikost.');
+  }
+
+  const arrayBuffer = await blob.arrayBuffer();
+  checkCurrent();
+  if (arrayBuffer.byteLength !== expectedSize) throw new Error('Velikost exportního souboru se změnila.');
+  let json: unknown;
+  try {
+    json = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(arrayBuffer));
+  } catch {
+    throw new Error('Exportní soubor neobsahuje úplný platný JSON objekt.');
+  }
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+    throw new Error('Exportní soubor musí obsahovat JSON objekt.');
+  }
+
+  const bodyBase64 = encodeAccountBody(new Uint8Array(arrayBuffer));
+  checkCurrent();
+  const result = await nativeAccountCall(context.signal, requestId => {
+    checkCurrent();
+    return nativeIdentity.shareAccountDataFile({
+      requestId,
+      filename: 'customer-data-export.json',
+      mediaType: 'application/json',
+      bodyBase64,
+    });
+  });
+  checkCurrent();
+  if (!result || typeof result !== 'object' || typeof result.completed !== 'boolean') {
+    throw new Error('Nativní sdílení vrátilo neplatný výsledek.');
+  }
+  return {completed: result.completed};
+}
+
 export const account = ref<Account | null>(null);
 const deletionRequested = ref(false);
 export const accountDeletionRequested = readonly(deletionRequested);

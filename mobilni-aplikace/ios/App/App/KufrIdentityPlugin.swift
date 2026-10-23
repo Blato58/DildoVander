@@ -11,7 +11,14 @@ import UIKit
 public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
     ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
     internal static weak var active: KufrIdentityPlugin?
-    public override func load() { Self.active = self }
+    private var accountDataShare: AccountDataShareLifecycle?
+    public override func load() {
+        Self.active = self
+        Task { @MainActor in
+            guard self.accountDataShare == nil else { return }
+            try? AccountDataTemporaryFile.removeOrphans()
+        }
+    }
 
     internal func configuredAccountOrigin() throws -> URL { try configuration().0 }
 
@@ -83,6 +90,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
         CAPPluginMethod(name: "guestCapabilities", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "guestRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareGuestFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "shareAccountDataFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareGuestLink", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "accountTransport", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelAccountRequest", returnType: CAPPluginReturnPromise),
@@ -229,6 +237,8 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             }
             guard let http = result.1 as? HTTPURLResponse,
                   AccountTransportPolicy.accountResponseAllowed(path: path, method: method, size: result.0.count),
+                  AccountTransportPolicy.accountDataDownloadLengthAllowed(path: path, method: method,
+                    contentLength: http.value(forHTTPHeaderField: "Content-Length"), size: result.0.count),
                   http.url?.host == origin.host, http.url?.scheme == origin.scheme, http.url?.port == origin.port else { throw AccountError.invalidResponse }
             if [401, 403].contains(http.statusCode) { try clearOfflineSession(origin: origin) }
             try acceptAccountDeletion(path: path, method: method, status: http.statusCode, body: result.0, origin: origin)
@@ -369,6 +379,77 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
                 }
                 call.resolve(["status": http.statusCode, "headers": responseHeaders, "bodyBase64": data.base64EncodedString()])
             } catch { call.reject(error.localizedDescription) }
+        }
+    }
+
+    @objc public func shareAccountDataFile(_ call: CAPPluginCall) {
+        performAccountRequest(call) { [self] requestId in
+            guard accountDataShare == nil else { throw AccountDataFileFailure.busy }
+            let lifecycle = AccountDataShareLifecycle()
+            accountDataShare = lifecycle
+            defer { if accountDataShare === lifecycle { accountDataShare = nil } }
+            do {
+                let completed: Bool = try await withTaskCancellationHandler(operation: {
+                    let epoch = requestScheduler.epoch
+                    let binding = try accountDeviceBinding()
+                    try AccountDataTemporaryFile.removeOrphans()
+                    let filename = call.getString("filename") ?? ""
+                    let mediaType = call.getString("mediaType") ?? ""
+                    let encoded = call.getString("bodyBase64") ?? ""
+                    let file = try await Task.detached(priority: .userInitiated) {
+                        try AccountDataTemporaryFile.prepare(filename: filename, mediaType: mediaType, bodyBase64: encoded)
+                    }.value
+                    try lifecycle.ownCleanup { try file.cleanup() }
+                    try Task.checkCancellation()
+                    let lease = try await requestScheduler.acquire(requestId: requestId)
+                    var leaseHeld = true
+                    defer { if leaseHeld { requestScheduler.release(lease) } }
+                    try requestScheduler.requireCurrent(lease)
+                    guard lease.epoch == epoch, try accountDeviceBinding() == binding else {
+                        throw AccountRequestScheduler.Failure.contextChanged
+                    }
+                    guard let view = bridge?.viewController, view.view.window != nil,
+                          view.presentedViewController == nil, !view.isBeingDismissed, !view.isBeingPresented else {
+                        throw AccountDataFileFailure.presenterUnavailable
+                    }
+                    let sheet = UIActivityViewController(activityItems: [file.url], applicationActivities: nil)
+                    let dismissal = AccountDataShareDismissalDelegate(lifecycle: lifecycle)
+                    sheet.popoverPresentationController?.sourceView = view.view
+                    sheet.popoverPresentationController?.sourceRect = CGRect(
+                        x: view.view.bounds.midX, y: view.view.bounds.midY, width: 0, height: 0)
+                    // The callback retains the weak UIKit presentation delegate.
+                    sheet.completionWithItemsHandler = { [dismissal] _, completed, _, error in
+                        Task { @MainActor in dismissal.lifecycle.complete(completed, error: error) }
+                    }
+                    return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+                        defer {
+                            requestScheduler.release(lease)
+                            leaseHeld = false
+                        }
+                        do {
+                            try Task.checkCancellation()
+                            try requestScheduler.requireCurrent(lease)
+                            guard requestScheduler.epoch == epoch, try accountDeviceBinding() == binding else {
+                                throw AccountRequestScheduler.Failure.contextChanged
+                            }
+                            try lifecycle.begin(completion: { continuation.resume(with: $0) }, dismiss: { [weak sheet, weak view] done in
+                                guard let sheet = sheet, let view = view, view.presentedViewController === sheet else {
+                                    done(); return
+                                }
+                                sheet.dismiss(animated: false, completion: done)
+                            })
+                            // No suspension occurs between the final context check and presentation.
+                            view.present(sheet, animated: false)
+                            sheet.presentationController?.delegate = dismissal
+                            if view.presentedViewController !== sheet { lifecycle.fail(AccountDataFileFailure.presenterUnavailable) }
+                        } catch { continuation.resume(throwing: error) }
+                    }
+                }, onCancel: { Task { @MainActor in lifecycle.cancel() } })
+                call.resolve(["completed": completed])
+            } catch {
+                lifecycle.fail(error)
+                throw error
+            }
         }
     }
 
@@ -894,6 +975,12 @@ private enum PublicResourceError: LocalizedError {
         case .cancelled: return "Načítání veřejného prostředku bylo zrušeno."
         }
     }
+}
+
+@MainActor private final class AccountDataShareDismissalDelegate: NSObject, UIAdaptivePresentationControllerDelegate {
+    let lifecycle: AccountDataShareLifecycle
+    init(lifecycle: AccountDataShareLifecycle) { self.lifecycle = lifecycle }
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { lifecycle.complete(false) }
 }
 
 private final class AccountNoRedirect: NSObject, URLSessionTaskDelegate {

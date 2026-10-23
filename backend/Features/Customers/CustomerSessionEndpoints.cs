@@ -16,7 +16,7 @@ internal static class CustomerSessionEndpoints
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
 
-    internal static void MapCustomerSessions(this WebApplication app)
+    internal static void MapCustomerSessions(this WebApplication app, bool includeSessionResults = true)
     {
         var devices = app.MapGroup("/v1/customer-sessions");
         AddErrors(devices);
@@ -80,7 +80,7 @@ internal static class CustomerSessionEndpoints
             { return ApiProblem.Create(http, 401, "account_required"); }
             return await next(invocation);
         });
-        accounts.MapCustomerSessionResult();
+        if (includeSessionResults) { accounts.MapCustomerSessionResult(); }
         accounts.MapPost("/start-tickets", async (HttpContext http, CharacterProfileStore profiles,
             OperationJournal journal, IDataProtectionProvider protection) =>
         {

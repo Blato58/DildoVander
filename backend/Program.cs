@@ -5,6 +5,7 @@ using Kufr.Backend.Features.ModelReleases;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Customers;
+using Kufr.Backend.Features.CustomerData;
 using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.Diagnostics;
@@ -114,6 +115,11 @@ if (keepsakeArchiveConfigured)
     builder.Services.AddDataProtection().SetApplicationName("DildoVander.DV10")
         .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["Keepsake:DataProtectionRoot"] ?? dataRoot + ".keys"));
     builder.Services.AddSingleton<KeepsakeStore>();
+    if (builder.Configuration.GetValue<bool>("ApplicationIdentity:Enabled"))
+    {
+        builder.Services.AddCustomerMemoryData();
+        builder.Services.AddAccountDataExports(builder.Configuration);
+    }
 }
 if (keepsakeArchiveConfigured || builder.Configuration.GetValue<bool>("ApplicationIdentity:Enabled"))
 {
@@ -170,8 +176,13 @@ await app.InitializeAccountsAsync();
 app.UseAccountIdentity();
 app.MapAccountEndpoints();
 app.MapCustomerCharacters();
-app.MapCustomerSessions();
+app.MapCustomerSessions(includeSessionResults: keepsakeArchiveConfigured);
 app.MapTonightEndpoints();
+if (keepsakeArchiveConfigured)
+{
+    app.MapCustomerMemoryEndpoints();
+    app.MapAccountDataExports();
+}
 app.MapPersonaLab();
 app.MapModelReleases();
 

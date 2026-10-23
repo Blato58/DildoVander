@@ -157,7 +157,28 @@ try {
     await page.waitForURL(url => url.pathname === '/signin' && url.searchParams.get('return') === '/me/character');
   }
   await page.goto(origin + '/signin'); await page.getByRole('heading', { name: 'Přihlásit se', exact: true }).waitFor();
+  const lostAccess = page.locator('.lost-access-help');
+  const lostAccessSummary = lostAccess.locator('summary');
+  assert.equal(await lostAccess.getAttribute('open'), null);
+  await lostAccessSummary.focus();
+  await page.keyboard.press('Enter');
+  assert.notEqual(await lostAccess.getAttribute('open'), null);
+  assert(await lostAccess.getByRole('link', { name: 'kontaktujte podporu' }).isVisible());
+  assert.match(await lostAccess.innerText(), /pouze vlastník služby/);
+  for (const theme of ['lord-voldemort', 'olivander']) {
+    await page.getByLabel('Vzhled aplikace').selectOption(theme);
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    assert(await lostAccess.getByRole('link', { name: 'kontaktujte podporu' }).isVisible());
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'lost-access guidance must not overflow at narrow width and enlarged text');
+    await lostAccess.screenshot({ path: path.join(screenshots, `lost-access-${theme}-320.png`) });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+  await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
+  await page.goto(origin + '/signin');
   await page.getByRole('button', { name: 'Vytvořit zákaznický účet', exact: true }).click();
+  assert.equal(await page.locator('.lost-access-help').count(), 0, 'enrollment keeps its own recovery guidance');
   assert(await page.getByLabel('Jak vám máme říkat?').isVisible());
   assert.equal(await page.locator('#account-invite').count(), 0, 'customer registration does not ask for an invite');
   // Customer pages use isolated API fixtures. The end request below changes only

@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AccountArchiveList from './AccountArchiveList.vue';
 import AccountDeletion from './AccountDeletion.vue';
 import EveningPanel from './EveningPanel.vue';
+import CustomerDataPanel from '../customer/CustomerDataPanel.vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { usePreferences } from '../../application/preferences';
 import { applicationBuild } from '../../application/buildIdentity';
-import { account, accountRequest, refreshIdentity, authenticatePasskey, signOut, hasRole, type AccountDetails, type AccountSession } from './session';
+import { isCustomerAccount } from '../../application/access';
+import { account, accountDeletionRequested, accountRequest, refreshIdentity, authenticatePasskey, signOut, hasRole, type AccountDetails, type AccountSession } from './session';
 const props = withDefaults(defineProps<{ customerSurface?: boolean }>(), { customerSurface: false });
 const preferences = usePreferences();
+const showCustomerData = computed(() => props.customerSurface && isCustomerAccount(account.value) && !accountDeletionRequested.value);
 const details = ref<AccountDetails | null>(null);
 const keyNames = ref<Record<string, string>>({});
 const error = ref(''); const message = ref(''); const busy = ref(false);
@@ -88,6 +91,7 @@ function trust(session: AccountSession) {
       </section>
       <section v-if="details" class="aw-card"><h2>Přihlášená zařízení</h2><p>Odebrání ukončí přístup dané relace. Označení důvěry nenahrazuje párování s kufrem ani neprodlužuje platnost přihlášení.</p><ul class="identity-list"><li v-for="session in details.sessions" :key="session.id"><div><strong>{{ session.installationName }}</strong> <span v-if="session.current">· toto zařízení</span><p>Platí do {{ new Date(session.expiresAt * 1000).toLocaleString('cs') }} · {{ session.trusted ? 'důvěryhodná instalace' : 'běžná relace' }}</p></div><div class="button-row"><AwButton :disabled="busy" @click="trust(session)">{{ session.trusted ? 'Zrušit důvěru' : 'Označit jako důvěryhodné' }}</AwButton><AwButton variant="danger" :disabled="busy" @click="action(() => session.current ? signOut() : accountRequest(`/app/v1/sessions/${encodeURIComponent(session.id)}`, 'DELETE'), 'Přístup zařízení byl odebrán.')">{{ session.current ? 'Odhlásit toto zařízení' : 'Odhlásit zařízení' }}</AwButton></div></li></ul></section>
       <section v-if="!customerSurface && details" class="aw-card"><h2>Přidělené prostředky</h2><p v-if="!details.grants.length">Nemáte přidělené jednotlivé prostředky. Role vlastníka a správce mohou mít širší oprávnění.</p><ul v-else><li v-for="grant in details.grants" :key="grant.id">{{ grant.resourceType }} · {{ grant.resourceId }} · {{ grant.permission }}</li></ul><p>Přístupové údaje zařízení a návštěvníků zůstávají oddělené od účtu.</p></section>
+      <CustomerDataPanel v-if="showCustomerData" :account-id="account.id" :eligible="showCustomerData" />
     </template>
     <AccountDeletion />
   </section>
