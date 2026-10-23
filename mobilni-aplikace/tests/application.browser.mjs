@@ -190,7 +190,7 @@ try {
     await page.goto(origin + route);
     await hasHeading(title);
     assert.equal(new URL(page.url()).pathname, route, 'support and privacy remain public without an account');
-    assert(await page.getByRole('main').getByRole('link', { name: 'vojtech.petrik58@gmail.com', exact: true }).isVisible());
+    assert(await page.getByRole('main').getByRole('link', { name: 'support@dildovander.de', exact: true }).isVisible());
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
       await fits();

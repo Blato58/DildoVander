@@ -10,7 +10,7 @@ import { customerCopy } from '../../application/customerCopy';
 
     <section aria-labelledby="support-contact">
       <h2 id="support-contact">{{ customerCopy.text('support.contact-title') }}</h2>
-      <p>{{ customerCopy.text('support.contact') }} <a href="mailto:vojtech.petrik58@gmail.com?subject=Wand%20Night%20Stand%20%E2%80%93%20support">vojtech.petrik58@gmail.com</a>.</p>
+      <p>{{ customerCopy.text('support.contact') }} <a href="mailto:support@dildovander.de?subject=Wand%20Night%20Stand%20%E2%80%93%20support">support@dildovander.de</a>.</p>
       <p>{{ customerCopy.text('support.contact-guidance') }}</p>
     </section>
 

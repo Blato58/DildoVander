@@ -10,7 +10,7 @@ import { customerCopy } from '../../application/customerCopy';
 
     <section aria-labelledby="privacy-contact">
       <h2 id="privacy-contact">{{ customerCopy.text('privacy.contact-title') }}</h2>
-      <p>{{ customerCopy.text('privacy.contact') }} <a href="mailto:vojtech.petrik58@gmail.com?subject=Wand%20Night%20Stand%20%E2%80%93%20privacy">vojtech.petrik58@gmail.com</a>.</p>
+      <p>{{ customerCopy.text('privacy.contact') }} <a href="mailto:support@dildovander.de?subject=Wand%20Night%20Stand%20%E2%80%93%20privacy">support@dildovander.de</a>.</p>
     </section>
 
     <section aria-labelledby="privacy-data">

@@ -26,7 +26,8 @@ describe('guest information pages', () => {
     const wrapper = mount(SupportView, { global });
     expect(wrapper.get('h1').text()).toBe('S čím potřebujete pomoct?');
     expect(wrapper.text()).toContain('Přístup k účtu sám o sobě neuděluje oprávnění');
-    expect(wrapper.get('a[href^="mailto:"]').attributes('href')).toContain('vojtech.petrik58@gmail.com');
+    expect(wrapper.get('a[href^="mailto:"]').attributes('href')).toBe('mailto:support@dildovander.de?subject=Wand%20Night%20Stand%20%E2%80%93%20support');
+    expect(wrapper.get('a[href^="mailto:"]').text()).toBe('support@dildovander.de');
 
     interfaceLanguagePreference.setLanguage('en');
     await nextTick();
@@ -34,7 +35,8 @@ describe('guest information pages', () => {
     expect(wrapper.text()).toContain('An account alone does not grant permission');
     expect(wrapper.get('a[href="/account-deletion"]').text()).toBe('Deletion status');
     expect(wrapper.get('a[href="/privacy"]').text()).toBe('How the app processes and stores data');
-    expect(wrapper.get('a[href^="mailto:"]').attributes('href')).toContain('support');
+    expect(wrapper.get('a[href^="mailto:"]').attributes('href')).toBe('mailto:support@dildovander.de?subject=Wand%20Night%20Stand%20%E2%80%93%20support');
+    expect(wrapper.get('a[href^="mailto:"]').text()).toBe('support@dildovander.de');
     wrapper.unmount();
   });
 
@@ -44,6 +46,8 @@ describe('guest information pages', () => {
     expect(wrapper.text()).toContain('samostatný výslovný souhlas');
     expect(wrapper.text()).toContain('nesmaže cizí památku');
     expect(wrapper.text()).toContain('24 hodin nebo 5 000 záznamů');
+    expect(wrapper.get('a[href^="mailto:"]').attributes('href')).toBe('mailto:support@dildovander.de?subject=Wand%20Night%20Stand%20%E2%80%93%20privacy');
+    expect(wrapper.get('a[href^="mailto:"]').text()).toBe('support@dildovander.de');
 
     interfaceLanguagePreference.setLanguage('en');
     await nextTick();
@@ -54,6 +58,8 @@ describe('guest information pages', () => {
     expect(wrapper.text()).toContain('local completion does not confirm their deletion');
     expect(wrapper.get('a[href="https://openai.com/policies/privacy-policy/"]').attributes('target')).toBe('_blank');
     expect(wrapper.get('a[href="/support"]').text()).toBe('Support and how to send a request safely');
+    expect(wrapper.get('a[href^="mailto:"]').attributes('href')).toBe('mailto:support@dildovander.de?subject=Wand%20Night%20Stand%20%E2%80%93%20privacy');
+    expect(wrapper.get('a[href^="mailto:"]').text()).toBe('support@dildovander.de');
     wrapper.unmount();
   });
 });
