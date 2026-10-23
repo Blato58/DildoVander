@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import CustomerDataExports from './CustomerDataExports.vue';
 import { customerDataExportPath, type CustomerDataExportStorage } from './customerDataExport';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 const state = vi.hoisted(() => ({
   account: null as { id: string; displayName: string; roles: string[] } | null,
@@ -65,6 +67,8 @@ async function render(options: {
 }
 
 beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   originalOnLine = Object.getOwnPropertyDescriptor(navigator, 'onLine');
   originalVisibility = Object.getOwnPropertyDescriptor(document, 'hidden');
   originalConfirm = Object.getOwnPropertyDescriptor(window, 'confirm');
@@ -74,7 +78,8 @@ beforeEach(() => {
   state.setDeleting?.(false);
   state.setOffline?.(false);
   state.share.mockReset();
-  vi.useRealTimers();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-23T09:30:00Z'));
 });
 
 afterEach(() => {
@@ -89,6 +94,16 @@ afterEach(() => {
 });
 
 describe('customer data exports UI', () => {
+  it('reacts to English while preserving the export scope and technical-job-only deletion meaning', async () => {
+    const transport = vi.fn().mockResolvedValue(new Response(JSON.stringify(job()), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const wrapper = await render({ transport, storage: storageWithJob() });
+    interfaceLanguagePreference.setLanguage('en');
+    await nextTick();
+    expect(wrapper.text()).toContain('Download account data');
+    expect(wrapper.text()).toContain('It includes the account identifier');
+    expect(wrapper.text()).toContain('other people’s data');
+    expect(wrapper.findAll('button').some(button => button.text() === 'Delete export job only')).toBe(true);
+  });
   it('offers explicit native sharing without downloading on page load', async () => {
     const transport = vi.fn().mockResolvedValue(new Response(JSON.stringify(job()), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     const deliver = vi.fn();

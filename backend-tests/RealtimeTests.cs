@@ -19,6 +19,7 @@ internal static class RealtimeTests
     {
         VerifyResampling();
         VerifyOpeningContext();
+        VerifyTranscriptionLanguage();
         await VerifyProgressiveAudioAsync();
         await VerifyVisualRevocationAsync();
         await VisualResponseTests.RunAsync();
@@ -63,6 +64,20 @@ internal static class RealtimeTests
             && RealtimeProtocol.ContextData(followUp).Contains("current reply")
             && !RealtimeProtocol.SessionOptions(followUp).Instructions.Contains("NOVÝ ROZHOVOR"),
             "follow-up keeps recall and history without fresh-opening directions");
+    }
+
+    private static void VerifyTranscriptionLanguage()
+    {
+        var request = Request() with { Opening = false, Wav = "uploaded-audio" };
+        foreach (var (language, providerLanguage) in new[] { ("cs-CZ", "cs"), ("en-US", "en") })
+        {
+            var turn = new RealtimeTurnContext(request, false, "", []) { ConversationLanguage = language };
+            using var options = JsonDocument.Parse(ModelReaderWriter.Write(RealtimeProtocol.SessionOptions(turn)).ToMemory());
+            var json = options.RootElement.GetRawText();
+            Require(json.Contains("gpt-4o-transcribe", StringComparison.Ordinal)
+                && json.Contains($"\"language\":\"{providerLanguage}\"", StringComparison.Ordinal),
+                "Realtime audio transcription sends the frozen conversation language");
+        }
     }
 
     private static async Task VerifyPersistentVoiceAsync()

@@ -340,7 +340,8 @@ internal static partial class AccountIdentityTests
             }
             Check(subsequent.StatusCode == HttpStatusCode.OK,
                 "a download after closing the slow clients can acquire a released slot");
-            var bytes = await subsequent.Content.ReadAsByteArrayAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            // Allow the existing 30-second server flush window while checking the complete large response.
+            var bytes = await subsequent.Content.ReadAsByteArrayAsync().WaitAsync(TimeSpan.FromSeconds(45));
             Check(bytes.Length > 8 * 1024 * 1024,
                 "the concurrency exercise transfers a genuinely large bounded response");
             subsequentCompleted = true;

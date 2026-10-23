@@ -7,7 +7,10 @@ internal sealed partial class KeepsakeStore
         lock (gate)
         {
             using var connection = Open();
-            Execute(connection, null, "INSERT OR IGNORE INTO dv10_account_fences(owner_id) VALUES($owner)", ("$owner", accountId));
+            using var transaction = connection.BeginTransaction();
+            Execute(connection, transaction, "INSERT OR IGNORE INTO dv10_account_fences(owner_id) VALUES($owner)", ("$owner", accountId));
+            DeleteAccountCompletionUpdates(connection, transaction, accountId);
+            transaction.Commit();
         }
     }
 
@@ -32,6 +35,7 @@ internal sealed partial class KeepsakeStore
                     PrepareDeletion(connection, transaction, id, Load(connection, transaction, id), KeepsakeDeleteScope.All, "account-deletion");
                 }
             }
+            DeleteAccountCompletionUpdates(connection, transaction, accountId);
             transaction.Commit();
             ResumeDeletionCleanup();
             using var pending = Command(connection, null, """

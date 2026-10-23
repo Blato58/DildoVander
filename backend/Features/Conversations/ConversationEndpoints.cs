@@ -107,7 +107,7 @@ internal static class ConversationEndpoints
             || request.Generation < 0
             || !OperationEpoch.IsValid(request.OperationEpoch)
             || request.CatalogVersion is not { Length: > 0 and <= 128 }
-            || request.Locale != "cs-CZ"
+            || request.Locale is not ("cs-CZ" or "en-US")
             || request.Consent is null)
         {
             return ApiProblem.Create(context, 400, "invalid_request");

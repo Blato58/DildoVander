@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
+import { customerCopy } from '../../application/customerCopy';
 </script>
 
 <template>
   <details class="aw-card lost-access-help">
-    <summary>Ztratili jste přístup?</summary>
+    <summary>{{ customerCopy.text('signin.lost-access') }}</summary>
     <div class="lost-access-guidance">
-      <p>Zkuste zálohovaný přístupový klíč ve svém správci hesel nebo jiný klíč registrovaný u účtu.</p>
-      <p>Na důvěryhodném zařízení, kde jste stále přihlášeni, můžete v Nastavení účtu zkontrolovat své klíče. Přidání dalšího klíče může vyžadovat nové ověření.</p>
-      <p>Pokud nemáte žádný použitelný klíč, <RouterLink to="/support">kontaktujte podporu</RouterLink>. Podpora vás provede ověřením vlastnictví účtu; jednorázový kód obnovy může vystavit pouze vlastník služby.</p>
-      <p>Obnova používá jednorázový kód s omezenou platností. Po dokončení budou původní klíče odebrány a ostatní relace odhlášeny.</p>
-      <p>Zobrazované jméno ani odkaz na památku vlastnictví účtu neprokazují. Nikomu neposílejte přístupové klíče ani obnovovací kódy.</p>
+      <p>{{ customerCopy.text('signin.try-backup-key') }}</p>
+      <p>{{ customerCopy.text('signin.trusted-device') }}</p>
+      <p>{{ customerCopy.text('signin.contact-support-before') }}<RouterLink to="/support">{{ customerCopy.text('signin.contact-support-link') }}</RouterLink>{{ customerCopy.text('signin.contact-support-after') }}</p>
+      <p>{{ customerCopy.text('signin.recovery-effects') }}</p>
+      <p>{{ customerCopy.text('signin.never-share-secrets') }}</p>
     </div>
   </details>
 </template>

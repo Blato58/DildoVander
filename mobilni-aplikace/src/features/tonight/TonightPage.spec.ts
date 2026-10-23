@@ -5,6 +5,7 @@ import { account, accountRequest, accountTransport } from '../identity/session';
 import { deviceSession } from '../suitcase/deviceSession';
 import { directorStop, clearDirectorStop } from '../director/directorStop';
 import TonightPage from './TonightPage.vue';
+vi.mock('./TonightWaiting.vue', () => ({ default: { name: 'TonightWaiting', props: ['deviceId', 'authorized'], template: '<div />' } }));
 
 vi.mock('../identity/session', async () => {
   const vue = await import('vue');

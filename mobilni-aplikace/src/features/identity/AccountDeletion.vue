@@ -3,6 +3,7 @@ import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { account, authenticatePasskey, deleteAccount, getAccountDeletionStatus } from './session';
+import { customerCopy } from '../../application/customerCopy';
 
 const props = withDefaults(defineProps<{ receiptOnly?: boolean }>(), { receiptOnly: false });
 const busy = ref(false);
@@ -40,11 +41,11 @@ async function checkStatus() {
       accepted.value = true;
       completed.value = status === 'deleted';
     } else if (accepted.value) {
-      statusError.value = 'Potvrzení smazání už není dostupné. Pro ověření se obraťte na podporu.';
+      statusError.value = customerCopy.text('deletion.status-unavailable');
     }
     if (status === 'deletion_requested' && --checksRemaining > 0) statusTimer = setTimeout(() => void checkStatus(), 5000);
   } catch (failure) {
-    if (!controller.signal.aborted && !disposed) statusError.value = 'Stav smazání se nepodařilo ověřit. Zkuste kontrolu znovu.';
+    if (!controller.signal.aborted && !disposed) statusError.value = customerCopy.text('deletion.status-error');
   } finally {
     if (statusRequest === controller) { statusRequest = undefined; checking.value = false; }
   }
@@ -80,7 +81,7 @@ async function verify() {
     await authenticatePasskey('reauth');
     if (attempt === generation && account.value?.id === accountId) verifiedAccountId.value = accountId;
   } catch (failure) {
-    if (attempt === generation) error.value = (failure as Error).message;
+    if (attempt === generation) error.value = customerCopy.text('deletion.passkey-error');
   } finally {
     if (attempt === generation) busy.value = false;
   }
@@ -100,9 +101,9 @@ async function submit() {
     if (!disposed && !account.value) { accepted.value = true; void checkStatus(); }
   } catch (failure) {
     if (attempt === generation) {
-      error.value = (failure as Error).message;
+      error.value = customerCopy.text('deletion.request-error');
       if (!failure || typeof failure !== 'object' || !('status' in failure)) {
-        error.value += ' Pokud se přerušilo spojení, výsledek může být neznámý. Ověřte stav účtu před dalším pokusem.';
+        error.value += ` ${customerCopy.text('deletion.uncertain')}`;
       }
     }
   } finally {
@@ -117,29 +118,29 @@ async function submit() {
 
 <template>
   <section v-if="account || accepted || statusError || receiptOnly" class="aw-card account-deletion" aria-labelledby="account-deletion-title" :aria-busy="busy || checking">
-    <h2 id="account-deletion-title">Smazání účtu</h2>
-    <p v-if="receiptOnly && account">Jste přihlášeni k aktivnímu účtu. Potvrzení dřívějšího smazání se během přihlášení nezobrazuje.</p>
+    <h2 id="account-deletion-title">{{ customerCopy.text('deletion.title') }}</h2>
+    <p v-if="receiptOnly && account">{{ customerCopy.text('deletion.receipt-signed-in') }}</p>
     <template v-else-if="accepted || !account || receiptOnly">
-      <p v-if="receiptOnly && checking && !accepted" role="status">Ověřuji stav smazání účtu…</p>
-      <p v-if="receiptOnly && receiptMissing && !accepted">Na tomto zařízení není dostupné potvrzení smazání. Pokud jste o smazání požádali jinde, ověřte stav na původním zařízení nebo se obraťte na podporu.</p>
+      <p v-if="receiptOnly && checking && !accepted" role="status">{{ customerCopy.text('deletion.checking') }}</p>
+      <p v-if="receiptOnly && receiptMissing && !accepted">{{ customerCopy.text('deletion.receipt-missing') }}</p>
       <AwNotice v-if="accepted" :tone="completed ? 'success' : 'info'" role="status">
-        <template v-if="completed">Smazání účtu a jeho soukromých dat v aplikaci bylo dokončeno.</template>
-        <template v-else>Žádost o smazání byla přijata. Účet je zablokovaný a přihlášení na všech zařízeních ukončena. Mazání soukromých dat pokračuje na serveru; nemusí být dokončeno okamžitě.</template>
+        <template v-if="completed">{{ customerCopy.text('deletion.completed') }}</template>
+        <template v-else>{{ customerCopy.text('deletion.accepted') }}</template>
       </AwNotice>
-      <p v-if="accepted">Toto potvrzení se týká dat aplikace. Případné zálohy poskytovatelů mají vlastní dobu uchování. Mazání běžně probíhá automaticky; při delším čekání se obraťte na podporu.</p>
+      <p v-if="accepted">{{ customerCopy.text('deletion.provider-backups') }} {{ customerCopy.text('deletion.provider-retention') }}</p>
       <AwNotice v-if="statusError" tone="danger" role="alert">{{ statusError }}</AwNotice>
-      <AwButton v-if="!completed" :busy="checking" :disabled="checking" @click="checksRemaining = 60; checkStatus()">Zkontrolovat stav smazání</AwButton>
+      <AwButton v-if="!completed" :busy="checking" :disabled="checking" @click="checksRemaining = 60; checkStatus()">{{ customerCopy.text('deletion.check-status') }}</AwButton>
     </template>
     <template v-else>
-      <p>Trvale smažete svůj účet, soukromé fotografie, portréty, příběhy a postavu. Vaše sdílené odkazy přestanou fungovat. Přístup ztratíte na všech zařízeních. Smazání nelze vrátit zpět.</p>
-      <p>Účty a data ostatních hostů zůstanou zachována. Nejprve ověřte svůj účet přístupovým klíčem. Poté smazání výslovně potvrdíte.</p>
+      <p>{{ customerCopy.text('deletion.irreversible') }}</p>
+      <p>{{ customerCopy.text('deletion.other-accounts-preserved') }}</p>
       <AwNotice v-if="error" tone="danger" role="alert">{{ error }}</AwNotice>
-      <AwButton v-if="!verifiedAccountId" :busy="busy" :disabled="busy" @click="verify">Ověřit účet pro smazání</AwButton>
+      <AwButton v-if="!verifiedAccountId" :busy="busy" :disabled="busy" @click="verify">{{ customerCopy.text('deletion.verify') }}</AwButton>
       <template v-else>
-        <p role="status">Účet {{ account?.displayName }} byl ověřen. Další krok vyžádá konečné potvrzení nevratného smazání.</p>
+        <p role="status">{{ customerCopy.text('deletion.verify-complete', { name: account?.displayName ?? '' }) }}</p>
         <div class="deletion-actions">
-          <AwButton variant="danger" :busy="busy" :disabled="busy" @click="submit">Trvale smazat můj účet</AwButton>
-          <AwButton :disabled="busy" @click="verifiedAccountId = ''">Zrušit</AwButton>
+          <AwButton variant="danger" :busy="busy" :disabled="busy" @click="submit">{{ customerCopy.text('deletion.confirm') }}</AwButton>
+          <AwButton :disabled="busy" @click="verifiedAccountId = ''">{{ customerCopy.text('deletion.cancel') }}</AwButton>
         </div>
       </template>
     </template>

@@ -241,7 +241,17 @@ void EspIdfBackendNetwork::RunCustomer() {
       customerEnabled_.store(false); WaitMs(1000); continue;
     }
     cJSON* response = nullptr;
-    const int code = CustomerHttp(settings_.BackendHost(), token.bytes.data(), "/v1/customer-sessions/device", nullptr, response);
+    bool runtimeReady = false;
+    {
+      std::lock_guard<std::mutex> lock(customerMutex_);
+      runtimeReady = CanPublishCustomerReadiness(customerIdleAdmission_.load(),
+          customerReserved_.load(), IsVoiceBusy(), customerBootReconciled_,
+          IsCustomerChallengeCurrent(!customerChallenge_.empty(), customerChallengeRegistering_,
+              runtimeState_.Matches(customerChallengeSnapshot_), MonotonicMs(), customerChallengeAtMs_, 60000));
+    }
+    const std::string statusPath = "/v1/customer-sessions/device?bootId=" + bootId_ +
+        "&ready=" + (runtimeReady ? "true" : "false");
+    const int code = CustomerHttp(settings_.BackendHost(), token.bytes.data(), statusPath, nullptr, response);
     if (code == 401) showUnauthorized_.store(true);
     const bool enabled = code == 200 && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(response, "enabled"));
     customerEnabled_.store(enabled);

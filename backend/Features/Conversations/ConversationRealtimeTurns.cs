@@ -125,6 +125,7 @@ internal sealed partial class ConversationStore
                 LiveAudio: handsFree && !request.Opening,
                 OutputTokenLimit: handsFree ? 768 : RealtimeProtocol.MaxOutputTokens)
             { PersonalityId = conversation.PersonalityId, LivePrompt = conversation.LivePrompt,
+                ConversationLanguage = conversation.ConversationLanguage,
                 CostumeContext = CostumePrompt(conversation) };
             if (hardware is not null) { turn = LabTurnContext(turn, hardware); }
             if (gptLive)
@@ -161,6 +162,10 @@ internal sealed partial class ConversationStore
                     ? value with { Hardware = metadata with { OperationId = call.OperationId } } : value);
             }
             activePaidCalls.Add(call.OperationId, new PaidCall(deviceId, conversationId, cancellation));
+            if (conversation.GuestTone is { } guestTone)
+            {
+                call = call with { Context = call.Context with { GuestTone = BindGuestTone(call, guestTone) } };
+            }
             RecordAcceptedTurn(conversation, request.ClientTurnId, now);
             return new(200, null, call);
         }

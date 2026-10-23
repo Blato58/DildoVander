@@ -37,6 +37,8 @@ internal sealed record RealtimeTurnContext(
     internal IReadOnlyList<object> LiveInput { get; init; } = [];
     internal IReadOnlyList<string> LiveMemoryReferences { get; init; } = [];
     internal string OpeningVariation { get; init; } = Request.Opening ? ConversationOpening.Next() : "";
+    internal string ConversationLanguage { get; init; } = "cs-CZ";
+    internal GuestToneBinding? GuestTone { get; init; }
 }
 
 internal sealed record RealtimeReply(
@@ -121,7 +123,7 @@ internal static class RealtimeProtocol
             AudioFormat = new RealtimePcmAudioFormat { Rate = 24000 },
             AudioTranscriptionOptions = turn.Request.Wav is null && !turn.LiveAudio
                 ? null
-                : new RealtimeAudioTranscriptionOptions { Model = "gpt-4o-transcribe", Language = "cs" }
+                : new RealtimeAudioTranscriptionOptions { Model = "gpt-4o-transcribe", Language = turn.ConversationLanguage == "en-US" ? "en" : "cs" }
         };
         if (turn.LiveAudio)
         {
@@ -152,7 +154,8 @@ internal static class RealtimeProtocol
                     : turn.RequireQuestion
                         ? "Polož jednu otázku. Výběr není povolený."
                         : "Jakmile máš podklady, rovnou vyber přes propose_wand. Nežádej souhlas s hůlkou; další otázka jen pro chybějící podklad.")
-                + (turn.Request.Opening ? " " + PersonalityCatalog.OpeningInstructions(turn.PersonalityId, turn.OpeningVariation) : ""),
+                + (turn.Request.Opening ? " " + PersonalityCatalog.OpeningInstructions(turn.PersonalityId, turn.OpeningVariation) : "")
+                + TrustedPolicySuffix(turn),
             MaxOutputTokenCount = turn.OutputTokenLimit,
             Truncation = RealtimeDefaultTruncation.Disabled,
             AudioOptions = new RealtimeConversationSessionAudioOptions
@@ -186,6 +189,13 @@ internal static class RealtimeProtocol
             options.Tools.Add(tool);
         }
         return options;
+    }
+
+    internal static string TrustedPolicySuffix(RealtimeTurnContext turn)
+    {
+        var instructions = turn.GuestTone?.Read().Instructions
+            ?? (turn.ConversationLanguage == "en-US" ? "Conduct this conversation in English." : "");
+        return instructions.Length == 0 ? "" : "\nTrusted application guest policy: " + instructions;
     }
 
     private static string Instructions(RealtimeTurnContext turn)

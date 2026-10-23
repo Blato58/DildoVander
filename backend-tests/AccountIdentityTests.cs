@@ -555,7 +555,7 @@ internal static partial class AccountIdentityTests
         public CookieContainer Cookies(HttpClient client) => jars[client];
         public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false,
             bool deletionFeatures = false, bool customerMemoryFeatures = false,
-            bool accountDataExportFeatures = false)
+            bool accountDataExportFeatures = false, Action<WebApplication>? configureEndpoints = null)
         {
             var root = Path.Combine(Path.GetTempPath(), "dv-account-tests-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
@@ -646,7 +646,11 @@ internal static partial class AccountIdentityTests
             await AccountProvisioning.MigrateAsync(app.Services);
             await app.InitializeAccountsAsync();
             app.UseWebSockets(); app.UseRateLimiter(); app.UseAccountIdentity(); app.MapAccountEndpoints(); app.MapDigitalTwin(); app.MapModelReleases();
-            if (customerFeatures || customerMemoryFeatures || accountDataExportFeatures) { app.MapCustomerCharacters(); app.MapCustomerSessions(); }
+            if (customerFeatures || customerMemoryFeatures || accountDataExportFeatures)
+            {
+                app.MapCustomerCharacters(); app.MapCustomerSessions();
+                if (configureEndpoints is null) { app.MapCustomerConversationPreferences(); }
+            }
             if (customerMemoryFeatures || accountDataExportFeatures) { app.MapCustomerMemoryEndpoints(); }
             if (accountDataExportFeatures) { app.MapAccountDataExports(); }
             app.MapConversations();
@@ -686,6 +690,7 @@ internal static partial class AccountIdentityTests
                 app.UseStaticFiles(staticOptions);
                 app.MapFallbackToFile("index.html", staticOptions);
             }
+            configureEndpoints?.Invoke(app);
             await app.StartAsync();
             app.Configuration["Keepsake:Origin"] = app.Urls.Single().Replace("127.0.0.1", "localhost");
             if (browserMode)

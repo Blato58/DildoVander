@@ -1,7 +1,8 @@
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import NewCharacterDialog from './NewCharacterDialog.vue';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 function mountDialog() {
   return mount(NewCharacterDialog, {
@@ -10,6 +11,11 @@ function mountDialog() {
 }
 
 describe('NewCharacterDialog', () => {
+  beforeEach(() => {
+    interfaceLanguagePreference.setScope(null);
+    interfaceLanguagePreference.setLanguage('cs');
+  });
+
   it('starts a distinct blank identity and explains what happens to the current one', () => {
     const wrapper = mountDialog();
 
@@ -94,6 +100,20 @@ describe('NewCharacterDialog', () => {
       },
     ]]);
     expect(wrapper.emitted('cancel')).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('localizes the new identity choice and keeps optional OpenAI consent unchecked', async () => {
+    const wrapper = mountDialog();
+    interfaceLanguagePreference.setLanguage('en');
+    await nextTick();
+    expect(wrapper.get('dialog').attributes('aria-label')).toBe('Create a new character');
+    expect(wrapper.text()).toContain('A new character creates a separate identity. Previous conversations and keepsakes stay saved with the earlier character.');
+    expect(wrapper.text()).toContain('Unsubmitted edits to the current character are not copied. Choose Cancel to return to them.');
+    expect(wrapper.text()).toContain('I agree to send this new character’s details to OpenAI');
+    expect((wrapper.get('#new-character-openai-consent').element as HTMLInputElement).checked).toBe(false);
+    await wrapper.get('form').trigger('submit');
+    expect(wrapper.emitted('confirm')?.[0]?.[0]).toMatchObject({ openAiConsent: false });
     wrapper.unmount();
   });
 

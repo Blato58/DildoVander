@@ -64,7 +64,7 @@ internal static class AccountDataExportDocumentTests
             "owned keepsake metadata is ordinally sorted");
         Check(root.GetProperty("memoryFacts")[0].GetProperty("id").GetString() == "memory-a",
             "personal memory facts are ordinally sorted");
-        Check(root.GetProperty("included").GetArrayLength() == 4 && root.GetProperty("excluded").GetArrayLength() == 5,
+        Check(root.GetProperty("included").GetArrayLength() == 5 && root.GetProperty("excluded").GetArrayLength() == 5,
             "the document explicitly identifies included and excluded data categories");
         Check(root.GetProperty("history").GetProperty("sessions")[0].TryGetProperty("snapshotAvailable", out _)
             && !root.GetProperty("history").GetProperty("sessions")[0].TryGetProperty("expectedGuestId", out _),
@@ -72,6 +72,20 @@ internal static class AccountDataExportDocumentTests
         Check(root.GetProperty("keepsakes")[0].EnumerateObject().Select(property => property.Name)
                 .ToHashSet(StringComparer.Ordinal).SetEquals(["id", "documentRevision", "linkedAt"]),
             "keepsake export contains only the approved public metadata fields");
+
+        Check(root.GetProperty("conversationPreferences").ValueKind == JsonValueKind.Null,
+            "unsaved defaults are not represented as persisted account preferences");
+        var preferences = new Kufr.Backend.Features.Customers.CustomerConversationPreferenceView(
+            1, "profile-a", 2, 7, "en-US", "gentle", true);
+        var withPreferences = AccountDataExportDocument.Build(job,
+            inventory with { ConversationPreferences = preferences }, keepsakes, memory);
+        using var preferenceDocument = JsonDocument.Parse(withPreferences.Bytes);
+        var saved = preferenceDocument.RootElement.GetProperty("conversationPreferences");
+        Check(saved.GetProperty("conversationLanguage").GetString() == "en-US"
+            && saved.GetProperty("tone").GetString() == "gentle"
+            && saved.GetProperty("preferenceRevision").GetInt64() == 7
+            && saved.GetProperty("profileId").GetString() == "profile-a",
+            "export includes the guarded saved conversation preference and profile binding");
 
         var text = Encoding.UTF8.GetString(first.Bytes);
         foreach (var forbidden in new[]

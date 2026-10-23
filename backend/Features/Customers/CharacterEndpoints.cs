@@ -14,6 +14,7 @@ internal static class CharacterEndpoints
     {
         if (!AccountConfiguration.Read(configuration).Enabled) { return services; }
         services.AddSingleton(provider => new CharacterProfileStore(provider.GetRequiredService<AccountConfiguration>().DataRoot));
+        services.AddSingleton<CustomerAdmissionAuthority>();
         services.TryAddSingleton<ICharacterEnrichmentProvider, OpenAiCharacterEnrichmentProvider>();
         services.AddHostedService<CharacterEnrichmentWorker>();
         return services;

@@ -173,6 +173,12 @@ void TestRetryAfterTransportFailureReusesRequestId() {
 }  // namespace
 
 int main() {
+  assert(CanPublishCustomerReadiness(true, false, false, true, true));
+  assert(!CanPublishCustomerReadiness(false, false, false, true, true));
+  assert(!CanPublishCustomerReadiness(true, true, false, true, true));
+  assert(!CanPublishCustomerReadiness(true, false, true, true, true));
+  assert(!CanPublishCustomerReadiness(true, false, false, false, true));
+  assert(!CanPublishCustomerReadiness(true, false, false, true, false));
   TestOneRefreshAndStableIdempotency();
   TestInvalidScopeAndRejectedServerResult();
   TestMalformedSuccessStaysOffline();

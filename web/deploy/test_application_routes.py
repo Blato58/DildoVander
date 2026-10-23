@@ -70,6 +70,18 @@ class ApplicationRoutingTests(unittest.TestCase):
                 for raw in (encoded, '/' + route, '/app/v1/../..' + route, route + '/extra'):
                     self.assertIsNone(re.search(pattern, raw), raw)
 
+    def test_demo_is_an_exact_public_get_only_page(self):
+        config = proxy.render_compatibility('keepsake.example.invalid')
+        block = config.split('location = /demo {', 1)[1].split('\n}', 1)[0]
+        for directive in ('GET|HEAD', 'try_files /index.html =404;', 'no-store', 'no-referrer', 'nosniff'):
+            self.assertIn(directive, block)
+        self.assertNotIn('proxy_pass', block)
+        self.assertNotIn('X-Robots-Tag', block)
+        pattern = re.search(r'if \(\$request_uri !~ "([^"]+)"', block).group(1)
+        self.assertIsNotNone(re.search(pattern, '/demo?theme=ollivander'))
+        for raw in ('/%64emo', '//demo', '/demo/extra', '/app/v1/../../demo'):
+            self.assertIsNone(re.search(pattern, raw), raw)
+
     def test_guest_shell_load_preserves_claim_and_private_headers(self):
         config = proxy.render_compatibility('keepsake.example.invalid')
         for route in ('/archive/duel', '/archive/chronicle',

@@ -103,6 +103,7 @@ internal sealed partial class KeepsakeStore
             Execute(connection, transaction,
                 "UPDATE dv10_jobs SET state='cancelled' WHERE keepsake_id=$id AND kind='portrait' AND state IN ('queued','leased','dispatched')", ("$id", id));
             Remember(connection, transaction, scope, key, body, document.ConsentVersion.ToString());
+            RecordCompletionUpdates(connection, transaction, id);
             transaction.Commit();
             return document.ConsentVersion;
         }

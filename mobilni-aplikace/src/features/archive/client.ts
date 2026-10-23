@@ -73,15 +73,23 @@ export function downloadName(name: string, mediaType: string) {
   if (!extension) throw new GuestError(415);
   return name.replace(/\.[^.]+$/, '') + extension;
 }
-export function generationLabel(state?: string) {
-  const labels: Record<string, string> = { queued: 'Čeká na přípravu.', running: 'Připravuje se.', leased: 'Připravuje se.', dispatched: 'Připravuje se.', completed: 'Připraveno.', ready: 'Připraveno.', failed: 'Nepodařilo se dokončit.', cancelled: 'Příprava byla zastavena.',
+export function generationLabel(state?: string, language: 'cs' | 'en' = 'cs') {
+  const labels: Record<string, Record<string, string>> = {
+    cs: { queued: 'Čeká na přípravu.', running: 'Připravuje se.', leased: 'Připravuje se.', dispatched: 'Připravuje se.', completed: 'Připraveno.', ready: 'Připraveno.', failed: 'Nepodařilo se dokončit.', cancelled: 'Příprava byla zastavena.',
     archived_private: 'Výstup je uchovaný v soukromé historii.', paused_preparing: 'Příprava je pozastavená.', awaiting_capacity: 'Příprava čeká na volnou kapacitu.',
-    provider_unknown: 'Výsledek ještě nemáme potvrzený.', outcome_unknown: 'Výsledek ještě nemáme potvrzený.', awaiting_reconciliation: 'Výsledek ještě nemáme potvrzený.' };
-  return state && labels[state] || 'Stav přípravy není potvrzený.';
+    provider_unknown: 'Výsledek ještě nemáme potvrzený.', outcome_unknown: 'Výsledek ještě nemáme potvrzený.', awaiting_reconciliation: 'Výsledek ještě nemáme potvrzený.' },
+    en: { queued: 'Waiting to be prepared.', running: 'Being prepared.', leased: 'Being prepared.', dispatched: 'Being prepared.', completed: 'Ready.', ready: 'Ready.', failed: 'Could not be completed.', cancelled: 'Preparation was stopped.',
+    archived_private: 'The output is kept in private history.', paused_preparing: 'Preparation is paused.', awaiting_capacity: 'Preparation is waiting for capacity.',
+    provider_unknown: 'The result is not confirmed yet.', outcome_unknown: 'The result is not confirmed yet.', awaiting_reconciliation: 'The result is not confirmed yet.' },
+  };
+  return state && labels[language][state] || (language === 'en' ? 'Preparation status is unconfirmed.' : 'Stav přípravy není potvrzený.');
 }
-export function deletionLabel(state: string) {
-  const labels: Record<string, string> = { completed: 'odstraněno', deleted: 'odstraněno', pending: 'odstranění probíhá', failed: 'odstranění nebylo dokončeno', not_confirmed: 'odstranění nepotvrzeno', unknown_not_provider_confirmed: 'odstranění poskytovatelem nepotvrzeno', pending_independent_backup_reconciliation: 'čeká na nezávislé odstranění záloh', not_applicable: 'nevztahuje se', unavailable: 'stav nedostupný' };
-  return labels[state] || 'stav nepotvrzený';
+export function deletionLabel(state: string, language: 'cs' | 'en' = 'cs') {
+  const labels: Record<string, Record<string, string>> = {
+    cs: { completed: 'odstraněno', deleted: 'odstraněno', pending: 'odstranění probíhá', failed: 'odstranění nebylo dokončeno', not_confirmed: 'odstranění nepotvrzeno', unknown_not_provider_confirmed: 'odstranění poskytovatelem nepotvrzeno', pending_independent_backup_reconciliation: 'čeká na nezávislé odstranění záloh', not_applicable: 'nevztahuje se', unavailable: 'stav nedostupný' },
+    en: { completed: 'removed', deleted: 'removed', pending: 'removal in progress', failed: 'removal was not completed', not_confirmed: 'removal unconfirmed', unknown_not_provider_confirmed: 'removal by provider unconfirmed', pending_independent_backup_reconciliation: 'awaiting independent backup removal', not_applicable: 'not applicable', unavailable: 'status unavailable' },
+  };
+  return labels[language][state] || (language === 'en' ? 'status unconfirmed' : 'stav nepotvrzený');
 }
 const text = (value: unknown, limit: number) => typeof value === 'string' ? value.slice(0, limit) : '';
 

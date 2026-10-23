@@ -1,4 +1,6 @@
 .archive-view { display: grid; gap: 1.5rem; min-width: 0; }
+.keepsake-view { grid-template-columns: minmax(0, 1fr); }
+.keepsake-view input[type='file'] { max-width: 100%; }
 .archive-view h1, .archive-view h2, .archive-view p { overflow-wrap: anywhere; }
 .archive-actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
 .archive-workspace { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(0, 3fr); gap: 2rem; align-items: start; }

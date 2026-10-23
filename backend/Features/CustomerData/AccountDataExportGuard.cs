@@ -20,7 +20,9 @@ internal sealed class CustomerDataGuardDeadline(CancellationToken token)
 
 // Dedicated connections avoid borrowing EF's tracked context or a feature writer.
 // BEGIN IMMEDIATE excludes concurrent revocation writes until the caller releases
-// the bounded operation. These guards never commit application data.
+// the bounded operation. Admission/export readers roll back on disposal. The
+// dedicated preference mutation commits its character scope after final
+// authority validation and immediately closes both reservations.
 internal sealed class CustomerDataSqliteGuard : IDisposable
 {
     internal SqliteConnection Connection { get; }

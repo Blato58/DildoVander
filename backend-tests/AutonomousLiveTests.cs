@@ -10,6 +10,7 @@ using Kufr.Backend.Features.Character;
 using Kufr.Backend.Features.Show;
 using Microsoft.Data.Sqlite;
 using Kufr.Backend.Features.Access;
+using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.VoiceTurns;
 using Microsoft.AspNetCore.Http;
@@ -913,6 +914,7 @@ internal static class AutonomousLiveTests
         await VerifyMissingContext(options);
         await VerifyDecisionFailure(options);
         await VerifyProviderFailure(options);
+        await VerifyGuestOptOutSurvivesProviderFailure(options);
         await VerifyPlaybackRegistry();
         Console.WriteLine("Autonomous Live: frozen prompts/policy, numeric timelines, timed long Czech input, delegation ordering/duplicates, stale correction, playback, failure diagnostics and native wire passed.");
     }
@@ -1363,11 +1365,84 @@ internal static class AutonomousLiveTests
         return new(WandDecisionStatus.ValidProposal, compartment,
             [new(evidence.Reference, evidence.Text.Length <= 70 ? evidence.Text : evidence.Text[..70], "Vazba na doloženou odpověď hosta.")], "", i.Revision, i.AvailabilityRevision, 10);
     }
-    private static RealtimeCall Call(GptLiveOptions options, CancellationTokenSource token)
+    private static RealtimeCall Call(GptLiveOptions options, CancellationTokenSource token,
+        GuestToneBinding? guestTone = null, string personalityId = PersonalityCatalog.OllivanderId)
     {
         var request = new RealtimeTurnRequest(Guid.NewGuid(), Guid.NewGuid(), 0, 63, 7, PartyWandCatalog.Version, true, "", null, "marin", 1);
-        var context = new RealtimeTurnContext(request, true, "", []) { PersonalityId = PersonalityCatalog.OllivanderId, LivePrompt = LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, options) };
+        var context = new RealtimeTurnContext(request, true, "", [])
+        {
+            PersonalityId = personalityId,
+            LivePrompt = LivePromptSnapshot.Create(personalityId, options),
+            GuestTone = guestTone
+        };
         return new("fixture-op", new("device", request.BootId, Guid.NewGuid().ToString("D"), request.ClientTurnId, 0, 7), context, null, token);
+    }
+
+    private static async Task VerifyGuestOptOutSurvivesProviderFailure(GptLiveOptions options)
+    {
+        using var clock = new ManualClock();
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var state = new ConversationGuestToneState(options.Character,
+            new CustomerConversationPreferenceSnapshot(1, 1, "cs-CZ", "roast"));
+        var binding = new GuestToneBinding(state.Read, state.Apply, state.SetOperatorTone);
+        using var decisions = new WandDecisionService((_, _) =>
+            throw new Exception("Guest opt-out fixture must not make a paid decision."));
+
+        using var firstSocket = new SocketFixture();
+        firstSocket.BeforeDelivery = () => clock.Advance(50);
+        await using (var firstConnection = new GptLiveConnection(firstSocket))
+        {
+            var consumed = Channel.CreateUnbounded<string>();
+            var chunks = Channel.CreateUnbounded<int>();
+            var run = new AutonomousLiveDialogue(firstConnection, decisions, clock).RunAsync(Call(options, lifetime, binding,
+                    PersonalityCatalog.DefaultId),
+                (pcm, _) => { chunks.Writer.TryWrite(pcm.Length); return Task.CompletedTask; },
+                (text, _) => { consumed.Writer.TryWrite(text); return Task.CompletedTask; },
+                _ => Task.CompletedTask, (_, _) => throw new Exception("Opt-out fixture must not request playback."),
+                () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token);
+            await firstSocket.Command("session.instructions.append", lifetime.Token);
+            firstSocket.Transcript(false, "Tak co tvoje ego?", 0, 400);
+            firstSocket.Audio();
+            await chunks.Reader.ReadAsync(lifetime.Token);
+            firstSocket.Transcript(true, "Bez nadávek.", 500, 650);
+            await consumed.Reader.ReadAsync(lifetime.Token);
+            for (var tick = 0; tick < 8; tick++)
+            {
+                firstSocket.Emit(new { type = "session.usage.updated", usage = new { seconds = 2 + tick } });
+            }
+            var noSwearingApplied = Task.Run(async () =>
+            {
+                while (!binding.Read().Instructions.Contains("Do not swear.", StringComparison.Ordinal))
+                { await Task.Delay(1, lifetime.Token); }
+            }, lifetime.Token);
+            await AdvanceUntilAsync(noSwearingApplied, run, clock, lifetime.Token);
+            Check(binding.Read().Instructions.Contains("Do not swear.", StringComparison.Ordinal),
+                "actual autonomous guest input commits no-swearing opt-out");
+            Check(firstSocket.Sent.Any(text => text.Contains("Do not swear.", StringComparison.Ordinal)),
+                "autonomous Live immediately receives the updated trusted tone directive");
+
+            firstSocket.Emit(new { type = "error", error = new
+                { code = "server_error", type = "server_error", message = "Private provider content" } });
+            try { await run.WaitAsync(lifetime.Token); throw new Exception("Provider failure did not end the first Live call."); }
+            catch (LiveProviderFailure) { }
+        }
+
+        using var retrySocket = new SocketFixture();
+        await using var retryConnection = new GptLiveConnection(retrySocket);
+        var retry = new AutonomousLiveDialogue(retryConnection, decisions, clock).RunAsync(Call(options, lifetime, binding,
+                PersonalityCatalog.DefaultId),
+            (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, _ => Task.CompletedTask,
+            (_, _) => throw new Exception("Retry fixture must not request playback."),
+            () => (63, 7, true), _ => Task.CompletedTask, lifetime.Token);
+        var start = await retrySocket.Command("session.start", lifetime.Token);
+        using (var document = JsonDocument.Parse(start))
+        {
+            var instructions = document.RootElement.GetProperty("session").GetProperty("instructions").GetString()!;
+            Check(instructions.Contains("Do not swear.", StringComparison.Ordinal),
+                "new autonomous Live call receives the prior call's no-swearing opt-out");
+        }
+        lifetime.Cancel();
+        try { await retry; } catch (OperationCanceledException) { }
     }
     private static async Task VerifyPlaybackRegistry()
     {

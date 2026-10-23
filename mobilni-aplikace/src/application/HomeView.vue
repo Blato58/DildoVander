@@ -10,15 +10,18 @@ import CustomerJourneyCard from '../features/customer/CustomerJourneyCard.vue';
 import { SessionRecoveryController, type SessionRecoveryState } from '../features/customer/sessionRecovery';
 import type { CustomerJourneyInput } from '../features/customer/customerJourney';
 import { projectCustomerResult, type CustomerResultProjection } from '../features/customer/customerResult';
+import { customerCopy, type CustomerCopyKey } from './customerCopy';
 
 const route = useRoute();
 const canOperate = computed(() => canOperateSuitcase(account.value));
 const isCustomer = computed(() => isCustomerAccount(account.value) && !accountDeletionRequested.value);
 const source = computed(() => deviceSession.target.value);
 const browserMode = !Capacitor.isNativePlatform();
-const greeting = computed(() => account.value ? `Vítejte, ${account.value.displayName}` : 'Kufr plný příběhů.');
+const greeting = computed(() => account.value
+  ? customerCopy.text('home.greeting-account', { name: account.value.displayName })
+  : customerCopy.text('home.greeting-public'));
 const evening = ref<{ label: string; latest?: string } | null>(null);
-const eveningState = ref('Načítám přehled večera…');
+const eveningState = ref<CustomerCopyKey>('home.evening-loading');
 const eveningController = new AbortController();
 interface CustomerProfileSnapshot { profile: { status: string } | null; sessionState: string | null; activeSession: boolean; latestResult: CustomerResultProjection | null }
 interface CustomerSessionsResponse { items: unknown[] }
@@ -163,10 +166,10 @@ onMounted(async () => {
     if (value.schemaVersion !== 1) throw new Error();
     if (value.evening && typeof value.evening.label === 'string') {
       evening.value = { label: value.evening.label.slice(0, 240), latest: typeof value.latest?.officialName === 'string' ? value.latest.officialName.slice(0, 240) : undefined };
-      eveningState.value = 'Veřejný přehled aktivního večera';
-    } else { eveningState.value = 'Veřejný večer zatím není otevřený.'; }
+      eveningState.value = 'home.evening-active';
+    } else { eveningState.value = 'home.evening-closed'; }
   } catch {
-    if (!eveningController.signal.aborted) eveningState.value = 'Přehled večera je nyní nedostupný. Ostatní části aplikace zůstávají použitelné.';
+    if (!eveningController.signal.aborted) eveningState.value = 'home.evening-unavailable';
   }
 });
 onBeforeUnmount(() => {
@@ -183,25 +186,26 @@ onBeforeUnmount(() => {
   <div class="home-layout">
     <section class="home-introduction page-stack">
       <p class="eyebrow">DildoVander</p><h1>{{ greeting }}</h1>
-      <p class="home-lead">Prohlédněte si model kufru a příběhy hůlek. Pro párování a ovládání fyzického kufru použijte aplikaci pro iPhone a přihlaste se k oprávněnému účtu.</p>
-      <AwNotice v-if="['operator', 'administrator'].includes(String(route.query.access))" tone="warning">K této části nemáte potřebnou roli. Oprávnění ke konkrétnímu kufru přiděluje vlastník.</AwNotice>
-      <AwNotice v-if="route.query.access === 'online'" tone="warning">Tato část vyžaduje připojení a ověření účtu serverem. Offline můžete ovládat již spárovaný místní kufr.</AwNotice>
-      <div v-if="canOperate" class="home-primary-actions"><RouterLink class="aw-button aw-button--primary" :to="source === 'unavailable' ? '/connections' : '/suitcase'">{{ source === 'unavailable' ? 'Připojit kufr' : 'Otevřít kufr' }}</RouterLink><RouterLink class="aw-button aw-button--secondary" to="/archive">Najít příběh hůlky</RouterLink></div>
+      <p class="home-lead">{{ customerCopy.text('home.lead') }}</p>
+      <AwNotice v-if="['operator', 'administrator'].includes(String(route.query.access))" tone="warning">{{ customerCopy.text('home.access-role') }}</AwNotice>
+      <AwNotice v-if="route.query.access === 'online'" tone="warning">{{ customerCopy.text('home.access-online') }}</AwNotice>
+      <div v-if="canOperate" class="home-primary-actions"><RouterLink class="aw-button aw-button--primary" :to="source === 'unavailable' ? '/connections' : '/suitcase'">{{ customerCopy.text(source === 'unavailable' ? 'home.connect-suitcase' : 'home.open-suitcase') }}</RouterLink><RouterLink class="aw-button aw-button--secondary" to="/archive">{{ customerCopy.text('home.find-wand-story') }}</RouterLink></div>
       <CustomerJourneyCard v-if="isCustomer" :journey="customerJourney" />
-      <nav v-if="isCustomer" class="home-primary-actions" aria-label="Další části vašeho prostoru"><RouterLink class="aw-button aw-button--secondary" to="/me/keepsakes">Moje památky</RouterLink></nav>
-      <div v-else-if="!canOperate" class="home-primary-actions"><a v-if="browserMode" class="aw-button aw-button--primary" href="/ios/">Stáhnout aplikaci pro iPhone</a><RouterLink class="aw-button" :class="browserMode ? 'aw-button--secondary' : 'aw-button--primary'" :to="account ? '/settings' : { path: '/signin', query: { return: '/suitcase' } }">{{ account ? 'Můj účet' : 'Přihlásit se' }}</RouterLink></div>
-      <div v-if="browserMode" class="home-download"><p class="aw-muted">Na webu si prohlédnete model, archiv a označenou simulaci. Nativní funkce iPhonu jsou dostupné v instalované aplikaci.</p><a v-if="canOperate" class="aw-button aw-button--secondary" href="/ios/">Stáhnout aplikaci pro iPhone</a></div>
-      <p v-if="!account" class="aw-muted">Veřejné příběhy a model si můžete prohlédnout rovnou. Účet zpřístupní oprávnění a správu.</p>
-      <section class="home-evening" aria-label="Aktivní večer"><p class="eyebrow">{{ eveningState }}</p><template v-if="evening"><h2>{{ evening.label }}</h2><p v-if="evening.latest">Poslední připravená hůlka: {{ evening.latest }}</p><RouterLink to="/archive">Otevřít tento večer →</RouterLink></template></section>
+      <nav v-if="isCustomer" class="home-primary-actions" :aria-label="customerCopy.text('home.tasks-aria')"><RouterLink class="aw-button aw-button--secondary" to="/me/keepsakes">{{ customerCopy.text('home.customer-keepsakes') }}</RouterLink></nav>
+      <div v-else-if="!canOperate" class="home-primary-actions"><a v-if="browserMode" class="aw-button aw-button--primary" href="/ios/">{{ customerCopy.text('home.download-iphone') }}</a><RouterLink class="aw-button" :class="browserMode ? 'aw-button--secondary' : 'aw-button--primary'" :to="account ? '/settings' : { path: '/signin', query: { return: '/suitcase' } }">{{ customerCopy.text(account ? 'home.my-account' : 'shell.sign-in') }}</RouterLink></div>
+      <div v-if="browserMode" class="home-download"><p class="aw-muted">{{ customerCopy.text('home.web-capabilities') }}</p><a v-if="canOperate" class="aw-button aw-button--secondary" href="/ios/">{{ customerCopy.text('home.download-iphone') }}</a></div>
+      <p v-if="!account" class="aw-muted">{{ customerCopy.text('home.public-guidance') }}</p>
+      <RouterLink v-if="!canOperate" to="/demo">{{ customerCopy.text('home.demo-link') }}</RouterLink>
+      <section class="home-evening" :aria-label="customerCopy.text('home.evening-aria')"><p class="eyebrow">{{ customerCopy.text(eveningState) }}</p><template v-if="evening"><h2>{{ evening.label }}</h2><p v-if="evening.latest">{{ customerCopy.text('home.latest-wand', { wand: evening.latest }) }}</p><RouterLink to="/archive">{{ customerCopy.text('home.open-evening') }}</RouterLink></template></section>
     </section>
-    <section v-if="canOperate" class="home-readiness" aria-labelledby="readiness-title"><span class="eyebrow">Právě teď</span><h2 id="readiness-title">Váš kufr</h2>
-      <template v-if="source === 'unavailable'"><p class="readiness-value">Čeká na připojení</p><p>Vyberte uložený kufr nebo ho bezpečně spárujte. Samotné přihlášení přístup k pohonům neuděluje.</p><RouterLink to="/connections">Připojení a párování →</RouterLink></template>
-      <template v-else><p class="readiness-value">{{ source === 'demo' ? 'Ukázkový režim' : source === 'simulator' ? 'Simulátor' : 'Místní připojení' }}</p><p>{{ deviceSession.message.value || 'Aktuální stav a dostupné akce najdete u vybraného kufru.' }}</p><RouterLink to="/suitcase">Zobrazit stav →</RouterLink></template>
+    <section v-if="canOperate" class="home-readiness" aria-labelledby="readiness-title"><span class="eyebrow">{{ customerCopy.text('home.now') }}</span><h2 id="readiness-title">{{ customerCopy.text('home.your-suitcase') }}</h2>
+      <template v-if="source === 'unavailable'"><p class="readiness-value">{{ customerCopy.text('home.waiting-connection') }}</p><p>{{ customerCopy.text('home.pairing-guidance') }}</p><RouterLink to="/connections">{{ customerCopy.text('home.connect-and-pair') }}</RouterLink></template>
+      <template v-else><p class="readiness-value">{{ customerCopy.text(source === 'demo' ? 'home.demo-mode' : source === 'simulator' ? 'home.simulator' : 'home.local-connection') }}</p><p>{{ deviceSession.message.value || customerCopy.text('home.device-guidance') }}</p><RouterLink to="/suitcase">{{ customerCopy.text('home.show-status') }}</RouterLink></template>
     </section>
-    <section class="home-workspaces" aria-label="Co chcete udělat">
-      <RouterLink class="workspace-link" to="/workshop"><span class="workspace-number">01 / DÍLNA</span><h2>Rozumět sestavě</h2><p>Model, montážní kroky a pozorování v jednom pracovním prostoru.</p><span class="workspace-action">Otevřít dílnu →</span></RouterLink>
-      <RouterLink class="workspace-link" to="/archive"><span class="workspace-number">02 / ARCHIV</span><h2>Příběhy z večera</h2><p>Hůlky a veřejné památky. Soukromé fotografie zůstávají za vaším přístupem.</p><span class="workspace-action">Prohlédnout archiv →</span></RouterLink>
-      <RouterLink class="workspace-link" to="/settings"><span class="workspace-number">03 / VÁŠ PROSTOR</span><h2>Účet a oprávnění</h2><p>Přístupové klíče, důvěryhodné instalace a bezpečné přihlášení.</p><span class="workspace-action">Otevřít nastavení →</span></RouterLink>
+    <section class="home-workspaces" :aria-label="customerCopy.text('home.tasks-aria')">
+      <RouterLink class="workspace-link" to="/workshop"><span class="workspace-number">{{ customerCopy.text('home.workshop-number') }}</span><h2>{{ customerCopy.text('home.workshop-title') }}</h2><p>{{ customerCopy.text('home.workshop-description') }}</p><span class="workspace-action">{{ customerCopy.text('home.workshop-action') }}</span></RouterLink>
+      <RouterLink class="workspace-link" to="/archive"><span class="workspace-number">{{ customerCopy.text('home.archive-number') }}</span><h2>{{ customerCopy.text('home.archive-title') }}</h2><p>{{ customerCopy.text('home.archive-description') }}</p><span class="workspace-action">{{ customerCopy.text('home.archive-action') }}</span></RouterLink>
+      <RouterLink class="workspace-link" to="/settings"><span class="workspace-number">{{ customerCopy.text('home.account-number') }}</span><h2>{{ customerCopy.text('home.account-title') }}</h2><p>{{ customerCopy.text('home.account-description') }}</p><span class="workspace-action">{{ customerCopy.text('home.account-action') }}</span></RouterLink>
     </section>
   </div>
 </template>

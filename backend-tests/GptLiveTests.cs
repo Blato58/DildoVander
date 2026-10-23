@@ -1,7 +1,9 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Kufr.Backend.Features.Character;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Realtime;
 using Microsoft.Extensions.Configuration;
@@ -38,12 +40,45 @@ internal static class GptLiveTests
             Check(instructions.Contains("green cloak") && instructions.Contains("Běžné repliky tvoříš sám"),
                 "retained Live actor receives visual context and authors ordinary conversation");
         }
+        VerifyCustomerPreferences(options, request);
         AutonomousLiveTests.VerifyLiveSpeedAdmission();
         VerifyAudioFrames();
         await VerifyOrderedAudioAsync();
         await VerifyResetBeforeReadyAsync();
         await VerifyAttachedStreamAsync();
         Console.WriteLine("Live production selection, startup and persistent audio frame tests passed.");
+    }
+
+    private static void VerifyCustomerPreferences(GptLiveOptions options, RealtimeTurnRequest request)
+    {
+        foreach (var (tone, expectedTone) in new[]
+        {
+            ("gentle", CharacterTone.Reserved),
+            ("cheeky", CharacterTone.Dry),
+            ("roast", CharacterTone.Adult)
+        })
+        {
+            var preferences = new CustomerConversationPreferenceSnapshot(1, 1, "en-US", tone);
+            var prompt = LivePromptSnapshot.Create(PersonalityCatalog.DefaultId, options)
+                .WithConversationPreferences(preferences, "en-US");
+            Check(prompt.ConversationLanguage == "en-US" && prompt.Options.Character.HostTone == expectedTone
+                && prompt.Instructions.Contains("Conduct this conversation in English.", StringComparison.Ordinal),
+                $"Live freezes {tone} ceiling and English instructions into its prompt snapshot");
+
+            var toneState = new ConversationGuestToneState(options.Character, preferences);
+            var binding = new GuestToneBinding(toneState.Read, toneState.Apply, toneState.SetOperatorTone);
+            var turn = new RealtimeTurnContext(request, true, "", [])
+            {
+                LivePrompt = prompt,
+                ConversationLanguage = "en-US",
+                GuestTone = binding
+            };
+            using var start = JsonDocument.Parse(JsonSerializer.Serialize(GptLiveProtocol.Start(turn)));
+            var instructions = start.RootElement.GetProperty("session").GetProperty("instructions").GetString()!;
+            Check(instructions.Contains("Effective frozen host/guest ceiling", StringComparison.Ordinal)
+                && instructions.Contains("Use a gentle", StringComparison.Ordinal) == (tone == "gentle"),
+                $"Live sends the trusted {tone} guest policy with its startup request");
+        }
     }
 
     private static async Task VerifyResetBeforeReadyAsync()

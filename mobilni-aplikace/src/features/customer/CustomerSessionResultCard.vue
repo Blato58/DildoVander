@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
+import { customerCopy } from '../../application/customerCopy';
 import { isCustomerAccount } from '../../application/access';
 import { account, accountDeletionRequested, accountRequest } from '../identity/session';
 import { projectCustomerResult, type CustomerResultProjection } from './customerResult';
@@ -33,31 +34,34 @@ const isCurrentVerificationFresh = computed(() => currentReadVerified.value
   && isOnline.value
   && !recoveryState.refreshing
   && !recoveryState.stale);
+const localizedProjectionGuidance = computed(() => projection.value
+  ? customerCopy.text(projection.value.guidanceKey)
+  : '');
 const displayedGuidance = computed(() => {
-  if (isCurrentVerificationFresh.value && projection.value?.valid) return projection.value.guidance;
+  if (isCurrentVerificationFresh.value && projection.value?.valid) return localizedProjectionGuidance.value;
   if (!isOnline.value) {
     return projection.value?.valid
-      ? `Offline. Poslední ověřený stav: ${projection.value.guidance}`
-      : 'Pro ověření stavu památky se připojte k internetu.';
+      ? customerCopy.text('result.offline', { guidance: localizedProjectionGuidance.value })
+      : customerCopy.text('result.connect-online');
   }
   if (!isVisible.value) {
     return projection.value?.valid
-      ? `Aplikace je na pozadí. Poslední ověřený stav: ${projection.value.guidance}`
-      : 'Stav památky se obnoví po návratu do aplikace.';
+      ? customerCopy.text('result.background', { guidance: localizedProjectionGuidance.value })
+      : customerCopy.text('result.return-to-app');
   }
   if (recoveryState.stale) {
     return projection.value?.valid
-      ? `Stav se nepodařilo obnovit. Poslední ověřený stav: ${projection.value.guidance}`
-      : 'Stav památky se nepodařilo ověřit. Obnovte stav.';
+      ? customerCopy.text('result.stale', { guidance: localizedProjectionGuidance.value })
+      : customerCopy.text('result.verification-needed');
   }
   if (recoveryState.refreshing) {
     return projection.value?.valid
-      ? `Ověřuji aktuální stav. Poslední ověřený stav: ${projection.value.guidance}`
-      : 'Ověřuji stav památky…';
+      ? customerCopy.text('result.refreshing', { guidance: localizedProjectionGuidance.value })
+      : customerCopy.text('result.checking');
   }
   return projection.value?.valid
-    ? `Aktuální stav čeká na ověření. Poslední ověřený stav: ${projection.value.guidance}`
-    : 'Stav památky se nepodařilo ověřit. Obnovte stav.';
+    ? customerCopy.text('result.unverified', { guidance: localizedProjectionGuidance.value })
+    : customerCopy.text('result.verification-needed');
 });
 
 const recovery = new SessionRecoveryController<CustomerResultProjection>({
@@ -146,21 +150,21 @@ onBeforeUnmount(() => {
 
 <template>
   <section v-if="canRequest" class="customer-session-result" aria-labelledby="customer-session-result-title">
-    <h2 id="customer-session-result-title">Památka rozhovoru</h2>
+    <h2 id="customer-session-result-title">{{ customerCopy.text('result.title') }}</h2>
     <AwNotice :tone="isCurrentVerificationFresh && projection?.valid ? 'info' : 'warning'">
       {{ displayedGuidance }}
       <template v-if="recoveryState.stale && isOnline">
-        <br>Další pokus proběhne automaticky.
+        <br>{{ customerCopy.text('result.retry-later') }}
       </template>
     </AwNotice>
     <p v-if="projection?.valid && projection.state === 'partial'" class="result-parts">
-      <span v-if="!isCurrentVerificationFresh">V posledním ověřeném výsledku:</span>
-      <span v-if="projection.hasStory">Text památky je dostupný.</span>
-      <span v-if="projection.hasArtwork">Ilustrace památky je dostupná.</span>
+      <span v-if="!isCurrentVerificationFresh">{{ customerCopy.text('result.partial-heading') }}</span>
+      <span v-if="projection.hasStory">{{ customerCopy.text('result.story-available') }}</span>
+      <span v-if="projection.hasArtwork">{{ customerCopy.text('result.artwork-available') }}</span>
     </p>
-    <RouterLink v-if="isCurrentVerificationFresh && projection?.valid && projection.route" :to="projection.route">Otevřít památku</RouterLink>
+    <RouterLink v-if="isCurrentVerificationFresh && projection?.valid && projection.route" :to="projection.route">{{ customerCopy.text('result.open') }}</RouterLink>
     <AwButton :busy="recoveryState.refreshing" :disabled="!isOnline" @click="refreshManually">
-      Obnovit stav památky
+      {{ customerCopy.text('result.refresh') }}
     </AwButton>
   </section>
 </template>

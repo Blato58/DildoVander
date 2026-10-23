@@ -1,10 +1,16 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 import CustomerJourneyCard from './CustomerJourneyCard.vue';
 import type { CustomerJourneyInput } from './customerJourney';
 
 const customer = { id: 'customer', displayName: 'Host', roles: ['Customer'] };
+
+beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
+});
 
 async function render(journey: CustomerJourneyInput) {
   const router = createRouter({
@@ -45,6 +51,22 @@ describe('customer next-action guidance', () => {
     expect(wrapper.get('.aw-button--primary').attributes('href')).toBe('/me/conversation');
     expect(wrapper.text()).toContain('ověříte blízký kufr');
     expect(wrapper.text()).toContain('souhlasy pro tento rozhovor');
+    wrapper.unmount();
+  });
+
+  it('reactively localizes an active unknown session without changing its route or action', async () => {
+    const wrapper = await render({ account: customer, profile: null, sessionState: 'future-active-state' });
+    const action = wrapper.get('.aw-button--primary');
+    expect(action.text()).toBe('Pokračovat v rozhovoru');
+    expect(action.attributes('href')).toBe('/me/conversation');
+
+    interfaceLanguagePreference.setLanguage('en');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('Your character, conversation, and keepsakes');
+    expect(wrapper.text()).toContain('Return to the existing conversation');
+    expect(action.text()).toBe('Continue conversation');
+    expect(action.attributes('href')).toBe('/me/conversation');
     wrapper.unmount();
   });
 });

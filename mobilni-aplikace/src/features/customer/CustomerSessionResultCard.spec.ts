@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 const api = vi.hoisted(() => ({
   request: vi.fn(),
@@ -76,6 +77,8 @@ async function render(id = sessionId) {
 }
 
 beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   originalOnLine = Object.getOwnPropertyDescriptor(navigator, 'onLine');
   originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
@@ -406,6 +409,43 @@ describe('customer session result card', () => {
     api.setDeleting(true);
     await flushPromises();
     expect(api.request).toHaveBeenCalledTimes(requestCountBeforeDeletion);
+    wrapper.unmount();
+  });
+
+  it('localizes partial, offline, and stale guidance reactively without another request or stale navigation', async () => {
+    vi.useFakeTimers();
+    api.request
+      .mockResolvedValueOnce(result('partial', {
+        readiness: {
+          reason: 'reconciliation_required',
+          shouldPoll: true,
+          hasStory: true,
+        },
+      }))
+      .mockRejectedValueOnce(new TypeError('private-provider-secret'));
+    const wrapper = await render();
+    await flushPromises();
+    expect(wrapper.text()).toContain('Výsledek čeká na ověření. Aplikace ho automaticky znovu nevytváří.');
+    expect(wrapper.find('a[href*="keepsake"]').exists()).toBe(true);
+
+    interfaceLanguagePreference.setLanguage('en');
+    await nextTick();
+    expect(wrapper.text()).toContain('The result is awaiting verification. The app will not generate it again automatically.');
+    expect(wrapper.text()).toContain('The keepsake text is available.');
+    expect(api.request).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event('offline'));
+    await nextTick();
+    expect(wrapper.text()).toContain('Offline. Last verified status: The result is awaiting verification.');
+    expect(wrapper.find('a[href*="keepsake"]').exists()).toBe(false);
+
+    window.dispatchEvent(new Event('online'));
+    await flushPromises();
+    expect(api.request).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('Could not refresh status. Last verified status: The result is awaiting verification.');
+    expect(wrapper.text()).toContain('In the last verified result:');
+    expect(wrapper.text()).not.toContain('private-provider-secret');
+    expect(wrapper.find('a[href*="keepsake"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

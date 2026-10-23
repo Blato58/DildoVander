@@ -16,7 +16,8 @@ internal static class AccountDataExportDocument
         "account_identifier",
         "historical_character_session_metadata",
         "originally_owned_keepsake_metadata",
-        "permitted_personal_memory_facts"
+        "permitted_personal_memory_facts",
+        "saved_conversation_preferences"
     ];
 
     private static readonly string[] ExcludedSections =
@@ -111,6 +112,9 @@ internal static class AccountDataExportDocument
         json.WriteStartArray("excluded");
         foreach (var section in ExcludedSections) { json.WriteStringValue(section); }
         json.WriteEndArray();
+
+        json.WritePropertyName("conversationPreferences");
+        JsonSerializer.Serialize(json, inventory.ConversationPreferences, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
         json.WriteStartObject("history");
         json.WriteStartArray("sessions");

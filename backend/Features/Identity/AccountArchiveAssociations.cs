@@ -33,6 +33,7 @@ internal static class AccountArchiveAssociations
     public static void MapAccountArchives(this IEndpointRouteBuilder app)
     {
         AccountOwnedArchives.Map(app);
+        AccountCollectionEndpoints.Map(app);
         var group = app.MapGroup("/app/v1/archive/associations").RequireAuthorization().RequireRateLimiting("account");
         group.AddEndpointFilter(async (invocation, next) =>
         {
@@ -62,6 +63,9 @@ internal static class AccountArchiveAssociations
                 link = new AccountArchiveAssociation { UserId = userId, Locator = ticket.Locator };
                 db.ArchiveAssociations.Add(link);
             }
+            var collectionRevision = AdvanceCollectionRevision(db);
+            if (collectionRevision is null) { return ApiProblem.Create(context, 409, "archive_collection_unavailable"); }
+            link.CollectionRevision = collectionRevision.Value;
             link.Epoch = ticket.Epoch; link.LinkedAt = AccountEndpoints.Now();
             await db.SaveChangesAsync(); await transaction.CommitAsync();
             return Results.Ok(new { link.Locator, link.LinkedAt });
@@ -136,4 +140,17 @@ internal static class AccountArchiveAssociations
         { UserId = userId, Locator = automatic.Locator, Epoch = automatic.Epoch, LinkedAt = automatic.LinkedAt };
     }
     private sealed record AccountArchiveClaim(string Ticket);
+
+    internal static long? AdvanceCollectionRevision(AccountDatabase db)
+    {
+        var state = db.ArchiveCollectionStates.SingleOrDefault(value => value.Id == 1);
+        if (state is null)
+        {
+            state = new AccountArchiveCollectionState { Id = 1 };
+            db.ArchiveCollectionStates.Add(state);
+        }
+        if (state.Revision == long.MaxValue) { return null; }
+        state.Revision++;
+        return state.Revision;
+    }
 }

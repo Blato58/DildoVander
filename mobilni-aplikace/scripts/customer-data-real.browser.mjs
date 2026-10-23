@@ -297,8 +297,15 @@ try {
   assert(phoneLayout.scrollWidth <= phoneLayout.width, 'the actual account page fits a 390px viewport');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.addStyleTag({ url: '/__customer-data-browser-text-200.css' });
-  const enlargedLayout = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
-  assert(enlargedLayout.scrollWidth <= enlargedLayout.width, 'the real account controls do not overflow at 200% text size');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize), '32px', 'real account text is actually 200%');
+  const enlargedLayout = await page.evaluate(() => ({
+    width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
+    overflow: [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right > innerWidth + 1)
+      .slice(-12).map(element => ({ tag: element.tagName, className: element.className,
+        width: element.getBoundingClientRect().width, text: element.textContent?.trim().slice(0, 80) })),
+  }));
+  assert(enlargedLayout.scrollWidth <= enlargedLayout.width,
+    `the real account controls do not overflow at 200% text size: ${JSON.stringify(enlargedLayout)}`);
 
   assert.equal(blockedExternalRequests, 0, 'the real browser journey made no external/provider requests');
   assert.deepEqual(bearerRequests, [], 'customer data uses the account cookie transport, not bearer credentials');

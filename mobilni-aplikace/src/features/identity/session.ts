@@ -3,6 +3,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isTwinAccountPath, isShowAccountPath, isChronicleAdminPath } from './accountPaths';
 import { throwIfAborted } from '../../application/cancellation.mjs';
 import { secureUuid } from '../../application/identifiers.mjs';
+import { customerCopy } from '../../application/customerCopy';
 
 export interface Account { id: string; displayName: string; roles: string[] }
 export interface ResourceGrant { id: string; userId: string; resourceType: string; resourceId: string; permission: string }
@@ -230,10 +231,10 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
     || method === 'DELETE' && path.startsWith('/app/v1/passkeys/')
     || method === 'DELETE' && path === '/app/v1/account';
   const confirmation = path === '/app/v1/account' && method === 'DELETE'
-    ? 'Trvale smazat můj účet? Ztratíte přístup na všech zařízeních. Vaše soukromé fotografie, portréty, příběhy a postava budou nevratně smazány a vaše sdílené odkazy zneplatněny. Data ostatních hostů zůstanou zachována. Smazání nelze vrátit zpět.'
+    ? customerCopy.text('deletion.native-confirmation')
     : 'Potvrdit tuto změnu správy? Změna může ovlivnit přístup uživatelů nebo provoz serveru.';
   const confirmed = sensitive && window.confirm(confirmation);
-  if (sensitive && !confirmed) throw new IdentityRequestError('Změna nebyla potvrzena.', 0, 'confirmation_cancelled');
+  if (sensitive && !confirmed) throw new IdentityRequestError(customerCopy.text('deletion.cancelled'), 0, 'confirmation_cancelled');
   requireCurrentAuthentication(generation);
   if (path === '/app/v1/account' && method === 'DELETE' && (!deletingAccountId || deletingAccountId !== account.value?.id)) throw new AccountContextChangedError();
   let status: number;

@@ -6,7 +6,7 @@ namespace Kufr.Backend.Features.Customers;
 
 // A separate durable SQLite feature store follows the existing archive/job pattern.
 // It does not mutate Identity's migration-managed schema during service startup.
-internal sealed class CharacterProfileStore
+internal sealed partial class CharacterProfileStore
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly string connectionString;
@@ -44,6 +44,7 @@ internal sealed class CharacterProfileStore
                 input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, processed_at INTEGER NOT NULL);
             """;
         command.ExecuteNonQuery();
+        InitializeConversationPreferences(connection);
         using var column = connection.CreateCommand();
         column.CommandText = "SELECT COUNT(*) FROM pragma_table_info('character_jobs') WHERE name='openai_consent'";
         if ((long)column.ExecuteScalar()! == 0)
@@ -96,6 +97,23 @@ internal sealed class CharacterProfileStore
         token.ThrowIfCancellationRequested();
         using var connection = Open();
         return Task.FromResult(Read(connection, null, accountId));
+    }
+
+    internal CharacterProfile? ReadHeldCustomerAdmissionProfile(CustomerDataSqliteGuard guard, string accountId,
+        string profileId, long? expectedRevision = null)
+    {
+        ValidateCustomerDataAccount(guard, accountId);
+        if (CustomerDataProfileRevoked(guard, accountId, profileId)) { return null; }
+        var profile = Read(guard.Connection, guard.Transaction, accountId);
+        return profile is not null && profile.ProfileId == profileId && (expectedRevision is null || profile.Revision == expectedRevision)
+            ? profile : null;
+    }
+
+    internal CharacterConversationSnapshot? CaptureHeldCustomerAdmissionProfile(CustomerDataSqliteGuard guard,
+        string accountId, string profileId, long revision)
+    {
+        var profile = ReadHeldCustomerAdmissionProfile(guard, accountId, profileId, revision);
+        return profile is null ? null : new(profile.ProfileId, profile.Revision, profile.UserInput, profile.Enrichment, Now());
     }
 
     internal Task RecordProviderUsageAsync(string jobId, string model, int inputTokens, int outputTokens)
@@ -174,6 +192,7 @@ internal sealed class CharacterProfileStore
                 ON CONFLICT(account_id) DO UPDATE SET profile_id=$profile,revision=$revision,input_json=$input,
                     status=$status,enrichment_json=NULL,error_code=NULL,updated_at=$now;
                 DELETE FROM character_jobs WHERE account_id=$account;
+                DELETE FROM customer_conversation_preferences WHERE account_id=$account AND profile_id!=$profile;
                 INSERT INTO character_jobs(id,account_id,profile_id,revision,input_json,rejected,status,created_at,openai_consent)
                 SELECT $job,$account,$profile,$revision,$input,$rejected,'queued',$now,1 WHERE $consent=1;
                 """;
@@ -445,7 +464,7 @@ internal sealed class CharacterProfileStore
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "DELETE FROM character_jobs WHERE account_id=$account; DELETE FROM character_profiles WHERE account_id=$account";
+        command.CommandText = "DELETE FROM character_jobs WHERE account_id=$account; DELETE FROM character_profiles WHERE account_id=$account; DELETE FROM customer_conversation_preferences WHERE account_id=$account";
         command.Parameters.AddWithValue("$account", accountId);
         command.ExecuteNonQuery();
     }

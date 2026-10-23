@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
+import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
 import { account, accountDeletionRequested } from '../identity/session';
 import { CustomerMemoryError, mutateCustomerMemory, readCustomerMemories, type CustomerMemoryItem, type CustomerMemoryList } from './customerMemory';
 
@@ -9,7 +10,7 @@ const headingId = useId();
 const snapshot = ref<CustomerMemoryList | null>(null);
 const busy = ref(false);
 const verified = ref(false);
-const notice = ref('');
+const notice = ref<CustomerCopyKey | ''>('');
 const editor = ref<{ item: CustomerMemoryItem; text: string } | null>(null);
 const forgetting = ref<CustomerMemoryItem | null>(null);
 const page = ref(0);
@@ -35,16 +36,16 @@ function invalidate(clear = false): void {
   if (clear) { snapshot.value = null; notice.value = ''; page.value = 0; }
 }
 
-function errorCopy(error: unknown, mutation: boolean): string {
+function errorCopy(error: unknown, mutation: boolean): CustomerCopyKey {
   if (error instanceof CustomerMemoryError) {
-    if (error.status === 401 || error.status === 404) return 'Přístup k pamětem už není dostupný. Přihlaste se znovu nebo obnovte seznam.';
-    if (error.code === 'memory_revision_mismatch') return 'Paměť se změnila. Obnovte seznam a zkontrolujte aktuální znění.';
-    if (error.code === 'archive_capacity') return 'Na opravu není v archivu místo. Původní paměť zůstala zachována.';
-    if (error.status === 429) return 'Limit zápisů byl vyčerpán. Obnovte seznam a zkuste změnu později.';
+    if (error.status === 401 || error.status === 404) return 'memories.error-access';
+    if (error.code === 'memory_revision_mismatch') return 'memories.error-revision';
+    if (error.code === 'archive_capacity') return 'memories.error-capacity';
+    if (error.status === 429) return 'memories.error-limit';
   }
   return mutation
-    ? 'Výsledek změny se nepodařilo potvrdit. Než ji zadáte znovu, obnovte seznam a zkontrolujte výsledek.'
-    : 'Paměti se nepodařilo ověřit. Obnovte seznam. Pokud tato verze aplikace přístup nepodporuje, otevřete svůj účet v prohlížeči.';
+    ? 'memories.error-mutation-unknown'
+    : 'memories.error-read';
 }
 
 async function refresh(): Promise<void> {
@@ -133,38 +134,38 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="customer-memories" :aria-labelledby="headingId">
-    <h2 :id="headingId">Moje paměti</h2>
-    <p>Osobní fakta, ke kterým máte právě povolený přístup. Paměti se automaticky nemažou.</p>
-    <AwNotice v-if="!account || accountDeletionRequested" tone="info">Pro přístup k pamětem potřebujete aktivní účet.</AwNotice>
-    <AwNotice v-else-if="!online" tone="warning">Jste offline. Zobrazený seznam není aktuálně ověřený.</AwNotice>
-    <AwNotice v-if="notice" tone="warning" role="status">{{ notice }}</AwNotice>
-    <p v-if="snapshot && !verified" role="status">Poslední načtený seznam. Před změnou ověřte aktuální stav.</p>
-    <AwButton :disabled="!eligible" :busy="busy" @click="refresh">Obnovit seznam</AwButton>
-    <p v-if="verified && snapshot?.items.length === 0">Momentálně nejsou dostupná žádná čitelná osobní fakta. Další uložené údaje mohou být mimo tento seznam; smazání celého účtu najdete v nastavení účtu.</p>
+    <h2 :id="headingId">{{ customerCopy.text('memories.title') }}</h2>
+    <p>{{ customerCopy.text('memories.intro') }}</p>
+    <AwNotice v-if="!account || accountDeletionRequested" tone="info">{{ customerCopy.text('memories.account-required') }}</AwNotice>
+    <AwNotice v-else-if="!online" tone="warning">{{ customerCopy.text('memories.offline') }}</AwNotice>
+    <AwNotice v-if="notice" tone="warning" role="status">{{ customerCopy.text(notice) }}</AwNotice>
+    <p v-if="snapshot && !verified" role="status">{{ customerCopy.text('memories.last-loaded') }}</p>
+    <AwButton :disabled="!eligible" :busy="busy" @click="refresh">{{ customerCopy.text('memories.refresh') }}</AwButton>
+    <p v-if="verified && snapshot?.items.length === 0">{{ customerCopy.text('memories.none-readable-detail') }}</p>
     <ul v-if="snapshot?.items.length" class="customer-memories__list">
       <li v-for="item in displayedItems" :key="`${item.id}:${item.revision}`">
         <p class="customer-memories__text">{{ item.text }}</p>
-        <p>{{ item.kind === 'ConfirmedSelection' ? 'Potvrzený výsledek — lze zapomenout, nelze přepsat.' : 'Vámi sdělené osobní faktum' }}</p>
+        <p>{{ customerCopy.text(item.kind === 'ConfirmedSelection' ? 'memories.fact-confirmed' : 'memories.fact-user-reported') }}</p>
         <template v-if="editor?.item === item">
-          <label>Opravené znění <textarea v-model="editor.text" rows="3" :disabled="!canAct" /></label>
-          <AwButton :disabled="!canAct || !editor.text.trim()" @click="change(item, { text: editor!.text })">Uložit opravu</AwButton>
-          <AwButton @click="editor = null">Zrušit</AwButton>
+          <label>{{ customerCopy.text('memories.correction-label') }} <textarea v-model="editor.text" rows="3" :disabled="!canAct" /></label>
+          <AwButton :disabled="!canAct || !editor.text.trim()" @click="change(item, { text: editor!.text })">{{ customerCopy.text('memories.save-correction') }}</AwButton>
+          <AwButton @click="editor = null">{{ customerCopy.text('memories.cancel-correction') }}</AwButton>
         </template>
         <template v-else-if="forgetting === item">
-          <p>Zapomenout tuto paměť a všechny její předchozí verze? Tuto změnu nelze vrátit zpět.</p>
-          <AwButton variant="danger" :disabled="!canAct" @click="change(item, { confirmed: true })">Ano, zapomenout tuto paměť</AwButton>
-          <AwButton @click="forgetting = null">Zrušit</AwButton>
+          <p>{{ customerCopy.text('memories.forget-confirmation') }}</p>
+          <AwButton variant="danger" :disabled="!canAct" @click="change(item, { confirmed: true })">{{ customerCopy.text('memories.confirm-forget-specific') }}</AwButton>
+          <AwButton @click="forgetting = null">{{ customerCopy.text('memories.cancel') }}</AwButton>
         </template>
         <template v-else>
-          <AwButton v-if="item.canCorrect" :disabled="!canAct" @click="editor = { item, text: item.text }; forgetting = null">Opravit</AwButton>
-          <AwButton v-if="item.canForget" :disabled="!canAct" @click="forgetting = item; editor = null">Zapomenout</AwButton>
+          <AwButton v-if="item.canCorrect" :disabled="!canAct" @click="editor = { item, text: item.text }; forgetting = null">{{ customerCopy.text('memories.correct') }}</AwButton>
+          <AwButton v-if="item.canForget" :disabled="!canAct" @click="forgetting = item; editor = null">{{ customerCopy.text('memories.forget') }}</AwButton>
         </template>
       </li>
     </ul>
-    <nav v-if="pageCount > 1" aria-label="Stránky osobních pamětí">
-      <AwButton :disabled="page === 0 || busy" @click="movePage(-1)">Předchozí paměti</AwButton>
-      <span aria-live="polite"> Stránka {{ page + 1 }} z {{ pageCount }} · {{ snapshot?.items.length }} čitelných faktů </span>
-      <AwButton :disabled="page >= pageCount - 1 || busy" @click="movePage(1)">Další paměti</AwButton>
+    <nav v-if="pageCount > 1" :aria-label="customerCopy.text('memories.pages-aria')">
+      <AwButton :disabled="page === 0 || busy" @click="movePage(-1)">{{ customerCopy.text('memories.previous-page') }}</AwButton>
+      <span aria-live="polite">{{ customerCopy.text('memories.page-info', { page: page + 1, pages: pageCount, count: snapshot?.items.length ?? 0 })}}</span>
+      <AwButton :disabled="page >= pageCount - 1 || busy" @click="movePage(1)">{{ customerCopy.text('memories.next-page') }}</AwButton>
     </nav>
   </section>
 </template>

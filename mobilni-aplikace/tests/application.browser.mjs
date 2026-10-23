@@ -54,6 +54,8 @@ try {
   const customerEndRequests = [];
   let customerProfile = { profileId: 'browser-profile', revision: 2, userInput: { name: 'Luna', world: 'Moon Saga' }, status: 'ready', enrichment: { summary: 'A prepared character summary.', sources: ['Public character guide'] } };
   const characterWrites = [];
+  const preferenceWrites = [];
+  let savedPreferences = { schemaVersion: 1, preferenceRevision: 0, conversationLanguage: 'cs-CZ', tone: 'roast', persisted: false };
   const resultLocator = 'b1dfd34f-5362-4e60-8e31-a7fac4b326c8';
   let sessionResult = {
     schemaVersion: 1, sessionId: 'browser-recovering-session', resultLocator: null,
@@ -77,6 +79,18 @@ try {
       }
       return json({ profile: customerProfile });
     }
+    if (sessionAccount && url.pathname === '/app/v1/customer/conversation-preferences') {
+      if (request.method() === 'PUT') {
+        const body = request.postDataJSON();
+        assert.equal(body.profileId, customerProfile.profileId);
+        assert.equal(body.profileRevision, customerProfile.revision);
+        assert.equal(body.expectedPreferenceRevision, savedPreferences.preferenceRevision);
+        preferenceWrites.push(body);
+        savedPreferences = { schemaVersion: 1, preferenceRevision: savedPreferences.preferenceRevision + 1,
+          conversationLanguage: body.conversationLanguage, tone: body.tone, persisted: true };
+      } else assert.equal(request.method(), 'GET');
+      return json({ ...savedPreferences, profileId: customerProfile.profileId, profileRevision: customerProfile.revision });
+    }
     if (sessionAccount && url.pathname === '/app/v1/customer/sessions') {
       customerStatusReads += 1;
       if (failedCustomerPolls > 0) {
@@ -96,6 +110,8 @@ try {
     }
     if (sessionAccount && url.pathname === '/app/v1/customer/admin/sessions') return json({ items: [] });
     if (sessionAccount && url.pathname === '/app/v1/customer/admin/characters') return json({ items: [] });
+    if (sessionAccount && url.pathname === '/app/v1/customer/completion-updates') return json({ schemaVersion: 1, items: [], nextCursor: null });
+    if (sessionAccount && /^\/app\/v1\/customer\/admin\/devices\/[^/]+\/waiting$/.test(url.pathname)) return json({ schemaVersion: 1, availability: { state: 'unknown', reason: 'runtime_unverified', fresh: false }, event: null, head: null, count: 0 });
     if (sessionAccount && url.pathname === '/app/v1/admin/users') return json({ users: [], grants: [] });
     if (sessionAccount && url.pathname === '/app/v1/archive/associations') return json({ items: [] });
     if (url.pathname.startsWith('/app/v1/')) return sessionAccount
@@ -116,6 +132,47 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'layout has no horizontal page overflow');
   };
 
+  // The public walkthrough is synthetic even for authenticated customer/staff
+  // visitors. App-wide session refresh may read identity; demo actions may not
+  // read private content or issue any request/command.
+  for (const identity of [null, { id: 'demo-customer', displayName: 'Ukázkový host', roles: ['Customer'] }, ownerAccount]) {
+    sessionAccount = identity;
+    const beforeDemo = requests.length;
+    await page.goto(origin + '/demo');
+    await hasHeading('Příběh bez připojení');
+    assert.equal(new URL(page.url()).pathname, '/demo');
+    const demo = page.locator('.customer-demo');
+    assert.match(await demo.innerText(), /Syntetická ukázka/);
+    await hasHeading('Poznejte postavu');
+    const next = demo.getByRole('button', { name: 'Další krok', exact: true });
+    await next.focus();
+    await page.keyboard.press('Enter');
+    await hasHeading('Ukázka rozhovoru');
+    await next.click();
+    await hasHeading('Ilustrativní návrh hůlky');
+    assert.equal(await demo.locator('dt').count(), 5);
+    await next.click();
+    await hasHeading('Náhled památky');
+    assert(await next.isDisabled());
+    await demo.getByRole('button', { name: 'Začít ukázku znovu', exact: true }).click();
+    await hasHeading('Poznejte postavu');
+    for (const theme of ['lord-voldemort', 'olivander']) {
+      await page.getByLabel('Vzhled aplikace').selectOption(theme);
+      await page.setViewportSize({ width: 320, height: 844 });
+      await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+      await fits();
+      assert(await next.isVisible());
+      await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+    }
+    assert(requests.slice(beforeDemo).every(request => request.method === 'GET'), 'demo never issues mutations');
+    assert(requests.slice(beforeDemo).filter(request => request.path.startsWith('/app/v1/')).every(request => request.path === '/app/v1/session'), 'demo never reads private customer/account content');
+    assert(requests.slice(beforeDemo).every(request => !/^\/(?:guest\/v1|v1)\//.test(request.path)), 'demo never accesses guest or device APIs');
+  }
+  sessionAccount = null;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + '/demo'); await hasHeading('Příběh bez připojení');
+  await page.screenshot({ path: path.join(screenshots, 'customer-demo-390.png'), fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin); await hasHeading(homeHeading());
   await fits(); await page.screenshot({ path: path.join(screenshots, 'home-desktop.png'), fullPage: true });
   await page.getByLabel('Vzhled aplikace').selectOption('olivander'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
@@ -342,6 +399,36 @@ try {
   assert.equal(requests.filter(request => request.path.includes('customerBle') || request.path.includes('start-tickets')).length, 0, 'recovery never issues a replacement start or controls BLE');
   customerSessions = [];
   await page.goto(origin + '/me/account'); await hasHeading('Můj účet');
+  await page.getByLabel('Jazyk rozhovoru', { exact: true }).waitFor();
+  await page.getByLabel('Jazyk rozhraní', { exact: true }).selectOption('en');
+  await page.getByRole('heading', { name: 'Your conversation preferences', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Conversation language', { exact: true }).inputValue(), 'cs-CZ');
+  assert.equal(preferenceWrites.length, 0, 'interface localization never mutates conversation preferences');
+  await page.getByLabel('Conversation language', { exact: true }).selectOption('en-US');
+  await page.getByLabel('Conversation style', { exact: true }).selectOption('gentle');
+  assert.equal(preferenceWrites.length, 0, 'editing a draft never mutates the server');
+  await page.getByRole('button', { name: 'Save for the next conversation', exact: true }).click();
+  await page.getByText('Saved for the next new conversation.', { exact: true }).waitFor();
+  assert.equal(preferenceWrites.length, 1, 'one explicit save sends one profile-bound mutation');
+  await page.reload();
+  await page.getByRole('heading', { name: 'Your conversation preferences', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Conversation language', { exact: true }).inputValue(), 'en-US');
+  assert.equal(await page.getByLabel('Conversation style', { exact: true }).inputValue(), 'gentle');
+  for (const theme of ['lord-voldemort', 'olivander']) {
+    await page.getByLabel('App appearance', { exact: true }).selectOption(theme);
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+      await fits();
+      await page.screenshot({ path: path.join(screenshots, `customer-preferences-en-${theme}-${width}.png`), fullPage: true });
+    }
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await fits();
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize), '32px', 'enlarged preference text is actually 200%');
+  await page.screenshot({ path: path.join(screenshots, 'customer-preferences-en-320-large-text.png'), fullPage: true });
+  await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+  await page.getByLabel('Interface language', { exact: true }).selectOption('cs');
+  await page.getByLabel('Vzhled aplikace', { exact: true }).selectOption('lord-voldemort');
   await page.getByRole('heading', { name: 'Přístupové klíče' }).waitFor();
   await page.getByRole('heading', { name: 'Přihlášená zařízení' }).waitFor();
   assert.equal(await page.getByLabel('Název přístupového klíče 1').count(), 1);

@@ -14,8 +14,16 @@ internal sealed class OpenAiTranscriptionClient(HttpClient httpClient, string ap
 {
     internal const string Model = "gpt-transcribe";
 
-    public async Task<string> TranscribeAsync(byte[] wav, CancellationToken cancellationToken)
+    public Task<string> TranscribeAsync(byte[] wav, CancellationToken cancellationToken) =>
+        TranscribeAsync(wav, "cs-CZ", cancellationToken);
+
+    public async Task<string> TranscribeAsync(byte[] wav, string language, CancellationToken cancellationToken)
     {
+        if (language is not ("cs-CZ" or "en-US"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(language));
+        }
+
         if (wav.Length > 1_920_512 || TranscriptionUploadReader.ValidateWav(wav) != 200)
         {
             throw new InvalidDataException("Transcription requires bounded device WAV.");
@@ -24,7 +32,7 @@ internal sealed class OpenAiTranscriptionClient(HttpClient httpClient, string ap
         using var multipart = new MultipartFormDataContent();
         multipart.Add(new StringContent(Model), "model");
         multipart.Add(new StringContent("json"), "response_format");
-        multipart.Add(new StringContent("cs"), "languages[]");
+        multipart.Add(new StringContent(language == "en-US" ? "en" : "cs"), "languages[]");
         var audio = new ByteArrayContent(wav);
         audio.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
         multipart.Add(audio, "file", "turn.wav");

@@ -13,6 +13,7 @@ import ArchiveDownload from './ArchiveDownload.vue';
 import WizardIdentity from './WizardIdentity.vue';
 import PrivateProphecy from './PrivateProphecy.vue';
 import { publicIdentity, ownerProphecy } from './showContracts';
+import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
 import './archive.css';
 const route = useRoute(); const router = useRouter();
 const client = createArchiveClient();
@@ -29,7 +30,7 @@ type AccountAccess = { accessKind: 'originalOwner' | 'linkedViewer'; canManage: 
 const accountAccess = ref<AccountAccess>();
 const history = ref<Portrait[]>([]);
 const busy = ref(false);
-const message = ref('');
+const message = ref<CustomerCopyKey | null>(null);
 const readinessInvalid = ref(false);
 const automaticRefreshes = ref(0);
 const maxAutomaticRefreshes = 12;
@@ -55,12 +56,12 @@ const canReadPortrait = computed(() => owner.value || accountRead.value && accou
 const readinessVisible = computed(() => !!record.value?.readiness && record.value.state !== 'deleted' && !readinessInvalid.value && shareEdition.value === undefined
   && (!accountRead.value || !!accountAccess.value));
 const readinessNotice = computed(() => {
-  if (readinessInvalid.value && record.value?.state !== 'deleted' && (!accountRead.value || !!accountAccess.value)) return 'Stav přípravy se nepodařilo ověřit.';
+  if (readinessInvalid.value && record.value?.state !== 'deleted' && (!accountRead.value || !!accountAccess.value)) return customerCopy.text('keepsake.readiness-invalid');
   if (readinessVisible.value) return readinessLabel(record.value!.readiness!);
   if (accountRead.value) return null;
   const hasStory = !!edition.value?.story;
   const hasArtwork = !!edition.value?.artworkAssetId;
-  return hasStory && hasArtwork ? 'Edice je připravená.' : `${generationLabel(baseJob.value?.state ?? record.value?.state)} Dostupné části si můžeš uložit už teď.`;
+  return hasStory && hasArtwork ? customerCopy.text('keepsake.readiness-ready') : `${generationLabel(baseJob.value?.state ?? record.value?.state, customerCopy.language.value)} ${customerCopy.text('keepsake.generic-ready')}`;
 });
 const storyPlaceholder = computed(() => readinessPlaceholder('story'));
 const artworkPlaceholder = computed(() => readinessPlaceholder('artwork'));
@@ -76,36 +77,32 @@ const portraitJob = computed(() => record.value?.jobs.filter(job => job.kind ===
 const pending = (state?: string) => !!state && !['completed', 'ready', 'failed', 'cancelled', 'archived_private'].includes(state);
 function readinessPlaceholder(kind: 'story' | 'artwork') {
   const readiness = readinessVisible.value ? record.value?.readiness : undefined;
-  const name = kind === 'story' ? 'Příběh' : 'Obraz';
-  if (!readiness) return kind === 'story' ? 'Archivář ještě píše její průšvihy. Dostupné části památky si můžeš uložit už teď.' : 'Obraz se připravuje';
-  if (readiness.state === 'failed' || readiness.reason === 'generation_failed') return `${name} se nepodařilo dokončit.`;
-  if (readiness.state === 'unavailable' || readiness.reason === 'result_unavailable') return `${name} není dostupný.`;
-  if (readiness.reason === 'reconciliation_required') return kind === 'story' ? 'Příběh se ověřuje.' : 'Výsledek obrazu se ještě ověřuje.';
-  if (kind === 'story' && readiness.hasStory) return 'Příběh se načítá.';
-  if (kind === 'artwork' && readiness.hasArtwork) return 'Obraz se načítá.';
-  if (readiness.state === 'ready') return `${name} není dostupný.`;
-  return `${name} se připravuje.`;
+  if (!readiness) return customerCopy.text(kind === 'story' ? 'keepsake.generic-ready' : 'keepsake.readiness-unconfirmed');
+  if (readiness.state === 'failed' || readiness.reason === 'generation_failed') return generationLabel('failed', customerCopy.language.value);
+  if (readiness.state === 'unavailable' || readiness.reason === 'result_unavailable') return customerCopy.text(kind === 'story' ? 'keepsake.story-unavailable' : 'keepsake.art-unavailable');
+  if (readiness.reason === 'reconciliation_required') return customerCopy.text('keepsake.readiness-reconcile');
+  if (kind === 'story' && readiness.hasStory) return customerCopy.text('keepsake.story-loading');
+  if (kind === 'artwork' && readiness.hasArtwork) return customerCopy.text('keepsake.art-loading');
+  if (readiness.state === 'ready') return customerCopy.text(kind === 'story' ? 'keepsake.story-unavailable' : 'keepsake.art-unavailable');
+  return generationLabel('running', customerCopy.language.value);
 }
 function readinessLabel(readiness: ArchiveReadiness) {
-  if (readiness.reason === 'result_unavailable') return 'Výsledek přípravy není dostupný.';
+  if (readiness.reason === 'result_unavailable') return customerCopy.text('keepsake.readiness-unavailable');
   switch (readiness.state) {
     case 'pending':
-      if (readiness.reason === 'awaiting_capacity') return 'Příprava čeká na volnou kapacitu.';
-      if (readiness.reason === 'paused_preparing') return 'Příprava je pozastavená.';
-      return 'Čekáme na výsledek přípravy.';
+      if (readiness.reason === 'awaiting_capacity' || readiness.reason === 'paused_preparing') return generationLabel(readiness.reason, customerCopy.language.value);
+      return customerCopy.text('keepsake.readiness-waiting');
     case 'processing':
-      return readiness.reason === 'reconciliation_required'
-        ? 'Výsledek přípravy ještě ověřujeme. Nové generování nespouštíme.'
-        : 'Příprava probíhá.';
+      return readiness.reason === 'reconciliation_required' ? customerCopy.text('keepsake.readiness-reconcile') : generationLabel('running', customerCopy.language.value);
     case 'partial':
-      if (readiness.reason === 'reconciliation_required') return 'Příběh je připravený, výsledek obrazu ještě ověřujeme. Nové generování nespouštíme.';
-      if (readiness.reason === 'generation_failed') return 'Příběh je připravený, obraz se nepodařilo dokončit.';
-      if (readiness.hasStory) return 'Příběh je připravený, obraz se ještě připravuje.';
-      if (readiness.hasArtwork) return 'Obraz je připravený, příběh se ještě připravuje.';
-      return 'Část výsledku je připravená. Zkontroluj stav znovu později.';
-    case 'ready': return 'Edice je připravená.';
-    case 'failed': return 'Přípravu se nepodařilo dokončit.';
-    case 'unavailable': return 'Výsledek přípravy není dostupný.';
+      if (readiness.reason === 'reconciliation_required') return customerCopy.text('keepsake.readiness-partial-reconciliation');
+      if (readiness.reason === 'generation_failed') return customerCopy.text('keepsake.readiness-partial-failed');
+      if (readiness.hasStory) return customerCopy.text('keepsake.readiness-story-ready');
+      if (readiness.hasArtwork) return customerCopy.text('keepsake.readiness-art-ready');
+      return customerCopy.text('keepsake.readiness-partial');
+    case 'ready': return customerCopy.text('keepsake.readiness-ready');
+    case 'failed': return generationLabel('failed', customerCopy.language.value);
+    case 'unavailable': return customerCopy.text('keepsake.readiness-unavailable');
   }
 }
 const path = (suffix = '') => guestPath(locator.value, suffix, shareEdition.value);
@@ -153,8 +150,8 @@ function suspendNetworkReads(clearPrivateView = false) {
 }
 function report(error: unknown, mutation = false) {
   if ((error as Error).name === 'AbortError') return;
-  if (error instanceof GuestError && [401, 403, 404, 410].includes(error.status)) { invalidate(); claim.value = null; message.value = accountRead.value ? 'Tento účet nemá platný přístup k památce. Vrať se do svého archivu nebo se přihlas správným účtem.' : 'Přístup není dostupný. Použij platný osobní nebo návratový odkaz, případně požádej obsluhu kufru.'; }
-  else message.value = mutation ? 'Výsledek akce ještě nemáme potvrzený. Obnov stav památky; nové generování automaticky nespouštíme.' : 'Archiv je teď nedostupný. Zkus obnovit spojení.';
+  if (error instanceof GuestError && [401, 403, 404, 410].includes(error.status)) { invalidate(); claim.value = null; message.value = accountRead.value ? 'keepsake.error-account' : 'keepsake.error-access'; }
+  else message.value = mutation ? 'keepsake.error-action' : 'keepsake.error-load';
 }
 function scheduleAutoRefresh(readiness: ArchiveReadiness | null, view: Keepsake, malformed: boolean) {
   const readinessAllowed = shareEdition.value === undefined && view.state !== 'deleted'
@@ -177,7 +174,7 @@ function scheduleAutoRefresh(readiness: ArchiveReadiness | null, view: Keepsake,
 }
 async function load(automatic = false) {
   if (!locator.value || claim.value || deletion.value?.scope === 'all' || document.hidden || offlineSession.value || !navigator.onLine) return;
-  if (accountRead.value && !account.value) { message.value = 'Pro soukromý archiv se přihlas svým účtem.'; return; }
+  if (accountRead.value && !account.value) { message.value = 'keepsake.error-signin'; return; }
   if (!automatic) { automaticRefreshes.value = 0; clearTimeout(timer); }
   if (automatic && (busy.value || readInFlight)) {
     if (record.value) scheduleAutoRefresh(record.value.readiness ?? null, record.value, readinessInvalid.value);
@@ -220,7 +217,7 @@ async function action(work: (check: () => void) => Promise<void>) {
   if (readInFlight) { loadSequence++; readInFlight = undefined; }
   busy.value = true; clearTimeout(timer); const generation = actionGeneration; const transportCheck = activeClient.capture();
   const check = () => { transportCheck(); if (generation !== actionGeneration) throw new DOMException('Archive action context changed', 'AbortError'); };
-  message.value = '';
+  message.value = null;
   try { check(); clearTimeout(timer); await work(check); check(); }
   catch (error) { if (generation === actionGeneration) report(error, true); }
   finally {
@@ -243,7 +240,7 @@ async function exchange() {
 function choosePhoto(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]; clearPhoto();
   if (!file) return;
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size < 1 || file.size > 8 * 1024 * 1024) { message.value = 'Vyber JPEG, PNG nebo WebP nejvýše 8 MiB.'; return; }
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size < 1 || file.size > 8 * 1024 * 1024) { message.value = 'keepsake.error-upload-type'; return; }
   photo.value = file; previewUrl.value = URL.createObjectURL(file);
 }
 async function generatePortrait() {
@@ -253,7 +250,7 @@ async function generatePortrait() {
     const consent = await mutateArchive<{ consentVersion: number }>('/portrait-consents', check, { data: { accepted: true, policyVersion: 'dv10-portrait-v1' } }); check();
     const upload = await mutateArchive<{ upload: { id: string } }>('/portrait-uploads', check, { bytes: file, consentVersion: consent.consentVersion }); check();
     await mutateArchive('/portraits', check, { data: { uploadId: upload.upload.id, editionId, variant: 'portrait_only', consentVersion: consent.consentVersion } }); check();
-    clearPhoto(); message.value = 'Fotografie byla přijata. Portrét se připravuje.'; await load();
+    clearPhoto(); message.value = 'keepsake.message-uploaded'; await load();
   });
 }
 async function cancelJob(kind: 'portrait' | 'base') {
@@ -296,7 +293,7 @@ async function issueLink(kind: 'share' | 'recovery') {
   });
 }
 async function revokeLinks(kind: 'share' | 'recovery') {
-  await action(async check => { if (!owner.value) return; await mutateArchive(kind === 'share' ? '/share-links' : '/recovery-links', check, { method: 'DELETE' }); check(); issuedLink.value = ''; message.value = kind === 'share' ? 'Sdílené odkazy byly odvolány. Památka zůstává uložená.' : 'Návratové odkazy byly odvolány. Památka zůstává uložená.'; });
+  await action(async check => { if (!owner.value) return; await mutateArchive(kind === 'share' ? '/share-links' : '/recovery-links', check, { method: 'DELETE' }); check(); issuedLink.value = ''; message.value = kind === 'share' ? 'keepsake.message-share-revoked' : 'keepsake.message-recovery-revoked'; });
 }
 async function associateAccount() {
   await action(async check => {
@@ -306,12 +303,12 @@ async function associateAccount() {
     if (account.value?.id !== targetAccountId) throw new DOMException('Account changed', 'AbortError');
     await accountRequest('/app/v1/archive/associations', 'POST', { ticket: ticket.ticket }); check();
     if (account.value?.id !== targetAccountId) throw new DOMException('Account changed', 'AbortError');
-    associationOpen.value = false; message.value = 'Památka a soukromé výsledné portréty byly připojeny k tomuto účtu. Návštěvnický přístup zůstává zachovaný.';
+    associationOpen.value = false; message.value = 'keepsake.message-linked';
   });
 }
 async function revokeAccess() {
-  if (!owner.value || !confirm('Odvolat všechny návštěvnické a návratové přístupy? Památka a její soubory zůstanou uložené; účtu se tímto propojení také odebere.')) return;
-  await action(async check => { await mutateArchive('/revoke-access', check, { data: { confirm: 'delete', expectedRevision: record.value!.revision } }); check(); invalidate(); message.value = 'Všechny přístupy byly odvolány. Památka zůstává uložená.'; });
+  if (!owner.value || !confirm(customerCopy.text('keepsake.revoke-all-confirm'))) return;
+  await action(async check => { await mutateArchive('/revoke-access', check, { data: { confirm: 'delete', expectedRevision: record.value!.revision } }); check(); invalidate(); message.value = 'keepsake.message-access-revoked'; });
 }
 async function loadHistory() {
   await action(async check => { if (!owner.value) return; if (accountRead.value) { history.value = record.value?.portraits ?? []; return; } const result = await client.json<Keepsake>(path('/history')); check(); history.value = result.portraits ?? []; });
@@ -334,22 +331,22 @@ async function unlinkAccount() {
   await action(async check => {
     if (!accountCanUnlink.value || unlinkConfirmation.value !== 'ODPOJIT') return;
     await accountClient.json(associationPath(), { method: 'DELETE' }); check();
-    invalidate(); message.value = 'Památka byla odpojena od tohoto účtu. Uložené soubory i návštěvnický přístup vlastníka zůstávají zachované.';
+    invalidate(); message.value = 'keepsake.message-unlink';
   });
 }
-async function copyLink() { const check = client.capture(); try { await navigator.clipboard.writeText(issuedLink.value); check(); message.value = 'Odkaz byl zkopírován.'; } catch { try { check(); message.value = 'Kopírování není dostupné. Označ odkaz a zkopíruj jej ručně.'; } catch { /* Inactive route. */ } } }
+async function copyLink() { const check = client.capture(); try { await navigator.clipboard.writeText(issuedLink.value); check(); message.value = 'keepsake.message-copied'; } catch { try { check(); message.value = 'keepsake.message-copy-failed'; } catch { /* Inactive route. */ } } }
 async function shareLink() {
   if (linkKind.value !== 'share' || !issuedLink.value) return;
   const check = client.capture();
   try { await shareGuestLink(issuedLink.value); check(); }
-  catch (error) { try { check(); if ((error as Error).name !== 'AbortError') message.value = 'Sdílení není dostupné. Zkopíruj odkaz.'; } catch { /* Inactive route. */ } }
+  catch (error) { try { check(); if ((error as Error).name !== 'AbortError') message.value = 'keepsake.message-share-failed'; } catch { /* Inactive route. */ } }
 }
 async function shareFile() {
   const check = client.capture();
   try { await media.shareFile(); check(); }
-  catch (error) { try { check(); if ((error as Error).name !== 'AbortError') message.value = 'Systémové sdílení není dostupné. Použij stažení souboru.'; } catch { /* Inactive route. */ } }
+  catch (error) { try { check(); if ((error as Error).name !== 'AbortError') message.value = 'keepsake.message-file-share-failed'; } catch { /* Inactive route. */ } }
 }
-function resetRoute() { invalidate(); deletion.value = undefined; message.value = ''; privacy.value = route.query.privacy !== undefined; if (accountRead.value) claim.value = null; if (!claim.value) void load(); }
+function resetRoute() { invalidate(); deletion.value = undefined; message.value = null; privacy.value = route.query.privacy !== undefined; if (accountRead.value) claim.value = null; if (!claim.value) void load(); }
 function suspend() { invalidate(); claim.value = null; }
 function visibility() { if (document.hidden) suspendNetworkReads(true); else void load(); }
 function pageShow(event: PageTransitionEvent) { if (event.persisted) void load(); }
@@ -375,62 +372,62 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
 </script>
 
 <template>
-  <section class="archive-view" aria-labelledby="keepsake-title">
-    <p v-if="message" class="aw-notice" role="status" aria-live="polite">{{ message }}</p>
+  <section class="archive-view keepsake-view" aria-labelledby="keepsake-title">
+    <p v-if="message" class="aw-notice" role="status" aria-live="polite">{{ customerCopy.text(message) }}</p>
     <section v-if="!record && !deletion" class="aw-card">
-      <h1 id="keepsake-title">{{ accountRead ? 'Soukromý archiv účtu' : claim?.kind === 'r' ? 'Tvůj soukromý návrat' : claim?.kind === 's' ? 'Někdo ti posílá trochu kouzel' : 'Památka čeká za pečetí' }}</h1>
-      <p v-if="claim">{{ claim.kind === 's' ? 'Otevřeš sdílenou hůlku a příběh. Fotografie a soukromý portrét zůstávají u autora.' : 'Otevři osobní příběh a digitální obraz hůlky. Soukromý odkaz uchovávej jen pro sebe.' }}</p>
-      <p v-else-if="accountRead">Památku otevře pouze účet, ke kterému ji její vlastník výslovně připojil.</p><p v-else-if="locator">Ověřujeme přístup v tomto prohlížeči.</p><p v-else>Použij svůj osobní nebo návratový odkaz, případně otevři veřejný přehled večera.</p>
-      <button v-if="claim" class="aw-button" :disabled="busy" @click="exchange">{{ busy ? 'Ověřuji…' : claim.kind === 'r' ? 'Obnovit můj přístup' : claim.kind === 's' ? 'Otevřít sdílenou edici' : 'Otevřít moji památku' }}</button>
-      <RouterLink v-else to="/archive">Otevřít hůlky večera</RouterLink>
-      <RouterLink v-if="accountRead && !account" to="/signin">Přihlásit se</RouterLink>
+      <h1 id="keepsake-title">{{ customerCopy.text(accountRead ? 'keepsake.landing-account-title' : claim?.kind === 'r' ? 'keepsake.landing-return-title' : claim?.kind === 's' ? 'keepsake.landing-share-title' : 'keepsake.landing-title') }}</h1>
+      <p v-if="claim">{{ customerCopy.text(claim.kind === 's' ? 'keepsake.landing-share-copy' : 'keepsake.landing-private-copy') }}</p>
+      <p v-else-if="accountRead">{{ customerCopy.text('keepsake.landing-account-copy') }}</p><p v-else-if="locator">{{ customerCopy.text('keepsake.landing-verifying') }}</p><p v-else>{{ customerCopy.text('keepsake.landing-link-help') }}</p>
+      <button v-if="claim" class="aw-button" :disabled="busy" @click="exchange">{{ customerCopy.text(busy ? 'keepsake.landing-busy' : claim.kind === 'r' ? 'keepsake.landing-return' : claim.kind === 's' ? 'keepsake.landing-share' : 'keepsake.landing-open') }}</button>
+      <RouterLink v-else to="/archive">{{ customerCopy.text('keepsake.landing-archive') }}</RouterLink>
+      <RouterLink v-if="accountRead && !account" to="/signin">{{ customerCopy.text('keepsake.sign-in') }}</RouterLink>
     </section>
     <article v-if="record" aria-labelledby="keepsake-title">
-      <p class="aw-badge">{{ accountOwner ? 'Soukromá památka · vlastník účtu' : accountCanUnlink ? 'Propojená památka · pouze čtení' : accountRead ? 'Ověřujeme oprávnění účtu' : readOnly ? 'Sdílená edice · pouze čtení' : 'Soukromá památka' }}</p>
-      <div class="archive-edition"><div><button class="archive-art-button" :disabled="!media.artworkUrl.value" aria-label="Zvětšit digitální obraz hůlky" @click="artworkOpen = true"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" alt="Osobní digitální interpretace vybrané hůlky" class="archive-art" @error="media.clearArtwork(); media.artworkError.value = true"><span v-else>{{ media.artworkError.value ? 'Obraz se nepodařilo načíst. Obnov spojení.' : artworkPlaceholder }}</span></button><p class="archive-caption">Osobní AI interpretace · fantasy obraz, nikoli fotografie rekvizity</p></div>
-        <div><h1 id="keepsake-title">{{ record.snapshot.officialName }}</h1><p>Hůlka z přihrádky {{ record.snapshot.slot }}</p><h2>{{ edition?.story?.title }}</h2><p>{{ paragraphs[0] }}</p>
+      <p class="aw-badge">{{ accountOwner ? customerCopy.text('keepsake.private-owner') : accountCanUnlink ? customerCopy.text('keepsake.linked-readonly') : accountRead ? customerCopy.text('archive.unverified-access') : readOnly ? customerCopy.text('keepsake.shared-readonly') : customerCopy.text('keepsake.private-owner') }}</p>
+      <div class="archive-edition"><div><button class="archive-art-button" :disabled="!media.artworkUrl.value" :aria-label="customerCopy.text('keepsake.enlarged-art-alt')" @click="artworkOpen = true"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" :alt="customerCopy.text('keepsake.art-alt')" class="archive-art" @error="media.clearArtwork(); media.artworkError.value = true"><span v-else>{{ media.artworkError.value ? customerCopy.text('keepsake.art-error') : artworkPlaceholder }}</span></button><p class="archive-caption">{{ customerCopy.text('keepsake.art-caption') }}</p></div>
+        <div><h1 id="keepsake-title">{{ record.snapshot.officialName }}</h1><p>{{ customerCopy.text('keepsake.wand-slot', { slot: record.snapshot.slot }) }}</p><h2>{{ edition?.story?.title }}</h2><p>{{ paragraphs[0] }}</p>
           <p class="aw-notice" role="status" aria-live="polite" :data-readiness-state="readinessInvalid ? 'invalid' : readinessVisible ? record.readiness?.state : undefined">{{ readinessNotice }}</p>
-          <button v-if="canManuallyCheckReadiness" class="aw-button aw-button--secondary" :disabled="busy" @click="manualCheckReadiness">Zkontrolovat stav</button>
-          <p v-if="edition?.synthetic" class="aw-notice">SYNTETICKÁ UKÁZKA · nejde o výstup placeného generování.</p>
-          <div class="archive-actions"><button v-for="format in ['zip', 'story', 'art', 'card']" :key="format" class="aw-button aw-button--secondary" :disabled="!canExport(format)" @click="exportFile(format)">{{ ({ zip: 'Uložit památku ZIP', story: 'Příběh TXT', art: 'Obraz hůlky', card: 'Kartička PNG' } as Record<string, string>)[format] }}</button></div>
-          <label v-if="owner"><input v-model="includePortrait" type="checkbox" :disabled="!portrait || busy">Přidat soukromý portrét do mého ZIP</label>
-          <button v-if="owner && pending(baseJob?.state)" class="aw-button aw-button--secondary" :disabled="busy" @click="cancelJob('base')">Zastavit přípravu památky</button>
+          <button v-if="canManuallyCheckReadiness" class="aw-button aw-button--secondary" :disabled="busy" @click="manualCheckReadiness">{{ customerCopy.text('keepsake.status-check') }}</button>
+          <p v-if="edition?.synthetic" class="aw-notice">{{ customerCopy.text('keepsake.synthetic') }}</p>
+          <div class="archive-actions"><button v-for="format in ['zip', 'story', 'art', 'card']" :key="format" class="aw-button aw-button--secondary" :disabled="!canExport(format)" @click="exportFile(format)">{{ customerCopy.text(({ zip: 'keepsake.export-zip', story: 'keepsake.export-story', art: 'keepsake.export-art', card: 'keepsake.export-card' } as Record<string, CustomerCopyKey>)[format]) }}</button></div>
+          <label v-if="owner"><input v-model="includePortrait" type="checkbox" :disabled="!portrait || busy">{{ customerCopy.text('keepsake.include-portrait') }}</label>
+          <button v-if="owner && pending(baseJob?.state)" class="aw-button aw-button--secondary" :disabled="busy" @click="cancelJob('base')">{{ customerCopy.text('keepsake.stop-preparation') }}</button>
         </div></div>
       <WizardIdentity :identity="identity" />
-      <button v-if="owner && !accountRead && edition && !identity" class="aw-button aw-button--secondary" :disabled="busy" @click="createIdentity">Vytvořit kouzelnickou identitu této edice</button>
-      <p v-if="owner && !accountRead && edition && !identity" class="archive-caption">Doplní autorskou fikci pro tuto edici bez dalšího AI volání. Obrázek tím nevznikne.</p>
-      <p v-if="identity && !edition?.artworkAssetId" class="archive-muted">Identita je připravená jako text a kartička. Obraz není potvrzený; nic jej nenahrazuje. ZIP a PNG mohou obsahovat pouze dostupné části.</p>
+      <button v-if="owner && !accountRead && edition && !identity" class="aw-button aw-button--secondary" :disabled="busy" @click="createIdentity">{{ customerCopy.text('keepsake.create-identity') }}</button>
+      <p v-if="owner && !accountRead && edition && !identity" class="archive-caption">{{ customerCopy.text('keepsake.identity-help') }}</p>
+      <p v-if="identity && !edition?.artworkAssetId" class="archive-muted">{{ customerCopy.text('keepsake.identity-text-only') }}</p>
       <PrivateProphecy v-if="owner" :prophecy="prophecy" />
-      <p v-if="accountRead && !accountOwner" class="archive-muted">Soukromé proroctví je dostupné jen vlastníkovi památky. Propojení účtu zpřístupňuje jen uložené výsledné portréty; zdrojové fotografie zůstávají soukromé.</p>
-      <section class="archive-story"><h2>Příběh jedné nepravděpodobné hůlky</h2><p class="archive-caption">Kouzelnická fikce pro tento večer</p><p v-for="(paragraph, index) in paragraphs" :key="index">{{ paragraph }}</p><p v-if="!paragraphs.length">{{ storyPlaceholder }}</p></section>
-      <section v-if="accountRead && canReadPortrait && portrait" class="aw-card"><h2>Soukromý kouzelnický portrét</h2><p>Výsledný portrét byl společně s památkou výslovně připojen k tomuto účtu. Zdrojová fotografie není součástí tohoto přístupu.</p><img v-if="portraitMedia.artworkUrl.value" :src="portraitMedia.artworkUrl.value" class="archive-private-preview" alt="Soukromý kouzelnický portrét"><p v-if="portrait.synthetic">SYNTETICKÁ UKÁZKA PORTRÉTU</p><button class="aw-button aw-button--secondary" :disabled="!canExport('portrait')" @click="exportFile('portrait')">Uložit portrét</button></section>
-      <section v-if="owner" class="aw-card" aria-labelledby="portrait-title"><h2 id="portrait-title">Soukromý kouzelnický portrét</h2><p>Výběr fotografie vytvoří jen místní náhled. Teprve tlačítko a aktuální souhlas ji odešlou ke zpracování OpenAI. Veřejné sdílení portrét neobsahuje.</p>
-        <label for="archive-photo">Fotografie JPEG, PNG nebo WebP do 8 MiB</label><input id="archive-photo" ref="photoInput" type="file" accept="image/jpeg,image/png,image/webp" :disabled="busy" @change="choosePhoto">
-        <img v-if="previewUrl" :src="previewUrl" alt="Místní náhled vybrané fotografie" class="archive-private-preview">
-        <label><input v-model="photoConsent" type="checkbox" :disabled="busy">Souhlasím s odesláním této fotografie a jejím zpracováním OpenAI pro kouzelnický portrét (dv10-portrait-v1).</label>
-        <button class="aw-button" :disabled="busy || !photo || !photoConsent || !edition" @click="generatePortrait">Odeslat fotografii a vytvořit portrét</button>
-        <p v-if="portraitJob">Příprava portrétu: {{ generationLabel(portraitJob.state) }}</p>
-        <img v-if="portraitMedia.artworkUrl.value" :src="portraitMedia.artworkUrl.value" class="archive-private-preview" alt="Soukromý kouzelnický portrét">
-        <div class="archive-actions"><button v-if="pending(portraitJob?.state)" class="aw-button aw-button--secondary" :disabled="busy" @click="cancelJob('portrait')">Zastavit přípravu portrétu</button><button class="aw-button aw-button--secondary" :disabled="!canExport('portrait')" @click="exportFile('portrait')">Uložit portrét</button><button class="aw-button aw-button--ghost" :disabled="busy" @click="loadHistory">Zobrazit historii portrétů</button></div>
-        <p v-if="portrait?.synthetic">SYNTETICKÁ UKÁZKA PORTRÉTU</p>
-        <ul v-if="history.length"><li v-for="item in history" :key="item.id"><button class="aw-button aw-button--ghost" :disabled="busy" @click="downloadPortrait(item)">{{ item.synthetic ? 'Syntetická ukázka · ' : '' }}Portrét {{ new Date(item.createdAt).toLocaleString('cs') }}</button></li></ul>
-        <button class="aw-button aw-button--danger" :disabled="busy" @click="deleteScope = 'portrait'; confirmation = ''">Odvolat souhlas a smazat fotografie i portréty</button>
+      <p v-if="accountRead && !accountOwner" class="archive-muted">{{ customerCopy.text('keepsake.linked-privacy') }}</p>
+      <section class="archive-story"><h2>{{ customerCopy.text('keepsake.story-heading') }}</h2><p class="archive-caption">{{ customerCopy.text('keepsake.story-caption') }}</p><p v-for="(paragraph, index) in paragraphs" :key="index">{{ paragraph }}</p><p v-if="!paragraphs.length">{{ storyPlaceholder }}</p></section>
+      <section v-if="accountRead && canReadPortrait && portrait" class="aw-card"><h2>{{ customerCopy.text('keepsake.private-portrait') }}</h2><p>{{ customerCopy.text('keepsake.linked-portrait-copy') }}</p><img v-if="portraitMedia.artworkUrl.value" :src="portraitMedia.artworkUrl.value" class="archive-private-preview" :alt="customerCopy.text('keepsake.private-portrait')"><p v-if="portrait.synthetic">{{ customerCopy.text('keepsake.synthetic-portrait') }}</p><button class="aw-button aw-button--secondary" :disabled="!canExport('portrait')" @click="exportFile('portrait')">{{ customerCopy.text('keepsake.save-portrait') }}</button></section>
+      <section v-if="owner" class="aw-card" aria-labelledby="portrait-title"><h2 id="portrait-title">{{ customerCopy.text('keepsake.private-portrait') }}</h2><p>{{ customerCopy.text('keepsake.upload-description') }}</p>
+        <label for="archive-photo">{{ customerCopy.text('keepsake.upload-label') }}</label><input id="archive-photo" ref="photoInput" type="file" accept="image/jpeg,image/png,image/webp" :disabled="busy" @change="choosePhoto">
+        <img v-if="previewUrl" :src="previewUrl" :alt="customerCopy.text('keepsake.local-photo-alt')" class="archive-private-preview">
+        <label><input v-model="photoConsent" type="checkbox" :disabled="busy">{{ customerCopy.text('keepsake.photo-consent') }}</label>
+        <button class="aw-button" :disabled="busy || !photo || !photoConsent || !edition" @click="generatePortrait">{{ customerCopy.text('keepsake.create-portrait') }}</button>
+        <p v-if="portraitJob">{{ customerCopy.text('keepsake.portrait-preparation') }} {{ generationLabel(portraitJob.state, customerCopy.language.value) }}</p>
+        <img v-if="portraitMedia.artworkUrl.value" :src="portraitMedia.artworkUrl.value" class="archive-private-preview" :alt="customerCopy.text('keepsake.private-portrait')">
+        <div class="archive-actions"><button v-if="pending(portraitJob?.state)" class="aw-button aw-button--secondary" :disabled="busy" @click="cancelJob('portrait')">{{ customerCopy.text('keepsake.stop-portrait') }}</button><button class="aw-button aw-button--secondary" :disabled="!canExport('portrait')" @click="exportFile('portrait')">{{ customerCopy.text('keepsake.save-portrait') }}</button><button class="aw-button aw-button--ghost" :disabled="busy" @click="loadHistory">{{ customerCopy.text('keepsake.history') }}</button></div>
+        <p v-if="portrait?.synthetic">{{ customerCopy.text('keepsake.synthetic-portrait') }}</p>
+        <ul v-if="history.length"><li v-for="item in history" :key="item.id"><button class="aw-button aw-button--ghost" :disabled="busy" @click="downloadPortrait(item)">{{ item.synthetic ? customerCopy.text('keepsake.synthetic-prefix') : '' }}{{ customerCopy.text('keepsake.portrait-prefix') }} {{ new Intl.DateTimeFormat(customerCopy.language.value === 'en' ? 'en-GB' : 'cs-CZ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.createdAt)) }}</button></li></ul>
+        <button class="aw-button aw-button--danger" :disabled="busy" @click="deleteScope = 'portrait'; confirmation = ''">{{ customerCopy.text('keepsake.revoke-photo-consent') }}</button>
       </section>
-      <section v-if="owner" class="aw-card"><h2>Přístup a uchování</h2><p>Památka zůstává uložená do ručního smazání. Expirace nebo odvolání odkazu ji nemaže.</p>
-        <section v-if="!accountRead" aria-labelledby="account-association-title"><h3 id="account-association-title">Můj účet</h3><p v-if="account">Připojení zpřístupní hůlku, příběh a soukromé výsledné portréty účtu {{ account.displayName }}. Zdrojové fotografie ani správu návštěvnického přístupu účtu nepředává.</p><p v-else>Pro uchování přístupu ve svém účtu se nejprve přihlas. Připojení bude vyžadovat samostatné potvrzení.</p><button v-if="account" class="aw-button aw-button--secondary" :disabled="busy" @click="associationOpen = true">Připojit k mému účtu</button><RouterLink v-else to="/signin">Přihlásit se k účtu</RouterLink></section>
-        <div class="archive-actions"><button class="aw-button aw-button--secondary" :disabled="busy || !edition" @click="sharePreview = true">Náhled sdílení</button><button class="aw-button aw-button--secondary" :disabled="busy" @click="issueLink('recovery')">Vytvořit soukromý návratový odkaz</button><button class="aw-button aw-button--ghost" :disabled="busy" @click="revokeLinks('share')">Odvolat sdílené odkazy</button><button class="aw-button aw-button--ghost" :disabled="busy" @click="revokeLinks('recovery')">Odvolat návratové odkazy</button><button class="aw-button aw-button--danger" :disabled="busy" @click="revokeAccess">Odvolat všechny přístupy</button><button class="aw-button aw-button--danger" :disabled="busy" @click="deleteScope = 'all'; confirmation = ''">Smazat celou památku</button></div>
-        <div v-if="issuedLink"><p>{{ linkKind === 'share' ? 'Pouze hůlka a příběh. Odkaz můžeš poslat ostatním.' : 'Soukromý klíč ke správě a portrétu. Ulož jej pouze pro sebe.' }}</p><label for="archive-issued-link">{{ linkKind === 'share' ? 'Sdílený odkaz' : 'Soukromý návratový odkaz' }}</label><input id="archive-issued-link" class="aw-input" :value="issuedLink" readonly autocomplete="off" @focus="($event.target as HTMLInputElement).select()"><div class="archive-actions"><button class="aw-button aw-button--secondary" @click="copyLink">Zkopírovat odkaz</button><button v-if="linkKind === 'share'" class="aw-button aw-button--secondary" @click="shareLink">Sdílet odkaz</button></div></div>
+      <section v-if="owner" class="aw-card"><h2>{{ customerCopy.text('keepsake.retention-title') }}</h2><p>{{ customerCopy.text('keepsake.retention-copy') }}</p>
+        <section v-if="!accountRead" aria-labelledby="account-association-title"><h3 id="account-association-title">{{ customerCopy.text('keepsake.account-title') }}</h3><p v-if="account">{{ customerCopy.text('keepsake.account-linked-copy', { name: account.displayName }) }}</p><p v-else>{{ customerCopy.text('keepsake.account-signin-copy') }}</p><button v-if="account" class="aw-button aw-button--secondary" :disabled="busy" @click="associationOpen = true">{{ customerCopy.text('keepsake.link-account') }}</button><RouterLink v-else to="/signin">{{ customerCopy.text('keepsake.sign-in-account') }}</RouterLink></section>
+        <div class="archive-actions"><button class="aw-button aw-button--secondary" :disabled="busy || !edition" @click="sharePreview = true">{{ customerCopy.text('keepsake.share-preview') }}</button><button class="aw-button aw-button--secondary" :disabled="busy" @click="issueLink('recovery')">{{ customerCopy.text('keepsake.create-recovery') }}</button><button class="aw-button aw-button--ghost" :disabled="busy" @click="revokeLinks('share')">{{ customerCopy.text('keepsake.revoke-shares') }}</button><button class="aw-button aw-button--ghost" :disabled="busy" @click="revokeLinks('recovery')">{{ customerCopy.text('keepsake.revoke-recovery') }}</button><button class="aw-button aw-button--danger" :disabled="busy" @click="revokeAccess">{{ customerCopy.text('keepsake.revoke-all') }}</button><button class="aw-button aw-button--danger" :disabled="busy" @click="deleteScope = 'all'; confirmation = ''">{{ customerCopy.text('keepsake.delete-all-action') }}</button></div>
+        <div v-if="issuedLink"><p>{{ customerCopy.text(linkKind === 'share' ? 'keepsake.share-link-copy' : 'keepsake.recovery-link-copy') }}</p><label for="archive-issued-link">{{ customerCopy.text(linkKind === 'share' ? 'keepsake.share-link-label' : 'keepsake.recovery-link-label') }}</label><input id="archive-issued-link" class="aw-input" :value="issuedLink" readonly autocomplete="off" @focus="($event.target as HTMLInputElement).select()"><div class="archive-actions"><button class="aw-button aw-button--secondary" @click="copyLink">{{ customerCopy.text('keepsake.copy-link') }}</button><button v-if="linkKind === 'share'" class="aw-button aw-button--secondary" @click="shareLink">{{ customerCopy.text('keepsake.share-link') }}</button></div></div>
       </section>
     </article>
-    <section v-if="accountCanUnlink && record" class="aw-card" aria-labelledby="account-unlink-title"><h2 id="account-unlink-title">Propojení s účtem</h2><p>Odpojení odebere tuto památku z tohoto účtu. Obsah, uložené soubory a návštěvnický přístup původního vlastníka zůstanou zachované.</p><button class="aw-button aw-button--secondary" :disabled="busy" @click="unlinkOpen = true; unlinkConfirmation = ''">Odpojit tuto památku od účtu</button></section>
-    <section v-if="deletion" class="aw-card"><h1 v-if="!record" id="keepsake-title">Požadavek na smazání</h1><h2 v-else>Požadavek na smazání</h2><p>{{ deletion.scope === 'all' ? 'Památka už není přístupná. Odstraňujeme její uložené kopie.' : 'Fotografie a portréty už nejsou přístupné. Základní památka zůstává.' }}</p><dl><dt>Místní kopie</dt><dd>{{ deletionLabel(deletion.localState) }}</dd><dt>Poskytovatel</dt><dd>{{ deletionLabel(deletion.providerState) }}</dd><dt>Zálohy</dt><dd>{{ deletionLabel(deletion.backupState) }}</dd></dl><p>Dokončení místního smazání nepotvrzuje odstranění u poskytovatele ani v nezávislých zálohách.</p><button class="aw-button aw-button--secondary" :disabled="busy" @click="refreshDeletion">Obnovit stav mazání</button></section>
-    <div class="archive-actions"><button v-if="locator && !claim && !deletion" class="aw-button aw-button--secondary" :disabled="busy" @click="manualCheckReadiness">Obnovit stav památky</button><button class="aw-button aw-button--ghost" @click="privacy = true">Soukromí a uchování dat</button></div>
-    <ArchiveDialog :open="privacy" title="Soukromí a uchování dat" @close="privacy = false"><p>Archiv se uchovává do ručního smazání. Expirace přístupu ani změna večera obsah nemažou. Veřejný přehled obsahuje jen základní hůlky a příběhy; fotografie, portréty a soukromé odkazy nejsou veřejné.</p><p>Vybraná fotografie zůstává místním náhledem, dokud výslovně neodsouhlasíš a nespustíš její odeslání. Odvolání souhlasu a ruční smazání mají samostatné potvrzení. Stav místních kopií, poskytovatele a záloh se ověřuje odděleně.</p></ArchiveDialog>
-    <ArchiveDialog :open="artworkOpen" title="Zvětšený obraz hůlky" @close="artworkOpen = false"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" alt="Zvětšená digitální interpretace hůlky"></ArchiveDialog>
-    <ArchiveDialog :open="sharePreview" title="Co bude sdílené" @close="sharePreview = false"><p>{{ record?.snapshot.officialName }} · {{ edition?.story?.title }}</p><p>Pouze hůlka a příběh. Fotografie a soukromý portrét nejsou součástí sdílení.</p><button class="aw-button" :disabled="busy" @click="issueLink('share')">Vytvořit sdílený odkaz</button></ArchiveDialog>
-    <AwDialog :open="associationOpen" title="Připojit soukromou památku k účtu?" @close="associationOpen = false"><p>Účet {{ account?.displayName }} získá přístup ke čtení této hůlky, příběhu a jejích soukromých výsledných portrétů. Zdrojové fotografie nepředáváme. Návštěvnické vlastnictví, souhlas s generováním a ruční mazání se nemění.</p><button class="aw-button" :disabled="busy || !account || !owner" @click="associateAccount">Potvrdit připojení včetně soukromých portrétů</button></AwDialog>
-    <ArchiveDialog :open="unlinkOpen" title="Odpojit památku od účtu?" @close="unlinkOpen = false"><p>Odebere se pouze propojení s tímto účtem. Památka, soubory i návštěvnický přístup původního vlastníka zůstanou zachované.</p><label for="archive-unlink-confirm">Pro potvrzení napiš ODPOJIT</label><input id="archive-unlink-confirm" v-model="unlinkConfirmation" class="aw-input" autocomplete="off"><button class="aw-button aw-button--secondary" :disabled="busy || unlinkConfirmation !== 'ODPOJIT'" @click="unlinkAccount">Potvrdit odpojení od účtu</button></ArchiveDialog>
-    <ArchiveDialog :open="!!deleteScope" :title="deleteScope === 'all' ? 'Smazat celou památku?' : 'Smazat fotografie a portréty?'" @close="deleteScope = undefined"><p>Tato akce odvolá příslušný přístup a zahájí ruční smazání. Stav poskytovatele a záloh bude uveden samostatně.</p><label for="archive-delete-confirm">Pro potvrzení napiš SMAZAT</label><input id="archive-delete-confirm" v-model="confirmation" class="aw-input" autocomplete="off"><button class="aw-button aw-button--danger" :disabled="busy || confirmation !== 'SMAZAT'" @click="deleteContent">Potvrdit smazání</button></ArchiveDialog>
+    <section v-if="accountCanUnlink && record" class="aw-card" aria-labelledby="account-unlink-title"><h2 id="account-unlink-title">{{ customerCopy.text('keepsake.unlink-account-title') }}</h2><p>{{ customerCopy.text('keepsake.unlink-description') }}</p><button class="aw-button aw-button--secondary" :disabled="busy" @click="unlinkOpen = true; unlinkConfirmation = ''">{{ customerCopy.text('keepsake.unlink-button') }}</button></section>
+    <section v-if="deletion" class="aw-card"><h1 v-if="!record" id="keepsake-title">{{ customerCopy.text('keepsake.delete-title') }}</h1><h2 v-else>{{ customerCopy.text('keepsake.delete-title') }}</h2><p>{{ customerCopy.text(deletion.scope === 'all' ? 'keepsake.deleted-pending-all' : 'keepsake.deleted-pending-media') }}</p><dl><dt>{{ customerCopy.text('keepsake.local-copies') }}</dt><dd>{{ deletionLabel(deletion.localState, customerCopy.language.value) }}</dd><dt>{{ customerCopy.text('keepsake.provider') }}</dt><dd>{{ deletionLabel(deletion.providerState, customerCopy.language.value) }}</dd><dt>{{ customerCopy.text('keepsake.backups') }}</dt><dd>{{ deletionLabel(deletion.backupState, customerCopy.language.value) }}</dd></dl><p>{{ customerCopy.text('keepsake.local-not-global') }}</p><button class="aw-button aw-button--secondary" :disabled="busy" @click="refreshDeletion">{{ customerCopy.text('keepsake.delete-status') }}</button></section>
+    <div class="archive-actions"><button v-if="locator && !claim && !deletion" class="aw-button aw-button--secondary" :disabled="busy" @click="manualCheckReadiness">{{ customerCopy.text('keepsake.refresh') }}</button><button class="aw-button aw-button--ghost" @click="privacy = true">{{ customerCopy.text('keepsake.privacy-open') }}</button></div>
+    <ArchiveDialog :open="privacy" :title="customerCopy.text('keepsake.privacy-heading')" @close="privacy = false"><p>{{ customerCopy.text('keepsake.privacy-copy') }}</p><p>{{ customerCopy.text('keepsake.privacy-upload') }}</p></ArchiveDialog>
+    <ArchiveDialog :open="artworkOpen" :title="customerCopy.text('keepsake.artwork-title')" @close="artworkOpen = false"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" :alt="customerCopy.text('keepsake.artwork-enlarged-alt')"></ArchiveDialog>
+    <ArchiveDialog :open="sharePreview" :title="customerCopy.text('keepsake.share-preview-title')" @close="sharePreview = false"><p>{{ record?.snapshot.officialName }} · {{ edition?.story?.title }}</p><p>{{ customerCopy.text('keepsake.share-preview-copy') }}</p><button class="aw-button" :disabled="busy" @click="issueLink('share')">{{ customerCopy.text('keepsake.share-create') }}</button></ArchiveDialog>
+    <AwDialog :open="associationOpen" :title="customerCopy.text('keepsake.association-title')" @close="associationOpen = false"><p>{{ customerCopy.text('keepsake.association-copy', { name: account?.displayName ?? '' }) }}</p><button class="aw-button" :disabled="busy || !account || !owner" @click="associateAccount">{{ customerCopy.text('keepsake.association-confirm') }}</button></AwDialog>
+    <ArchiveDialog :open="unlinkOpen" :title="customerCopy.text('keepsake.unlink-title')" @close="unlinkOpen = false"><p>{{ customerCopy.text('keepsake.unlink-help') }}</p><label for="archive-unlink-confirm">{{ customerCopy.text('keepsake.unlink-confirm-help') }}</label><input id="archive-unlink-confirm" v-model="unlinkConfirmation" class="aw-input" autocomplete="off"><button class="aw-button aw-button--secondary" :disabled="busy || unlinkConfirmation !== 'ODPOJIT'" @click="unlinkAccount">{{ customerCopy.text('keepsake.unlink-confirm') }}</button></ArchiveDialog>
+    <ArchiveDialog :open="!!deleteScope" :title="customerCopy.text(deleteScope === 'all' ? 'keepsake.delete-all-title' : 'keepsake.delete-media-title')" @close="deleteScope = undefined"><p>{{ customerCopy.text('keepsake.delete-help') }}</p><label for="archive-delete-confirm">{{ customerCopy.text('keepsake.delete-confirm-help') }}</label><input id="archive-delete-confirm" v-model="confirmation" class="aw-input" autocomplete="off"><button class="aw-button aw-button--danger" :disabled="busy || confirmation !== 'SMAZAT'" @click="deleteContent">{{ customerCopy.text('keepsake.delete-confirm') }}</button></ArchiveDialog>
     <ArchiveDownload :url="media.fileUrl.value" :filename="media.fileName.value" :can-share="media.canShareFile()" :native="media.native" @close="media.clearFile" @share="shareFile" />
   </section>
 </template>

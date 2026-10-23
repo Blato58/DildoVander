@@ -43,8 +43,14 @@ internal static class CustomerSessionTests
             first = Request(boot);
             var second = Request(boot);
             token = new string('a', 43);
-            journal.IssueCustomerTicket("account-a", first, "private-original", OperationJournal.CustomerHash(token), "protected-a");
-            journal.IssueCustomerTicket("account-b", second, "private-second", OperationJournal.CustomerHash(new string('b', 43)), "protected-b");
+            string Snapshot(string profileId, string language, string tone) => JsonSerializer.Serialize(
+                new CustomerConversationSnapshot(
+                    new CharacterConversationSnapshot(profileId, 1, new("Fictional host", "Fixture world"), null, 1),
+                    false, true, new(1, 7, language, tone)));
+            journal.IssueCustomerTicket("account-a", first, Snapshot("profile-a", "en-US", "cheeky"),
+                OperationJournal.CustomerHash(token), "protected-a");
+            journal.IssueCustomerTicket("account-b", second, Snapshot("profile-b", "cs-CZ", "gentle"),
+                OperationJournal.CustomerHash(new string('b', 43)), "protected-b");
             var results = await Task.WhenAll(Task.Run(() => TryRedeem(journal, first, token)),
                 Task.Run(() => TryRedeem(journal, second, new string('b', 43))));
             Check(results.Count(value => value is not null) == 1, "two phones obtain exactly one durable device lease");
@@ -66,7 +72,13 @@ internal static class CustomerSessionTests
         }
         using (var journal = new OperationJournal(config, clock))
         {
-            Check(journal.CustomerSession(winner.Id)!.State == "recovering", "restart retains uncertain start as recovering");
+            var recovered = journal.CustomerSession(winner.Id)!;
+            Check(recovered.State == "recovering", "restart retains uncertain start as recovering");
+            var captured = JsonSerializer.Deserialize<CustomerConversationSnapshot>(recovered.Snapshot)!;
+            Check(captured.Preferences is { PreferenceRevision: 7 } preferences
+                && preferences.ConversationLanguage == (winner.OwnerId == "account-a" ? "en-US" : "cs-CZ")
+                && preferences.Tone == (winner.OwnerId == "account-a" ? "cheeky" : "gentle"),
+                "restart preserves the accepted ticket's frozen conversation preferences");
             Check(journal.ActiveCustomerSession("device-a")!.Id == winner.Id, "restart preserves physical device ownership");
             Check(!journal.RequestCustomerEnd(winner.Id, "unrelated-account"),
                 "another account cannot request end for a recovered session");

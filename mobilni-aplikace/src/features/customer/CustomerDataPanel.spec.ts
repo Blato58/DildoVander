@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import CustomerDataPanel from './CustomerDataPanel.vue';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 function render(accountId = 'customer-1', eligible = true) {
   return mount(CustomerDataPanel, {
@@ -16,6 +17,10 @@ function render(accountId = 'customer-1', eligible = true) {
 }
 
 describe('customer data disclosure panel', () => {
+  beforeEach(() => {
+    interfaceLanguagePreference.setScope(null);
+    interfaceLanguagePreference.setLanguage('cs');
+  });
   it('starts collapsed, exposes a labelled disclosure, and mounts data readers only after activation', async () => {
     const wrapper = render();
     const toggle = wrapper.get('button');
@@ -65,6 +70,16 @@ describe('customer data disclosure panel', () => {
     await wrapper.setProps({ eligible: true });
     await toggle.trigger('click');
     expect(wrapper.find('[data-testid="memories"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('updates the visible disclosure in English without mounting data readers', async () => {
+    const wrapper = render();
+    interfaceLanguagePreference.setLanguage('en');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('h2').text()).toBe('My data');
+    expect(wrapper.get('button').text()).toBe('Show my data');
+    expect(wrapper.find('[data-testid="memories"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

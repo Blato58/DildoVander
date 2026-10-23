@@ -66,6 +66,7 @@ internal sealed partial class KeepsakeStore
             document.Revision++;
             Save(connection, transaction, id, document);
             Remember(connection, transaction, scope, key, body, job.Id);
+            RecordCompletionUpdates(connection, transaction, id);
             transaction.Commit();
             return job;
         }
@@ -112,6 +113,7 @@ internal sealed partial class KeepsakeStore
         document.CurrentBaseJob = job.Id;
         document.NeedsBaseGeneration = false;
         Save(connection, transaction, id, document);
+        RecordCompletionUpdates(connection, transaction, id);
         return true;
     }
 
@@ -145,6 +147,7 @@ internal sealed partial class KeepsakeStore
             reader.Close();
             Execute(connection, transaction, "UPDATE dv10_jobs SET state='leased',fence=$f WHERE id=$id AND state='queued'",
                 ("$f", job.Fence), ("$id", job.Id));
+            RecordCompletionUpdates(connection, transaction, job.KeepsakeId);
             transaction.Commit();
             return job;
         }
@@ -160,6 +163,7 @@ internal sealed partial class KeepsakeStore
             {
                 Execute(connection, transaction, "UPDATE dv10_jobs SET state='queued' WHERE id=$id AND state='leased' AND fence=$f",
                     ("$id", job.Id), ("$f", job.Fence));
+                RecordCompletionUpdates(connection, transaction, job.KeepsakeId);
                 transaction.Commit();
                 return null;
             }
@@ -178,6 +182,7 @@ internal sealed partial class KeepsakeStore
                 photo = ReadBytes(job.KeepsakeId, asset);
                 story = document.Editions.Single(item => item.Id == request.EditionId).Story;
             }
+            RecordCompletionUpdates(connection, transaction, job.KeepsakeId);
             transaction.Commit();
             return new KeepsakeProviderRequest(job.KeepsakeId, document.Snapshot, request.Brief, job.Id, request.EditionId,
                 request.UploadId, request.Variant, photo, story)
@@ -199,6 +204,7 @@ internal sealed partial class KeepsakeStore
                     "UPDATE dv10_jobs SET state=CASE WHEN EXISTS(SELECT 1 FROM dv10_attempts WHERE job_id=$id) "
                     + "THEN 'awaiting_reconciliation' ELSE 'queued' END,error_code='provider_paused' WHERE id=$id AND fence=$f AND state='dispatched'",
                     ("$id", job.Id), ("$f", job.Fence));
+                RecordCompletionUpdates(connection, transaction, job.KeepsakeId);
                 transaction.Commit();
                 return false;
             }
@@ -251,6 +257,7 @@ internal sealed partial class KeepsakeStore
                 }
             }
             Save(connection, transaction, job.KeepsakeId, document);
+            RecordCompletionUpdates(connection, transaction, job.KeepsakeId);
             transaction.Commit();
             return true;
         }
@@ -337,6 +344,7 @@ internal sealed partial class KeepsakeStore
             Save(connection, transaction, job.KeepsakeId, document);
             Execute(connection, transaction, "UPDATE dv10_jobs SET state=$s WHERE id=$id AND fence=$f",
                 ("$s", publish ? "completed" : "archived_private"), ("$id", job.Id), ("$f", job.Fence));
+            RecordCompletionUpdates(connection, transaction, job.KeepsakeId);
             transaction.Commit();
             return publish;
         }
@@ -347,9 +355,12 @@ internal sealed partial class KeepsakeStore
         lock (gate)
         {
             using var connection = Open();
-            Execute(connection, null,
+            using var transaction = connection.BeginTransaction();
+            Execute(connection, transaction,
                 "UPDATE dv10_jobs SET state='awaiting_reconciliation',error_code=$e WHERE id=$id AND fence=$f AND state='dispatched'",
                 ("$e", errorCode), ("$id", job.Id), ("$f", job.Fence));
+            RecordCompletionUpdates(connection, transaction, job.KeepsakeId);
+            transaction.Commit();
         }
     }
 
@@ -366,6 +377,7 @@ internal sealed partial class KeepsakeStore
                 "UPDATE dv10_jobs SET state='cancelled' WHERE keepsake_id=$id AND id=$job AND state IN ('queued','leased','dispatched','awaiting_reconciliation')",
                 ("$id", id), ("$job", jobId));
             Remember(connection, transaction, scope, key, jobId, jobId);
+            RecordCompletionUpdates(connection, transaction, id);
             transaction.Commit();
         }
     }

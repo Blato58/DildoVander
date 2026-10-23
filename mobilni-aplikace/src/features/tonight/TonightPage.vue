@@ -9,6 +9,7 @@ import { account, accountRequest, accountTransport, type AccountDetails } from '
 import { deviceSession as device } from '../suitcase/deviceSession';
 import { SessionRecoveryController } from '../customer/sessionRecovery';
 import TonightView from './TonightView.vue';
+import TonightWaiting from './TonightWaiting.vue';
 import type { AudioHealthObservation, DeviceHealthObservation, NetworkHealthObservation, ScopedObservation, TonightScope } from './tonightProjection';
 import { useTonight, type TonightLocalDeviceObservation, type TonightPermission, type TonightSessionSnapshot } from './useTonight';
 
@@ -160,6 +161,7 @@ onBeforeUnmount(() => {
       </nav>
     </section>
     <AwNotice v-if="detailsError" tone="warning">Soukromý provozní stav zůstává skrytý, dokud se nepodaří ověřit oprávnění.</AwNotice>
+    <TonightWaiting :device-id="selectedDeviceId || null" :authorized="permission === 'allowed'" />
     <TonightView
       :model="model"
       @refresh="tonight.refresh()"

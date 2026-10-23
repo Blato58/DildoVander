@@ -309,6 +309,12 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                 }
             }
         }
+        if (!turn.Request.Opening && visitorText is not null && turn.GuestTone is { } guestTone)
+        {
+            // This trusted state hook is separate from quoted memory context.
+            // Stable call identity survives visual provider retries unchanged.
+            guestTone.AcceptInput("realtime:" + turn.Request.ClientTurnId.ToString("D"), 0, visitorText);
+        }
         if (!turn.Request.Opening && visitorText is not null && inputContext is not null)
         {
             var context = await inputContext(visitorText, cancellationToken);
@@ -322,7 +328,17 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
         {
             await responseReady(cancellationToken);
         }
-        if (visualContext is not null)
+        if (turn.GuestTone is not null)
+        {
+            turn = turn with { CostumeContext = visualContext?.Invoke().Context ?? turn.CostumeContext };
+            cancellationToken.ThrowIfCancellationRequested();
+            await session.ConfigureConversationSessionAsync(RealtimeProtocol.SessionOptions(turn), cancellationToken);
+            if (await ConfigurationAsync(cancellationToken, visualRevision) is not RealtimeServerUpdateSessionUpdated)
+            { throw new InvalidDataException("Realtime guest policy was not acknowledged."); }
+            cancellationToken.ThrowIfCancellationRequested();
+            _ = turn.GuestTone.Read();
+        }
+        else if (visualContext is not null)
         {
             var currentVisual = visualContext();
             if (currentVisual.Context != turn.CostumeContext)

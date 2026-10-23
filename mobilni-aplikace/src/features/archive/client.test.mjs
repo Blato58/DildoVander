@@ -6,9 +6,17 @@ const identifiers = await readFile(new URL('../../application/identifiers.mjs', 
 const identifiersUrl = `data:text/javascript;base64,${Buffer.from(identifiers).toString('base64')}`;
 const source = (await readFile(new URL('./client.ts', import.meta.url), 'utf8')).replace('../../application/identifiers.mjs', identifiersUrl);
 const clientModule = await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source, { mode: 'transform' })).toString('base64')}`);
-const { ArchiveClient, projectGallery, guestPath, parseClaim, safeIssuedLink, downloadName, parseArchiveReadiness } = clientModule;
+const { ArchiveClient, projectGallery, guestPath, parseClaim, safeIssuedLink, downloadName, parseArchiveReadiness, generationLabel, deletionLabel } = clientModule;
 const id = '11111111-1111-4111-8111-111111111111';
 const defer = () => { let resolve; const promise = new Promise(r => resolve = r); return { promise, resolve }; };
+
+test('keeps display labels Czech by default and translates state meanings to English', () => {
+  assert.equal(generationLabel('queued'), 'Čeká na přípravu.');
+  assert.equal(deletionLabel('unknown_not_provider_confirmed'), 'odstranění poskytovatelem nepotvrzeno');
+  assert.equal(generationLabel('queued', 'en'), 'Waiting to be prepared.');
+  assert.equal(deletionLabel('unknown_not_provider_confirmed', 'en'), 'removal by provider unconfirmed');
+  assert.equal(deletionLabel('unrecognized-state', 'en'), 'status unconfirmed');
+});
 
 test('public reads omit credentials and forbid cache and redirects', async () => {
   let init;

@@ -8,6 +8,27 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
 if (args is ["--customer-data-browser-fixture"]) { await AccountIdentityTests.RunCustomerDataBrowserFixtureAsync(); return; }
+if (args is ["--customer-waiting-http"]) { await AccountIdentityTests.RunCustomerWaitingHttpAsync(); return; }
+if (args is ["--customer-preferences"]) { await AccountIdentityTests.RunCustomerConversationPreferenceHttpAsync(); return; }
+if (args is ["--voice-providers"]) { await VoiceProviderTests.RunAsync(); return; }
+if (args is ["--account-collection"])
+{
+    await AccountCollectionTests.RunAsync();
+    await AccountIdentityTests.RunAccountCollectionHttpAsync();
+    return;
+}
+if (args is ["--customer-completion-updates"])
+{
+    await CustomerCompletionStoreTests.RunAsync();
+    await CustomerCompletionAtomicTests.RunAsync();
+    await AccountIdentityTests.RunCustomerCompletionHttpAsync();
+    return;
+}
+if (args is ["--customer-waiting-activation"]) { await CustomerWaitingActivationTests.RunAsync(); return; }
+if (args is ["--customer-waiting"]) { await CustomerWaitingTests.RunAsync(); return; }
+if (args is ["--customer-waiting-admission"]) { await CustomerWaitingAdmissionTests.RunAsync(); return; }
+if (args is ["--customer-admission"]) { await CustomerAdmissionTests.RunAsync(); return; }
+if (args is ["--customer-availability"]) { CustomerAvailabilityTests.Run(); return; }
 if (args is ["--device-media"]) { await DeviceMediaTransportTests.RunAsync(); return; }
 if (args is ["--customer-data"]) { await CustomerDataAcceptanceTests.RunAsync(); return; }
 if (args is ["--customer-data-startup"]) { await AccountIdentityTests.RunCustomerDataStartupAsync(); return; }
@@ -139,6 +160,11 @@ await KeepsakeCoreTests.RunAsync();
 await KeepsakeOwnerAuthorizationTests.RunAsync();
 await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();
 await KeepsakeReadinessTests.RunAsync();
+await CustomerCompletionStoreTests.RunAsync();
+await CustomerCompletionAtomicTests.RunAsync();
+await AccountIdentityTests.RunCustomerCompletionHttpAsync();
+await AccountCollectionTests.RunAsync();
+await AccountIdentityTests.RunAccountCollectionHttpAsync();
 await AccountIdentityTests.RunCustomerSessionResultHttpAsync();
 KeepsakeOutcomeJournalTests.Run();
 FirmwareReleaseTests.Run();
@@ -154,6 +180,12 @@ await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();
 await MemoryCapacityTests.RunAsync();
 await TonightMemoryStatusTests.RunAsync();
+CustomerAvailabilityTests.Run();
+await CustomerWaitingTests.RunAsync();
+await CustomerWaitingAdmissionTests.RunAsync();
+await CustomerWaitingActivationTests.RunAsync();
+await CustomerAdmissionTests.RunAsync();
+await AccountIdentityTests.RunCustomerWaitingHttpAsync();
 await CustomerDataAcceptanceTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();

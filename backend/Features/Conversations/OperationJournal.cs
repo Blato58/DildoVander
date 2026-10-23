@@ -15,6 +15,7 @@ internal sealed partial class OperationJournal : IDisposable
     public OperationJournal(IConfiguration configuration, TimeProvider clock)
     {
         this.clock = clock;
+        waitingLimits = Kufr.Backend.Features.Customers.CustomerWaitingLimits.Read(configuration);
         keepsakesEnabled = configuration.GetValue<bool>("Keepsake:Enabled");
         var databasePath = configuration["Backend:DatabasePath"];
         if (string.IsNullOrWhiteSpace(databasePath))
@@ -194,6 +195,8 @@ internal sealed partial class OperationJournal : IDisposable
 
         EnsureLabProvenance(connection);
         InitializeCustomerSessions(connection);
+        InitializeCustomerWaiting(connection);
+        InitializeCustomerWaitingAdmission(connection);
 
         // A crash after reservation must never trigger automatic provider replay.
         using var recover = connection.CreateCommand();
@@ -233,6 +236,15 @@ internal sealed partial class OperationJournal : IDisposable
         {
             transaction.Commit();
             return existing;
+        }
+
+        try
+        {
+            RequireNoCustomerWaitingClaim(connection, transaction, deviceId);
+        }
+        catch (CustomerSessionException error) when (error.Code == "waiting_claim_reserved")
+        {
+            return new JournalCreateReservation(null, false, true);
         }
 
         using (var lease = CustomerCommand(connection, transaction,

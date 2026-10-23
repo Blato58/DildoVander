@@ -1,3 +1,5 @@
+using Kufr.Backend.Features.Customers;
+
 namespace Kufr.Backend.Features.CustomerData;
 
 // Internal authority proofs are never part of the downloadable account document.
@@ -9,7 +11,8 @@ internal sealed record CustomerOwnedSession(string SessionId, string ProfileId, 
     bool SnapshotAvailable);
 
 internal sealed record CustomerOwnershipInventory(CustomerDataAccess Access,
-    IReadOnlyList<CustomerOwnedSession> Sessions, string Revision, bool Complete);
+    IReadOnlyList<CustomerOwnedSession> Sessions, string Revision, bool Complete,
+    CustomerConversationPreferenceView? ConversationPreferences = null);
 
 internal interface ICustomerDataAuthority
 {
