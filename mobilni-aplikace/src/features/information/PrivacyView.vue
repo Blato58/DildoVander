@@ -2,7 +2,7 @@
   <article class="page-stack information-page" aria-labelledby="privacy-title">
     <p class="eyebrow">Wand Night Stand · DildoVander</p>
     <h1 id="privacy-title">Ochrana soukromí</h1>
-    <p>Aktualizováno 22. října 2026. Tento přehled se týká aplikace Wand Night Stand a připojených služeb DildoVander.</p>
+    <p>Aktualizováno 23. října 2026. Tento přehled se týká aplikace Wand Night Stand a připojených služeb DildoVander.</p>
 
     <section aria-labelledby="privacy-contact">
       <h2 id="privacy-contact">Kdo vám odpoví</h2>
@@ -38,7 +38,7 @@
       <h2 id="privacy-retention">Jak dlouho data zůstávají</h2>
       <p>Ukončení rozhovoru nebo večera samo o sobě nemaže archiv.</p>
       <ul>
-        <li>Paměť rozhovoru může uchovávat dokončené výměny podle večera až do smazání nebo vytěsnění kapacitním limitem. Samostatná volitelná paměť má vlastní dobu uchování; její expirace nemaže ostatní archivy.</li>
+        <li>Paměť rozhovoru i samostatná volitelná paměť uchovávají uložený obsah do výslovného smazání. Obsah se automaticky neprořezává ani nemaže po uplynutí času. Při naplnění kapacity se odmítnou nové zápisy; dříve uložené vzpomínky zůstávají zachovány.</li>
         <li>Památky, původní fotografie pro portrét a vytvořené portréty zůstávají do výslovného smazání. Potvrzené smazání účtu odstraní jeho vlastní soukromý obsah a zneplatní odkazy k němu; nesmaže cizí památku jen proto, že k ní měl účet přístup. Vypršení přístupového odkazu obsah automaticky nemaže.</li>
         <li>Dočasné audio a jednorázová fotografie pro popis kostýmu se zpracovávají odděleně od uchovaného portrétu. Přepis nebo zmínka o kostýmu může zůstat součástí uloženého rozhovoru.</li>
         <li>Technické logy mají ve výchozí konfiguraci limit 24 hodin nebo 5 000 záznamů. Technický nákladový audit se uchovává 7 dní a agregované údaje 90 dní.</li>
