@@ -23,7 +23,7 @@ ENTITLEMENTS = inline_python(
 )
 CAPTURE = inline_python(
     "capture-ios-store-preview.sh",
-    '  python3 - "$device" "$app_pid" "$output_dir/$slot-home-native.png"',
+    '  python3 - "$device" "$app_pid" "$output_dir/$slot-home-native.png" "$work_dir/check-ios-home-render"',
 )
 
 
@@ -59,15 +59,30 @@ class SignedEntitlementTests(unittest.TestCase):
 
 
 class NativeScreenshotTests(unittest.TestCase):
-    def run_capture(self, directory, outcomes, alive=None, trace=None):
+    def run_capture(
+        self, directory, outcomes, alive=None, trace=None,
+        render_outcomes=("ready",), capture_seconds=0,
+    ):
         output = Path(directory) / "native.png"
         now = [0.0]
         attempts = []
+        render_attempts = []
         if trace is not None:
-            trace.update(now=now, attempts=attempts)
+            trace.update(now=now, attempts=attempts, render_attempts=render_attempts)
 
         def run(command, *, check, timeout):
             self.assertTrue(check)
+            if command[0] == "render-check":
+                self.assertEqual(["render-check", str(output)], command)
+                self.assertTrue(output.exists())
+                render_attempts.append(timeout)
+                outcome = render_outcomes[min(len(render_attempts) - 1, len(render_outcomes) - 1)]
+                if outcome == "timeout":
+                    now[0] += timeout
+                    raise subprocess.TimeoutExpired(command, timeout)
+                if outcome == "unready":
+                    raise subprocess.CalledProcessError(1, command)
+                return
             self.assertEqual(["xcrun", "simctl", "io", "SIMULATOR", "screenshot", "--type=png", str(output)], command)
             self.assertFalse(output.exists(), "A previous partial capture must be removed before retry")
             attempts.append(timeout)
@@ -78,11 +93,12 @@ class NativeScreenshotTests(unittest.TestCase):
                 raise subprocess.TimeoutExpired(command, timeout)
             if outcome == "error":
                 raise subprocess.CalledProcessError(1, command)
+            now[0] += capture_seconds
 
         def sleep(seconds):
             now[0] += seconds
 
-        with patch.object(sys, "argv", ["-", "SIMULATOR", "123", str(output)]), \
+        with patch.object(sys, "argv", ["-", "SIMULATOR", "123", str(output), "render-check"]), \
                 patch("subprocess.run", side_effect=run), \
                 patch("time.monotonic", side_effect=lambda: now[0]), \
                 patch("time.sleep", side_effect=sleep), \
@@ -97,7 +113,7 @@ class NativeScreenshotTests(unittest.TestCase):
             self.assertEqual(b"native output", output.read_bytes())
             self.assertEqual([60, 60, 60], attempts)
             self.assertEqual(70, elapsed)
-            self.assertEqual(4, checks)
+            self.assertEqual(5, checks)
 
     def test_service_deadline_fails_and_removes_partial_png(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -113,6 +129,39 @@ class NativeScreenshotTests(unittest.TestCase):
             with self.subTest(alive=alive), tempfile.TemporaryDirectory() as directory:
                 with self.assertRaises(ProcessLookupError):
                     self.run_capture(directory, ["success"], alive=alive)
+
+    def test_unrendered_capture_is_removed_and_retried_until_heading_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = {}
+            output, attempts, elapsed, _ = self.run_capture(
+                directory, ["success"], trace=trace, render_outcomes=["unready", "ready"],
+            )
+            self.assertEqual(b"native output", output.read_bytes())
+            self.assertEqual([60, 60], attempts)
+            self.assertEqual([15, 15], trace["render_attempts"])
+            self.assertEqual(5, elapsed)
+
+    def test_ocr_timeout_uses_same_deadline_and_leaves_no_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = {}
+            with self.assertRaisesRegex(SystemExit, "within 180 seconds"):
+                self.run_capture(directory, ["success"], trace=trace, render_outcomes=["timeout"])
+            self.assertEqual([180], trace["now"])
+            self.assertEqual([15] * 9, trace["render_attempts"])
+            self.assertFalse((Path(directory) / "native.png").exists())
+
+    def test_ocr_timeout_is_capped_by_remaining_capture_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = {}
+            with self.assertRaisesRegex(SystemExit, "within 180 seconds"):
+                self.run_capture(
+                    directory, ["timeout", "timeout", "success"], trace=trace,
+                    render_outcomes=["timeout"], capture_seconds=45,
+                )
+            self.assertEqual([60, 60, 50], trace["attempts"])
+            self.assertEqual([5], trace["render_attempts"])
+            self.assertEqual([180], trace["now"])
+            self.assertFalse((Path(directory) / "native.png").exists())
 
 
 if __name__ == "__main__":
