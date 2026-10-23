@@ -555,7 +555,7 @@ internal static partial class AccountIdentityTests
         public CookieContainer Cookies(HttpClient client) => jars[client];
         public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false,
             bool deletionFeatures = false, bool customerMemoryFeatures = false,
-            bool accountDataExportFeatures = false)
+            bool accountDataExportFeatures = false, Action<WebApplication>? configureEndpoints = null)
         {
             var root = Path.Combine(Path.GetTempPath(), "dv-account-tests-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
@@ -686,6 +686,7 @@ internal static partial class AccountIdentityTests
                 app.UseStaticFiles(staticOptions);
                 app.MapFallbackToFile("index.html", staticOptions);
             }
+            configureEndpoints?.Invoke(app);
             await app.StartAsync();
             app.Configuration["Keepsake:Origin"] = app.Urls.Single().Replace("127.0.0.1", "localhost");
             if (browserMode)

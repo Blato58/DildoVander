@@ -14,6 +14,9 @@ enum AccountTransportPolicy {
     }
 
     static func accountRequestBodyLimit(path: String, method: String, contentType: String?) -> Int {
+        // These limits apply to accountTransport; the legacy JSON bridge keeps its own bound.
+        if customerCompletionRead(path: path, method: method) { return 256 }
+        if method == "POST", customerWaiting(path: path, method: method) { return 2 * 1024 }
         guard accountArchivePortraitUpload(path: path, method: method),
               let type = contentType?.split(separator: ";", maxSplits: 1).first?
                 .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
@@ -82,6 +85,106 @@ enum AccountTransportPolicy {
         let parts = path.split(separator: "/").map(String.init)
         guard path == "/" + parts.joined(separator: "/") else { return nil }
         return parts
+    }
+
+    private static func customerCompletionPage(path: String, method: String) -> Bool {
+        let root = "/app/v1/customer/completion-updates"
+        guard method == "GET", path.count <= 4096 else { return false }
+        if path == root { return true }
+        guard path.hasPrefix(root + "?") else { return false }
+        // The server issues an unpadded base64url cursor. Parse the raw query so
+        // encoded names/values, duplicate keys and alternate numeric forms fail closed.
+        let query = path.dropFirst(root.count + 1)
+        let items = query.split(separator: "&", omittingEmptySubsequences: false)
+        guard !query.isEmpty, items.count <= 2 else { return false }
+        var seen = Set<String>()
+        for item in items {
+            let pair = item.split(separator: "=", omittingEmptySubsequences: false)
+            guard pair.count == 2 else { return false }
+            let key = String(pair[0]), value = String(pair[1])
+            guard seen.insert(key).inserted else { return false }
+            switch key {
+            case "limit":
+                guard let limit = Int(value), (1...50).contains(limit), String(limit) == value else { return false }
+            case "cursor":
+                guard !value.isEmpty, value.count <= 2048,
+                      value.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else { return false }
+            default: return false
+            }
+        }
+        return true
+    }
+
+    private static func customerCompletionRead(path: String, method: String) -> Bool {
+        guard method == "PUT", let parts = customerDataParts(path), parts.count == 6,
+              Array(parts.prefix(4)) == ["app", "v1", "customer", "completion-updates"],
+              canonicalDataUUID(parts[4]), parts[5] == "read" else { return false }
+        return true
+    }
+
+    private static func canonicalFormValue(_ raw: Substring) -> String? {
+        let encoded = String(raw)
+        guard let value = encoded.replacingOccurrences(of: "+", with: " ").removingPercentEncoding else { return nil }
+        var canonical = ""
+        for byte in value.utf8 {
+            switch byte {
+            case 65...90, 97...122, 48...57, 42, 45, 46, 95:
+                canonical += String(UnicodeScalar(byte))
+            case 32: canonical += "+"
+            default: canonical += String(format: "%%%02X", byte)
+            }
+        }
+        return canonical == encoded ? value : nil
+    }
+
+    private static func accountCollectionPage(path: String, method: String) -> Bool {
+        let root = "/app/v1/archive/collection"
+        // Bounds include worst-case percent encoding of the UTF-16-limited values.
+        guard method == "GET", path.utf8.count <= 20000 else { return false }
+        if path == root { return true }
+        guard path.hasPrefix(root + "?") else { return false }
+        let query = path.dropFirst(root.count + 1)
+        let items = query.split(separator: "&", omittingEmptySubsequences: false)
+        guard !query.isEmpty, items.count <= 4 else { return false }
+        var seen = Set<String>()
+        for item in items {
+            let pair = item.split(separator: "=", omittingEmptySubsequences: false)
+            guard pair.count == 2 else { return false }
+            let key = String(pair[0])
+            guard ["limit", "cursor", "q", "access"].contains(key), seen.insert(key).inserted,
+                  let value = canonicalFormValue(pair[1]) else { return false }
+            switch key {
+            case "limit":
+                guard let limit = Int(value), (1...50).contains(limit), String(limit) == value else { return false }
+            case "cursor":
+                // The server authenticates the opaque cursor and its account/filter binding.
+                guard !value.isEmpty, value.utf16.count <= 2048 else { return false }
+            case "q":
+                guard value.utf16.count <= 80, value == value.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+            case "access":
+                guard ["all", "owned", "linked"].contains(value) else { return false }
+            default: return false
+            }
+        }
+        return true
+    }
+
+    private static func customerWaitingDevice(_ value: String) -> Bool {
+        !value.isEmpty && value.count <= 128 && value != "." && value != ".."
+            && value.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") }
+    }
+
+    private static func customerWaiting(path: String, method: String) -> Bool {
+        guard let parts = customerDataParts(path) else { return false }
+        if parts.count >= 5, Array(parts.prefix(4)) == ["app", "v1", "customer", "waiting"],
+           customerWaitingDevice(parts[4]) {
+            return (parts.count == 5 && method == "GET")
+                || (parts.count == 6 && method == "POST" && ["join", "leave", "claim"].contains(parts[5]))
+        }
+        guard parts.count >= 7, Array(parts.prefix(5)) == ["app", "v1", "customer", "admin", "devices"],
+              customerWaitingDevice(parts[5]), parts[6] == "waiting" else { return false }
+        return (parts.count == 7 && method == "GET")
+            || (parts.count == 8 && method == "POST" && ["open", "state", "skip"].contains(parts[7]))
     }
 
     private static func customerData(path: String, method: String) -> Bool {
@@ -316,6 +419,9 @@ enum AccountTransportPolicy {
     }
 
     static func customer(path: String, method: String) -> Bool {
+        if customerCompletionPage(path: path, method: method)
+            || customerCompletionRead(path: path, method: method)
+            || customerWaiting(path: path, method: method) { return true }
         if customerData(path: path, method: method) { return true }
         let exact: [String: Set<String>] = [
             "/app/v1/customer/enrollment/options": ["POST"],
@@ -339,13 +445,15 @@ enum AccountTransportPolicy {
         }
         if parts.count == 7, Array(parts.prefix(5)) == ["app", "v1", "customer", "admin", "sessions"],
            UUID(uuidString: parts[5]) != nil, parts[6] == "end" { return method == "POST" }
-        return parts.count == 6 && Array(parts.prefix(5)) == ["app", "v1", "customer", "admin", "devices"] &&
+        return parts.count == 6 && path == "/" + parts.joined(separator: "/")
+            && Array(parts.prefix(5)) == ["app", "v1", "customer", "admin", "devices"] &&
             !parts[5].isEmpty && parts[5].count <= 128 &&
             parts[5].allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") } &&
             ["GET", "PUT"].contains(method)
     }
 
     static func account(path: String, method: String) -> Bool {
+        if customerCompletionPage(path: path, method: method) || accountCollectionPage(path: path, method: method) { return true }
         if let parts = URLComponents(string: path), parts.scheme == nil, parts.host == nil, parts.fragment == nil,
            !parts.percentEncodedPath.contains("%"), !path.contains("\\"), path.count <= 4096 {
             if show(path: parts.path, method: method, query: parts.queryItems ?? []) { return true }

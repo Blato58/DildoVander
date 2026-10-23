@@ -128,6 +128,8 @@ internal sealed partial class KeepsakeStore
             Execute(connection, transaction,
                 "DELETE FROM dv10_idempotency WHERE instr(scope,$id)>0 AND (scope LIKE 'photo:%' OR scope LIKE 'enqueue:%:portrait' OR scope LIKE 'consent:%' OR scope LIKE 'export:%')", ("$id", id));
         }
+        DeleteCompletionUpdates(connection, transaction, id, portraitsOnly: !all);
+        if (!all) { RecordCompletionUpdates(connection, transaction, id); }
         RecordRevocation(connection, transaction, id, actorHash, all ? "deleted_all" : "deleted_photos_and_portraits");
         if (all)
         {

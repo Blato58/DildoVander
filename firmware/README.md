@@ -168,6 +168,17 @@ stays recovering. Boot reconciliation sends `device-idle` only after the control
 owner has published a safe idle snapshot; it never infers safety from phone
 connection state. The backend must only retire old-boot leases in that request.
 
+The once-per-second authenticated status poll includes optional `bootId` and
+`ready=true|false` query fields on `/v1/customer-sessions/device`. Readiness is
+sampled from the existing control-owner idle fence, voice/reservation exclusion,
+boot reconciliation and current challenge snapshot. This advisory observation
+neither starts a conversation nor releases a lease. The backend accepts presence
+only for the registered boot and an unexpired challenge, and forgets in-memory
+presence after restart. Observations ten seconds old become unknown. Older
+clients may omit both fields and receive the unchanged status response; their
+token-only poll supplies no readiness evidence. Ticket issuance, consent,
+proximity and actual lease acquisition remain separate checks.
+
 `pio run -e production` verifies compilation. Existing host harnesses cover BLE
 lifecycle isolation, adopted conversation IDs and owner admission. These checks
 do not prove iPhone Bluetooth, ESP32 radio/audio coexistence, actual physical

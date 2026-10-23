@@ -25,6 +25,9 @@ namespace Kufr.Backend.Features.Identity.Migrations
                     b.Property<string>("Locator")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("CollectionRevision")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Epoch")
                         .HasColumnType("INTEGER");
 
@@ -34,6 +37,20 @@ namespace Kufr.Backend.Features.Identity.Migrations
                     b.HasKey("UserId", "Locator");
 
                     b.ToTable("ArchiveAssociations");
+                });
+
+            modelBuilder.Entity("Kufr.Backend.Features.Identity.AccountArchiveCollectionState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ArchiveCollectionStates");
                 });
 
             modelBuilder.Entity("Kufr.Backend.Features.Identity.AccountArchiveTicket", b =>

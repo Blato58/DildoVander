@@ -98,6 +98,23 @@ internal sealed class CharacterProfileStore
         return Task.FromResult(Read(connection, null, accountId));
     }
 
+    internal CharacterProfile? ReadHeldCustomerAdmissionProfile(CustomerDataSqliteGuard guard, string accountId,
+        string profileId, long? expectedRevision = null)
+    {
+        ValidateCustomerDataAccount(guard, accountId);
+        if (CustomerDataProfileRevoked(guard, accountId, profileId)) { return null; }
+        var profile = Read(guard.Connection, guard.Transaction, accountId);
+        return profile is not null && profile.ProfileId == profileId && (expectedRevision is null || profile.Revision == expectedRevision)
+            ? profile : null;
+    }
+
+    internal CharacterConversationSnapshot? CaptureHeldCustomerAdmissionProfile(CustomerDataSqliteGuard guard,
+        string accountId, string profileId, long revision)
+    {
+        var profile = ReadHeldCustomerAdmissionProfile(guard, accountId, profileId, revision);
+        return profile is null ? null : new(profile.ProfileId, profile.Revision, profile.UserInput, profile.Enrichment, Now());
+    }
+
     internal Task RecordProviderUsageAsync(string jobId, string model, int inputTokens, int outputTokens)
     {
         if (model.Length > 150 || inputTokens < 0 || outputTokens < 0)

@@ -91,7 +91,7 @@ internal sealed partial class OperationJournal
     }
 
     internal CustomerTicketRecord IssueCustomerTicket(string owner, CustomerTicketRequest request,
-        string snapshot, string tokenHash, string protectedToken)
+        string snapshot, string tokenHash, string protectedToken, Action? beforeCommit = null, bool requireAccepted = false)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -107,10 +107,16 @@ internal sealed partial class OperationJournal
             if (reader.Read())
             {
                 if (reader.GetString(0) != fingerprint) { throw new CustomerSessionException(409, "idempotency_conflict"); }
-                return new(reader.GetString(1), reader.GetInt64(2), reader.IsDBNull(3) ? null : reader.GetString(3));
+                var replay = new CustomerTicketRecord(reader.GetString(1), reader.GetInt64(2), reader.IsDBNull(3) ? null : reader.GetString(3));
+                reader.Close();
+                beforeCommit?.Invoke();
+                transaction.Commit();
+                return replay;
             }
         }
+        if (requireAccepted) { throw new CustomerSessionException(409, "start_ticket_unavailable"); }
         RequireCustomerChallenge(connection, transaction, request.DeviceId, request.BootId, request.Challenge);
+        var waitingBinding = RequireNewCustomerWaitingTicket(connection, transaction, owner, request);
         using (var count = CustomerCommand(connection, transaction,
             "SELECT COUNT(*) FROM customer_start_tickets WHERE owner_id=$owner AND expires_at>$now AND session_id IS NULL",
             ("$owner", owner), ("$now", CustomerNow())))
@@ -126,9 +132,19 @@ internal sealed partial class OperationJournal
             ("$op", request.OperationId), ("$fingerprint", fingerprint), ("$device", request.DeviceId),
             ("$boot", request.BootId), ("$challenge", request.Challenge), ("$profile", request.ProfileId),
             ("$revision", request.ProfileRevision), ("$snapshot", snapshot), ("$expires", expires));
+        BindCustomerWaitingTicket(connection, transaction, tokenHash, waitingBinding);
+        // Only revalidate the caller's already-held guards/deadline here.
+        beforeCommit?.Invoke();
         transaction.Commit();
         return new(protectedToken, expires, null);
     }
+
+    // A receipt lookup must never fall through to new admission if a caller's
+    // earlier existence observation becomes stale. Empty capture/token values
+    // are unreachable by the insertion path in this mode.
+    internal CustomerTicketRecord ReplayCustomerTicket(string owner, CustomerTicketRequest request,
+        Action? beforeCommit = null) =>
+        IssueCustomerTicket(owner, request, "", "", "", beforeCommit, requireAccepted: true);
 
     internal CustomerTicketOwner? CustomerTicketOwner(string tokenHash)
     {
@@ -140,7 +156,7 @@ internal sealed partial class OperationJournal
             reader.IsDBNull(3) ? null : reader.GetString(3)) : null;
     }
 
-    internal CustomerSessionRecord RedeemCustomerTicket(string device, CustomerRedemption request)
+    internal CustomerSessionRecord RedeemCustomerTicket(string device, CustomerRedemption request, Action? beforeCommit = null)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -161,7 +177,10 @@ internal sealed partial class OperationJournal
             {
                 var id = reader.GetString(9);
                 reader.Close();
-                return ReadCustomerSession(connection, transaction, id)!;
+                var replay = ReadCustomerSession(connection, transaction, id)!;
+                beforeCommit?.Invoke();
+                transaction.Commit();
+                return replay;
             }
             if (reader.GetInt64(8) <= CustomerNow()) { throw new CustomerSessionException(410, "start_ticket_expired"); }
             owner = reader.GetString(0); profile = reader.GetString(5); revision = reader.GetInt64(6); snapshot = reader.GetString(7);
@@ -175,6 +194,7 @@ internal sealed partial class OperationJournal
         }
         var session = new CustomerSessionRecord(Guid.NewGuid().ToString("D"), owner, request.OperationId, device,
             request.BootId, profile, revision, snapshot, "starting", null, false, CustomerNow());
+        ConsumeCustomerWaitingTicket(connection, transaction, owner, device, profile, CustomerHash(request.Ticket), request.OperationId);
         CustomerExecute(connection, transaction, "INSERT INTO customer_sessions VALUES($id,$owner,$op,$device,$boot,$profile,$revision,$snapshot,'starting',NULL,0,$now,$now)",
             ("$id", session.Id), ("$owner", owner), ("$op", request.OperationId), ("$device", device),
             ("$boot", request.BootId), ("$profile", profile), ("$revision", revision), ("$snapshot", snapshot), ("$now", session.CreatedAt));
@@ -182,6 +202,8 @@ internal sealed partial class OperationJournal
             ("$device", device), ("$op", request.OperationId), ("$id", session.Id), ("$boot", request.BootId));
         CustomerExecute(connection, transaction, "UPDATE customer_start_tickets SET session_id=$id WHERE token_hash=$hash",
             ("$id", session.Id), ("$hash", CustomerHash(request.Ticket)));
+        // Validation is synchronous and must not acquire another lock/database.
+        beforeCommit?.Invoke();
         transaction.Commit();
         return session;
     }
@@ -240,6 +262,8 @@ internal sealed partial class OperationJournal
 
     internal void RevokeCustomerProfile(string owner, string? profileId = null)
     {
+        // The persisted wildcard is also accepted explicitly by internal callers.
+        if (profileId == "*") { profileId = null; }
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
         CustomerExecute(connection, transaction,
@@ -251,6 +275,7 @@ internal sealed partial class OperationJournal
             UPDATE customer_sessions SET snapshot='',end_requested=1
                 WHERE owner_id=$owner AND ($profile IS NULL OR profile_id=$profile);
             """, ("$owner", owner), ("$profile", profileId));
+        RevokeCustomerWaiting(connection, transaction, owner, profileId);
         transaction.Commit();
     }
 
@@ -260,6 +285,7 @@ internal sealed partial class OperationJournal
         using var transaction = connection.BeginTransaction();
         CustomerExecute(connection, transaction, "UPDATE customer_start_tickets SET expires_at=0 WHERE owner_id=$owner AND session_id IS NULL", ("$owner", owner));
         CustomerExecute(connection, transaction, "UPDATE customer_sessions SET end_requested=1 WHERE owner_id=$owner AND state NOT IN ('completed','failed')", ("$owner", owner));
+        SuspendCustomerWaiting(connection, transaction, owner);
         transaction.Commit();
     }
 
@@ -277,6 +303,7 @@ internal sealed partial class OperationJournal
                 WHERE device_id=$device AND boot_id<>$boot AND state NOT IN ('completed','failed');
             DELETE FROM device_conversation_leases WHERE device_id=$device AND boot_id IS NOT NULL AND boot_id<>$boot;
             """, ("$device", device), ("$boot", boot), ("$now", CustomerNow()));
+        SettleCustomerWaitingSessions(connection, transaction, device);
         transaction.Commit();
     }
 
@@ -327,6 +354,7 @@ internal sealed partial class OperationJournal
             ("$id", id), ("$state", state), ("$now", CustomerNow()));
         if (terminal)
         {
+            SettleCustomerWaitingSessions(connection, transaction, device, id);
             CustomerExecute(connection, transaction,
                 "DELETE FROM device_conversation_leases WHERE device_id=$device AND customer_session_id=$id", ("$device", device), ("$id", id));
             // A subsequent guest needs a fresh device-minted challenge.

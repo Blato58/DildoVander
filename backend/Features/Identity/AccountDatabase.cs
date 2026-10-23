@@ -78,6 +78,13 @@ internal sealed class AccountArchiveAssociation
     public string Locator { get; set; } = "";
     public int Epoch { get; set; }
     public long LinkedAt { get; set; }
+    public long CollectionRevision { get; set; }
+}
+
+internal sealed class AccountArchiveCollectionState
+{
+    public int Id { get; set; } = 1;
+    public long Revision { get; set; }
 }
 
 internal sealed class AccountDeletionRequest
@@ -99,6 +106,7 @@ internal sealed class AccountDatabase(DbContextOptions<AccountDatabase> options)
     public DbSet<AccountDeviceAssociation> DeviceAssociations => Set<AccountDeviceAssociation>();
     public DbSet<AccountArchiveTicket> ArchiveTickets => Set<AccountArchiveTicket>();
     public DbSet<AccountArchiveAssociation> ArchiveAssociations => Set<AccountArchiveAssociation>();
+    public DbSet<AccountArchiveCollectionState> ArchiveCollectionStates => Set<AccountArchiveCollectionState>();
 
     public DbSet<AccountDeletionRequest> DeletionRequests => Set<AccountDeletionRequest>();
 
@@ -110,6 +118,7 @@ internal sealed class AccountDatabase(DbContextOptions<AccountDatabase> options)
         builder.Entity<AccountInvitation>().HasKey(x => x.TokenHash);
         builder.Entity<AccountArchiveTicket>().HasKey(x => x.TokenHash);
         builder.Entity<AccountArchiveAssociation>().HasKey(x => new { x.UserId, x.Locator });
+        builder.Entity<AccountArchiveCollectionState>().HasKey(x => x.Id);
         builder.Entity<AccountResourceGrant>()
             .HasIndex(x => new { x.UserId, x.ResourceType, x.ResourceId, x.Permission }).IsUnique();
         builder.Entity<AccountSession>().HasIndex(x => x.UserId);

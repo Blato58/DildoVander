@@ -47,7 +47,9 @@ internal sealed partial class EveningMemoryStore
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS evenings (
                 device_id TEXT PRIMARY KEY, evening_id TEXT NOT NULL,
-                dropped_count INTEGER NOT NULL DEFAULT 0);
+                dropped_count INTEGER NOT NULL DEFAULT 0,
+                activation_revision INTEGER NOT NULL DEFAULT 0
+                    CHECK(typeof(activation_revision)='integer' AND activation_revision>=0));
             CREATE TABLE IF NOT EXISTS exchanges (
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 device_id TEXT NOT NULL, evening_id TEXT NOT NULL,
@@ -68,6 +70,7 @@ internal sealed partial class EveningMemoryStore
                 PRIMARY KEY (device_id, key));
             """;
         command.ExecuteNonQuery();
+        MigrateCustomerWaitingActivation(connection, migration);
         command.CommandText = """
             INSERT OR IGNORE INTO evening_catalog
                 (device_id, evening_id, name, created_at_ms, dropped_count)
@@ -176,12 +179,15 @@ internal sealed partial class EveningMemoryStore
                 return replay;
             }
 
-            PruneExpiredMutations(connection, transaction, deviceId);
-
             if (ReadActiveEvening(connection, transaction, deviceId) != expectedEveningId)
             {
                 return new(409, null, "evening_conflict");
             }
+            if (!TryNextWaitingActivation(connection, transaction, deviceId, out var activationRevision))
+            {
+                return new(409, null, "evening_activation_unavailable");
+            }
+            PruneExpiredMutations(connection, transaction, deviceId);
 
             using var count = connection.CreateCommand();
             count.Transaction = transaction;
@@ -203,10 +209,11 @@ internal sealed partial class EveningMemoryStore
             insert.CommandText = """
                 INSERT INTO evening_catalog(device_id, evening_id, name, created_at_ms)
                 VALUES ($device, $evening, $name, $now);
-                UPDATE evenings SET evening_id = $evening, dropped_count = 0 WHERE device_id = $device;
+                UPDATE evenings SET evening_id = $evening, dropped_count = 0, activation_revision=$activation WHERE device_id = $device;
                 """;
             insert.Parameters.AddWithValue("$device", deviceId);
             insert.Parameters.AddWithValue("$evening", next);
+            insert.Parameters.AddWithValue("$activation", activationRevision);
             insert.Parameters.AddWithValue("$name", name);
             insert.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             insert.ExecuteNonQuery();
@@ -236,8 +243,6 @@ internal sealed partial class EveningMemoryStore
                 return replay;
             }
 
-            PruneExpiredMutations(connection, transaction, deviceId);
-
             using var target = connection.CreateCommand();
             target.Transaction = transaction;
             target.CommandText = "SELECT 1 FROM evening_catalog WHERE device_id = $device AND evening_id = $evening";
@@ -252,6 +257,11 @@ internal sealed partial class EveningMemoryStore
             {
                 return new(409, null, "evening_conflict");
             }
+            if (!TryNextWaitingActivation(connection, transaction, deviceId, out var activationRevision))
+            {
+                return new(409, null, "evening_activation_unavailable");
+            }
+            PruneExpiredMutations(connection, transaction, deviceId);
 
             if (!HasMutationCapacity(connection, transaction, deviceId))
             {
@@ -261,13 +271,14 @@ internal sealed partial class EveningMemoryStore
             using var update = connection.CreateCommand();
             update.Transaction = transaction;
             update.CommandText = """
-                UPDATE evenings SET evening_id = $evening,
+                UPDATE evenings SET evening_id = $evening, activation_revision=$activation,
                     dropped_count = (SELECT dropped_count FROM evening_catalog
                         WHERE device_id = $device AND evening_id = $evening)
                 WHERE device_id = $device;
                 """;
             update.Parameters.AddWithValue("$device", deviceId);
             update.Parameters.AddWithValue("$evening", targetEveningId);
+            update.Parameters.AddWithValue("$activation", activationRevision);
             update.ExecuteNonQuery();
             var response = ReadList(connection, transaction, deviceId);
             WriteMutation(connection, transaction, deviceId, key, route, bodyHash, 200, response);
@@ -379,16 +390,22 @@ internal sealed partial class EveningMemoryStore
         {
             using var connection = Open();
             using var transaction = connection.BeginTransaction();
+            if (ReadActiveEvening(connection, transaction, deviceId) != expectedEveningId
+                || !TryNextWaitingActivation(connection, transaction, deviceId, out var activationRevision))
+            {
+                return false;
+            }
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = """
-                UPDATE evenings SET evening_id = $next, dropped_count = 0
+                UPDATE evenings SET evening_id = $next, dropped_count = 0, activation_revision=$activation
                 WHERE device_id = $device AND evening_id = $expected;
                 """;
             var nextEveningId = Guid.NewGuid().ToString("D");
             command.Parameters.AddWithValue("$device", deviceId);
             command.Parameters.AddWithValue("$expected", expectedEveningId);
             command.Parameters.AddWithValue("$next", nextEveningId);
+            command.Parameters.AddWithValue("$activation", activationRevision);
             var changed = command.ExecuteNonQuery() == 1;
             if (changed)
             {
@@ -429,7 +446,7 @@ internal sealed partial class EveningMemoryStore
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            INSERT OR IGNORE INTO evenings(device_id, evening_id) VALUES ($device, $id);
+            INSERT OR IGNORE INTO evenings(device_id, evening_id, activation_revision) VALUES ($device, $id, 1);
             INSERT OR IGNORE INTO evening_catalog(device_id, evening_id, name, created_at_ms, dropped_count)
             SELECT device_id, evening_id, 'Večer 1', $now, dropped_count
             FROM evenings WHERE device_id = $device;

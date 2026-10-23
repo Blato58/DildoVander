@@ -27,3 +27,10 @@ inline bool IsCustomerChallengeCurrent(bool present, bool registering, bool snap
   return present && !registering && snapshotMatches && nowMs >= createdAtMs &&
       nowMs - createdAtMs < freshnessMs;
 }
+
+// Advisory readiness is sampled from the suitcase's existing admission fences.
+// Publishing it never reserves a conversation or releases an accepted lease.
+inline bool CanPublishCustomerReadiness(bool ownerIdle, bool reserved, bool voiceBusy,
+    bool bootReconciled, bool challengeCurrent) {
+  return ownerIdle && !reserved && !voiceBusy && bootReconciled && challengeCurrent;
+}

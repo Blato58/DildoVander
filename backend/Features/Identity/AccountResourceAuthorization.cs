@@ -26,9 +26,11 @@ internal static class AccountResourceAuthorization
                            join role in db.Roles on membership.RoleId equals role.Id
                            where membership.UserId == userId
                            select role.Name).ToArrayAsync();
-        if (roles.Contains(AccountRoles.Owner) || roles.Contains(AccountRoles.Administrator)) { return true; }
-        return roles.Contains(AccountRoles.Operator) && await db.ResourceGrants.AsNoTracking().AnyAsync(x => x.UserId == userId
-            && x.ResourceType == "device" && x.ResourceId == deviceId && (x.Permission == "operate" || x.Permission == "manage"));
+        if (AccountDevicePermissionPolicy.AllowsOperation(roles!, false)) { return true; }
+        var granted = roles.Contains(AccountRoles.Operator) && await db.ResourceGrants.AsNoTracking().AnyAsync(x => x.UserId == userId
+            && x.ResourceType == AccountDevicePermissionPolicy.ResourceType && x.ResourceId == deviceId
+            && (x.Permission == AccountDevicePermissionPolicy.Operate || x.Permission == AccountDevicePermissionPolicy.Manage));
+        return AccountDevicePermissionPolicy.AllowsOperation(roles!, granted);
     }
 
     public static async Task<bool> HasPermissionAsync(HttpContext context, string resourceType, string resourceId, string permission)

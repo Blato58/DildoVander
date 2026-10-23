@@ -40,6 +40,177 @@ require(!AccountTransportPolicy.accountHeaderAllowed(path: tonightMemory, method
         "portrait consent entered Tonight transport")
 require(!AccountTransportPolicy.account(path: "/app/v1/customer/data/exports/\(id)/download-all", method: "GET"),
         "unrecognized export download suffix accepted")
+
+let customerWaitingDevice = "case_1.s3-A"
+let customerWaitingRoot = "/app/v1/customer/waiting/\(customerWaitingDevice)"
+let operatorWaitingRoot = "/app/v1/customer/admin/devices/\(customerWaitingDevice)/waiting"
+let waitingRoles: [(String, String)] = [
+    (customerWaitingRoot, "GET"),
+    (customerWaitingRoot + "/join", "POST"), (customerWaitingRoot + "/leave", "POST"),
+    (customerWaitingRoot + "/claim", "POST"), (operatorWaitingRoot, "GET"),
+    (operatorWaitingRoot + "/open", "POST"), (operatorWaitingRoot + "/state", "POST"),
+    (operatorWaitingRoot + "/skip", "POST")
+]
+for (path, expectedMethod) in waitingRoles {
+    for method in ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "get"] {
+        require(AccountTransportPolicy.account(path: path, method: method) == (method == expectedMethod),
+                "waiting route/method scope changed: \(method) \(path)")
+        require(AccountTransportPolicy.customer(path: path, method: method) == (method == expectedMethod),
+                "direct customer waiting admission changed: \(method) \(path)")
+    }
+    require(!AccountTransportPolicy.guest(path: path, method: expectedMethod), "waiting route entered guest transport")
+    require(AccountTransportPolicy.accountResponseLimit(path: path, method: expectedMethod) == 1024 * 1024,
+            "waiting route acquired an asset response allowance")
+    require(!AccountTransportPolicy.accountHeaderAllowed(path: path, method: expectedMethod, name: "X-DV10-Consent", value: "7"),
+            "portrait consent entered waiting transport")
+    if expectedMethod == "POST" {
+        require(AccountTransportPolicy.accountRequestBodyLimit(path: path, method: expectedMethod, contentType: "application/json") == 2048
+                && AccountTransportPolicy.accountRequestBodyAllowed(path: path, method: expectedMethod, contentType: "application/json", size: 2048)
+                && !AccountTransportPolicy.accountRequestBodyAllowed(path: path, method: expectedMethod, contentType: "application/json", size: 2049),
+                "waiting accountTransport mutation size boundary changed")
+    }
+    for malformed in [path + "/", path + "/extra", path + "?x=1", path + "#x", path + "%2f", path + "\n",
+                      String(path.dropFirst()), "/" + path,
+                      path.replacingOccurrences(of: "/customer/", with: "/customer//"),
+                      path.replacingOccurrences(of: "/waiting", with: "/Waiting")] {
+        require(!AccountTransportPolicy.account(path: malformed, method: expectedMethod)
+                && !AccountTransportPolicy.customer(path: malformed, method: expectedMethod),
+                "malformed waiting route accepted: \(malformed)")
+    }
+    for invalidDevice in ["", ".", "..", "has space", "has\\slash", "has%2fslash", "\u{00e9}",
+                          "has\nnewline", String(repeating: "a", count: 129)] {
+        let invalid = path.replacingOccurrences(of: customerWaitingDevice, with: invalidDevice)
+        require(!AccountTransportPolicy.account(path: invalid, method: expectedMethod)
+                && !AccountTransportPolicy.customer(path: invalid, method: expectedMethod),
+                "invalid waiting device admitted")
+    }
+    for device in ["a", "case..s3", String(repeating: "a", count: 128)] {
+        require(AccountTransportPolicy.account(path: path.replacingOccurrences(of: customerWaitingDevice, with: device), method: expectedMethod),
+                "valid waiting device boundary rejected")
+    }
+}
+for unsupported in [customerWaitingRoot + "/open", customerWaitingRoot + "/skip",
+                    operatorWaitingRoot + "/join", operatorWaitingRoot + "/claim"] {
+    require(!AccountTransportPolicy.account(path: unsupported, method: "POST"), "customer/operator waiting actions overlapped")
+}
+require(AccountTransportPolicy.account(path: "/app/v1/customer/admin/devices/\(customerWaitingDevice)", method: "GET")
+        && AccountTransportPolicy.account(path: "/app/v1/customer/admin/devices/\(customerWaitingDevice)", method: "PUT"),
+        "existing operator device routes changed")
+require(AccountTransportPolicy.account(path: "/app/v1/customer/admin/devices/waiting", method: "GET")
+        && AccountTransportPolicy.account(path: "/app/v1/customer/admin/devices/waiting", method: "PUT"),
+        "literal waiting device name was incorrectly blocked in the canonical legacy route")
+print("PASS strict customer/operator waiting route, device, method and accountTransport size boundaries")
+
+let completionRoot = "/app/v1/customer/completion-updates"
+let completionRead = completionRoot + "/\(id)/read"
+let completionCursor = "Abc123_-"
+for query in ["", "?limit=1", "?limit=25", "?limit=50", "?cursor=\(completionCursor)",
+              "?limit=25&cursor=\(completionCursor)", "?cursor=\(completionCursor)&limit=25",
+              "?limit=50&cursor=\(String(repeating: "a", count: 2048))"] {
+    let path = completionRoot + query
+    require(AccountTransportPolicy.account(path: path, method: "GET") && AccountTransportPolicy.customer(path: path, method: "GET"),
+            "canonical completion page rejected")
+    require(AccountTransportPolicy.accountResponseLimit(path: path, method: "GET") == 1024 * 1024,
+            "completion metadata acquired an expanded response limit")
+    require(!AccountTransportPolicy.guest(path: path, method: "GET"), "completion metadata entered guest transport")
+    for method in ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "get"] {
+        require(!AccountTransportPolicy.account(path: path, method: method), "completion page method broadened")
+    }
+}
+for query in ["?", "?limit", "?limit=", "?limit=0", "?limit=51", "?limit=-1", "?limit=+1", "?limit=01",
+              "?limit=1.0", "?limit=1e0", "?limit=\u{0661}", "?limit= 1", "?limit=1\n", "?limit=%31",
+              "?%6cimit=25", "?Limit=25", "?deviceId=other", "?limit=25&limit=25", "?cursor=a&cursor=b",
+              "?cursor=", "?cursor=a=", "?cursor=a+b", "?cursor=a/b", "?cursor=a.b", "?cursor=a b",
+              "?cursor=%5f", "?cursor=\u{00e9}", "?cursor=\(String(repeating: "a", count: 2049))",
+              "?cursor=a&", "?&cursor=a", "?limit=25&&cursor=a", "?limit=25&cursor=a&unknown=b",
+              "?limit=25#fragment", "?cursor=a?limit=25"] {
+    require(!AccountTransportPolicy.account(path: completionRoot + query, method: "GET")
+            && !AccountTransportPolicy.customer(path: completionRoot + query, method: "GET"),
+            "malformed completion query admitted: \(query)")
+}
+for invalid in [completionRoot + "/", completionRoot + "/extra", completionRoot + "#fragment",
+                completionRoot + "\n", String(completionRoot.dropFirst()), "/" + completionRoot,
+                completionRoot.replacingOccurrences(of: "/customer/", with: "/customer//"),
+                completionRoot.replacingOccurrences(of: "completion-updates", with: "completion%2dupdates")] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "GET"), "noncanonical completion path admitted")
+}
+require(AccountTransportPolicy.account(path: completionRead, method: "PUT")
+        && AccountTransportPolicy.account(path: completionRoot + "/\(id.uppercased())/read", method: "PUT"),
+        "completion read D-GUID route unavailable")
+for method in ["GET", "POST", "PATCH", "DELETE", "HEAD", "OPTIONS", "put"] {
+    require(!AccountTransportPolicy.account(path: completionRead, method: method), "completion read method broadened")
+}
+for invalid in [completionRead + "/", completionRead + "/extra", completionRead + "?limit=25", completionRead + "#x",
+                completionRead + "\n", completionRead.replacingOccurrences(of: "/read", with: "//read"),
+                completionRead.replacingOccurrences(of: id, with: id.replacingOccurrences(of: "-", with: "")),
+                completionRead.replacingOccurrences(of: id, with: "{\(id)}"),
+                completionRead.replacingOccurrences(of: id, with: "not-a-uuid")] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "PUT")
+            && !AccountTransportPolicy.customer(path: invalid, method: "PUT"), "malformed completion read route admitted")
+}
+// The legacy request/send JSON bridge keeps its existing 64 KiB bound. These
+// smaller role checks apply to accountTransport; server schema/256-byte validation is authoritative.
+require(AccountTransportPolicy.accountRequestBodyLimit(path: completionRead, method: "PUT", contentType: "application/json") == 256
+        && AccountTransportPolicy.accountRequestBodyAllowed(path: completionRead, method: "PUT", contentType: "application/json", size: 256)
+        && !AccountTransportPolicy.accountRequestBodyAllowed(path: completionRead, method: "PUT", contentType: "application/json", size: 257),
+        "completion accountTransport read-mark size boundary changed")
+require(AccountTransportPolicy.accountResponseLimit(path: completionRead, method: "PUT") == 1024 * 1024
+        && !AccountTransportPolicy.guest(path: completionRead, method: "PUT")
+        && !AccountTransportPolicy.accountHeaderAllowed(path: completionRead, method: "PUT", name: "X-DV10-Consent", value: "7"),
+        "completion read transport scope broadened")
+require(AccountTransportPolicy.accountRequestBodyLimit(path: completionRoot, method: "POST", contentType: "application/json") == 256 * 1024
+        && AccountTransportPolicy.accountRequestBodyLimit(path: customerWaitingRoot, method: "GET", contentType: "application/json") == 256 * 1024,
+        "new metadata roles altered generic accountTransport body limits")
+print("PASS canonical bounded completion paging/read routes; generic response and JSON bridge limits preserved")
+
+let collectionRoot = "/app/v1/archive/collection"
+let collectionURLSearchParamsFixtures = [
+    "/app/v1/archive/collection?limit=25&access=owned&q=P%C5%99%C3%ADb%C4%9Bh+z+l%C3%A9ta",
+    "/app/v1/archive/collection?limit=25&access=owned&q=%C4%8Daj+%2B+k%C3%A1va+%26+p%C5%99%C3%ADb%C4%9Bh%3F",
+    "/app/v1/archive/collection?limit=25&access=owned&q=%7E%21*%28%29_-.",
+    "/app/v1/archive/collection?limit=25&access=owned&q=%F0%9F%98%80+ve%C4%8Der"
+]
+for path in collectionURLSearchParamsFixtures {
+    require(AccountTransportPolicy.account(path: path, method: "GET"), "actual URLSearchParams UTF-8 collection fixture rejected")
+}
+for query in ["", "?limit=1", "?limit=50", "?access=all", "?access=owned", "?access=linked", "?q=", "?q=a+b",
+              "?q=a%2Bb%26c%3Dd", "?q=story&cursor=Abc123_-&access=linked&limit=25",
+              "?limit=25&access=owned&q=story&cursor=\(String(repeating: "a", count: 2048))",
+              "?q=\(String(repeating: "%C4%8D", count: 80))", "?q=\(String(repeating: "%F0%9F%98%80", count: 40))"] {
+    let path = collectionRoot + query
+    require(AccountTransportPolicy.account(path: path, method: "GET"), "canonical collection page query rejected")
+    require(AccountTransportPolicy.accountResponseLimit(path: path, method: "GET") == 1024 * 1024
+            && !AccountTransportPolicy.guest(path: path, method: "GET"), "collection read transport scope broadened")
+    for method in ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "get"] {
+        require(!AccountTransportPolicy.account(path: path, method: method), "collection read became mutable")
+    }
+}
+for query in ["?", "?limit", "?limit=", "?limit=0", "?limit=51", "?limit=01", "?limit=+1", "?limit=1.0",
+              "?limit=%32%35", "?Limit=25", "?%6cimit=25", "?unknown=1", "?deviceId=other",
+              "?access=", "?access=Owned", "?access=other", "?access=%6Fwned",
+              "?q=a&q=b", "?cursor=a&cursor=b", "?access=owned&access=owned", "?limit=25&limit=25",
+              "?cursor=", "?cursor=\(String(repeating: "a", count: 2049))",
+              "?q=\(String(repeating: "%C4%8D", count: 81))", "?q=\(String(repeating: "%F0%9F%98%80", count: 41))",
+              "?q=+story", "?q=story+", "?q=a%20b", "?q=%c4%8d", "?q=\u{010d}", "?q=~",
+              "?q=%", "?q=%2", "?q=%GG", "?q=%FF", "?q=%C0%AF", "?q=%ED%A0%80",
+              "?q=a#fragment", "?q=story&", "?&q=story", "?q=a&&access=all",
+              "?limit=25&access=all&q=a&cursor=b&extra=c"] {
+    require(!AccountTransportPolicy.account(path: collectionRoot + query, method: "GET"),
+            "noncanonical, duplicate or oversized collection query admitted: \(query)")
+}
+for invalid in [collectionRoot + "/", collectionRoot + "/extra", collectionRoot + "#fragment", collectionRoot + "\n",
+                String(collectionRoot.dropFirst()), "/" + collectionRoot,
+                collectionRoot.replacingOccurrences(of: "/archive/", with: "/archive//"),
+                collectionRoot.replacingOccurrences(of: "collection", with: "%63ollection")] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "GET"), "noncanonical collection path admitted")
+}
+require(AccountTransportPolicy.account(path: "/app/v1/archive/associations/\(id)", method: "DELETE"),
+        "existing explicit linked-archive removal changed")
+require(AccountTransportPolicy.accountRequestBodyLimit(path: collectionRoot, method: "POST", contentType: "application/json") == 256 * 1024
+        && !AccountTransportPolicy.accountHeaderAllowed(path: collectionRoot, method: "GET", name: "X-DV10-Consent", value: "7"),
+        "collection allowance changed unrelated body/header limits")
+print("PASS canonical UTF-8 collection search, bounded paging/filter query, read-only and explicit unlink boundaries")
+
 let customerSession = "/app/v1/customer/sessions/\(id)"
 let customerResult = customerSession + "/result"
 require(AccountTransportPolicy.account(path: customerResult, method: "GET"), "customer session result unavailable")

@@ -10,6 +10,9 @@ import AccountArchiveList from '../identity/AccountArchiveList.vue';
 import SettingsView from '../identity/SettingsView.vue';
 import NewCharacterDialog, { type NewCharacterDraft } from './NewCharacterDialog.vue';
 import CustomerSessionResultCard from './CustomerSessionResultCard.vue';
+import CustomerWaiting from './CustomerWaiting.vue';
+import CustomerCompletionUpdates from './CustomerCompletionUpdates.vue';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 import { customerBle, type CustomerBleDevice, type CustomerBleStatus } from './customerBle';
 import { projectCustomerSessionError } from './customerSessionFeedback';
 import { SessionRecoveryController, type SessionRecoveryState } from './sessionRecovery';
@@ -29,6 +32,8 @@ interface StartTicketRequest {
   profileId: string; profileRevision: number; personalMemoryConsent?: true; openAiConsent: true;
 }
 const route = useRoute();
+const interfaceLanguage = interfaceLanguagePreference.language;
+watch(() => account.value?.id, id => interfaceLanguagePreference.setScope(id), { immediate: true, flush: 'sync' });
 const pane = computed(() => route.path.split('/').at(-1) ?? 'character');
 const profile = ref<CharacterProfile | null>(null);
 const sessions = ref<CustomerSession[]>([]);
@@ -54,6 +59,7 @@ let generation = 0;
 let accountWorkController = new AbortController();
 const pendingOperationId = ref<string>();
 const pendingTicketRequest = ref<StartTicketRequest>();
+const waitingClaim = ref<{ operationId: string; expiresAt: number; profileId: string; deviceId: string }>();
 let bleStartAttempted = false;
 const requestedEndSessions = new Set<string>();
 let enrichmentTimer: ReturnType<typeof setTimeout> | undefined;
@@ -119,6 +125,7 @@ function resetPrivateState(): void {
   busy.value = false;
   newCharacterOpen.value = false; newCharacterError.value = '';
   resultSessionId.value = null;
+  waitingClaim.value = undefined;
   selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; requestedEndSessions.clear(); error.value = ''; errorDiagnosticCode.value = ''; notice.value = '';
   form.value = { name: '', world: '', version: '', description: '', language: '' }; personalMemoryConsent.value = false; enrichmentOpenAiConsent.value = false; conversationOpenAiConsent.value = false;
   void Promise.resolve(customerBle.disconnect()).catch(() => {});
@@ -264,7 +271,16 @@ async function startConversation(): Promise<void> {
   error.value = ''; errorDiagnosticCode.value = ''; notice.value = ''; busy.value = true; const epoch = generation;
   // A retried operation keeps its ID; a rejected or unknown outcome is reconciled first.
   const hadPendingOperation = Boolean(pendingOperationId.value);
-  const operationId = pendingOperationId.value ?? secureUuid(); pendingOperationId.value = operationId;
+  const claim = waitingClaim.value;
+  if (!hadPendingOperation && claim && (claim.expiresAt <= Math.floor(Date.now() / 1000)
+      || claim.profileId !== profile.value.profileId || claim.deviceId !== connected.value.deviceId)) {
+    waitingClaim.value = undefined;
+    busy.value = false;
+    notice.value = 'Pozvánka do rozhovoru vypršela nebo patří jinému připojení. Ověřte znovu své místo ve frontě.';
+    return;
+  }
+  const operationId = pendingOperationId.value ?? claim?.operationId ?? secureUuid(); pendingOperationId.value = operationId;
+  waitingClaim.value = undefined;
   if (!hadPendingOperation) bleStartAttempted = false;
   try {
     const existing = await loadSessions(epoch);
@@ -328,6 +344,14 @@ async function startConversation(): Promise<void> {
   } finally { if (epoch === generation) busy.value = false; }
 }
 
+function acceptWaitingClaim(value: { operationId: string; expiresAt: number; profileId: string }): void {
+  if (!connected.value || !profile.value || value.profileId !== profile.value.profileId
+      || value.expiresAt <= Math.floor(Date.now() / 1000) || pendingOperationId.value || busy.value
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.operationId)) return;
+  waitingClaim.value = { ...value, deviceId: connected.value.deviceId };
+  notice.value = 'Jste na řadě. Po potvrzení souhlasu stiskněte „Promluvit s kufrem“.';
+}
+
 async function endConversation(session: CustomerSession): Promise<void> {
   error.value = ''; busy.value = true; const epoch = generation;
   try {
@@ -360,7 +384,7 @@ function isDefinitiveTicketIssuerRejection(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const status = 'status' in error && typeof error.status === 'number' ? error.status : 0;
   const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
-  return (status === 409 && ['device_challenge_unavailable', 'character_revision_mismatch'].includes(code))
+  return (status === 409 && ['device_challenge_unavailable', 'character_revision_mismatch', 'waiting_claim_required'].includes(code))
     || (status === 410 && code === 'customer_profile_revoked')
     || (status === 404 && code === 'character_not_found')
     || (status === 429 && code === 'start_ticket_limit');
@@ -482,6 +506,7 @@ onBeforeUnmount(() => {
     </section>
 
     <section v-else-if="pane === 'conversation'" class="page-stack">
+      <CustomerWaiting :device-id="connected?.deviceId ?? null" :profile-id="profile?.profileId ?? null" :proximity="connected ? { bootId: connected.bootId, challenge: connected.challenge } : null" @claim="acceptWaitingClaim" />
       <AwNotice v-if="!customerBle.supported()" tone="info">Bluetooth připojení je dostupné v instalované aplikaci pro iPhone. Safari může zobrazit účet a památky, ale neumí připojit kufr.<br><a href="/ios/">Otevřít instalaci aplikace pro iPhone</a></AwNotice>
       <div class="aw-card"><h2>Vaše postava</h2><p v-if="profile">{{ profile.userInput.name }} · {{ profile.userInput.world }} (revize {{ profile.revision }})</p><p v-else>Nejprve vytvořte postavu.</p><RouterLink to="/me/character">Upravit postavu</RouterLink></div>
       <div class="aw-card customer-form"><h2>Připojení ke kufru</h2><p>Bluetooth se zapne až po stisknutí tlačítka. Připojení telefonu samo rozhovor nezastaví.</p>
@@ -515,7 +540,10 @@ onBeforeUnmount(() => {
       </section>
     </section>
 
-    <AccountArchiveList v-else-if="pane === 'keepsakes'" />
+    <section v-else-if="pane === 'keepsakes'" class="page-stack">
+      <CustomerCompletionUpdates :locale="interfaceLanguage" />
+      <AccountArchiveList :locale="interfaceLanguage" />
+    </section>
     <SettingsView v-else-if="pane === 'account'" customer-surface />
   </section>
 </template>

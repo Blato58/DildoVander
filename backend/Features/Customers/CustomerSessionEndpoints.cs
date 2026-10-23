@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.CustomerData;
 using Kufr.Backend.Features.Identity;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
@@ -11,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kufr.Backend.Features.Customers;
 
-internal static class CustomerSessionEndpoints
+internal static partial class CustomerSessionEndpoints
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
@@ -81,8 +82,9 @@ internal static class CustomerSessionEndpoints
             return await next(invocation);
         });
         if (includeSessionResults) { accounts.MapCustomerSessionResult(); }
-        accounts.MapPost("/start-tickets", async (HttpContext http, CharacterProfileStore profiles,
-            OperationJournal journal, IDataProtectionProvider protection) =>
+        MapCustomerWaiting(accounts);
+        accounts.MapPost("/start-tickets", async (HttpContext http, CustomerAdmissionAuthority authority,
+            OperationJournal journal, EveningMemoryStore evenings, IDataProtectionProvider protection) =>
         {
             var request = await ReadAsync<CustomerTicketRequest>(http);
             if (request.ProtocolVersion != 1 || !Uuid(request.OperationId) || !Uuid(request.BootId)
@@ -91,13 +93,34 @@ internal static class CustomerSessionEndpoints
                 || !Opaque(request.Challenge, 16, 128))
             { throw new CustomerSessionException(400, "invalid_start_request"); }
             if (!request.OpenAiConsent) { throw new CustomerSessionException(409, "openai_consent_required"); }
-            var owner = Owner(http);
-            var snapshot = await profiles.CaptureAsync(owner, request.ProfileId, request.ProfileRevision, http.RequestAborted);
-            if (snapshot is null) { throw new CustomerSessionException(409, "character_revision_mismatch"); }
-            var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+            if (http.Request.Headers.ContainsKey("Authorization"))
+            { throw new CustomerSessionException(401, "account_required"); }
+            authority.ValidateDatabasePaths(journal.CustomerDataDatabasePath, evenings.CustomerMemoryDatabasePath);
+            using var guard = authority.AcquireCookie(http, token: http.RequestAborted);
+            var owner = guard.Proof.AccountId;
             var protector = protection.CreateProtector("DildoVander.CustomerStartTicket.v1");
-            var result = journal.IssueCustomerTicket(owner, request, JsonSerializer.Serialize(new CustomerConversationSnapshot(snapshot, request.PersonalMemoryConsent, OpenAiConsent: true), Json),
-                OperationJournal.CustomerHash(token), protector.Protect(token));
+            if (guard.IsProfileRevoked(request.ProfileId))
+            { throw new CustomerSessionException(410, "customer_profile_revoked"); }
+            if (journal.HasCustomerTicketForOperation(owner, request.OperationId))
+            {
+                // Revalidate the immutable receipt and revocation fences before
+                // applying any requirements that belong only to new admission.
+                var replay = journal.ReplayCustomerTicket(owner, request, guard.ValidateCurrent);
+                if (replay.ProtectedToken.Length == 0) { throw new CustomerSessionException(410, "start_ticket_revoked"); }
+                return Results.Ok(new { protocolVersion = 1, ticket = protector.Unprotect(replay.ProtectedToken),
+                    operationId = request.OperationId, expiresAt = replay.ExpiresAt, sessionId = replay.SessionId });
+            }
+            var snapshot = guard.CaptureOwnedProfile(request.ProfileId, request.ProfileRevision);
+            var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+            var captured = JsonSerializer.Serialize(new CustomerConversationSnapshot(snapshot, request.PersonalMemoryConsent, OpenAiConsent: true), Json);
+            var protectedToken = protector.Protect(token);
+            CustomerTicketRecord Issue() => journal.IssueCustomerTicket(owner, request, captured,
+                OperationJournal.CustomerHash(token), protectedToken, guard.ValidateCurrent);
+            var waiting = journal.ReadCustomerWaitingEvent(request.DeviceId);
+            var result = waiting is null
+                ? Issue()
+                : evenings.WithCustomerWaitingTicket(request.DeviceId, waiting.EveningId,
+                    waiting.ActivationRevision, Issue, http.RequestAborted);
             if (result.ProtectedToken.Length == 0) { throw new CustomerSessionException(410, "start_ticket_revoked"); }
             return Results.Ok(new { protocolVersion = 1, ticket = protector.Unprotect(result.ProtectedToken),
                 operationId = request.OperationId, expiresAt = result.ExpiresAt, sessionId = result.SessionId });
@@ -155,6 +178,19 @@ internal static class CustomerSessionEndpoints
         OperationJournal journal)
     {
         var device = Device(http, access);
+        var query = http.Request.Query;
+        if (query.ContainsKey("bootId") || query.ContainsKey("ready"))
+        {
+            var boots = query["bootId"];
+            var ready = query["ready"];
+            if (boots.Count != 1 || ready.Count != 1 || !Uuid(boots[0]) || ready[0] is not ("true" or "false"))
+            {
+                throw new CustomerSessionException(400, "invalid_runtime_observation");
+            }
+            // Old clients omit these fields and continue to receive the same
+            // status. Only a matching authenticated runtime can supply presence.
+            journal.ObserveCustomerRuntime(device, boots[0]!, ready[0] == "true");
+        }
         var active = journal.ActiveCustomerSession(device);
         if (active is not null)
         {
@@ -181,40 +217,75 @@ internal static class CustomerSessionEndpoints
         if (request.ProtocolVersion != 1 || !Opaque(request.Ticket, 43, 43) || !Uuid(request.OperationId)
             || !Uuid(request.BootId) || !Opaque(request.Challenge, 16, 128))
         { throw new CustomerSessionException(400, "invalid_start_ticket"); }
-        var owner = journal.CustomerTicketOwner(OperationJournal.CustomerHash(request.Ticket));
-        if (owner is null) { throw new CustomerSessionException(404, "start_ticket_unavailable"); }
-        var profiles = http.RequestServices.GetRequiredService<CharacterProfileStore>();
-        var db = http.RequestServices.GetRequiredService<AccountDatabase>();
-        var exists = await db.Users.AsNoTracking().AnyAsync(user => user.Id == owner.OwnerId && !user.Disabled, http.RequestAborted);
-        // An accepted operation retains its captured revision even after a later
-        // ordinary profile edit. Revocation is a separate durable fence.
-        if (!exists || owner.SessionId is null && await profiles.CaptureAsync(owner.OwnerId, owner.ProfileId, owner.Revision, http.RequestAborted) is null)
-        { throw new CustomerSessionException(409, "character_revision_mismatch"); }
-        var session = journal.RedeemCustomerTicket(device, request);
-        if (session.Snapshot.Length == 0 || session.EndRequested || session.State is "recovering" or "completed" or "failed")
-        { throw new CustomerSessionException(409, "customer_session_requires_reconciliation"); }
-        var challenge = journal.CustomerChallenge(device)!;
-        var create = new CreateConversationRequest(device, Guid.Parse(session.BootId), challenge.Generation,
-            challenge.CatalogVersion, "cs-CZ", new(true, false), challenge.OperationEpoch);
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(create, Json);
-        var created = conversations.Create(device, Guid.Parse(session.OperationId), bytes, create, customerSessionId: session.Id);
-        if (created.Response is null) { throw new CustomerSessionException(409, "device_busy"); }
-        if (owner.SessionId is null && await profiles.CaptureAsync(owner.OwnerId, owner.ProfileId, owner.Revision, http.RequestAborted) is null)
+        var hash = OperationJournal.CustomerHash(request.Ticket);
+        var initial = journal.ReadCustomerTicketAdmission(hash)
+            ?? throw new CustomerSessionException(404, "start_ticket_unavailable");
+        if (initial.DeviceId != device || initial.OperationId != request.OperationId
+            || initial.BootId != request.BootId || initial.Challenge != request.Challenge)
+        { throw new CustomerSessionException(409, "start_ticket_binding_mismatch"); }
+        var authority = http.RequestServices.GetRequiredService<CustomerAdmissionAuthority>();
+        authority.ValidateDatabasePaths(journal.CustomerDataDatabasePath, evenings.CustomerMemoryDatabasePath);
+        try
         {
-            journal.RequestCustomerEnd(session.Id, session.OwnerId);
-            throw new CustomerSessionException(409, "character_revision_mismatch");
+            using var guard = authority.AcquireDelegated(initial.Owner, http.RequestAborted);
+            var receipt = journal.ReadCustomerTicketAdmission(hash)
+                ?? throw new CustomerSessionException(404, "start_ticket_unavailable");
+            var owner = receipt.Owner;
+            if (owner.OwnerId != guard.Proof.AccountId || owner.ProfileId != initial.Owner.ProfileId
+                || owner.Revision != initial.Owner.Revision)
+            { throw new CustomerSessionException(409, "start_ticket_binding_mismatch"); }
+            if (guard.IsProfileRevoked(owner.ProfileId))
+            {
+                if (owner.SessionId is { } revokedSession) journal.RequestCustomerEnd(revokedSession, owner.OwnerId);
+                throw new CustomerSessionException(409, "customer_session_requires_reconciliation");
+            }
+            // Re-read acceptance under the reservations. Accepted replay keeps
+            // its original context after ordinary edits and ticket expiry.
+            if (owner.SessionId is null) guard.ReadOwnedProfile(owner.ProfileId, owner.Revision);
+            var clock = http.RequestServices.GetRequiredService<TimeProvider>();
+            void ValidateRedemption()
+            {
+                guard.ValidateCurrent();
+                if (owner.SessionId is null && receipt.ExpiresAt <= clock.GetUtcNow().ToUnixTimeSeconds())
+                { throw new CustomerSessionException(410, "start_ticket_expired"); }
+            }
+            CustomerSessionRecord Redeem() => journal.RedeemCustomerTicket(device, request, ValidateRedemption);
+            var waiting = journal.ReadCustomerWaitingEvent(device);
+            var session = owner.SessionId is not null || waiting is null
+                ? Redeem()
+                : evenings.WithCustomerWaitingSession(device, waiting.EveningId,
+                    waiting.ActivationRevision, Redeem, http.RequestAborted);
+            if (session.Snapshot.Length == 0 || session.EndRequested || session.State is "recovering" or "completed" or "failed")
+            { throw new CustomerSessionException(409, "customer_session_requires_reconciliation"); }
+            guard.ValidateCurrent();
+            // The waiting memory reservation has ended before Create acquires
+            // conversation -> memory -> journal. Identity/profile guards remain.
+            var challenge = journal.CustomerChallenge(device)!;
+            var create = new CreateConversationRequest(device, Guid.Parse(session.BootId), challenge.Generation,
+                challenge.CatalogVersion, "cs-CZ", new(true, false), challenge.OperationEpoch);
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(create, Json);
+            var created = conversations.Create(device, Guid.Parse(session.OperationId), bytes, create, customerSessionId: session.Id);
+            if (created.Response is null) { throw new CustomerSessionException(409, "device_busy"); }
+            guard.ValidateCurrent();
+            var guest = "account_" + OperationJournal.CustomerHash(session.OwnerId + ":" + session.ProfileId).ToLowerInvariant();
+            if (evenings.GuestPermission(device, created.Response.ConversationId) is null)
+            {
+                var captured = JsonSerializer.Deserialize<CustomerConversationSnapshot>(session.Snapshot, Json)!;
+                var bound = evenings.SetGuestPermission(device, created.Response.ConversationId, guest,
+                    "verified_customer_account", true, captured.PersonalMemoryConsent, false, 0);
+                if (bound is null) { throw new CustomerSessionException(409, "guest_binding_conflict"); }
+            }
+            return Results.Json(new { created.Response.ConversationId, created.Response.ExpiresAt, created.Response.Limits,
+                customerSessionId = session.Id }, statusCode: 201);
         }
-        // Verified personal continuity never derives from the character name.
-        var guest = "account_" + OperationJournal.CustomerHash(session.OwnerId + ":" + session.ProfileId).ToLowerInvariant();
-        if (evenings.GuestPermission(device, created.Response.ConversationId) is null)
+        catch (CustomerDataAccessException error) when (error.Status == 401)
         {
-            var captured = JsonSerializer.Deserialize<CustomerConversationSnapshot>(session.Snapshot, Json)!;
-            var bound = evenings.SetGuestPermission(device, created.Response.ConversationId, guest,
-                "verified_customer_account", true, captured.PersonalMemoryConsent, false, 0);
-            if (bound is null) { throw new CustomerSessionException(409, "guest_binding_conflict"); }
+            // This is delegated account revocation, not an invalid device token.
+            // Preserve the lease and request normal device reconciliation.
+            var revoked = journal.ReadCustomerTicketAdmission(hash)?.Owner;
+            if (revoked?.SessionId is { } id) journal.RequestCustomerEnd(id, revoked.OwnerId);
+            throw new CustomerSessionException(409, "customer_session_requires_reconciliation");
         }
-        return Results.Json(new { created.Response.ConversationId, created.Response.ExpiresAt, created.Response.Limits,
-            customerSessionId = session.Id }, statusCode: 201);
     }
 
     private static object Project(CustomerSessionRecord session) => new { session.Id, session.OperationId,
@@ -262,6 +333,7 @@ internal static class CustomerSessionEndpoints
             return await next(invocation);
         }
         catch (CustomerSessionException error) { return ApiProblem.Create(invocation.HttpContext, error.Status, error.Code); }
+        catch (CustomerDataAccessException error) { return ApiProblem.Create(invocation.HttpContext, error.Status, error.Code); }
         catch (JsonException) { return ApiProblem.Create(invocation.HttpContext, 400, "invalid_customer_request"); }
     });
     private sealed record CustomerIdle(string BootId);

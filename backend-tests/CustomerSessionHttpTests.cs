@@ -33,6 +33,21 @@ internal static partial class AccountIdentityTests
         device.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
         Check((await device.PostAsJsonAsync("/v1/customer-sessions/device-challenge", challenge)).IsSuccessStatusCode,
             "only authenticated device registers a fresh boot challenge");
+        var availabilityJournal = fixture.App.Services.GetRequiredService<OperationJournal>();
+        await device.GetAsync("/v1/customer-sessions/device");
+        Check(availabilityJournal.CustomerAvailabilityFor("granted-device", true, false).State == CustomerAvailabilityState.Unknown,
+            "legacy token-only poll cannot claim runtime readiness");
+        Check((await device.GetAsync($"/v1/customer-sessions/device?bootId={boot}&ready=true")).IsSuccessStatusCode,
+            "authenticated matching-boot observation preserves device status response");
+        Check(availabilityJournal.CustomerAvailabilityFor("granted-device", true, false).State == CustomerAvailabilityState.Available,
+            "fresh matching runtime and empty lease can project advisory availability");
+        Check((await device.GetAsync($"/v1/customer-sessions/device?bootId={boot}&ready=true&ready=false")).StatusCode == HttpStatusCode.BadRequest,
+            "duplicate readiness values are rejected");
+        Check((await device.GetAsync($"/v1/customer-sessions/device?bootId={boot}")).StatusCode == HttpStatusCode.BadRequest,
+            "partial runtime observation rejected");
+        await device.GetAsync($"/v1/customer-sessions/device?bootId={boot}&ready=false");
+        Check(availabilityJournal.CustomerAvailabilityFor("granted-device", true, false).State == CustomerAvailabilityState.Unknown,
+            "current nonready runtime never projects a free slot");
         var firstOp = Guid.NewGuid().ToString("D");
         var secondOp = Guid.NewGuid().ToString("D");
         var denied = await first.PostAsJsonAsync("/app/v1/customer/start-tickets", new

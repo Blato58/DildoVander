@@ -83,13 +83,10 @@ internal sealed class AccountDataExportAuthority(IServiceScopeFactory scopes, Op
 // then acquire and dispose the shared archive/journal scope synchronously.
 internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
 {
-    private readonly CustomerDataSqliteGuard account;
-    private readonly CustomerDataSqliteGuard character;
+    private readonly CustomerAdmissionGuard admission;
     private readonly OperationJournal journal;
-    private readonly CharacterProfileStore profiles;
     private readonly KeepsakeStore keepsakes;
     private readonly TimeProvider clock;
-    private readonly long expiresAt;
     private readonly CustomerDataAccess access;
     private bool disposed;
     private bool sharedActive;
@@ -97,19 +94,15 @@ internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
     internal CustomerDataGuardDeadline Deadline { get; }
     internal CustomerDataAccess Access => access;
 
-    private CustomerDataGuardPrelude(CustomerDataSqliteGuard account, CustomerDataSqliteGuard character,
-        OperationJournal journal, CharacterProfileStore profiles, KeepsakeStore keepsakes,
-        CustomerDataGuardDeadline deadline, TimeProvider clock, long expiresAt, CustomerDataAccess access)
+    private CustomerDataGuardPrelude(CustomerAdmissionGuard admission, OperationJournal journal,
+        KeepsakeStore keepsakes, TimeProvider clock)
     {
-        this.account = account;
-        this.character = character;
+        this.admission = admission;
         this.journal = journal;
-        this.profiles = profiles;
         this.keepsakes = keepsakes;
-        Deadline = deadline;
         this.clock = clock;
-        this.expiresAt = expiresAt;
-        this.access = access;
+        Deadline = admission.Deadline;
+        access = new CustomerDataAccess(admission.Proof.AccountId, admission.Proof.SessionId!, admission.Proof.AuthorityRevision);
     }
 
     internal static CustomerDataGuardPrelude Capture(string connectionString, OperationJournal journal,
@@ -133,31 +126,20 @@ internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
     {
         CustomerDataDatabasePaths.Validate(connectionString, profiles.CustomerDataDatabasePath,
             journal.CustomerDataDatabasePath, keepsakes.CustomerDataDatabasePath, memoryPath, exportJobPath);
-        var deadline = new CustomerDataGuardDeadline(token);
-        CustomerDataSqliteGuard? account = null;
-        CustomerDataSqliteGuard? character = null;
+        // Keep the export's complete preflight before the neutral prefix opens
+        // either connection. Waiting callers independently validate their extras.
+        CustomerAdmissionDatabasePaths.Validate(connectionString, profiles.CustomerDataDatabasePath,
+            journal.CustomerDataDatabasePath, memoryPath, exportJobPath);
+        var admission = claimedStamp is not null
+            ? CustomerAdmissionGuard.AcquireCookie(connectionString, profiles, clock, access.AccountId, access.SessionId, claimedStamp, token)
+            : CustomerAdmissionGuard.AcquireCookieRevision(connectionString, profiles, clock, access.AccountId, access.SessionId, access.AuthorityRevision, token);
         try
         {
-            account = CustomerDataSqliteGuard.Acquire(connectionString, deadline);
-            var proof = ReadAccount(account, access.AccountId, access.SessionId, clock);
-            if (claimedStamp is not null ? proof.Stamp != claimedStamp : proof.Revision != access.AuthorityRevision)
-            {
-                throw new CustomerDataAccessException(401, "account_access_unavailable");
-            }
-            character = profiles.OpenCustomerDataGuard(deadline);
-            profiles.ValidateCustomerDataAccount(character, access.AccountId);
-            var currentAccess = new CustomerDataAccess(access.AccountId, access.SessionId, proof.Revision);
-            var prelude = new CustomerDataGuardPrelude(account, character, journal, profiles, keepsakes,
-                deadline, clock, proof.ExpiresAt, currentAccess);
+            var prelude = new CustomerDataGuardPrelude(admission, journal, keepsakes, clock);
             prelude.ValidateCurrent();
             return prelude;
         }
-        catch
-        {
-            try { character?.Dispose(); }
-            finally { account?.Dispose(); }
-            throw;
-        }
+        catch { admission.Dispose(); throw; }
     }
 
     internal CustomerDataGuardScope AcquireShared(ICustomerDataMemoryLease memoryAdmission)
@@ -176,7 +158,7 @@ internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
                 var session = sessions[index];
                 if (!deletedProfiles.TryGetValue(session.ProfileId, out var deleted))
                 {
-                    deleted = profiles.CustomerDataProfileRevoked(character, access.AccountId, session.ProfileId);
+                    deleted = admission.IsProfileRevoked(session.ProfileId);
                     deletedProfiles.Add(session.ProfileId, deleted);
                 }
                 sessions[index] = session with { ProfileRevoked = session.ProfileRevoked || deleted };
@@ -195,11 +177,7 @@ internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
     internal void ValidateCurrent()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        Deadline.Check();
-        if (expiresAt <= clock.GetUtcNow().ToUnixTimeSeconds())
-        {
-            throw new CustomerDataAccessException(401, "account_access_unavailable");
-        }
+        admission.ValidateCurrent();
     }
 
     internal void ReleaseShared() => sharedActive = false;
@@ -213,45 +191,6 @@ internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
         }
     }
 
-    private static (string Stamp, string Revision, long ExpiresAt) ReadAccount(CustomerDataSqliteGuard guard,
-        string accountId, string sessionId, TimeProvider clock)
-    {
-        using var command = guard.Command("""
-            SELECT u.SecurityStamp, s.ExpiresAt, s.AuthenticatedAt
-            FROM AspNetUsers u JOIN Sessions s ON s.UserId=u.Id
-            WHERE u.Id=$account AND s.Id=$session AND u.Disabled=0
-                AND NOT EXISTS(SELECT 1 FROM DeletionRequests d WHERE d.UserId=u.Id)
-            """);
-        command.Parameters.AddWithValue("$account", accountId);
-        command.Parameters.AddWithValue("$session", sessionId);
-        string stamp;
-        long expires;
-        long authenticated;
-        using (var reader = command.ExecuteReader())
-        {
-            if (!reader.Read() || reader.IsDBNull(0))
-            {
-                throw new CustomerDataAccessException(401, "account_access_unavailable");
-            }
-            stamp = reader.GetString(0);
-            expires = reader.GetInt64(1);
-            authenticated = reader.GetInt64(2);
-        }
-        if (string.IsNullOrEmpty(stamp) || expires <= clock.GetUtcNow().ToUnixTimeSeconds())
-        {
-            throw new CustomerDataAccessException(401, "account_access_unavailable");
-        }
-        using var roles = guard.Command("""
-            SELECT r.Name FROM AspNetUserRoles m JOIN AspNetRoles r ON r.Id=m.RoleId
-            WHERE m.UserId=$account ORDER BY r.Name
-            """);
-        roles.Parameters.AddWithValue("$account", accountId);
-        using var roleReader = roles.ExecuteReader();
-        var names = new List<string>();
-        while (roleReader.Read()) { names.Add(roleReader.GetString(0)); }
-        return (stamp, Digest(new { accountId, sessionId, stamp, expires, authenticated, roles = names }), expires);
-    }
-
     private static string Digest<T>(T value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
 
     public void Dispose()
@@ -259,8 +198,7 @@ internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
         if (disposed) { return; }
         if (sharedActive) { throw new InvalidOperationException("Dispose the shared customer-data scope first."); }
         disposed = true;
-        try { character.Dispose(); }
-        finally { account.Dispose(); }
+        admission.Dispose();
     }
 
     public ValueTask DisposeAsync()

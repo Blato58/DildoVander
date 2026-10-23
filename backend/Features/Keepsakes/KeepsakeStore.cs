@@ -103,6 +103,7 @@ internal sealed partial class KeepsakeStore
         EnsureColumn(connection, "dv10_keepsakes", "evening_id", "TEXT");
         EnsureColumn(connection, "dv10_keepsakes", "published_at_ticks", "INTEGER");
         EnsureColumn(connection, "dv10_keepsakes", "published_edition_id", "TEXT");
+        InitializeCustomerCollectionRevisions(connection);
         Execute(connection, null, "CREATE INDEX IF NOT EXISTS dv10_public_evening ON dv10_keepsakes(device_id,evening_id,deleted,published_at_ticks DESC,id DESC)");
         Execute(connection, null, "UPDATE dv10_keepsakes SET claimed=1 WHERE EXISTS "
             + "(SELECT 1 FROM dv10_grants g WHERE g.keepsake_id=dv10_keepsakes.id AND g.kind='owner') "
@@ -115,9 +116,8 @@ internal sealed partial class KeepsakeStore
                 Execute(connection, null, "INSERT INTO dv10_recovery_state(store_id,revision) VALUES($id,0)", ("$id", NewId()));
             }
         }
-        // A crash after dispatch cannot establish whether a paid attempt completed.
-        Execute(connection, null, "UPDATE dv10_jobs SET state='awaiting_reconciliation', error_code='restart_after_dispatch' WHERE state='dispatched'");
-        Execute(connection, null, "UPDATE dv10_jobs SET state='queued' WHERE state='leased'");
+        InitializeCompletionUpdates(connection);
+        RecoverCompletionUpdates(connection);
         ResumeDeletionCleanup();
     }
 
@@ -232,6 +232,7 @@ internal sealed partial class KeepsakeStore
             var issuedDocument = Load(connection, transaction, id);
             BindCustomerOwner(connection, transaction, id, customerOwner);
             TryAdmitAutomaticBase(connection, transaction, id, issuedDocument);
+            RecordCompletionUpdates(connection, transaction, id);
             transaction.Commit();
             return new(id);
         }

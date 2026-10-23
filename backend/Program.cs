@@ -182,6 +182,7 @@ if (keepsakeArchiveConfigured)
 {
     app.MapCustomerMemoryEndpoints();
     app.MapAccountDataExports();
+    app.MapCustomerCompletionUpdates();
 }
 app.MapPersonaLab();
 app.MapModelReleases();
