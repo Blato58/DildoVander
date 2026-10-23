@@ -56,12 +56,17 @@ the compiled, unsigned Debug Simulator app and creates two temporary devices
 from installed runtimes: an iPhone 17/16 Pro and a 13-inch iPad Pro or Air.
 Use the iPhone capture in Media Manager's **iPhone with Dynamic Island
 (medium display)** group and the iPad capture in its **13-inch** group.
-It installs and launches the actual app, waits twenty seconds for the public
-home to render, checks that the process remains alive, and captures the native
-portrait screen. It does not sign in, open guest archives, navigate to a paid
-model, or invoke accessory functions. Only devices created by this capture are
-shut down and deleted, including on failure or cancellation; existing simulator
-devices remain untouched. No runtime is downloaded automatically.
+It installs and launches the actual app, allows twenty seconds to settle, then
+captures the native portrait screen and uses Apple Vision to recognize the
+public-home heading, ignoring case and diacritics. Capture and recognition share
+one 180-second deadline per device; unready captures are discarded and retried.
+A live app process is required throughout. OCR establishes content readiness;
+the visual inspection below still determines whether the whole layout is usable.
+It does not sign in, open guest archives, navigate to a paid
+model, or invoke accessory functions. Cleanup shuts down and deletes only devices
+created by this capture, on normal exit, failure or handled termination. Forced
+runner termination can prevent cleanup. Existing simulator devices remain
+untouched. No runtime is downloaded automatically.
 
 Each device supplies an unchanged `*-home-native.png` and an opaque
 `*-home.jpg` metadata candidate. The JPEG is a quality-100 conversion at the

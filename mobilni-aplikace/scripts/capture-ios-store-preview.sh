@@ -38,6 +38,10 @@ subprocess.run(sys.argv[2:], check=True, timeout=int(sys.argv[1]))
 PY
 }
 
+script_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
+run_bounded 120 xcrun swiftc "$script_dir/check-ios-home-render.swift" \
+  -framework Vision -framework ImageIO -o "$work_dir/check-ios-home-render"
+
 run_bounded 20 xcrun simctl list devicetypes --json > "$work_dir/device-types.json"
 run_bounded 20 xcrun simctl list runtimes --json > "$work_dir/runtimes.json"
 python3 - "$app_path" "$work_dir" <<'PY'
@@ -96,21 +100,28 @@ for slot in iphone-6.3 ipad-13; do
   # archive, microphone, camera, provider request or hardware action is injected.
   sleep 20
   # A cold CI Simulator can finish booting before its screenshot service responds.
-  # Retry real captures within one deadline; never retain a timed-out partial PNG.
-  python3 - "$device" "$app_pid" "$output_dir/$slot-home-native.png" <<'PY'
+  # Capture and OCR share one deadline; never retain a partial or unready PNG.
+  python3 - "$device" "$app_pid" "$output_dir/$slot-home-native.png" "$work_dir/check-ios-home-render" <<'PY'
 import os, pathlib, subprocess, sys, time
 
 device, app_pid, output = sys.argv[1], int(sys.argv[2]), pathlib.Path(sys.argv[3])
+render_check = sys.argv[4]
 deadline = time.monotonic() + 180
 while True:
     os.kill(app_pid, 0)
     remaining = deadline - time.monotonic()
     if remaining <= 0:
-        raise SystemExit('Native Simulator screenshot service was not ready within 180 seconds.')
+        raise SystemExit('Native Simulator public home was not rendered within 180 seconds.')
     output.unlink(missing_ok=True)
     try:
         subprocess.run(['xcrun', 'simctl', 'io', device, 'screenshot', '--type=png', str(output)],
                        check=True, timeout=min(60, remaining))
+        os.kill(app_pid, 0)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            output.unlink(missing_ok=True)
+            raise SystemExit('Native Simulator public home was not rendered within 180 seconds.')
+        subprocess.run([render_check, str(output)], check=True, timeout=min(15, remaining))
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
         output.unlink(missing_ok=True)
         print(f'Native screenshot attempt failed; retrying within capture deadline: {error}', file=sys.stderr)

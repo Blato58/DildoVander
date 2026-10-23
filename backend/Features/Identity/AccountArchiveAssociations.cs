@@ -32,6 +32,7 @@ internal static class AccountArchiveAssociations
 
     public static void MapAccountArchives(this IEndpointRouteBuilder app)
     {
+        AccountOwnedArchives.Map(app);
         var group = app.MapGroup("/app/v1/archive/associations").RequireAuthorization().RequireRateLimiting("account");
         group.AddEndpointFilter(async (invocation, next) =>
         {
@@ -79,11 +80,16 @@ internal static class AccountArchiveAssociations
                 try
                 {
                     var view = store.ReadForAccount(link.Locator, link.Epoch);
+                    var originalOwner = store.CustomerAccountLink(userId, link.Locator) is not null;
                     items.Add(new
                     {
                         link.Locator, link.LinkedAt, view.Snapshot.OfficialName,
                         storyTitle = view.Editions.OrderByDescending(x => x.CreatedAt).FirstOrDefault()?.Story.Title,
-                        hasPortrait = view.Portraits.Count > 0
+                        hasPortrait = view.Portraits.Count > 0,
+                        accessKind = originalOwner ? "originalOwner" : "linkedViewer",
+                        canManage = originalOwner,
+                        canReadPrivate = originalOwner,
+                        canUnlink = !originalOwner
                     });
                 }
                 catch (KeepsakeException error) when (error.Status == 404) { /* Revoked between checks. */ }
@@ -93,6 +99,11 @@ internal static class AccountArchiveAssociations
         group.MapGet("/{locator:guid}", async (string locator, HttpContext context, AccountDatabase db, KeepsakeStore store) =>
         {
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            if (store.CustomerAccountLink(userId, locator) is not null)
+            {
+                return Results.Json(KeepsakeEndpoints.ProjectForAccount(
+                    store.Read(locator, AccountOwnedArchives.Actor(context)), originalOwner: true));
+            }
             var link = await AccountLinkAsync(db, store, userId, locator);
             if (link is null || !store.IsAccountAssociationCurrent(locator, link.Epoch)) { return ApiProblem.Create(context, 404, "archive_association_unavailable"); }
             return Results.Json(KeepsakeEndpoints.ProjectForAccount(store.ReadForAccount(locator, link.Epoch)));
@@ -108,7 +119,10 @@ internal static class AccountArchiveAssociations
         group.MapDelete("/{locator:guid}", async (string locator, HttpContext context, AccountDatabase db, KeepsakeStore store) =>
         {
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-            store.RemoveCustomerAccountLink(userId, locator);
+            if (store.CustomerAccountLink(userId, locator) is not null)
+            {
+                return ApiProblem.Create(context, 409, "original_owner_unlink_not_supported");
+            }
             await db.ArchiveAssociations.Where(x => x.UserId == userId && x.Locator == locator).ExecuteDeleteAsync();
             return Results.NoContent();
         });

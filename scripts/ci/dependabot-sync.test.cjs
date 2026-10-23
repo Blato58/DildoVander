@@ -180,7 +180,7 @@ test('publisher commits fixed generated paths with pinned parent and dispatches 
   assert.deepEqual(writes.find(([kind]) => kind === 'commit')[1].parents, [sha('a')]);
   assert.deepEqual(writes.find(([kind]) => kind === 'ref')[1], { owner: 'owner', repo: 'repo', ref: 'heads/dependabot/group', sha: sha('c'), force: false });
   assert.deepEqual(writes.find(([kind]) => kind === 'dispatch')[1].inputs,
-    { pr_number: '7', expected_head_sha: sha('c'), expected_base_sha: sha('b') });
+    { project: 'all', pr_number: '7', expected_head_sha: sha('c'), expected_base_sha: sha('b') });
 });
 
 test('rejects forged, oversized and unexpected payloads before creating any Git objects', async t => {

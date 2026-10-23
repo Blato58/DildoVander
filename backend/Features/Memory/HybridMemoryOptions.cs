@@ -4,6 +4,8 @@ namespace Kufr.Backend.Features.Memory;
 
 internal sealed record HybridMemoryOptions
 {
+    internal const long DefaultStoredBytes = 64L * 1024 * 1024;
+    internal const long MaximumStoredBytes = 1024L * 1024 * 1024;
     public bool Enabled { get; init; } = true;
     public bool CloudIndexingEnabled { get; init; }
     public bool LongTermPersonalEnabled { get; init; } = true;
@@ -27,7 +29,7 @@ internal sealed record HybridMemoryOptions
     public int MaxWritesPerDay { get; init; } = 2_000;
     public int MaxSearchesPerDay { get; init; } = 100;
     public int MaxUploadsPerDay { get; init; } = 500;
-    public int MaxStoredBytes { get; init; } = 2_000_000;
+    public long MaxStoredBytes { get; init; } = DefaultStoredBytes;
     public int MaxRecordBytes { get; init; } = 2_000;
     public int MaxPendingJobs { get; init; } = 4_000;
     public string Namespace => AppNamespace + ":" + Environment;
@@ -51,6 +53,10 @@ internal sealed record HybridMemoryOptions
             && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.');
         static bool Store(string value) => value.Length == 0 || value.Length <= 128 && value.StartsWith("vs_", StringComparison.Ordinal)
             && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-');
+        if (result.MaxStoredBytes is < 2_000 or > MaximumStoredBytes)
+        {
+            throw new InvalidOperationException("Backend:Memory:MaxStoredBytes must be between 2000 and 1073741824 UTF-8 content bytes.");
+        }
         if (!Label(result.AppNamespace) || !Label(result.Environment) || !Store(result.PersonalStoreId) || !Store(result.MotifStoreId)
             || result.PersonalStoreId.Length > 0 && result.PersonalStoreId == result.MotifStoreId
             || result.CloudIndexingEnabled && !result.Enabled || result.LongTermPersonalEnabled && !result.Enabled
@@ -60,7 +66,7 @@ internal sealed record HybridMemoryOptions
             || result.IndexPollSeconds is < 1 or > 30 || result.IndexTimeoutSeconds is < 10 or > 600
             || result.MaxWritesPerDay is < 1 or > 2_000
             || result.MaxSearchesPerDay is < 1 or > 1_000 || result.MaxUploadsPerDay is < 1 or > 2_000
-            || result.MaxStoredBytes is < 2_000 or > 2_000_000 || result.MaxRecordBytes is < 200 or > 2_000
+            || result.MaxRecordBytes is < 200 or > 2_000
             || result.MaxPendingJobs is < 1 or > 10_000)
             throw new InvalidOperationException("Invalid Backend:Memory configuration.");
         return result;
@@ -84,7 +90,9 @@ internal sealed record MemoryIndexJob(long Id, string MemoryId, long Revision, s
     int Attempts, string Filename, string? FileId, string State);
 internal sealed record MemoryProviderStatus(string Provider, bool Configured, bool Degraded,
     string ConfigurationStatus, DateTimeOffset? LastVerifiedAt, int Pending, int Failed, int Deleting,
-    long StoredBytes = 0, long CapacityBytes = 0, long RejectedWrites = 0);
+    long StoredBytes = 0, long CapacityBytes = 0, long RejectedWrites = 0,
+    string StorageStatus = "available", bool StorageIncomplete = false,
+    string? LastStorageErrorCode = null, DateTimeOffset? LastStorageErrorAt = null);
 
 internal static class AnonymousMotifs
 {

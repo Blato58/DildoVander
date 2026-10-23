@@ -33,6 +33,12 @@ if (args is ["--persona-provider-soak", var seconds])
 }
 if (args is ["--model-releases"]) { await ModelReleaseTests.RunAsync(); return; }
 if (args is ["--account-deletion"]) { await AccountIdentityTests.RunAccountDeletionAsync(); await AccountIdentityTests.RunAccountDeletionHttpAsync(); return; }
+if (args is ["--keepsake-owner-authorization"])
+{
+    await KeepsakeOwnerAuthorizationTests.RunAsync();
+    await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();
+    return;
+}
 if (args is ["--identity"])
 {
     await AccountIdentityTests.RunAsync();
@@ -80,6 +86,7 @@ if (args is ["--character"])
 if (args is ["--firmware"]) { FirmwareReleaseTests.Run(); return; }
 if (args is ["--conversation-engines"]) { await RealtimeTests.RunAsync(); await GptLiveTests.RunAsync(); return; }
 if (args is ["--memory"]) { await HybridMemoryTests.RunAsync(); await EveningMemoryTests.RunAsync(); return; }
+if (args is ["--memory-capacity"]) { await MemoryCapacityTests.RunAsync(); return; }
 if (args is ["--gpt-live-smoke"])
 {
     Environment.ExitCode = await GptLiveSmoke.RunAsync();
@@ -106,6 +113,8 @@ ChronicleTests.Run();
 OfflineOutcomeTests.Run();
 await DuelTests.RunAsync();
 await KeepsakeCoreTests.RunAsync();
+await KeepsakeOwnerAuthorizationTests.RunAsync();
+await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();
 KeepsakeOutcomeJournalTests.Run();
 FirmwareReleaseTests.Run();
 CharacterDirectorTests.Run();
@@ -118,6 +127,7 @@ await DeviceMediaTransportTests.RunAsync();
 await PersonalityTests.RunAsync();
 await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();
+await MemoryCapacityTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();
 await EveningMemoryTests.RunAsync();

@@ -52,7 +52,7 @@ try {
     if (url.pathname === '/app/v1/session') return json({ enabled: true, account, csrfToken: 'synthetic-account-csrf' });
     if (url.pathname === '/app/v1/archive/associations') return json({ items: [] });
     if (url.pathname === '/app/v1/account') return json({ devices: [{ deviceId: 'synthetic-device', canOperate: true }], associations: [{ deviceId: 'synthetic-device', alias: 'Kufr ukázky' }], grants: [], sessions: [], passkeys: [], passkeyCount: 1 });
-    if (url.pathname.startsWith('/app/v1/archive/associations/')) return json({ ...record(), accountLinked: true, readOnly: true, wizardIdentities: [identity], prophecies: [{ editionId: id, state: 'revealed', revelation: 'PRIVATE_OWNER_WORDING_MUST_NOT_RENDER' }] });
+    if (url.pathname.startsWith('/app/v1/archive/associations/')) return json({ ...record(), accountLinked: true, readOnly: true, accessKind: 'linkedViewer', canManage: false, canReadPrivate: false, canUnlink: true, uploads: [], jobs: [], wizardIdentities: [identity], prophecies: [{ editionId: id, state: 'revealed', revelation: 'PRIVATE_OWNER_WORDING_MUST_NOT_RENDER' }] });
     if (url.pathname.startsWith('/app/v1/')) return json({}, 401);
     if (url.pathname === '/guest/v1/evening') return json({ schemaVersion: 1, evening: { id, label: 'Syntetický večer' }, latest: null, items: [{ locator: id, editionId: id, officialName: 'Katalogová hůlka A', slot: 1, story: { title: 'Syntetická edice', text: 'Příběh' }, synthetic: true, assets: [], wizardIdentity: { ...identity, revelation: 'PRIVATE_PUBLIC_EXTRA_MUST_NOT_RENDER' } }] });
     if (url.pathname === '/guest/v1/chronicle') return available ? json(chronicle) : json({}, 404);

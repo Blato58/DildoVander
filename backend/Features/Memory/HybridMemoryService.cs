@@ -156,9 +156,12 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         {
             var b = store.MemoryBacklog();
             var storage = store.MemoryStorageStatus();
+            var storageStatus = storage.StoredBytes >= options.MaxStoredBytes ? "full"
+                : storage.StoredBytes * 100 >= options.MaxStoredBytes * 80 ? "warning" : "available";
             return new("openai_vector_store", provider.Configured, degraded,
                 !options.Enabled ? "disabled" : !provider.HasKey ? "key_missing" : !provider.Configured ? "store_ids_missing" : configurationStatus,
-                verifiedAt, b.Pending, b.Failed, b.Deleting, storage.StoredBytes, options.MaxStoredBytes, storage.RejectedWrites);
+                verifiedAt, b.Pending, b.Failed, b.Deleting, storage.StoredBytes, options.MaxStoredBytes, storage.RejectedWrites,
+                storageStatus, storage.RejectedWrites > 0, storage.LastErrorCode, storage.LastErrorAt);
         }
     }
     internal async Task VerifyAsync(CancellationToken token)

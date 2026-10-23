@@ -28,6 +28,7 @@ jobs:
           python3 -m unittest discover -s scripts -p 'test_configure_ios_signing.py'
           python3 -m unittest discover -s scripts -p 'test_validate_ios_profile.py'
           python3 -m unittest discover -s scripts -p 'test_ios_native_preparation.py'
+          python3 -m unittest discover -s scripts -p 'test_ios_home_render.py'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: mobilni-aplikace/.nvmrc

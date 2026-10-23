@@ -104,7 +104,12 @@ class PublicWorkflowTests(unittest.TestCase):
         self.assertIn('node tests/debug.browser.mjs', source)
         self.assertNotIn('--base=/companion/', source)
         self.assertNotIn('verify-manufacturing', source)
-        self.assertIn('ai-eval, site]', (WORKFLOWS / 'ci.yml').read_text().split('  required:', 1)[1])
+        required = (WORKFLOWS / 'ci.yml').read_text().split('  required:', 1)[1]
+        needs = re.search(r'(?m)^    needs: \[([^\]]+)\]', required)
+        self.assertIsNotNone(needs)
+        dependencies = {name.strip() for name in needs.group(1).split(',')}
+        self.assertTrue({'ai-eval', 'site', 'stack-proof'} <= dependencies)
+        self.assertNotIn('cad', dependencies)
 
     def test_no_workflow_or_action_invokes_manufacturing(self):
         self.assertFalse((WORKFLOWS / 'kufr-cad.yml').exists())

@@ -16,7 +16,7 @@ internal sealed partial class KeepsakeStore
     private const string CardSteel = DesignTokens.SteelGrey;
     private const string CardPeriwinkle = DesignTokens.DigitalPeriwinkle;
 
-    public KeepsakeAsset CreateExport(string id, string session, string editionId, string format,
+    public KeepsakeAsset CreateExport(string id, KeepsakeActor session, string editionId, string format,
         string? portraitId, string key)
     {
         if (format is not ("story" or "card" or "zip")) { throw new KeepsakeException("export_format_not_supported"); }
