@@ -23,6 +23,11 @@ jobs:
           persist-credentials: false
       - name: Check Xcode
         run: test "$(xcodebuild -version | head -n 1)" = "Xcode 26.3"
+      - name: Test signing guards and cleanup without credentials
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_configure_ios_signing.py'
+          python3 -m unittest discover -s scripts -p 'test_validate_ios_profile.py'
+          python3 -m unittest discover -s scripts -p 'test_ios_native_preparation.py'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: mobilni-aplikace/.nvmrc
@@ -70,7 +75,7 @@ jobs:
       - name: Capture native App Store preview candidates
         id: store-preview
         if: github.workflow == 'Check Kufr iOS' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-        timeout-minutes: 12
+        timeout-minutes: 20
         env:
           IOS_STORE_PREVIEW_CONFIGURATION: Debug
         run: bash scripts/capture-ios-store-preview.sh "$RUNNER_TEMP/ios-derived-data/Build/Products/Debug-iphonesimulator/App.app" "$RUNNER_TEMP/ios-store-preview"

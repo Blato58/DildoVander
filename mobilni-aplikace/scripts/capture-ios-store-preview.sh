@@ -68,7 +68,7 @@ def choose(names):
             return match
     raise SystemExit('Missing required Simulator device type: ' + ' / '.join(names))
 devices = [
-    {'slot': 'iphone-6.9', 'deviceType': choose(['iPhone 17 Pro Max', 'iPhone 16 Pro Max']), 'portraitSizes': [[1320, 2868]]},
+    {'slot': 'iphone-6.3', 'deviceType': choose(['iPhone 17 Pro', 'iPhone 16 Pro']), 'portraitSizes': [[1206, 2622]]},
     {'slot': 'ipad-13', 'deviceType': choose(['iPad Pro 13-inch (M5)', 'iPad Pro 13-inch (M4)', 'iPad Air 13-inch (M3)', 'iPad Air 13-inch (M2)']), 'portraitSizes': [[2064, 2752], [2048, 2732]]},
 ]
 (work / 'selection.json').write_text(json.dumps({'runtime': runtime, 'devices': devices}))
@@ -78,14 +78,15 @@ PY
 bundle_id="$(cat "$work_dir/bundle-id")"
 runtime="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["runtime"]["identifier"])' "$work_dir/selection.json")"
 mkdir -p "$output_dir"
-for slot in iphone-6.9 ipad-13; do
+for slot in iphone-6.3 ipad-13; do
   device_type="$(python3 -c 'import json,sys; print(next(item["deviceType"]["identifier"] for item in json.load(open(sys.argv[1]))["devices"] if item["slot"] == sys.argv[2]))' "$work_dir/selection.json" "$slot")"
   device="$(run_bounded 30 xcrun simctl create "WNS store preview $slot $(date +%s)" "$device_type" "$runtime")"
   owned_devices+=("$device")
   run_bounded 30 xcrun simctl boot "$device"
-  run_bounded 120 xcrun simctl bootstatus "$device" -b
-  run_bounded 45 xcrun simctl install "$device" "$app_path"
-  launch_output="$(run_bounded 30 xcrun simctl launch "$device" "$bundle_id")"
+  run_bounded 180 xcrun simctl bootstatus "$device" -b
+  run_bounded 180 xcrun simctl install "$device" "$app_path"
+  # The second cold device can need longer for LaunchServices after bootstatus.
+  launch_output="$(run_bounded 180 xcrun simctl launch "$device" "$bundle_id")"
   app_pid="${launch_output##*: }"
   if [[ ! "$app_pid" =~ ^[0-9]+$ ]]; then
     echo "Simulator did not return the launched app PID." >&2
@@ -94,8 +95,30 @@ for slot in iphone-6.9 ipad-13; do
   # A fresh installation launches the real public home. No navigation, account,
   # archive, microphone, camera, provider request or hardware action is injected.
   sleep 20
-  kill -0 "$app_pid"
-  run_bounded 20 xcrun simctl io "$device" screenshot --type=png "$output_dir/$slot-home-native.png"
+  # A cold CI Simulator can finish booting before its screenshot service responds.
+  # Retry real captures within one deadline; never retain a timed-out partial PNG.
+  python3 - "$device" "$app_pid" "$output_dir/$slot-home-native.png" <<'PY'
+import os, pathlib, subprocess, sys, time
+
+device, app_pid, output = sys.argv[1], int(sys.argv[2]), pathlib.Path(sys.argv[3])
+deadline = time.monotonic() + 180
+while True:
+    os.kill(app_pid, 0)
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise SystemExit('Native Simulator screenshot service was not ready within 180 seconds.')
+    output.unlink(missing_ok=True)
+    try:
+        subprocess.run(['xcrun', 'simctl', 'io', device, 'screenshot', '--type=png', str(output)],
+                       check=True, timeout=min(60, remaining))
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        output.unlink(missing_ok=True)
+        print(f'Native screenshot attempt failed; retrying within capture deadline: {error}', file=sys.stderr)
+        time.sleep(min(5, max(0, deadline - time.monotonic())))
+        continue
+    os.kill(app_pid, 0)
+    break
+PY
   # Preserve the unedited native PNG and also supply an opaque, full-resolution
   # JPEG for App Store metadata (Apple rejects screenshot alpha channels).
   run_bounded 30 sips -s format jpeg -s formatOptions 100 "$output_dir/$slot-home-native.png" --out "$output_dir/$slot-home.jpg" >/dev/null
@@ -142,7 +165,7 @@ manifest = {
     'sharedWebIndexSha256': hashlib.sha256((app / 'public/index.html').read_bytes()).hexdigest(),
     'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True, timeout=15).strip(),
     'runtime': {key: selection['runtime'].get(key) for key in ('name', 'identifier', 'version', 'buildversion')},
-    'captures': [json.loads((work / f'{slot}.json').read_text()) for slot in ('iphone-6.9', 'ipad-13')],
+    'captures': [json.loads((work / f'{slot}.json').read_text()) for slot in ('iphone-6.3', 'ipad-13')],
     'limits': 'Unsigned Simulator public-home candidates only. Inspect for rendered UI before metadata upload. No account, provider, accessory or physical-device acceptance is established.',
 }
 (output / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
