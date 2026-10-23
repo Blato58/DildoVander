@@ -4,8 +4,10 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from io import BytesIO
+import json
 
-from select_projects import changed_paths, check_results, PROJECTS, select_projects, select_recovery_projects
+from select_projects import changed_paths, check_results, main, PROJECTS, select_projects, select_recovery_projects
 
 
 class ProjectSelectionTests(unittest.TestCase):
@@ -24,6 +26,8 @@ class ProjectSelectionTests(unittest.TestCase):
         for paths, expected in [
             (["firmware/src/production/main.cpp", "docs/a.md"], {"firmware"}),
             (["firmware/src/CMakeLists.txt"], {"firmware"}),
+            (["firmware/CMakeLists.txt", "firmware/platformio.ini"], {"firmware"}),
+            (["CMakeLists.txt", "platformio.ini"], {"firmware"}),
             (["backend-tests/Program.cs"], {"backend"}),
             (["global.json", "Directory.Build.props"], {"backend"}),
             (["NuGet.Config"], {"backend"}),
@@ -86,6 +90,76 @@ class ProjectSelectionTests(unittest.TestCase):
         self.assertEqual(self.selected("mobilni-aplikace/new-adapter/config.custom"), {"web", "ios", "site"})
         self.assertEqual(self.selected("backend/new-feature/custom.input"), {"backend"})
         self.assertEqual(self.selected("contracts/new-contract.custom"), {"backend", "firmware", "web", "ios", "site"})
+
+    def test_shared_build_inputs_and_unknown_root_files_never_select_zero_checks(self):
+        for path in ("Directory.Build.targets", "Directory.Packages.props"):
+            with self.subTest(path=path):
+                self.assertEqual(self.selected(path), {"backend"})
+        conservative = {"repository", "backend", "firmware", "web", "ios", "site"}
+        self.assertEqual(self.selected("new-root-tooling.toml"), conservative)
+        self.assertEqual(self.selected("shared-build/config.toml"), conservative)
+        self.assertEqual(self.selected("backend/Program.cs", "new-root-tooling.toml"), conservative)
+        self.assertEqual(self.selected("new-root-tooling.toml", "backend/Program.cs"), conservative)
+
+    def test_native_stack_membership_uses_github_order_and_exact_candidate(self):
+        from select_projects import verify_native_stack
+        stacks = [{
+            "id": 9876543, "number": 42, "base": {"ref": "main"},
+            "pull_requests": [
+                {"number": 70, "head": {"ref": "layer-one", "sha": "a" * 40}},
+                {"number": 71, "head": {"ref": "layer-two", "sha": "b" * 40}},
+            ],
+        }]
+        response = BytesIO(json.dumps(stacks).encode())
+        trunk = BytesIO(json.dumps({"commit": {"sha": "c" * 40}}).encode())
+        with patch("select_projects.urllib.request.urlopen", side_effect=[response, trunk]) as open_url:
+            result = verify_native_stack("owner/repo", 71, "layer-two", "b" * 40, 42, 2, 2,
+                                         "main", "c" * 40, "token", ancestor_check=lambda *_: True)
+        self.assertEqual(result["id"], 9876543)
+        self.assertRegex(result["candidate_revision"], r"^[0-9a-f]{64}$")
+        request = open_url.call_args.args[0]
+        self.assertIn("branches/main", request.full_url)
+        self.assertEqual(request.get_header("Authorization"), "Bearer token")
+        self.assertIn("pull_request=71", open_url.call_args_list[0].args[0].full_url)
+
+    def test_native_stack_rejects_a_lower_head_not_ancestor_of_event_head(self):
+        from select_projects import verify_native_stack
+        stack = {"id": 9, "number": 42, "base": {"ref": "main"}, "pull_requests": [
+            {"number": 70, "head": {"ref": "layer-one", "sha": "a" * 40}},
+            {"number": 71, "head": {"ref": "layer-two", "sha": "b" * 40}},
+        ]}
+        with patch("select_projects.urllib.request.urlopen", side_effect=[
+                BytesIO(json.dumps([stack]).encode()),
+                BytesIO(json.dumps({"commit": {"sha": "c" * 40}}).encode())]):
+            with self.assertRaisesRegex(ValueError, "lower native stack layer"):
+                verify_native_stack("owner/repo", 71, "layer-two", "b" * 40, 42, 2, 2,
+                                    "main", "c" * 40, "token", ancestor_check=lambda *_: False)
+
+    def test_native_stack_verification_rejects_unregistered_or_stale_candidates(self):
+        from select_projects import verify_native_stack
+        stack = {"id": 9, "number": 42, "base": {"ref": "main"}, "pull_requests": [
+            {"number": 71, "head": {"ref": "layer-two", "sha": "b" * 40}},
+        ]}
+        cases = [[], [stack, stack], [{**stack, "number": 43}],
+                 [{**stack, "pull_requests": [{"number": 72, "head": {"ref": "other", "sha": "b" * 40}}]}]]
+        for payload in cases:
+            with self.subTest(payload=payload):
+                with patch("select_projects.urllib.request.urlopen", side_effect=[BytesIO(json.dumps(payload).encode())]):
+                    with self.assertRaises(ValueError):
+                        verify_native_stack("owner/repo", 71, "layer-two", "b" * 40, 42, 1, 1,
+                                            "main", "c" * 40, "token")
+
+    def test_native_stack_verification_rejects_a_moved_trunk(self):
+        from select_projects import verify_native_stack
+        stack = {"id": 9, "number": 42, "base": {"ref": "main"}, "pull_requests": [
+            {"number": 71, "head": {"ref": "layer-two", "sha": "b" * 40}},
+        ]}
+        with patch("select_projects.urllib.request.urlopen", side_effect=[
+                BytesIO(json.dumps([stack]).encode()),
+                BytesIO(json.dumps({"commit": {"sha": "d" * 40}}).encode())]):
+            with self.assertRaisesRegex(ValueError, "trunk changed"):
+                verify_native_stack("owner/repo", 71, "layer-two", "b" * 40, 42, 1, 1,
+                                    "main", "c" * 40, "token")
 
     def test_workflow_changes_select_only_the_corresponding_build(self):
         self.assertEqual(self.selected(".github/workflows/kufr-firmware.yml"), {"repository", "firmware"})
@@ -171,6 +245,32 @@ class ProjectSelectionTests(unittest.TestCase):
                 self.assertEqual(set(changed_paths(base, head)),
                                  {"firmware/source.cpp", "mobilni-aplikace/source.cpp"})
 
+    def test_native_trunk_diff_preserves_changes_canceled_against_event_base(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def git(*arguments):
+                return subprocess.check_output(["git", "-C", folder, *arguments], stderr=subprocess.DEVNULL).decode().strip()
+            git("init")
+            git("config", "user.name", "CI test")
+            git("config", "user.email", "ci@example.invalid")
+            source = Path(folder) / "backend/source.cs"
+            source.parent.mkdir(parents=True)
+            source.write_text("trunk\n")
+            git("add", ".")
+            git("commit", "-m", "trunk")
+            trunk = git("rev-parse", "HEAD")
+            source.write_text("lower\n")
+            git("commit", "-am", "old lower")
+            event_base = git("rev-parse", "HEAD")
+            source.write_text("new lower\n")
+            git("commit", "-am", "current lower")
+            source.write_text("lower\n")
+            git("commit", "-am", "upper cancels lower amendment")
+            head = git("rev-parse", "HEAD")
+            original = subprocess.check_output
+            with patch("select_projects.subprocess.check_output", side_effect=lambda args: original(args, cwd=folder)):
+                self.assertEqual(changed_paths(event_base, head), [])
+                self.assertTrue(select_projects(changed_paths(trunk, head))["backend"])
+
     def test_git_diff_keeps_deleted_native_inputs(self):
         with tempfile.TemporaryDirectory() as folder:
             def git(*arguments):
@@ -208,6 +308,13 @@ class ProjectSelectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             check_results({}, jobs)
 
+    def test_check_command_reports_missing_selection_after_selection_failure(self):
+        with patch("sys.argv", ["select_projects.py", "check"]), patch.dict(
+            "os.environ", {"SELECTED_PROJECTS": "{}", "RESULTS": '{"changes":{"result":"failure"}}'}
+        ):
+            with self.assertRaisesRegex(ValueError, "Missing or invalid project selection"):
+                main()
+
     def test_selected_ios_cannot_be_skipped_or_fail_the_required_gate(self):
         selected = {name: "true" if name == "ios" else "false" for name in PROJECTS}
         jobs = {name: {"result": "success" if name == "ios" else "skipped"} for name in PROJECTS}
@@ -224,6 +331,13 @@ class ProjectSelectionTests(unittest.TestCase):
         jobs = {name: {"result": "skipped"} for name in PROJECTS}
         jobs["changes"] = {"result": "success"}
         check_results(selected, jobs)
+        with self.assertRaisesRegex(ValueError, "native stack proof"):
+            check_results(selected, jobs, "a" * 64)
+        jobs["stack-proof"] = {"result": "success"}
+        check_results(selected, jobs, "a" * 64)
+        jobs["stack-proof"] = {"result": "skipped"}
+        with self.assertRaisesRegex(ValueError, "native stack proof"):
+            check_results(selected, jobs, "a" * 64)
 
     def test_every_selected_project_rejects_non_success_and_missing_results(self):
         selected = dict.fromkeys(PROJECTS, "true")

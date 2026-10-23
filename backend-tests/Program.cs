@@ -33,6 +33,12 @@ if (args is ["--persona-provider-soak", var seconds])
 }
 if (args is ["--model-releases"]) { await ModelReleaseTests.RunAsync(); return; }
 if (args is ["--account-deletion"]) { await AccountIdentityTests.RunAccountDeletionAsync(); await AccountIdentityTests.RunAccountDeletionHttpAsync(); return; }
+if (args is ["--keepsake-owner-authorization"])
+{
+    await KeepsakeOwnerAuthorizationTests.RunAsync();
+    await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();
+    return;
+}
 if (args is ["--identity"])
 {
     await AccountIdentityTests.RunAsync();
@@ -107,6 +113,8 @@ ChronicleTests.Run();
 OfflineOutcomeTests.Run();
 await DuelTests.RunAsync();
 await KeepsakeCoreTests.RunAsync();
+await KeepsakeOwnerAuthorizationTests.RunAsync();
+await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();
 KeepsakeOutcomeJournalTests.Run();
 FirmwareReleaseTests.Run();
 CharacterDirectorTests.Run();

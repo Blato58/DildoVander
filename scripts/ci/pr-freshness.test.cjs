@@ -130,3 +130,77 @@ test('PR event reconciles every PR for its target when pending events are replac
   assert.ok(visited.includes(8));
   assert.ok(calls.some(call => call[0] === 'dispatch'));
 });
+
+function nativeFixture() {
+  const setup = fixture(); setup.fresh();
+  const { api, pr } = setup;
+  pr.base = { ref: 'lower', sha: sha('b') };
+  pr.stack = { id: 1, number: 9, position: 2, size: 2, base: { ref: 'main', sha: sha('d') } };
+  api.context.eventName = 'pull_request';
+  api.context.payload.pull_request = structuredClone(pr);
+  api.context.payload.pull_request.base.sha = sha('c');
+  const stack = { id: 1, number: 9, base: { ref: 'main' }, pull_requests: [
+    { number: 6, head: { ref: 'lower', sha: sha('b') } },
+    { number: 7, head: structuredClone(pr.head) },
+  ] };
+  api.github.rest.pulls.get = async () => ({ data: structuredClone(pr) });
+  api.github.rest.repos.getBranch = async ({ branch }) => ({ data: {
+    commit: { sha: branch === 'main' ? sha('d') : sha('b') },
+  } });
+  api.github.request = async () => ({ data: [structuredClone(stack)] });
+  return { ...setup, stack, args: { number: '7', head: sha('a'), base: sha('c') } };
+}
+
+test('native push accepts historical immediate base only with unchanged exact prefix and both bases in head', async () => {
+  const { api, calls, args } = nativeFixture();
+  const comparisons = [];
+  api.github.rest.repos.compareCommits = async input => {
+    comparisons.push(input); return { data: { behind_by: 0 } };
+  };
+  const result = await check(api, args);
+  assert.equal(result.base, sha('b'));
+  assert.deepEqual(comparisons.map(item => item.base), [sha('b'), sha('c'), sha('b')]);
+  assert.deepEqual(calls, []);
+});
+
+test('native historical base rejects unrelated contexts, cohort changes and non-ancestor event base', async () => {
+  const changes = [
+    f => { f.api.context.eventName = 'workflow_dispatch'; },
+    f => { f.api.context.payload.pull_request.stack.id = 2; },
+    f => { f.api.context.payload.pull_request.stack.position = 1; },
+    f => { f.api.context.payload.pull_request.stack.size = 3; },
+    f => { f.api.context.payload.pull_request.stack.base.sha = sha('e'); },
+    f => { f.api.context.payload.pull_request.base.ref = 'other'; },
+    f => { f.api.context.payload.pull_request.head.ref = 'other'; },
+    f => { f.api.context.payload.pull_request.head.repo.full_name = 'fork/repo'; },
+    f => { f.pr.head.repo.full_name = 'fork/repo'; },
+    f => { f.stack.pull_requests.reverse(); },
+    f => { f.stack.pull_requests[0].head.sha = sha('e'); },
+    f => { f.api.github.rest.repos.compareCommits = async ({ base }) =>
+      ({ data: { behind_by: base === sha('c') ? 1 : 0 } }); },
+    f => { f.api.github.rest.repos.getBranch = async () => ({ data: { commit: { sha: sha('b') } } }); },
+  ];
+  for (const change of changes) {
+    const setup = nativeFixture(); change(setup);
+    await assert.rejects(check(setup.api, setup.args));
+    assert.deepEqual(setup.calls, []);
+  }
+});
+
+test('native historical base rejects lower prefix, head and branch races on stable reread', async () => {
+  for (const change of [
+    f => { f.stack.pull_requests[0].head.sha = sha('e'); },
+    f => { f.stack.pull_requests[0].number = 5; },
+    f => { f.pr.head.sha = sha('e'); },
+    f => { f.pr.base.ref = 'other'; },
+    f => { f.pr.stack.base.sha = sha('e'); },
+  ]) {
+    const setup = nativeFixture(); let reads = 0;
+    setup.api.github.rest.pulls.get = async () => {
+      if (++reads === 2) change(setup);
+      return { data: structuredClone(setup.pr) };
+    };
+    await assert.rejects(check(setup.api, setup.args));
+    assert.deepEqual(setup.calls, []);
+  }
+});

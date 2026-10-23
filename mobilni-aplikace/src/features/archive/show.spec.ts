@@ -206,7 +206,7 @@ describe('shared guest Show Pack screens', () => {
   it('associated accounts receive public fiction with an honest owner-only prophecy boundary and no guest fallback', async () => {
     account.value = { id: other, displayName: 'Čtenář', roles: ['Viewer'] };
     const fetchMock = vi.fn(async () => { throw new Error('Account view must not fall back to owner cookies'); }); vi.stubGlobal('fetch', fetchMock);
-    vi.mocked(accountTransport).mockResolvedValue(Response.json({ ...keepsake, readOnly: true, accountLinked: true, wizardIdentities: [identity], prophecies: [{ editionId: id, state: 'revealed', unlockAt: 'past', revelation: 'Private owner wording' }] }));
+    vi.mocked(accountTransport).mockResolvedValue(Response.json({ ...keepsake, readOnly: true, accountLinked: true, accessKind: 'linkedViewer', canManage: false, canReadPrivate: false, canUnlink: true, uploads: [], wizardIdentities: [identity], prophecies: [{ editionId: id, state: 'revealed', unlockAt: 'past', revelation: 'Private owner wording' }] }));
     const { wrapper } = await render(KeepsakeView, `/keepsake/?k=${id}&account=1`);
     expect(wrapper.text()).toContain('<script>mág</script>'); expect(wrapper.text()).toContain('Soukromé proroctví je dostupné jen vlastníkovi');
     expect(wrapper.text()).not.toContain('Private owner wording'); expect(wrapper.findAll('button').some(button => button.text().startsWith('Vytvořit kouzelnickou'))).toBe(false);

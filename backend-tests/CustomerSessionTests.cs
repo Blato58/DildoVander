@@ -68,13 +68,22 @@ internal static class CustomerSessionTests
         {
             Check(journal.CustomerSession(winner.Id)!.State == "recovering", "restart retains uncertain start as recovering");
             Check(journal.ActiveCustomerSession("device-a")!.Id == winner.Id, "restart preserves physical device ownership");
+            Check(!journal.RequestCustomerEnd(winner.Id, "unrelated-account"),
+                "another account cannot request end for a recovered session");
+            Check(journal.RequestCustomerEnd(winner.Id, winner.OwnerId),
+                "recovered session owner can request end");
+            var ending = journal.CustomerSession(winner.Id)!;
+            Check(ending.State == "recovering" && ending.EndRequested,
+                "owner end request records intent without settling uncertain runtime state");
+            Check(journal.ActiveCustomerSession("device-a")!.Id == winner.Id,
+                "recovered device lease remains held after owner end request");
             var newBoot = Guid.NewGuid().ToString("D");
             journal.RegisterCustomerChallenge("device-a", Challenge(newBoot));
             Expect("device_epoch_mismatch", () => journal.ReportCustomerState("device-a", winner.Id, new(boot, "running")));
             Expect("device_epoch_mismatch", () => journal.ReportCustomerIdle("device-a", boot));
             journal.ReportCustomerIdle("device-a", newBoot);
             Check(journal.CustomerSession(winner.Id)!.State == "failed" && journal.ActiveCustomerSession("device-a") is null,
-                "authenticated physical idle at a fresh boot reconciles the previous owner without replay");
+                "authenticated physical idle at a fresh boot reconciles the recovered owner and releases its lease");
         }
     }
 

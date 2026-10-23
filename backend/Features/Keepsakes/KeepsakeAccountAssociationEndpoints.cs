@@ -26,17 +26,22 @@ internal static partial class KeepsakeEndpoints
         });
     }
 
-    internal static object ProjectForAccount(KeepsakeView view) => new
+    internal static object ProjectForAccount(KeepsakeView view, bool originalOwner = false)
     {
-        schemaVersion = 1, locator = view.Id, view.Revision, view.RetentionMode, state = view.State,
-        readOnly = true, accountLinked = true, sharedEditionId = (string?)null,
-        view.WizardIdentities, prophecies = (object?)null,
-        snapshot = new { view.Snapshot.OfficialName, view.Snapshot.CatalogId, view.Snapshot.CatalogVersion, view.Snapshot.Slot },
-        editions = view.Editions.Select(edition => new { edition.Id, edition.Story, edition.ArtworkAssetId, edition.Synthetic, edition.PublicationState, edition.CreatedAt }),
-        portraits = view.Portraits.Select(portrait => new { portrait.Id, portrait.EditionId, portrait.AssetId, portrait.Synthetic, portrait.CreatedAt }),
-        uploads = Array.Empty<object>(), jobs = Array.Empty<object>(),
-        assets = view.Assets.Select(asset => new { asset.Id, asset.Kind, asset.MediaType, asset.Length, asset.EditionId, asset.CreatedAt })
-    };
+        if (originalOwner) { return Project(view, "originalOwner"); }
+        return new
+        {
+            schemaVersion = 1, locator = view.Id, view.Revision, view.RetentionMode, state = view.State,
+            readOnly = true, accountLinked = true, sharedEditionId = (string?)null,
+            accessKind = "linkedViewer", canManage = false, canReadPrivate = false, canUnlink = true,
+            view.WizardIdentities, prophecies = (object?)null,
+            snapshot = new { view.Snapshot.OfficialName, view.Snapshot.CatalogId, view.Snapshot.CatalogVersion, view.Snapshot.Slot },
+            editions = view.Editions.Select(edition => new { edition.Id, edition.Story, edition.ArtworkAssetId, edition.Synthetic, edition.PublicationState, edition.CreatedAt }),
+            portraits = view.Portraits.Select(portrait => new { portrait.Id, portrait.EditionId, portrait.AssetId, portrait.Synthetic, portrait.CreatedAt }),
+            uploads = Array.Empty<object>(), jobs = Array.Empty<object>(),
+            assets = view.Assets.Select(asset => new { asset.Id, asset.Kind, asset.MediaType, asset.Length, asset.EditionId, asset.CreatedAt })
+        };
+    }
 
     private sealed record AccountAssociationRequest(int SchemaVersion, string TargetAccountId) : VersionRequest(SchemaVersion);
 }

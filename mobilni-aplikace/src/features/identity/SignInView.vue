@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { safeReturnPath } from '../../application/navigation';
 import { consumeEnrollment } from '../../application/guestClaim';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import AwField from '../../components/AwField.vue';
+import { defaultSignedInDestination } from '../customer/customerJourney';
 import { account, accountsEnabled, initialized, loading, signingOut, refreshIdentity, authenticatePasskey } from './session';
 const router = useRouter();
 const route = useRoute();
@@ -26,7 +26,10 @@ async function submit() {
   error.value = ''; busy.value = true;
   try {
     await authenticatePasskey(account.value ? 'reauth' : customerEnrollment.value ? 'customer-enroll' : enrollment.value ? 'enroll' : 'signin', token.value, customerEnrollment.value ? customerDisplayName.value : displayName.value);
-    token.value = ''; await router.replace(customerEnrollment.value ? '/me/character' : route.query.return ? safeReturnPath(route.query.return) : '/settings');
+    token.value = '';
+    await router.replace(customerEnrollment.value
+      ? '/me/character'
+      : defaultSignedInDestination(account.value, route.query.return));
   } catch (e) { error.value = e instanceof DOMException && e.name === 'NotAllowedError' ? 'Ověření bylo zrušeno nebo vypršelo. Můžete ho spustit znovu.' : (e as Error).message; }
   finally { busy.value = false; }
 }
