@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import SettingsView from './SettingsView.vue';
+import { nextTick } from 'vue';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 const api = vi.hoisted(() => ({
   request: vi.fn(),
   signOut: vi.fn(),
@@ -17,6 +19,8 @@ vi.mock('./session', async () => {
 });
 vi.mock('../../application/preferences', () => ({usePreferences: () => ({theme: 'lord-voldemort', themes: [{id: 'lord-voldemort', label: 'Stínový čaroděj'}, {id: 'olivander', label: 'Mistr hůlek'}]})}));
 beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   let name: string | null = null;
   api.setAccount({id: 'owner', displayName: 'Guest', roles: ['Owner']});
   api.setDeletionRequested(false);
@@ -26,6 +30,21 @@ beforeEach(() => {
   });
 });
 describe('credential naming settings', () => {
+  it('localizes shared account controls and keeps customer settings free of staff resources', async () => {
+    api.setAccount({id: 'customer', displayName: 'Guest', roles: ['Customer']});
+    const wrapper = mount(SettingsView, { props: { customerSurface: true }, global: { stubs: { AccountArchiveList: true, EveningPanel: true, RouterLink: { template: '<a><slot /></a>' } } } });
+    await flushPromises();
+    interfaceLanguagePreference.setLanguage('en');
+    await nextTick();
+    expect(wrapper.text()).toContain('Passkeys');
+    expect(wrapper.text()).toContain('Signed-in devices');
+    expect(wrapper.text()).toContain('The last key cannot be removed. Removing a key signs out other account sessions.');
+    expect(wrapper.text()).not.toContain('Assigned resources');
+    expect(wrapper.text()).not.toContain('Manage users and permissions');
+    expect(wrapper.findAll('h1')).toHaveLength(0);
+    wrapper.unmount();
+  });
+
   it('uses the fenced logout flow for the current installation', async () => {
     const wrapper = mount(SettingsView, {global: {stubs: {AccountArchiveList: true, EveningPanel: true, RouterLink: true}}});
     await flushPromises(); await wrapper.findAll('button').find(button => button.text() === 'Odhlásit toto zařízení')!.trigger('click'); await flushPromises();

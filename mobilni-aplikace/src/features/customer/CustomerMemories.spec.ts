@@ -14,6 +14,7 @@ vi.mock('./customerMemory', async importOriginal => ({
 }));
 import CustomerMemories from './CustomerMemories.vue';
 import { CustomerMemoryError } from './customerMemory';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 const fact = {
   id: '10000000-0000-4000-8000-000000000001', revision: 1, text: 'Modrá je moje oblíbená.',
@@ -32,6 +33,8 @@ function button(text: string) {
 }
 
 beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   api.read.mockReset().mockResolvedValue(list());
   api.mutate.mockReset().mockResolvedValue(undefined);
   api.setAccount('alice');
@@ -75,7 +78,7 @@ describe('personal memory controls', () => {
     expect(button('Opravit').attributes('disabled')).toBeDefined();
     window.dispatchEvent(new Event('online')); await flushPromises();
     expect(api.mutate).toHaveBeenCalledOnce();
-    await button('Obnovit seznam').trigger('click'); await flushPromises();
+    await button('Obnovit paměti').trigger('click'); await flushPromises();
     expect(button('Opravit').attributes('disabled')).toBeUndefined();
   });
 
@@ -93,6 +96,17 @@ describe('personal memory controls', () => {
     expect(wrapper.text()).not.toContain('Modrá je moje oblíbená.');
   });
 
+  it('reacts to English without losing forget consequences or the owner data warning', async () => {
+    api.read.mockResolvedValue(list([fact]));
+    wrapper = mount(CustomerMemories); await flushPromises();
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(wrapper.text()).toContain('My memories');
+    expect(wrapper.text()).toContain('Personal facts that are currently available to this account. Memories are not automatically deleted.');
+    await button('Forget').trigger('click');
+    expect(wrapper.text()).toContain('Forget this memory and all its previous versions? This change cannot be undone.');
+  });
+
   it('blocks offline actions and refreshes on return without retrying a write', async () => {
     wrapper = mount(CustomerMemories); await flushPromises();
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
@@ -108,7 +122,7 @@ describe('personal memory controls', () => {
   it('removes prior private content after access is revoked', async () => {
     wrapper = mount(CustomerMemories); await flushPromises();
     api.read.mockRejectedValueOnce(new CustomerMemoryError('memory_unavailable', 404));
-    await button('Obnovit seznam').trigger('click'); await flushPromises();
+    await button('Obnovit paměti').trigger('click'); await flushPromises();
     expect(wrapper.text()).not.toContain('Modrá je moje oblíbená.');
     expect(wrapper.text()).toContain('Přístup k pamětem už není dostupný');
     expect(api.mutate).not.toHaveBeenCalled();

@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 // Paid provider diagnostic is explicit and never part of normal offline CI.
 if (args is ["--customer-data-browser-fixture"]) { await AccountIdentityTests.RunCustomerDataBrowserFixtureAsync(); return; }
 if (args is ["--customer-waiting-http"]) { await AccountIdentityTests.RunCustomerWaitingHttpAsync(); return; }
+if (args is ["--customer-preferences"]) { await AccountIdentityTests.RunCustomerConversationPreferenceHttpAsync(); return; }
 if (args is ["--account-collection"])
 {
     await AccountCollectionTests.RunAsync();

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 const api = vi.hoisted(() => ({ request: vi.fn(), disconnect: vi.fn(), discover: vi.fn(), connect: vi.fn(), start: vi.fn(), status: vi.fn(), end: vi.fn(), supported: true, setAccount: vi.fn() }));
 vi.mock('../identity/session', async () => {
@@ -31,7 +32,7 @@ const router = async (path = '/me/conversation') => {
   await instance.push(path); await instance.isReady(); return instance;
 };
 
-afterEach(() => { vi.clearAllMocks(); api.disconnect.mockResolvedValue(undefined); api.supported = true; api.setAccount({ id: 'customer-1', displayName: 'Guest', roles: ['Customer'] }); vi.useRealTimers(); });
+afterEach(() => { vi.clearAllMocks(); api.disconnect.mockResolvedValue(undefined); api.supported = true; api.setAccount({ id: 'customer-1', displayName: 'Guest', roles: ['Customer'] }); interfaceLanguagePreference.setLanguage('cs'); vi.useRealTimers(); });
 
 describe('customer conversation', () => {
   it.each([false, true])('retires only a definitive rejected claim before a new explicit start (uncertain=%s)', async uncertain => {
@@ -644,7 +645,8 @@ describe('customer conversation', () => {
     await wrapper.get('#new-character-world').setValue('Star Book');
     await wrapper.get('dialog form').trigger('submit'); await flushPromises();
     expect(wrapper.get('dialog').element).toHaveProperty('open', true);
-    expect(wrapper.get('dialog [role="alert"]').text()).toContain('Profil se mezitím změnil');
+    expect(wrapper.get('dialog [role="alert"]').text()).toContain('Stav rozhovoru se nepodařilo načíst');
+    expect(wrapper.get('dialog [role="alert"]').text()).not.toContain('Profil se mezitím změnil');
     expect(wrapper.get('#character-name').element).toHaveProperty('value', 'Původní koncept');
     expect(wrapper.get('#new-character-name').element).toHaveProperty('value', 'Mira');
     expect(wrapper.get('#character-confirmation-title').text()).toBe('Luna');
@@ -670,6 +672,48 @@ describe('customer conversation', () => {
     await flushPromises();
     oldProfile.resolve({ profile }); await flushPromises();
     expect((wrapper.get('#character-name').element as HTMLInputElement).value).toBe('Mira');
+    wrapper.unmount();
+  });
+
+  it('switches the visible customer copy without changing consent or issuing requests', async () => {
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
+    api.discover.mockRejectedValue(new Error('permission_denied'));
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    await wrapper.get('#conversation-openai-consent').setValue(true);
+    await wrapper.get('#personal-memory-consent').setValue(true);
+    await wrapper.findAll('button').find(button => button.text() === 'Najít kufr poblíž')!.trigger('click');
+    await flushPromises();
+    const requestCount = api.request.mock.calls.length;
+    const startCount = api.start.mock.calls.length;
+    const discoveryCount = api.discover.mock.calls.length;
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Conversation with the suitcase');
+    expect(wrapper.text()).toContain('AI conversation consent');
+    expect(wrapper.text()).toContain('Allow Bluetooth access');
+    expect((wrapper.get('#conversation-openai-consent').element as HTMLInputElement).checked).toBe(true);
+    expect((wrapper.get('#personal-memory-consent').element as HTMLInputElement).checked).toBe(true);
+    expect(api.request).toHaveBeenCalledTimes(requestCount);
+    expect(api.start).toHaveBeenCalledTimes(startCount);
+    expect(api.discover).toHaveBeenCalledTimes(discoveryCount);
+    wrapper.unmount();
+  });
+
+  it('localizes the character form without saving or changing the optional AI choice', async () => {
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
+    await flushPromises();
+    expect((wrapper.get('#character-openai-consent').element as HTMLInputElement).checked).toBe(false);
+    const requestCount = api.request.mock.calls.length;
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(wrapper.text()).toContain('My character');
+    expect(wrapper.text()).toContain('Optional AI preparation');
+    expect((wrapper.get('#character-openai-consent').element as HTMLInputElement).checked).toBe(false);
+    expect(api.request).toHaveBeenCalledTimes(requestCount);
+    expect(api.request.mock.calls.some(call => call[1] === 'PUT')).toBe(false);
+    expect(api.start).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 

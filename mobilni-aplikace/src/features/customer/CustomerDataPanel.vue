@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch } from 'vue';
+import { customerCopy } from '../../application/customerCopy';
 import CustomerDataExports from './CustomerDataExports.vue';
 import CustomerMemories from './CustomerMemories.vue';
 
@@ -12,7 +13,7 @@ const expanded = ref(false);
 const instanceId = `customer-data-panel-${useId()}`;
 const headingId = `${instanceId}-title`;
 const contentId = `${instanceId}-content`;
-const disclosureLabel = computed(() => expanded.value ? 'Skrýt moje data' : 'Zobrazit moje data');
+const disclosureLabel = computed(() => customerCopy.text(expanded.value ? 'account-data.hide' : 'account-data.show'));
 
 watch(() => [props.accountId, props.eligible] as const, () => {
   expanded.value = false;
@@ -23,8 +24,8 @@ watch(() => [props.accountId, props.eligible] as const, () => {
   <section class="aw-card customer-data-panel" :aria-labelledby="headingId">
     <header class="customer-data-panel__header">
       <div>
-        <h2 :id="headingId">Moje data</h2>
-        <p>Přehled aktuálně dostupných osobních pamětí a možnost exportu údajů účtu.</p>
+        <h2 :id="headingId">{{ customerCopy.text('account-data.title') }}</h2>
+        <p>{{ customerCopy.text('account-data.intro') }}</p>
       </div>
       <button
         class="aw-button aw-button--secondary customer-data-panel__toggle"

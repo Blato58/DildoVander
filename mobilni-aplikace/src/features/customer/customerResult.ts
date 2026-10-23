@@ -1,3 +1,5 @@
+import type { CustomerCopyKey } from '../../application/customerCopy';
+
 /** Safe projection of the account-owned customer-session result endpoint. */
 
 export type CustomerResultState = 'pending' | 'processing' | 'partial' | 'ready' | 'failed' | 'unavailable';
@@ -15,6 +17,8 @@ export interface CustomerResultProjection {
   state: CustomerResultState;
   reason: CustomerResultReason | null;
   guidance: string;
+  /** Catalog key for reactive localization; it does not affect validity or server state. */
+  guidanceKey: CustomerCopyKey;
   shouldPoll: boolean;
   hasStory: boolean;
   hasArtwork: boolean;
@@ -45,6 +49,7 @@ export function projectCustomerResult(value: unknown, expectedSessionId: string)
     state: 'unavailable',
     reason: null,
     guidance: 'Stav památky se nepodařilo ověřit. Obnovte stav.',
+    guidanceKey: 'result.guidance-verification',
     shouldPoll: false,
     hasStory: false,
     hasArtwork: false,
@@ -88,12 +93,36 @@ export function projectCustomerResult(value: unknown, expectedSessionId: string)
     state,
     reason,
     guidance: guidanceFor(state, reason, readiness.hasStory === true),
+    guidanceKey: guidanceKeyFor(state, reason, readiness.hasStory === true),
     shouldPoll: readiness.shouldPoll === true && pollableStates.has(state),
     hasStory: readiness.hasStory === true,
     hasArtwork: readiness.hasArtwork === true,
     route,
     locator: route ? locator : null,
   };
+}
+
+function guidanceKeyFor(
+  state: CustomerResultState,
+  reason: CustomerResultReason | null,
+  hasStory: boolean,
+): CustomerCopyKey {
+  if (state === 'unavailable' || reason === 'result_unavailable') return 'result.guidance-unavailable';
+  if (reason === 'reconciliation_required') return 'result.guidance-reconciliation';
+  if (reason === 'generation_failed') {
+    return hasStory ? 'result.guidance-generation-failed-with-story' : 'result.guidance-generation-failed';
+  }
+  if (reason === 'awaiting_capacity') return 'result.guidance-capacity';
+  if (reason === 'paused_preparing') return 'result.guidance-paused';
+  if (reason === 'awaiting_result') return 'result.guidance-awaiting';
+
+  switch (state) {
+    case 'pending': return 'result.guidance-awaiting';
+    case 'processing': return 'result.guidance-processing';
+    case 'partial': return hasStory ? 'result.guidance-partial-with-story' : 'result.guidance-partial';
+    case 'ready': return 'result.guidance-ready';
+    case 'failed': return 'result.guidance-failed';
+  }
 }
 
 function guidanceFor(

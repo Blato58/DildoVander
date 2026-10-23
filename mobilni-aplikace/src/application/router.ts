@@ -5,6 +5,7 @@ export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'home', component: () => import('./HomeView.vue'), meta: { title: 'Domov' } },
+    { path: '/demo', name: 'customer-demo', component: () => import('../features/demo/CustomerDemo.vue'), meta: { title: 'Ukázkový příběh' } },
     { path: '/support', name: 'support', component: () => import('../features/information/SupportView.vue'), meta: { title: 'Podpora Wand Night Stand' } },
     { path: '/privacy', name: 'privacy', component: () => import('../features/information/PrivacyView.vue'), meta: { title: 'Ochrana soukromí' } },
     { path: '/account-deletion', name: 'account-deletion', component: () => import('../features/identity/AccountDeletionStatusView.vue'), meta: { title: 'Stav smazání účtu', private: true } },

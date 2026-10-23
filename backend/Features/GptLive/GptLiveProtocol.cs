@@ -31,7 +31,7 @@ internal static class GptLiveProtocol
         return new { type = "session.start", event_id = eventId, session = new
         {
             model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions
-                + "\n" + turn.CostumeContext,
+                + "\n" + turn.CostumeContext + RealtimeProtocol.TrustedPolicySuffix(turn),
             audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
             delegation = new { type = "client" }
         } };

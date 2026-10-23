@@ -1,4 +1,5 @@
 import { secureUuid } from '../../application/identifiers.mjs';
+import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
 import { accountTransport } from '../identity/session';
 
 export type CustomerWaitingAvailability = 'available' | 'busy' | 'recovering' | 'paused' | 'offline' | 'unknown';
@@ -102,19 +103,6 @@ const availabilityReasons = new Set([
   'runtime_identity_unverified', 'runtime_observation_stale', 'runtime_ready', 'runtime_offline',
   'runtime_unknown', 'lease_unknown',
 ]);
-const availabilityReasonText: Readonly<Record<string, string>> = {
-  lease_unresolved: 'Probíhá obnova předchozího rozhovoru.',
-  lease_occupied: 'Kufr právě obsluhuje jiný rozhovor.',
-  event_closed: 'Čekací seznam pro tuto událost je uzavřen.',
-  customer_mode_disabled: 'Čekací seznam nyní není otevřen.',
-  admission_paused: 'Přijímání do čekacího seznamu je pozastaveno.',
-  runtime_identity_unverified: 'Aktuální stav kufru se nepodařilo ověřit.',
-  runtime_observation_stale: 'Stav kufru je zastaralý. Obnovte jej.',
-  runtime_ready: 'Kufr je připraven.',
-  runtime_offline: 'Kufr je offline.',
-  runtime_unknown: 'Dostupnost kufru se ověřuje.',
-  lease_unknown: 'Dostupnost kufru se nepodařilo ověřit.',
-};
 const maxResponseBytes = 64 * 1024;
 const maxMetadataBytes = 1024;
 
@@ -316,26 +304,47 @@ function httpError(status: number): CustomerWaitingError {
   return new CustomerWaitingError('request-failed', status);
 }
 
-export function customerWaitingErrorText(error: unknown): string {
-  if (!(error instanceof CustomerWaitingError)) return 'Požadavek čekacího seznamu se nepodařilo ověřit. Obnovte stav.';
+export function customerWaitingErrorCopyKey(error: unknown): CustomerCopyKey {
+  if (!(error instanceof CustomerWaitingError)) return 'waiting.error.generic';
   switch (error.kind) {
-    case 'invalid-device': return 'Vybraný kufr není platný.';
-    case 'invalid-response': return 'Server vrátil neplatný stav čekacího seznamu. Obnovte jej později.';
-    case 'invalid-proximity': return 'Znovu ověřte blízkost kufru a zkuste akci znovu.';
-    case 'unauthenticated': return 'Přihlášení vypršelo. Přihlaste se a obnovte stav čekacího seznamu.';
-    case 'not-found': return 'Událost nebo vaše místo už nejsou dostupné. Obnovte stav.';
-    case 'conflict': return 'Stav čekacího seznamu se změnil. Obnovte jej před dalším pokusem.';
-    case 'capacity': return 'Čekací seznam je nyní plný. Zkuste to později.';
-    case 'busy': return 'Server právě nemůže požadavek zpracovat. Obnovte stav.';
-    case 'offline': return 'Pro práci s čekacím seznamem se připojte k internetu.';
-    case 'pending-command': return 'Předchozí požadavek čeká na ověření. Obnovte stav a použijte stejnou akci.';
-    case 'metadata-invalid': return 'Uložený stav požadavku nelze bezpečně ověřit. Obnovte stav a zkuste to znovu.';
-    case 'request-failed': return 'Požadavek čekacího seznamu se nepodařilo dokončit. Obnovte stav.';
+    case 'invalid-device': return 'waiting.error.invalid-device';
+    case 'invalid-response': return 'waiting.error.invalid-response';
+    case 'invalid-proximity': return 'waiting.error.invalid-proximity';
+    case 'unauthenticated': return 'waiting.error.unauthenticated';
+    case 'not-found': return 'waiting.error.not-found';
+    case 'conflict': return 'waiting.error.conflict';
+    case 'capacity': return 'waiting.error.capacity';
+    case 'busy': return 'waiting.error.busy';
+    case 'offline': return 'waiting.error.offline';
+    case 'pending-command': return 'waiting.error.pending-command';
+    case 'metadata-invalid': return 'waiting.error.metadata-invalid';
+    case 'request-failed': return 'waiting.error.request-failed';
   }
 }
 
+export function customerWaitingErrorText(error: unknown): string {
+  return customerCopy.text(customerWaitingErrorCopyKey(error));
+}
+
+export function customerWaitingAvailabilityCopyKey(availability: CustomerWaitingAvailabilityView): CustomerCopyKey {
+  const reasonKeys: Readonly<Record<string, CustomerCopyKey>> = {
+    lease_unresolved: 'waiting.availability.lease-unresolved',
+    lease_occupied: 'waiting.availability.lease-occupied',
+    event_closed: 'waiting.availability.event-closed',
+    customer_mode_disabled: 'waiting.availability.mode-disabled',
+    admission_paused: 'waiting.availability.paused',
+    runtime_identity_unverified: 'waiting.availability.identity-unverified',
+    runtime_observation_stale: 'waiting.availability.stale',
+    runtime_ready: 'waiting.availability.ready',
+    runtime_offline: 'waiting.availability.offline',
+    runtime_unknown: 'waiting.availability.checking',
+    lease_unknown: 'waiting.availability.unknown',
+  };
+  return reasonKeys[availability.reason] ?? 'waiting.availability.unknown';
+}
+
 export function customerWaitingAvailabilityText(availability: CustomerWaitingAvailabilityView): string {
-  return availabilityReasonText[availability.reason] ?? 'Dostupnost kufru se nepodařilo ověřit.';
+  return customerCopy.text(customerWaitingAvailabilityCopyKey(availability));
 }
 
 export function parseCustomerWaitingSnapshot(value: unknown, deviceId: string): CustomerWaitingSnapshot {

@@ -1,6 +1,9 @@
+import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
+
 export interface CustomerSessionFeedback {
   message: string;
   diagnosticCode?: string;
+  copyKey?: CustomerCopyKey;
 }
 
 const feedbackByCode: Record<string, string> = {
@@ -44,6 +47,40 @@ const networkFailureMessages = new Set([
   'NetworkError when attempting to fetch resource.',
 ]);
 
+const copyKeyByCode: Readonly<Record<string, CustomerCopyKey>> = {
+  permission_denied: 'feedback.permission_denied',
+  bluetooth_off: 'feedback.bluetooth_off',
+  unsupported: 'feedback.unsupported',
+  customer_ble_unsupported: 'feedback.unsupported',
+  device_not_discovered: 'feedback.device_not_discovered',
+  connection_failed: 'feedback.connection_failed',
+  disconnected: 'feedback.disconnected',
+  network_unavailable: 'feedback.network_unavailable',
+  customer_session_requires_reconciliation: 'feedback.reconciliation',
+  requires_update: 'feedback.firmware',
+  unavailable: 'feedback.bluetooth-unavailable',
+  invalid_response: 'feedback.invalid-response',
+  write_failed: 'feedback.write-failed',
+  busy: 'feedback.busy',
+  cancelled: 'feedback.cancelled',
+  customer_session_unavailable: 'feedback.session-unavailable',
+  customer_mode_disabled: 'feedback.mode-disabled',
+  device_challenge_unavailable: 'feedback.challenge-unavailable',
+  customer_profile_revoked: 'feedback.profile-revoked',
+  character_not_found: 'feedback.profile-not-found',
+  character_revision_mismatch: 'feedback.profile-changed',
+  device_busy: 'feedback.device-busy',
+  start_ticket_expired: 'feedback.ticket-expired',
+  start_ticket_unavailable: 'feedback.ticket-unavailable',
+  start_ticket_revoked: 'feedback.ticket-unavailable',
+  start_ticket_limit: 'feedback.ticket-limit',
+  device_epoch_mismatch: 'feedback.epoch-mismatch',
+  openai_consent_required: 'feedback.consent-required',
+  device_manage_required: 'feedback.device-manage-required',
+  device_unavailable: 'feedback.device-unavailable',
+  staff_required: 'feedback.staff-required',
+};
+
 function candidateCode(error: unknown): string | undefined {
   if (typeof error === 'string') return error;
   if (!error || typeof error !== 'object') return undefined;
@@ -55,15 +92,22 @@ function candidateCode(error: unknown): string | undefined {
 export function projectCustomerSessionError(error: unknown): CustomerSessionFeedback {
   const candidate = candidateCode(error);
   if (candidate && Object.prototype.hasOwnProperty.call(feedbackByCode, candidate)) {
-    return { message: feedbackByCode[candidate], diagnosticCode: candidate };
+    const copyKey = copyKeyByCode[candidate];
+    return {
+      message: copyKey ? customerCopy.text(copyKey) : feedbackByCode[candidate],
+      diagnosticCode: candidate,
+      ...(copyKey ? { copyKey } : {}),
+    };
   }
 
   if ((error instanceof TypeError || error instanceof Error) && networkFailureMessages.has(error.message)) {
     return {
-      message: feedbackByCode.network_unavailable,
+      message: customerCopy.text('feedback.network_unavailable'),
       diagnosticCode: 'network_unavailable',
+      copyKey: 'feedback.network_unavailable',
     };
   }
 
-  return { message: 'Stav rozhovoru se nepodařilo načíst. Zkuste obnovit stav.' };
+  const copyKey = 'feedback.generic';
+  return { message: customerCopy.text(copyKey), copyKey };
 }

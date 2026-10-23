@@ -112,7 +112,9 @@ internal static partial class CustomerSessionEndpoints
             }
             var snapshot = guard.CaptureOwnedProfile(request.ProfileId, request.ProfileRevision);
             var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-            var captured = JsonSerializer.Serialize(new CustomerConversationSnapshot(snapshot, request.PersonalMemoryConsent, OpenAiConsent: true), Json);
+            var preferences = guard.CaptureConversationPreferences(request.ProfileId, request.ProfileRevision);
+            var captured = JsonSerializer.Serialize(new CustomerConversationSnapshot(snapshot, request.PersonalMemoryConsent,
+                OpenAiConsent: true, Preferences: preferences), Json);
             var protectedToken = protector.Protect(token);
             CustomerTicketRecord Issue() => journal.IssueCustomerTicket(owner, request, captured,
                 OperationJournal.CustomerHash(token), protectedToken, guard.ValidateCurrent);
@@ -261,16 +263,19 @@ internal static partial class CustomerSessionEndpoints
             // The waiting memory reservation has ended before Create acquires
             // conversation -> memory -> journal. Identity/profile guards remain.
             var challenge = journal.CustomerChallenge(device)!;
+            var captured = JsonSerializer.Deserialize<CustomerConversationSnapshot>(session.Snapshot, Json)!;
+            if (captured.Preferences is { } preferences) { CustomerConversationPreferencePolicy.Validate(preferences); }
             var create = new CreateConversationRequest(device, Guid.Parse(session.BootId), challenge.Generation,
-                challenge.CatalogVersion, "cs-CZ", new(true, false), challenge.OperationEpoch);
+                challenge.CatalogVersion, captured.Preferences?.ConversationLanguage ?? "cs-CZ",
+                new(true, false), challenge.OperationEpoch);
             var bytes = JsonSerializer.SerializeToUtf8Bytes(create, Json);
-            var created = conversations.Create(device, Guid.Parse(session.OperationId), bytes, create, customerSessionId: session.Id);
+            var created = conversations.Create(device, Guid.Parse(session.OperationId), bytes, create,
+                customerSessionId: session.Id, customerPreferences: captured.Preferences);
             if (created.Response is null) { throw new CustomerSessionException(409, "device_busy"); }
             guard.ValidateCurrent();
             var guest = "account_" + OperationJournal.CustomerHash(session.OwnerId + ":" + session.ProfileId).ToLowerInvariant();
             if (evenings.GuestPermission(device, created.Response.ConversationId) is null)
             {
-                var captured = JsonSerializer.Deserialize<CustomerConversationSnapshot>(session.Snapshot, Json)!;
                 var bound = evenings.SetGuestPermission(device, created.Response.ConversationId, guest,
                     "verified_customer_account", true, captured.PersonalMemoryConsent, false, 0);
                 if (bound is null) { throw new CustomerSessionException(409, "guest_binding_conflict"); }
@@ -340,4 +345,7 @@ internal static partial class CustomerSessionEndpoints
     private sealed record CustomerModeChange(bool Enabled);
 }
 
-internal sealed record CustomerConversationSnapshot(CharacterConversationSnapshot Profile, bool PersonalMemoryConsent, bool OpenAiConsent = false);
+internal sealed record CustomerConversationSnapshot(CharacterConversationSnapshot Profile, bool PersonalMemoryConsent,
+    bool OpenAiConsent = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    CustomerConversationPreferenceSnapshot? Preferences = null);

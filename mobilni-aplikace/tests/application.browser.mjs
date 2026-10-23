@@ -96,6 +96,8 @@ try {
     }
     if (sessionAccount && url.pathname === '/app/v1/customer/admin/sessions') return json({ items: [] });
     if (sessionAccount && url.pathname === '/app/v1/customer/admin/characters') return json({ items: [] });
+    if (sessionAccount && url.pathname === '/app/v1/customer/completion-updates') return json({ schemaVersion: 1, items: [], nextCursor: null });
+    if (sessionAccount && /^\/app\/v1\/customer\/admin\/devices\/[^/]+\/waiting$/.test(url.pathname)) return json({ schemaVersion: 1, availability: { state: 'unknown', reason: 'runtime_unverified', fresh: false }, event: null, head: null, count: 0 });
     if (sessionAccount && url.pathname === '/app/v1/admin/users') return json({ users: [], grants: [] });
     if (sessionAccount && url.pathname === '/app/v1/archive/associations') return json({ items: [] });
     if (url.pathname.startsWith('/app/v1/')) return sessionAccount
@@ -116,6 +118,47 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'layout has no horizontal page overflow');
   };
 
+  // The public walkthrough is synthetic even for authenticated customer/staff
+  // visitors. App-wide session refresh may read identity; demo actions may not
+  // read private content or issue any request/command.
+  for (const identity of [null, { id: 'demo-customer', displayName: 'Ukázkový host', roles: ['Customer'] }, ownerAccount]) {
+    sessionAccount = identity;
+    const beforeDemo = requests.length;
+    await page.goto(origin + '/demo');
+    await hasHeading('Příběh bez připojení');
+    assert.equal(new URL(page.url()).pathname, '/demo');
+    const demo = page.locator('.customer-demo');
+    assert.match(await demo.innerText(), /Syntetická ukázka/);
+    await hasHeading('Poznejte postavu');
+    const next = demo.getByRole('button', { name: 'Další krok', exact: true });
+    await next.focus();
+    await page.keyboard.press('Enter');
+    await hasHeading('Ukázka rozhovoru');
+    await next.click();
+    await hasHeading('Ilustrativní návrh hůlky');
+    assert.equal(await demo.locator('dt').count(), 5);
+    await next.click();
+    await hasHeading('Náhled památky');
+    assert(await next.isDisabled());
+    await demo.getByRole('button', { name: 'Začít ukázku znovu', exact: true }).click();
+    await hasHeading('Poznejte postavu');
+    for (const theme of ['lord-voldemort', 'olivander']) {
+      await page.getByLabel('Vzhled aplikace').selectOption(theme);
+      await page.setViewportSize({ width: 320, height: 844 });
+      await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+      await fits();
+      assert(await next.isVisible());
+      await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+    }
+    assert(requests.slice(beforeDemo).every(request => request.method === 'GET'), 'demo never issues mutations');
+    assert(requests.slice(beforeDemo).filter(request => request.path.startsWith('/app/v1/')).every(request => request.path === '/app/v1/session'), 'demo never reads private customer/account content');
+    assert(requests.slice(beforeDemo).every(request => !/^\/(?:guest\/v1|v1)\//.test(request.path)), 'demo never accesses guest or device APIs');
+  }
+  sessionAccount = null;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + '/demo'); await hasHeading('Příběh bez připojení');
+  await page.screenshot({ path: path.join(screenshots, 'customer-demo-390.png'), fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin); await hasHeading(homeHeading());
   await fits(); await page.screenshot({ path: path.join(screenshots, 'home-desktop.png'), fullPage: true });
   await page.getByLabel('Vzhled aplikace').selectOption('olivander'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');

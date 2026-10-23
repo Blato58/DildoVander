@@ -55,7 +55,7 @@ internal sealed class CustomerAdmissionAuthority(IServiceScopeFactory scopes, Ch
 
 // Account -> character BEGIN IMMEDIATE reservations are not thread-affine.
 // Acquire these before awaiting memory admission; dispose later scopes first.
-internal sealed class CustomerAdmissionGuard : IDisposable, IAsyncDisposable
+internal sealed partial class CustomerAdmissionGuard : IDisposable, IAsyncDisposable
 {
     private readonly CustomerDataSqliteGuard account;
     private readonly CustomerDataSqliteGuard character;

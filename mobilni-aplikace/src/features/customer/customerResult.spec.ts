@@ -34,6 +34,7 @@ describe('customer session result projection', () => {
       sessionId,
       state: 'processing',
       shouldPoll: true,
+      guidanceKey: 'result.guidance-processing',
       route: `/keepsake/?account=1&k=${locator}`,
     });
   });
@@ -89,6 +90,7 @@ describe('customer session result projection', () => {
         valid: false,
         state: 'unavailable',
         guidance: 'Stav památky se nepodařilo ověřit. Obnovte stav.',
+        guidanceKey: 'result.guidance-verification',
         shouldPoll: false,
         route: null,
       });
@@ -136,6 +138,7 @@ describe('customer session result projection', () => {
       shouldPoll: false,
       hasStory: true,
       hasArtwork: false,
+      guidanceKey: 'result.guidance-generation-failed-with-story',
     });
     expect(result.guidance).toContain('Text památky je dostupný');
     expect(result.guidance).not.toMatch(/hotov|dokončen/i);
@@ -152,6 +155,7 @@ describe('customer session result projection', () => {
     }), sessionId);
 
     expect(result.shouldPoll).toBe(true);
+    expect(result.guidanceKey).toBe('result.guidance-reconciliation');
     expect(result.guidance).toContain('automaticky znovu nevytváří');
     expect(result).not.toHaveProperty('canRetry');
     expect(projectCustomerResult(response({ readiness: { state: 'ready', shouldPoll: true } }), sessionId).shouldPoll).toBe(false);
@@ -182,6 +186,7 @@ describe('customer session result projection', () => {
       hasStory: false,
       hasArtwork: false,
       guidance: 'Tato památka už není dostupná.',
+      guidanceKey: 'result.guidance-unavailable',
     });
   });
 

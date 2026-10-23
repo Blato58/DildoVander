@@ -163,8 +163,11 @@ internal sealed class CustomerDataGuardPrelude : IDisposable, IAsyncDisposable
                 }
                 sessions[index] = session with { ProfileRevoked = session.ProfileRevoked || deleted };
             }
-            var revision = Digest(new { access, sessions });
-            var inventory = new CustomerOwnershipInventory(access, Array.AsReadOnly(sessions), revision, true);
+            var preferences = admission.ReadExportConversationPreferences();
+            // Keep legacy proofs stable until an account explicitly saves preferences.
+            var revision = preferences is null ? Digest(new { access, sessions })
+                : Digest(new { access, sessions, preferences });
+            var inventory = new CustomerOwnershipInventory(access, Array.AsReadOnly(sessions), revision, true, preferences);
             var metadata = shared.ReadMetadata(access.AccountId, Deadline);
             ValidateCurrent();
             memoryAdmission.ValidateCurrent();

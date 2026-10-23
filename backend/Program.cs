@@ -177,6 +177,7 @@ app.UseAccountIdentity();
 app.MapAccountEndpoints();
 app.MapCustomerCharacters();
 app.MapCustomerSessions(includeSessionResults: keepsakeArchiveConfigured);
+app.MapCustomerConversationPreferences();
 app.MapTonightEndpoints();
 if (keepsakeArchiveConfigured)
 {

@@ -84,6 +84,25 @@ internal sealed record LivePromptSnapshot(string PersonalityId, string Version, 
     internal string CatalogVersion { get; init; } = "";
     internal string LoreVersion { get; init; } = "";
     internal string? PersonaRevisionId { get; init; }
+    internal string ConversationLanguage { get; init; } = "cs-CZ";
+    internal LivePromptSnapshot WithConversationPreferences(
+        Kufr.Backend.Features.Customers.CustomerConversationPreferenceSnapshot? preferences, string language)
+    {
+        if (preferences is null && language == "cs-CZ") { return this; }
+        var policy = preferences is null ? Options.Character
+            : Kufr.Backend.Features.Customers.CustomerConversationPreferencePolicy.Restrict(Options.Character, preferences);
+        var suffix = preferences is null ? "Conduct this conversation in English."
+            : new ConversationGuestToneState(Options.Character, preferences).Read().Instructions;
+        var instructions = Instructions + "\nTrusted application guest policy: " + suffix;
+        if (LiveTextBudget.UpperBound(instructions) > 16_384)
+        { throw new InvalidDataException("Guest conversation instructions exceed their bound."); }
+        return this with
+        {
+            Instructions = instructions,
+            Sha256 = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(instructions))),
+            Options = Options with { Character = policy }, ConversationLanguage = language
+        };
+    }
     internal static LivePromptSnapshot Create(string personality, GptLiveOptions options)
     {
         var policy = options.Policy(personality);

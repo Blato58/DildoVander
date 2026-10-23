@@ -13,8 +13,9 @@ import CustomerSessionResultCard from './CustomerSessionResultCard.vue';
 import CustomerWaiting from './CustomerWaiting.vue';
 import CustomerCompletionUpdates from './CustomerCompletionUpdates.vue';
 import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
+import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
 import { customerBle, type CustomerBleDevice, type CustomerBleStatus } from './customerBle';
-import { projectCustomerSessionError } from './customerSessionFeedback';
+import { projectCustomerSessionError, type CustomerSessionFeedback } from './customerSessionFeedback';
 import { SessionRecoveryController, type SessionRecoveryState } from './sessionRecovery';
 
 interface CharacterProfile {
@@ -43,16 +44,15 @@ const resultSession = computed(() => completedSessions.value.find(session => ses
   ?? completedSessions.value[0] ?? null);
 const busy = ref(false);
 const profileLoading = ref(false);
-const error = ref('');
-const errorDiagnosticCode = ref('');
-const notice = ref('');
+const errorFeedback = ref<CustomerSessionFeedback | null>(null);
+const noticeCopyKey = ref<CustomerCopyKey | null>(null);
 const devices = ref<CustomerBleDevice[]>([]);
 const connected = ref<CustomerBleStatus | null>(null);
 const selectedDevice = ref('');
 const personalMemoryConsent = ref(false);
 const enrichmentOpenAiConsent = ref(false);
 const newCharacterOpen = ref(false);
-const newCharacterError = ref('');
+const newCharacterError = ref<CustomerSessionFeedback | null>(null);
 const conversationOpenAiConsent = ref(false);
 const form = ref({ name: '', world: '', version: '', description: '', language: '' });
 let generation = 0;
@@ -76,12 +76,18 @@ const sessionRecovery = new SessionRecoveryController<SessionSnapshot>({
 });
 const sessionRecoveryFeedback = computed(() => projectCustomerSessionError(sessionRecoveryState.error));
 
-const headings: Record<string, string> = {
-  character: 'Moje postava', conversation: 'Rozhovor s kufrem', keepsakes: 'Moje památky', account: 'Můj účet',
-};
 const startInProgress = computed(() => sessions.value.some(isActiveSession));
-const characterStatusLabels: Record<string, string> = { saved: 'Uloženo bez AI přípravy', queued: 'Čeká na přípravu', running: 'Příprava probíhá', ready: 'Připraveno', needs_clarification: 'Potřebuje upřesnění', failed: 'Příprava se nezdařila' };
-const sessionStatusLabels: Record<string, string> = { starting: 'Kufr se připravuje', context_ready: 'Rozhovor se připravuje', running: 'Probíhá', completed: 'Dokončen', failed: 'Nepodařilo se spustit', recovering: 'Obnovuje se' };
+const paneTitleKeys: Record<string, CustomerCopyKey> = {
+  character: 'customer.character-pane', conversation: 'customer.conversation-pane', keepsakes: 'customer.keepsakes-pane', account: 'customer.account-pane',
+};
+const profileStatusKeys: Record<string, CustomerCopyKey> = {
+  saved: 'customer.status.saved', queued: 'customer.status.queued', running: 'customer.status.running', ready: 'customer.status.ready',
+  needs_clarification: 'customer.status.needs_clarification', failed: 'customer.status.failed',
+};
+const sessionStatusKeys: Record<string, CustomerCopyKey> = {
+  starting: 'customer.status.starting', context_ready: 'customer.status.context_ready', running: 'customer.status.session-running',
+  completed: 'customer.status.completed', failed: 'customer.status.session-failed', recovering: 'customer.status.recovering',
+};
 const enrichmentText = computed(() => {
   if (!profile.value?.enrichment) return '';
   if (typeof profile.value.enrichment === 'string') return profile.value.enrichment;
@@ -105,7 +111,10 @@ const evidenceSections = computed(() => {
       const url = typeof record.url === 'string' ? record.url : '';
       return [text, urls || url].filter(Boolean).join(' · ');
     }).filter(Boolean);
-    return lines.length ? [{ title: key === 'jobs' ? 'Příprava' : key === 'sources' ? 'Zdroje' : key === 'conversationIdeas' ? 'Nápady na rozhovor' : 'Ověřené body', lines }] : [];
+    const titleKey: CustomerCopyKey = key === 'jobs' ? 'customer.evidence-preparation'
+      : key === 'sources' ? 'customer.evidence-sources'
+        : key === 'conversationIdeas' ? 'customer.evidence-ideas' : 'customer.evidence-facts';
+    return lines.length ? [{ title: customerCopy.text(titleKey), lines }] : [];
   });
 });
 const clarificationText = computed(() => {
@@ -123,10 +132,10 @@ function resetPrivateState(): void {
   if (enrichmentTimer) clearTimeout(enrichmentTimer); enrichmentTimer = undefined;
   profile.value = null; sessions.value = []; devices.value = []; connected.value = null; profileLoading.value = Boolean(account.value);
   busy.value = false;
-  newCharacterOpen.value = false; newCharacterError.value = '';
+  newCharacterOpen.value = false; newCharacterError.value = null;
   resultSessionId.value = null;
   waitingClaim.value = undefined;
-  selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; requestedEndSessions.clear(); error.value = ''; errorDiagnosticCode.value = ''; notice.value = '';
+  selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; requestedEndSessions.clear(); errorFeedback.value = null; noticeCopyKey.value = null;
   form.value = { name: '', world: '', version: '', description: '', language: '' }; personalMemoryConsent.value = false; enrichmentOpenAiConsent.value = false; conversationOpenAiConsent.value = false;
   void Promise.resolve(customerBle.disconnect()).catch(() => {});
 }
@@ -144,7 +153,7 @@ async function loadProfile(epoch = generation): Promise<void> {
       language: result.profile?.userInput.language ?? '',
     };
     scheduleEnrichmentRefresh(epoch);
-  } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
+  } catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) profileLoading.value = false; }
 }
 
@@ -155,7 +164,7 @@ async function loadSessions(epoch = generation, signal = accountWorkController.s
   sessions.value = result.items.map(item => requestedEndSessions.has(item.id) ? { ...item, endRequested: true } : item);
   if (pendingOperationId.value && result.expiredOperations?.includes(pendingOperationId.value)) {
     pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false;
-    notice.value = 'Předchozí žádost vypršela dříve, než ji kufr přijal. Zkontrolujte připojení a stiskněte znovu „Promluvit s kufrem“ pro novou žádost.';
+    noticeCopyKey.value = 'customer.expired-start';
   }
   return result;
 }
@@ -173,7 +182,7 @@ async function refreshSessionSnapshot(signal: AbortSignal): Promise<SessionSnaps
     pendingTicketRequest.value = undefined;
     bleStartAttempted = false;
     try { await reconcileBle(epoch); }
-    catch (cause) { if (epoch === generation) error.value = projectCustomerSessionError(cause).message; }
+    catch (cause) { if (epoch === generation) showProjectedError(cause); }
   }
   for (const session of result.items) {
     if (isTerminal(session.state)) requestedEndSessions.delete(session.id);
@@ -183,8 +192,8 @@ async function refreshSessionSnapshot(signal: AbortSignal): Promise<SessionSnaps
 
 async function saveCharacter(newCharacter = false, draft?: NewCharacterDraft): Promise<void> {
   if (busy.value) return;
-  error.value = ''; notice.value = ''; busy.value = true; const epoch = generation;
-  newCharacterError.value = '';
+  errorFeedback.value = null; noticeCopyKey.value = null; busy.value = true; const epoch = generation;
+  newCharacterError.value = null;
   try {
     const input = draft ?? form.value;
     const expectedRevision = profile.value?.revision ?? 0;
@@ -206,11 +215,11 @@ async function saveCharacter(newCharacter = false, draft?: NewCharacterDraft): P
     }
     enrichmentOpenAiConsent.value = false;
     scheduleEnrichmentRefresh(epoch);
-    notice.value = newCharacter ? 'Nová postava byla založena. Historie předchozí postavy zůstává uložená.' : 'Profil postavy byl uložen.';
+    noticeCopyKey.value = newCharacter ? 'customer.saved-new-character' : 'customer.profile-saved';
   } catch (cause) {
     if (epoch === generation) {
-      if (newCharacter) newCharacterError.value = (cause as Error).message;
-      else error.value = (cause as Error).message;
+      if (newCharacter) newCharacterError.value = projectCustomerSessionError(cause);
+      else showProjectedError(cause);
     }
   }
   finally { if (epoch === generation) busy.value = false; }
@@ -218,7 +227,7 @@ async function saveCharacter(newCharacter = false, draft?: NewCharacterDraft): P
 
 function beginNewCharacter(): void {
   if (busy.value) return;
-  newCharacterError.value = '';
+  newCharacterError.value = null;
   newCharacterOpen.value = true;
 }
 function cancelNewCharacter(): void {
@@ -228,29 +237,29 @@ function cancelNewCharacter(): void {
 
 async function requestCorrection(): Promise<void> {
   if (!profile.value || !enrichmentOpenAiConsent.value) return;
-  error.value = ''; busy.value = true; const epoch = generation;
+  errorFeedback.value = null; busy.value = true; const epoch = generation;
   try {
     await accountRequest('/app/v1/customer/character/correction', 'POST', {
       expectedRevision: profile.value.revision, expectedProfileId: profile.value.profileId, openAiConsent: true,
     }, accountWorkController.signal);
-    if (epoch === generation) { enrichmentOpenAiConsent.value = false; notice.value = 'Označili jste, že tato postava není vaše. Příprava informací se obnoví.'; await refreshEnrichment(epoch); }
-  } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
+    if (epoch === generation) { enrichmentOpenAiConsent.value = false; noticeCopyKey.value = 'customer.not-my-profile'; await refreshEnrichment(epoch); }
+  } catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) busy.value = false; }
 }
 
 async function deleteCharacter(): Promise<void> {
-  if (!profile.value || !window.confirm('Smazat profil postavy? Historie rozhovorů zůstane zachována.')) return;
-  error.value = ''; busy.value = true; const epoch = generation;
+  if (!profile.value || !window.confirm(customerCopy.text('customer.delete-confirm'))) return;
+  errorFeedback.value = null; busy.value = true; const epoch = generation;
   try {
     await accountRequest('/app/v1/customer/character?expectedRevision=' + profile.value.revision + '&expectedProfileId=' + encodeURIComponent(profile.value.profileId), 'DELETE', undefined, accountWorkController.signal);
-    if (epoch === generation) { profile.value = null; form.value = { name: '', world: '', version: '', description: '', language: '' }; notice.value = 'Profil postavy byl smazán.'; }
-  } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
+    if (epoch === generation) { profile.value = null; form.value = { name: '', world: '', version: '', description: '', language: '' }; noticeCopyKey.value = 'customer.profile-deleted'; }
+  } catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) busy.value = false; }
 }
 
 async function discover(): Promise<void> {
-  error.value = ''; errorDiagnosticCode.value = ''; devices.value = []; connected.value = null;
-  if (!customerBle.supported()) { error.value = 'Bluetooth start je dostupný v instalované aplikaci pro iPhone. Safari nepodporuje tuto kufrovou funkci.'; return; }
+  errorFeedback.value = null; devices.value = []; connected.value = null;
+  if (!customerBle.supported()) { errorFeedback.value = { message: '', copyKey: 'customer.bluetooth-unsupported' }; return; }
   const epoch = generation; busy.value = true;
   try { const result = await customerBle.discover(); if (epoch === generation) devices.value = result.devices; }
   catch (cause) { if (epoch === generation) showProjectedError(cause); }
@@ -259,7 +268,7 @@ async function discover(): Promise<void> {
 
 async function connect(): Promise<void> {
   if (!selectedDevice.value) return;
-  error.value = ''; errorDiagnosticCode.value = ''; busy.value = true; const epoch = generation;
+  errorFeedback.value = null; busy.value = true; const epoch = generation;
   try { const status = await customerBle.connect(selectedDevice.value); if (epoch === generation) connected.value = status; }
   catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) busy.value = false; }
@@ -268,7 +277,7 @@ async function connect(): Promise<void> {
 async function startConversation(): Promise<void> {
   if (!profile.value || !connected.value || !connected.value.capabilities.customerStart
     || (!conversationOpenAiConsent.value && !pendingTicketRequest.value)) return;
-  error.value = ''; errorDiagnosticCode.value = ''; notice.value = ''; busy.value = true; const epoch = generation;
+  errorFeedback.value = null; noticeCopyKey.value = null; busy.value = true; const epoch = generation;
   // A retried operation keeps its ID; a rejected or unknown outcome is reconciled first.
   const hadPendingOperation = Boolean(pendingOperationId.value);
   const claim = waitingClaim.value;
@@ -276,7 +285,7 @@ async function startConversation(): Promise<void> {
       || claim.profileId !== profile.value.profileId || claim.deviceId !== connected.value.deviceId)) {
     waitingClaim.value = undefined;
     busy.value = false;
-    notice.value = 'Pozvánka do rozhovoru vypršela nebo patří jinému připojení. Ověřte znovu své místo ve frontě.';
+    noticeCopyKey.value = 'customer.expired-invitation';
     return;
   }
   const operationId = pendingOperationId.value ?? claim?.operationId ?? secureUuid(); pendingOperationId.value = operationId;
@@ -306,7 +315,7 @@ async function startConversation(): Promise<void> {
       // Once issuance is attempted, retries keep the original immutable consent-bearing body.
       if (!conversationOpenAiConsent.value) {
         pendingOperationId.value = undefined; bleStartAttempted = false;
-        notice.value = 'Souhlas s OpenAI byl odvolán před odesláním žádosti. Rozhovor jsme nespustili.';
+        noticeCopyKey.value = 'customer.consent-revoked';
         return;
       }
       request = {
@@ -336,7 +345,7 @@ async function startConversation(): Promise<void> {
       showProjectedError(cause);
       if (!bleStartAttempted && isDefinitiveTicketIssuerRejection(cause)) {
         pendingOperationId.value = undefined; pendingTicketRequest.value = undefined;
-        notice.value = 'Kufr odmítl žádost ještě před pokusem o připojení. Stiskněte znovu „Promluvit s kufrem“ pro novou žádost.';
+        noticeCopyKey.value = 'customer.ticket-rejected';
       }
       try { await loadSessions(epoch); await reconcileBle(epoch); } catch { /* Keep the original start error. */ }
       if (epoch === generation) scheduleSessionPoll(epoch);
@@ -349,15 +358,15 @@ function acceptWaitingClaim(value: { operationId: string; expiresAt: number; pro
       || value.expiresAt <= Math.floor(Date.now() / 1000) || pendingOperationId.value || busy.value
       || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.operationId)) return;
   waitingClaim.value = { ...value, deviceId: connected.value.deviceId };
-  notice.value = 'Jste na řadě. Po potvrzení souhlasu stiskněte „Promluvit s kufrem“.';
+  noticeCopyKey.value = 'customer.turn-ready';
 }
 
 async function endConversation(session: CustomerSession): Promise<void> {
-  error.value = ''; busy.value = true; const epoch = generation;
+  errorFeedback.value = null; busy.value = true; const epoch = generation;
   try {
     await accountRequest<{ state: string }>(`/app/v1/customer/sessions/${encodeURIComponent(session.id)}/end`, 'POST', undefined, accountWorkController.signal);
     if (epoch !== generation) return;
-    notice.value = 'Konec rozhovoru byl požádán.';
+    noticeCopyKey.value = 'customer.end-submitted';
     requestedEndSessions.add(session.id);
     if (session.state === 'recovering') {
       sessions.value = sessions.value.map(item => item.id === session.id ? { ...item, endRequested: true } : item);
@@ -375,7 +384,7 @@ async function refreshConversationStatus(): Promise<void> {
     ? await (sessionRecovery.setActive(true) ?? sessionRecovery.refresh())
     : await sessionRecovery.refresh();
   if (!result && pendingOperationId.value && !sessionRecoveryState.retrying) {
-    notice.value = 'Stav se stále ověřuje. Další pokus použije stejnou žádost.';
+    noticeCopyKey.value = 'customer.still-verifying';
   }
 }
 
@@ -418,9 +427,7 @@ function isActiveSession(session: CustomerSession): boolean {
   return Boolean(session.state) && !isTerminal(session.state);
 }
 function showProjectedError(cause: unknown): void {
-  const feedback = projectCustomerSessionError(cause);
-  error.value = feedback.message;
-  errorDiagnosticCode.value = feedback.diagnosticCode ?? '';
+  errorFeedback.value = projectCustomerSessionError(cause);
 }
 function isRecoveryVisible(): boolean {
   return pane.value === 'conversation' && Boolean(account.value) && document.visibilityState !== 'hidden';
@@ -464,76 +471,76 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="page-stack customer-page" :aria-labelledby="`customer-${pane}-title`">
-    <header><p class="eyebrow">Můj prostor</p><h1 :id="`customer-${pane}-title`">{{ headings[pane] ?? 'Můj prostor' }}</h1><p v-if="pane === 'character'">Vyberte postavu a její svět. Profil můžete uložit bez AI. Informace od OpenAI připravíme pouze s vaším souhlasem.</p><p v-else-if="pane === 'conversation'">Rozhovor spustíte ručně po připojení ke kufru.</p></header>
-    <AwNotice v-if="error" tone="warning" role="alert">{{ error }}<small v-if="errorDiagnosticCode"> Diagnostika: {{ errorDiagnosticCode }}</small></AwNotice>
-    <AwNotice v-if="notice" tone="info" role="status">{{ notice }}</AwNotice>
+    <header><p class="eyebrow">{{ customerCopy.text('customer.space') }}</p><h1 :id="`customer-${pane}-title`">{{ customerCopy.text(paneTitleKeys[pane] ?? 'customer.space') }}</h1><p v-if="pane === 'character'">{{ customerCopy.text('customer.character-header') }}</p><p v-else-if="pane === 'conversation'">{{ customerCopy.text('customer.conversation-header') }}</p></header>
+    <AwNotice v-if="errorFeedback" tone="warning" role="alert">{{ errorFeedback.copyKey ? customerCopy.text(errorFeedback.copyKey) : errorFeedback.message }}<small v-if="errorFeedback.diagnosticCode"> {{ customerCopy.text('customer.diagnostic', { code: errorFeedback.diagnosticCode }) }}</small></AwNotice>
+    <AwNotice v-if="noticeCopyKey" tone="info" role="status">{{ customerCopy.text(noticeCopyKey) }}</AwNotice>
 
-    <p v-if="pane === 'character' && profileLoading" role="status">Načítám váš profil…</p>
+    <p v-if="pane === 'character' && profileLoading" role="status">{{ customerCopy.text('customer.profile-loading') }}</p>
     <section v-if="pane === 'character' && !profileLoading" class="page-stack">
       <section v-if="profile" class="aw-card page-stack" aria-labelledby="character-confirmation-title">
         <h2 id="character-confirmation-title">{{ profile.userInput.name }}</h2>
         <p>{{ profile.userInput.world }}<span v-if="profile.userInput.version"> · {{ profile.userInput.version }}</span></p>
-        <p role="status">{{ characterStatusLabels[profile.status] ?? 'Stav se ověřuje' }} · Revize {{ profile.revision }}</p>
-        <p v-if="profile.status === 'saved'">Postava je uložená bez AI přípravy. Můžete pokračovat k rozhovoru.</p>
-        <AwNotice v-if="clarificationText" tone="info">Server potřebuje upřesnit některé informace: {{ clarificationText }}</AwNotice>
-        <RouterLink v-if="['saved', 'ready'].includes(profile.status) || startInProgress" class="aw-button aw-button--primary" to="/me/conversation">{{ startInProgress ? 'Vrátit se k rozhovoru' : 'Pokračovat k rozhovoru' }}</RouterLink>
-        <p class="aw-muted">Úprava níže zachová identitu a historii této postavy. Novou identitu vytvoříte samostatně.</p>
-        <AwButton type="button" variant="secondary" :disabled="busy" @click="beginNewCharacter">Nová postava</AwButton>
+        <p role="status">{{ customerCopy.text(profileStatusKeys[profile.status] ?? 'customer.status-unknown') }} · {{ customerCopy.text('customer.revision', { revision: profile.revision }) }}</p>
+        <p v-if="profile.status === 'saved'">{{ customerCopy.text('customer.saved-guidance') }}</p>
+        <AwNotice v-if="clarificationText" tone="info">{{ customerCopy.text('customer.clarification', { text: clarificationText }) }}</AwNotice>
+        <RouterLink v-if="['saved', 'ready'].includes(profile.status) || startInProgress" class="aw-button aw-button--primary" to="/me/conversation">{{ customerCopy.text(startInProgress ? 'customer.return-conversation' : 'customer.continue-conversation') }}</RouterLink>
+        <p class="aw-muted">{{ customerCopy.text('customer.correction-guidance') }}</p>
+        <AwButton type="button" variant="secondary" :disabled="busy" @click="beginNewCharacter">{{ customerCopy.text('customer.new-character') }}</AwButton>
       </section>
       <details :open="!profile || profile.status === 'needs_clarification'" class="aw-card">
-        <summary>{{ profile ? 'Upravit nebo upřesnit postavu' : 'Vytvořit první postavu' }}</summary>
+        <summary>{{ customerCopy.text(profile ? 'customer.edit-character' : 'customer.create-first') }}</summary>
     <form class="customer-form" @submit.prevent="saveCharacter(false)">
-      <AwField id="character-name" label="Jméno postavy"><input id="character-name" v-model="form.name" class="aw-input" maxlength="120" required /></AwField>
-      <AwField id="character-world" label="Film, seriál, hra nebo kniha"><input id="character-world" v-model="form.world" class="aw-input" maxlength="160" required /></AwField>
-      <AwField id="character-version" label="Verze nebo období (nepovinné)"><input id="character-version" v-model="form.version" class="aw-input" maxlength="120" /></AwField>
-      <AwField id="character-description" label="Co je pro vás důležité? (nepovinné)"><textarea id="character-description" v-model="form.description" class="aw-input" maxlength="1200" rows="4" /></AwField>
-      <AwField id="character-language" label="Jazyk (nepovinné)"><input id="character-language" v-model="form.language" class="aw-input" maxlength="35" /></AwField>
-      <AwField id="character-openai-consent" label="Volitelná příprava pomocí AI"><label><input id="character-openai-consent" v-model="enrichmentOpenAiConsent" type="checkbox" /> Souhlasím s odesláním jména postavy, jejího světa, verze, popisu a jazyka společnosti OpenAI pro přípravu informací a nápadů k rozhovoru, případně s vyhledáním veřejných zdrojů. Při opravě se odešle také předchozí výklad postavy.</label></AwField>
-      <p class="aw-muted">Bez zaškrtnutí profil uložíme bez odeslání k AI přípravě.</p>
-      <p v-if="profile" class="aw-muted">Stav přípravy: {{ characterStatusLabels[profile.status] ?? 'Stav se ověřuje' }}<span v-if="profile.errorCode"> · {{ profile.errorCode }}</span></p>
-      <AwNotice v-if="profile && clarificationText" tone="info">Server potřebuje upřesnit některé informace: {{ clarificationText }}</AwNotice>
+      <AwField id="character-name" :label="customerCopy.text('profile.name')"><input id="character-name" v-model="form.name" class="aw-input" maxlength="120" required /></AwField>
+      <AwField id="character-world" :label="customerCopy.text('profile.world')"><input id="character-world" v-model="form.world" class="aw-input" maxlength="160" required /></AwField>
+      <AwField id="character-version" :label="customerCopy.text('profile.version')"><input id="character-version" v-model="form.version" class="aw-input" maxlength="120" /></AwField>
+      <AwField id="character-description" :label="customerCopy.text('profile.description')"><textarea id="character-description" v-model="form.description" class="aw-input" maxlength="1200" rows="4" /></AwField>
+      <AwField id="character-language" :label="customerCopy.text('new-character.language')"><input id="character-language" v-model="form.language" class="aw-input" maxlength="35" /></AwField>
+      <AwField id="character-openai-consent" :label="customerCopy.text('profile.optional-ai-title')"><label><input id="character-openai-consent" v-model="enrichmentOpenAiConsent" type="checkbox" /> {{ customerCopy.text('customer.enrichment-consent') }}</label></AwField>
+      <p class="aw-muted">{{ customerCopy.text('customer.no-ai-save') }}</p>
+      <p v-if="profile" class="aw-muted">{{ customerCopy.text('customer.preparation-status') }}: {{ customerCopy.text(profileStatusKeys[profile.status] ?? 'customer.status-unknown') }}</p>
+      <AwNotice v-if="profile && clarificationText" tone="info">{{ customerCopy.text('customer.clarification', { text: clarificationText }) }}</AwNotice>
       <details v-if="enrichmentText || evidenceSections.length">
-        <summary>Podrobnosti přípravy a zdroje</summary>
+        <summary>{{ customerCopy.text('customer.preparation-details') }}</summary>
         <p v-if="enrichmentText" class="character-enrichment">{{ enrichmentText }}</p>
         <section v-for="section in evidenceSections" :key="section.title" class="aw-card"><h2>{{ section.title }}</h2><ul><li v-for="line in section.lines" :key="line">{{ line }}</li></ul></section>
       </details>
-      <div class="customer-actions"><AwButton type="submit" variant="primary" :busy="busy">{{ profile ? 'Uložit změny' : 'Vytvořit postavu' }}</AwButton><AwButton v-if="profile" type="button" :disabled="busy || !enrichmentOpenAiConsent" @click="requestCorrection">Tohle není moje postava</AwButton><AwButton v-if="profile" type="button" variant="danger" :disabled="busy" @click="deleteCharacter">Smazat profil</AwButton></div>
-      <p v-if="profile" class="aw-muted">Revize {{ profile.revision }}</p>
+      <div class="customer-actions"><AwButton type="submit" variant="primary" :busy="busy">{{ customerCopy.text(profile ? 'customer.save-changes' : 'customer.create-character') }}</AwButton><AwButton v-if="profile" type="button" :disabled="busy || !enrichmentOpenAiConsent" @click="requestCorrection">{{ customerCopy.text('customer.not-my-character') }}</AwButton><AwButton v-if="profile" type="button" variant="danger" :disabled="busy" @click="deleteCharacter">{{ customerCopy.text('customer.delete-profile') }}</AwButton></div>
+      <p v-if="profile" class="aw-muted">{{ customerCopy.text('customer.revision', { revision: profile.revision }) }}</p>
     </form>
       </details>
-      <RouterLink to="/me/account">Účet, souhlasy a pomoc s přístupem</RouterLink>
-      <NewCharacterDialog :open="newCharacterOpen" :busy="busy" :error="newCharacterError" :current-character-name="profile?.userInput.name" :active-session="startInProgress" @cancel="cancelNewCharacter" @confirm="draft => saveCharacter(true, draft)" />
+      <RouterLink to="/me/account">{{ customerCopy.text('customer.account-help') }}</RouterLink>
+      <NewCharacterDialog :open="newCharacterOpen" :busy="busy" :error="newCharacterError ? (newCharacterError.copyKey ? customerCopy.text(newCharacterError.copyKey) : newCharacterError.message) : ''" :current-character-name="profile?.userInput.name" :active-session="startInProgress" @cancel="cancelNewCharacter" @confirm="draft => saveCharacter(true, draft)" />
     </section>
 
     <section v-else-if="pane === 'conversation'" class="page-stack">
       <CustomerWaiting :device-id="connected?.deviceId ?? null" :profile-id="profile?.profileId ?? null" :proximity="connected ? { bootId: connected.bootId, challenge: connected.challenge } : null" @claim="acceptWaitingClaim" />
-      <AwNotice v-if="!customerBle.supported()" tone="info">Bluetooth připojení je dostupné v instalované aplikaci pro iPhone. Safari může zobrazit účet a památky, ale neumí připojit kufr.<br><a href="/ios/">Otevřít instalaci aplikace pro iPhone</a></AwNotice>
-      <div class="aw-card"><h2>Vaše postava</h2><p v-if="profile">{{ profile.userInput.name }} · {{ profile.userInput.world }} (revize {{ profile.revision }})</p><p v-else>Nejprve vytvořte postavu.</p><RouterLink to="/me/character">Upravit postavu</RouterLink></div>
-      <div class="aw-card customer-form"><h2>Připojení ke kufru</h2><p>Bluetooth se zapne až po stisknutí tlačítka. Připojení telefonu samo rozhovor nezastaví.</p>
-        <AwButton variant="primary" :disabled="busy || !profile || !customerBle.supported()" @click="discover">Najít kufr poblíž</AwButton>
-        <div v-if="devices.length" class="customer-actions"><label for="customer-device">Kufr</label><select id="customer-device" v-model="selectedDevice" class="aw-input"><option value="">Vyberte kufr</option><option v-for="device in devices" :key="device.id" :value="device.id">{{ device.name }}</option></select><AwButton :disabled="busy || !selectedDevice" @click="connect">Připojit</AwButton></div>
-        <p v-if="connected" role="status">{{ connected.state === 'running' ? 'Rozhovor právě probíhá' : connected.state === 'starting' ? 'Rozhovor se připravuje' : connected.state === 'idle' ? 'Kufr je připojený' : 'Stav kufru byl obnoven' }}</p>
-        <AwField id="conversation-openai-consent" label="Souhlas s AI rozhovorem"><label><input id="conversation-openai-consent" v-model="conversationOpenAiConsent" type="checkbox" /> Souhlasím s odesíláním zvuku mého hlasu, přepisu rozhovoru a kontextu postavy (jméno, svět, verze, popis, jazyk a připravené informace) společnosti OpenAI pro porozumění řeči a tvorbu hlasových odpovědí během tohoto rozhovoru.</label></AwField>
-        <p class="aw-muted">Bez tohoto souhlasu rozhovor nespustíme. Pokud níže povolíte soukromou kontinuitu, součástí kontextu pro OpenAI bude také povolená osobní paměť.</p>
-        <AwField id="personal-memory-consent" label="Soukromá kontinuita"><label><input id="personal-memory-consent" v-model="personalMemoryConsent" type="checkbox" /> Souhlasím s použitím mé ověřené osobní paměti v tomto rozhovoru</label></AwField>
-        <AwButton variant="primary" :busy="busy" :disabled="busy || !profile || !connected?.capabilities.customerStart || startInProgress || (!conversationOpenAiConsent && !pendingOperationId)" @click="startConversation">Promluvit s kufrem</AwButton>
-        <p v-if="pendingOperationId" role="status">Ověřujeme, zda kufr rozhovor přijal. Telefonní spojení rozhovor neukončuje.</p>
+      <AwNotice v-if="!customerBle.supported()" tone="info">{{ customerCopy.text('customer.bluetooth-unsupported') }}<br><a href="/ios/">{{ customerCopy.text('customer.install-app') }}</a></AwNotice>
+      <div class="aw-card"><h2>{{ customerCopy.text('profile.title') }}</h2><p v-if="profile">{{ profile.userInput.name }} · {{ profile.userInput.world }} ({{ customerCopy.text('customer.revision', { revision: profile.revision }) }})</p><p v-else>{{ customerCopy.text('customer.first-create') }}</p><RouterLink to="/me/character">{{ customerCopy.text('customer.edit-profile') }}</RouterLink></div>
+      <div class="aw-card customer-form"><h2>{{ customerCopy.text('customer.connection') }}</h2><p>{{ customerCopy.text('customer.bluetooth-manual') }}</p>
+        <AwButton variant="primary" :disabled="busy || !profile || !customerBle.supported()" @click="discover">{{ customerCopy.text('customer.find-suitcase') }}</AwButton>
+        <div v-if="devices.length" class="customer-actions"><label for="customer-device">{{ customerCopy.text('customer.suitcase') }}</label><select id="customer-device" v-model="selectedDevice" class="aw-input"><option value="">{{ customerCopy.text('customer.choose-suitcase') }}</option><option v-for="device in devices" :key="device.id" :value="device.id">{{ device.name }}</option></select><AwButton :disabled="busy || !selectedDevice" @click="connect">{{ customerCopy.text('customer.connect') }}</AwButton></div>
+        <p v-if="connected" role="status">{{ connected.state === 'running' ? customerCopy.text('customer.live-running') : connected.state === 'starting' ? customerCopy.text('customer.live-starting') : connected.state === 'idle' ? customerCopy.text('customer.live-idle') : customerCopy.text('customer.live-restored') }}</p>
+        <AwField id="conversation-openai-consent" :label="customerCopy.text('customer.consent-label')"><label><input id="conversation-openai-consent" v-model="conversationOpenAiConsent" type="checkbox" /> {{ customerCopy.text('customer.consent-copy') }}</label></AwField>
+        <p class="aw-muted">{{ customerCopy.text('customer.consent-required') }}</p>
+        <AwField id="personal-memory-consent" :label="customerCopy.text('customer.memory-label')"><label><input id="personal-memory-consent" v-model="personalMemoryConsent" type="checkbox" /> {{ customerCopy.text('customer.memory-consent') }}</label></AwField>
+        <AwButton variant="primary" :busy="busy" :disabled="busy || !profile || !connected?.capabilities.customerStart || startInProgress || (!conversationOpenAiConsent && !pendingOperationId)" @click="startConversation">{{ customerCopy.text('customer.start-conversation') }}</AwButton>
+        <p v-if="pendingOperationId" role="status">{{ customerCopy.text('customer.pending-start') }}</p>
       </div>
       <div class="aw-card session-recovery" aria-live="polite">
-        <p v-if="sessionRecoveryState.refreshing" role="status">Obnovuji stav rozhovorů…</p>
-        <p v-else-if="sessionRecoveryState.retrying" role="status">Spojení se serverem se obnovuje. Další pokus proběhne automaticky.</p>
+        <p v-if="sessionRecoveryState.refreshing" role="status">{{ customerCopy.text('customer.refreshing-sessions') }}</p>
+        <p v-else-if="sessionRecoveryState.retrying" role="status">{{ customerCopy.text('customer.retrying-sessions') }}</p>
         <AwNotice v-if="sessionRecoveryState.stale" tone="warning" role="alert">
-          {{ sessionRecoveryFeedback.message }}
-          <small v-if="sessionRecoveryFeedback.diagnosticCode"> Diagnostika: {{ sessionRecoveryFeedback.diagnosticCode }}</small>
+          {{ sessionRecoveryFeedback.copyKey ? customerCopy.text(sessionRecoveryFeedback.copyKey) : sessionRecoveryFeedback.message }}
+          <small v-if="sessionRecoveryFeedback.diagnosticCode"> {{ customerCopy.text('customer.diagnostic', { code: sessionRecoveryFeedback.diagnosticCode }) }}</small>
         </AwNotice>
-        <AwButton variant="secondary" :disabled="sessionRecoveryState.refreshing" @click="refreshConversationStatus">Obnovit stav rozhovoru</AwButton>
+        <AwButton variant="secondary" :disabled="sessionRecoveryState.refreshing" @click="refreshConversationStatus">{{ customerCopy.text('customer.refresh-sessions') }}</AwButton>
       </div>
-      <div v-for="session in sessions" :key="session.id" class="aw-card"><h2>{{ session.characterName || profile?.userInput.name || 'Rozhovor' }}</h2><p>Stav: {{ sessionStatusLabels[session.state] ?? 'Stav se ověřuje' }}</p><p>Začátek: {{ new Date(session.createdAt * 1000).toLocaleString('cs') }}</p><AwButton v-if="['running', 'starting', 'context_ready', 'recovering'].includes(session.state)" variant="secondary" :disabled="busy || session.endRequested" @click="endConversation(session)">{{ session.endRequested ? 'Konec požádán' : 'Ukončit rozhovor' }}</AwButton></div>
+      <div v-for="session in sessions" :key="session.id" class="aw-card"><h2>{{ session.characterName || profile?.userInput.name || customerCopy.text('customer.conversation') }}</h2><p>{{ customerCopy.text('customer.status-label', { status: customerCopy.text(sessionStatusKeys[session.state] ?? 'customer.status-unknown') }) }}</p><p>{{ customerCopy.text('customer.started-at', { date: new Date(session.createdAt * 1000).toLocaleString(interfaceLanguage === 'en' ? 'en-US' : 'cs-CZ') }) }}</p><AwButton v-if="['running', 'starting', 'context_ready', 'recovering'].includes(session.state)" variant="secondary" :disabled="busy || session.endRequested" @click="endConversation(session)">{{ customerCopy.text(session.endRequested ? 'customer.end-requested' : 'customer.end-conversation') }}</AwButton></div>
       <section v-if="resultSession" class="page-stack">
-        <AwField v-if="completedSessions.length > 1" id="result-session" label="Dokončený rozhovor">
+        <AwField v-if="completedSessions.length > 1" id="result-session" :label="customerCopy.text('customer.completed-conversation')">
           <select id="result-session" v-model="resultSessionId" class="aw-input">
-            <option :value="null">Nejnovější dokončený rozhovor</option>
-            <option v-for="session in completedSessions" :key="session.id" :value="session.id">{{ session.characterName || 'Rozhovor' }} · {{ new Date(session.createdAt * 1000).toLocaleString('cs') }}</option>
+            <option :value="null">{{ customerCopy.text('customer.latest-completed') }}</option>
+            <option v-for="session in completedSessions" :key="session.id" :value="session.id">{{ session.characterName || customerCopy.text('customer.conversation') }} · {{ new Date(session.createdAt * 1000).toLocaleString(interfaceLanguage === 'en' ? 'en-US' : 'cs-CZ') }}</option>
           </select>
         </AwField>
         <CustomerSessionResultCard :key="resultSession.id" :session-id="resultSession.id" />

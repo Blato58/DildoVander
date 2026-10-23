@@ -17,9 +17,9 @@ internal sealed class CharacterSession
     private long visualPermissionRevision;
     private bool visualAllowed;
     private string? currentImageSource;
-    private int toneLimit;
+    private readonly ICharacterToneState toneState;
 
-    internal CharacterSession(string sessionGeneration, CharacterPolicy policy, IReadOnlyList<string>? recentStyles = null)
+    internal CharacterSession(string sessionGeneration, CharacterPolicy policy, IReadOnlyList<string>? recentStyles = null, ICharacterToneState? toneState = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionGeneration);
         if (sessionGeneration.Length > 128 || !Enum.IsDefined(policy.HostTone) || !Enum.IsDefined(policy.FinaleProfile)
@@ -29,8 +29,7 @@ internal sealed class CharacterSession
         }
         SessionGeneration = sessionGeneration;
         Policy = policy;
-        Tone = policy.HostTone;
-        toneLimit = (int)policy.HostTone;
+        this.toneState = toneState ?? new CharacterToneState(policy.HostTone);
         RecentStyles = (recentStyles ?? []).Where(EveningStyleState.IsAllowed).TakeLast(36).ToArray();
     }
 
@@ -38,10 +37,10 @@ internal sealed class CharacterSession
     internal CharacterPolicy Policy { get; }
     internal IReadOnlyList<string> RecentStyles { get; }
     internal IReadOnlyList<CharacterAnchor> Anchors => anchors.ToArray();
-    internal CharacterTone Tone { get; private set; }
+    internal CharacterTone Tone => toneState.Tone;
     internal CharacterTempo Tempo { get; private set; }
     internal CharacterEngagement Engagement { get; private set; }
-    internal bool RoastAllowed { get; private set; } = true;
+    internal bool RoastAllowed => toneState.RoastAllowed;
     internal bool Closed { get; private set; }
     internal long Revision { get; private set; }
     internal long ResponseGeneration { get; private set; }
@@ -54,7 +53,7 @@ internal sealed class CharacterSession
         if (Closed) { return; }
         if (tone is not null && Enum.TryParse<CharacterTone>(tone, true, out var requested) && Enum.IsDefined(requested))
         {
-            Tone = (CharacterTone)Math.Min((int)requested, Math.Min((int)Policy.HostTone, toneLimit));
+            toneState.SetOperatorTone(requested);
         }
         if (tempo is "express") { Tempo = CharacterTempo.Express; }
         else if (tempo is "standard" && Engagement != CharacterEngagement.LowPressure) { Tempo = CharacterTempo.Standard; }
@@ -94,10 +93,10 @@ internal sealed class CharacterSession
             {
                 Revision++;
                 CancelResponse();
-                var changed = Apply(control, null);
+                var changed = Apply(control, null, sourceId, sourceRevision);
                 return changed with { CancelResponse = true, EvidenceChanged = true };
             }
-            return Apply(control, null);
+            return Apply(control, null, sourceId, sourceRevision);
         }
 
         Revision++;
@@ -172,7 +171,7 @@ internal sealed class CharacterSession
         {
             return default;
         }
-        return Apply(signal.Kind, signal.TargetAnchorId);
+        return Apply(signal.Kind, signal.TargetAnchorId, signal.SourceId, signal.SourceRevision);
     }
 
     internal CharacterInputChange UpdateVisualPermission(string generation, long permissionRevision, bool allowed)
@@ -249,7 +248,7 @@ internal sealed class CharacterSession
         visualAllowed = false;
     }
 
-    private CharacterInputChange Apply(CharacterSignalKind kind, string? targetAnchorId)
+    private CharacterInputChange Apply(CharacterSignalKind kind, string? targetAnchorId, string sourceId, long sourceRevision)
     {
         switch (kind)
         {
@@ -263,24 +262,12 @@ internal sealed class CharacterSession
                 CancelResponse();
                 return new CharacterInputChange(true);
             case CharacterSignalKind.ToneDown:
-                Tone = (CharacterTone)Math.Max(0, (int)Tone - 1);
-                CancelResponse();
-                return new CharacterInputChange(true);
             case CharacterSignalKind.NoSwearing:
-                toneLimit = Math.Min(toneLimit, (int)CharacterTone.Dry);
-                Tone = (CharacterTone)Math.Min((int)Tone, toneLimit);
-                CancelResponse();
-                return new CharacterInputChange(true);
             case CharacterSignalKind.ToneUp:
-                // An explicit increase lifts a previous tone-down but never a no-swearing
-                // cap or withdrawn roast/image authority.
-                Tone = (CharacterTone)Math.Min((int)Policy.HostTone, (int)Tone + 1);
-                Tone = (CharacterTone)Math.Min((int)Tone, toneLimit);
-                return default;
             case CharacterSignalKind.WithdrawRoast:
-                RoastAllowed = false;
-                CancelResponse();
-                return new CharacterInputChange(true);
+                var cancel = toneState.ApplyControl(kind, sourceId, sourceRevision);
+                if (cancel) { CancelResponse(); }
+                return new CharacterInputChange(cancel);
             case CharacterSignalKind.RevokeImage:
                 visualAllowed = false;
                 visualPermissionRevision++;
@@ -397,9 +384,13 @@ internal sealed class CharacterSession
         {
             return null;
         }
-        phrase = Regex.Replace(phrase, @"^(ne,?\s+)?(fakt\s+)?", "", RegexOptions.CultureInvariant,
+        phrase = Regex.Replace(phrase, @"^(?:(?:ne|no),?\s+)?(?:(?:fakt|really)\s+)?", "", RegexOptions.CultureInvariant,
             TimeSpan.FromMilliseconds(20));
         if (phrase.StartsWith("prosím ", StringComparison.Ordinal))
+        {
+            phrase = phrase[7..];
+        }
+        else if (phrase.StartsWith("please ", StringComparison.Ordinal))
         {
             phrase = phrase[7..];
         }
@@ -407,10 +398,25 @@ internal sealed class CharacterSession
         {
             phrase = phrase[..^7].TrimEnd(',');
         }
+        else if (phrase.EndsWith(" please", StringComparison.Ordinal))
+        {
+            phrase = phrase[..^7].TrimEnd(',');
+        }
+        if (Regex.IsMatch(phrase,
+            @"^(i don't want to continue|i do not want to continue|i want to end (this )?conversation|end (this )?conversation|stop (this )?conversation|let's end (this )?conversation|we're done|i'm done)(?:[,.! ]|$)",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
+        {
+            return CharacterSignalKind.RequestEnd;
+        }
         if (Regex.IsMatch(phrase, @"^(nechci pokračovat|chci skončit|ukonči rozhovor|přestaň s rozhovorem)(?:[,.! ]|$)",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
         {
             return CharacterSignalKind.RequestEnd;
+        }
+        if (Regex.IsMatch(phrase, @"^(don't roast me|do not roast me|stop roasting me|i don't want (a )?roast|no more roasts|don't insult me|do not insult me|stop insulting me)(?:[,.! ]|$)",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
+        {
+            return CharacterSignalKind.WithdrawRoast;
         }
         if (Regex.IsMatch(phrase, @"^(už mě neurážej|nechci roast|přestaň mě urážet)(?:[,.! ]|$)",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
@@ -422,10 +428,30 @@ internal sealed class CharacterSession
         {
             return CharacterSignalKind.RevokeImage;
         }
+        if (Regex.IsMatch(phrase, @"^(don't photograph me|do not photograph me|don't take my (photo|picture)|do not take my (photo|picture)|don't use my (photo|picture|appearance)|do not use my (photo|picture|appearance)|stop using my (photo|picture|appearance)|i withdraw my consent to use my (photo|picture|appearance)|no photos of me)(?:[,.! ]|$)",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
+        {
+            return CharacterSignalKind.RevokeImage;
+        }
         if (Regex.IsMatch(phrase, @"^(ty vtipy jsou (dobrý|dobré),? (ale |jen )?bez nadávek|bez nadávek)(?:[,.! ]|$)",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
         {
             return CharacterSignalKind.NoSwearing;
+        }
+        if (Regex.IsMatch(phrase, @"^(no swearing|don't swear|do not swear|no profanity|don't use profanity|do not use profanity|keep it clean)(?:[,.! ]|$)",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
+        {
+            return CharacterSignalKind.NoSwearing;
+        }
+        if (Regex.IsMatch(phrase, @"^(don't talk about (this|that|it)|do not talk about (this|that|it)|let's not talk about (this|that|it)|i don't want to talk about (this|that|it)|change the subject)(?:[,.! ]|$)",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
+        {
+            return CharacterSignalKind.RevokeTopic;
+        }
+        if (Regex.IsMatch(phrase, @"^(stop talking|stop speaking|don't speak|do not speak|be quiet|please be quiet)(?:[,.! ]|$)",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
+        {
+            return CharacterSignalKind.RequestStopSpeech;
         }
         if (Regex.IsMatch(phrase, @"^to (s .{1,60} )?byl (můj )?(brácha|kamarád),? ne já$",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(20)))
@@ -435,14 +461,23 @@ internal sealed class CharacterSession
         return phrase switch
         {
             "drž hubu" or "přestaň mluvit" or "buď zticha" or "teď nemluv" or "jen mlč" => CharacterSignalKind.RequestStopSpeech,
+            "stop talking" or "stop speaking" or "don't speak" or "do not speak" or "be quiet" => CharacterSignalKind.RequestStopSpeech,
             "stop" or "konec" or "nechci pokračovat" or "ukonči rozhovor" or "končíme" => CharacterSignalKind.RequestEnd,
+            "i don't want to continue" or "i do not want to continue" or "end conversation" or "end this conversation" or "stop conversation" or "stop this conversation" or "we're done" or "i'm done" => CharacterSignalKind.RequestEnd,
             "vyber rovnou" or "zrychli" or "rychleji" or "bez dalších otázek" => CharacterSignalKind.RequestExpress,
+            "pick one" or "choose one" or "just choose" or "speed it up" or "faster" or "no more questions" or "skip the questions" or "decide for me" => CharacterSignalKind.RequestExpress,
             "mírněji" or "uber" or "trochu mírněji" => CharacterSignalKind.ToneDown,
+            "tone it down" or "less intense" or "make it gentler" or "take it down a notch" or "calm down" => CharacterSignalKind.ToneDown,
             "přitvrď" or "ostřeji" => CharacterSignalKind.ToneUp,
+            "turn it up" or "more intense" or "go harder" or "make it sharper" or "be edgier" => CharacterSignalKind.ToneUp,
             "bez nadávek" or "nenadávej" => CharacterSignalKind.NoSwearing,
+            "no swearing" or "don't swear" or "do not swear" or "no profanity" => CharacterSignalKind.NoSwearing,
             "už mě neurážej" or "nechci roast" or "přestaň mě urážet" => CharacterSignalKind.WithdrawRoast,
+            "don't roast me" or "do not roast me" or "stop roasting me" or "i don't want a roast" or "i don't want roast" or "no more roasts" or "don't insult me" or "do not insult me" => CharacterSignalKind.WithdrawRoast,
             "nefoti mě" or "nefoť mě" or "nepoužívej můj vzhled" or "nepoužívej moji fotku" or "odvolávám souhlas s fotkou" => CharacterSignalKind.RevokeImage,
+            "don't photograph me" or "do not photograph me" or "don't take my photo" or "don't take my picture" or "don't use my photo" or "don't use my picture" or "don't use my appearance" or "no photos of me" => CharacterSignalKind.RevokeImage,
             "o tom nemluv" or "tohle téma nechci" => CharacterSignalKind.RevokeTopic,
+            "don't talk about this" or "don't talk about that" or "let's not talk about this" or "let's not talk about that" or "change the subject" => CharacterSignalKind.RevokeTopic,
             "vlastně naopak" or "to není pravda" => CharacterSignalKind.CorrectEvidence,
             "to řekl kamarád" or "to řekla kamarádka" => CharacterSignalKind.AttributeToOther,
             "dělal jsem si srandu" or "dělala jsem si srandu" or "to byl vtip" => CharacterSignalKind.MarkFiction,

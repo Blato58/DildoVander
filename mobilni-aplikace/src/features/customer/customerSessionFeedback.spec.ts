@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { projectCustomerSessionError } from './customerSessionFeedback';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 describe('projectCustomerSessionError', () => {
   it('maps allowlisted Bluetooth permission failures to actionable Czech feedback', () => {
     expect(projectCustomerSessionError(new Error('permission_denied'))).toEqual({
       message: 'Povolte aplikaci přístup k Bluetooth v Nastavení iPhonu a zkuste připojení znovu.',
       diagnosticCode: 'permission_denied',
+      copyKey: 'feedback.permission_denied',
     });
   });
 
@@ -13,6 +15,7 @@ describe('projectCustomerSessionError', () => {
     expect(projectCustomerSessionError(new TypeError('Failed to fetch'))).toEqual({
       message: 'Server není dostupný. Zkontrolujte připojení k internetu a zkuste obnovit stav.',
       diagnosticCode: 'network_unavailable',
+      copyKey: 'feedback.network_unavailable',
     });
   });
 
@@ -22,12 +25,13 @@ describe('projectCustomerSessionError', () => {
     }))).toEqual({
       message: 'Předchozí žádost se ještě ověřuje. Obnovte stav rozhovoru a nepoužívejte nový start.',
       diagnosticCode: 'customer_session_requires_reconciliation',
+      copyKey: 'feedback.reconciliation',
     });
   });
 
   it.each(['constructor', 'toString', '__proto__'])('redacts inherited object property %s', code => {
     expect(projectCustomerSessionError({ code })).toEqual({
-      message: 'Stav rozhovoru se nepodařilo načíst. Zkuste obnovit stav.',
+      message: 'Stav rozhovoru se nepodařilo načíst. Zkuste obnovit stav.', copyKey: 'feedback.generic',
     });
   });
 
@@ -47,10 +51,19 @@ describe('projectCustomerSessionError', () => {
   it('redacts unrecognized raw strings and unknown native codes', () => {
     const secret = 'Bearer private-token-123';
     expect(projectCustomerSessionError(secret)).toEqual({
-      message: 'Stav rozhovoru se nepodařilo načíst. Zkuste obnovit stav.',
+      message: 'Stav rozhovoru se nepodařilo načíst. Zkuste obnovit stav.', copyKey: 'feedback.generic',
     });
     expect(projectCustomerSessionError({ code: 'private-token-123', message: secret })).toEqual({
-      message: 'Stav rozhovoru se nepodařilo načíst. Zkuste obnovit stav.',
+      message: 'Stav rozhovoru se nepodařilo načíst. Zkuste obnovit stav.', copyKey: 'feedback.generic',
     });
+  });
+
+  it('localizes allowlisted errors while keeping unknown raw diagnostics out of the message', () => {
+    interfaceLanguagePreference.setLanguage('en');
+    expect(projectCustomerSessionError(new Error('permission_denied')).message)
+      .toBe('Allow Bluetooth access for the app in iPhone Settings, then try connecting again.');
+    expect(projectCustomerSessionError('Bearer private-token-123').message)
+      .toBe('Could not load conversation status. Try refreshing it.');
+    interfaceLanguagePreference.setLanguage('cs');
   });
 });

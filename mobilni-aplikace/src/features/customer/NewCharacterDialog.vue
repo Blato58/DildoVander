@@ -4,6 +4,7 @@ import AwButton from '../../components/AwButton.vue';
 import AwDialog from '../../components/AwDialog.vue';
 import AwField from '../../components/AwField.vue';
 import AwNotice from '../../components/AwNotice.vue';
+import { customerCopy } from '../../application/customerCopy';
 
 export interface NewCharacterDraft {
   name: string;
@@ -85,51 +86,43 @@ function blankDraft(): NewCharacterDraft {
 
 <template>
   <component :is="useNativeDialog ? AwDialog : 'section'" v-if="useNativeDialog || open"
-    v-bind="useNativeDialog ? { open, title: 'Vytvořit novou postavu' } : { class: 'aw-card', 'aria-label': 'Vytvořit novou postavu' }"
+    v-bind="useNativeDialog ? { open, title: customerCopy.text('new-character.title') } : { class: 'aw-card', 'aria-label': customerCopy.text('new-character.title') }"
     @close="cancel">
-    <h2 v-if="!useNativeDialog">Vytvořit novou postavu</h2>
+    <h2 v-if="!useNativeDialog">{{ customerCopy.text('new-character.title') }}</h2>
     <form ref="formElement" class="new-character-dialog" :aria-busy="busy || undefined" @submit.prevent="confirm">
-      <p>
-        Nová postava vytvoří samostatnou identitu. Historie rozhovorů a památky
-        předchozí postavy zůstanou uložené.
-      </p>
-      <p v-if="currentCharacterName" class="aw-muted">
-        Aktuální postava: {{ currentCharacterName }}. Její úprava mění stávající profil;
-        tato volba založí nový.
-      </p>
-      <p class="aw-muted">Neuložené úpravy aktuální postavy se do nové nepřenesou. Volbou Zrušit se k nim vrátíte.</p>
-      <AwNotice v-if="activeSession" tone="info">Existující rozhovor dál používá svou původní postavu. Nová postava bude vybraná pro další rozhovor.</AwNotice>
-      <p v-if="busy" role="status">Ukládám novou postavu. Vyčkejte na potvrzení serveru.</p>
+      <p>{{ customerCopy.text('new-character.intro') }}</p>
+      <p v-if="currentCharacterName" class="aw-muted">{{ customerCopy.text('new-character.current', { name: currentCharacterName }) }}</p>
+      <p class="aw-muted">{{ customerCopy.text('new-character.unsaved') }}</p>
+      <AwNotice v-if="activeSession" tone="info">{{ customerCopy.text('new-character.active-session') }}</AwNotice>
+      <p v-if="busy" role="status">{{ customerCopy.text('new-character.saving') }}</p>
 
       <AwNotice v-if="error" tone="danger">{{ error }}</AwNotice>
 
-      <AwField id="new-character-name" label="Jméno postavy">
+      <AwField id="new-character-name" :label="customerCopy.text('new-character.name')">
         <input id="new-character-name" v-model="draft.name" class="aw-input" maxlength="120" required :disabled="busy" />
       </AwField>
-      <AwField id="new-character-world" label="Film, seriál, hra nebo kniha">
+      <AwField id="new-character-world" :label="customerCopy.text('new-character.world')">
         <input id="new-character-world" v-model="draft.world" class="aw-input" maxlength="160" required :disabled="busy" />
       </AwField>
-      <AwField id="new-character-version" label="Verze nebo období (nepovinné)">
+      <AwField id="new-character-version" :label="customerCopy.text('new-character.version')">
         <input id="new-character-version" v-model="draft.version" class="aw-input" maxlength="120" :disabled="busy" />
       </AwField>
-      <AwField id="new-character-description" label="Co je pro vás důležité? (nepovinné)">
+      <AwField id="new-character-description" :label="customerCopy.text('new-character.description')">
         <textarea id="new-character-description" v-model="draft.description" class="aw-input" maxlength="1200" rows="4" :disabled="busy" />
       </AwField>
-      <AwField id="new-character-language" label="Jazyk (nepovinné)">
+      <AwField id="new-character-language" :label="customerCopy.text('new-character.language')">
         <input id="new-character-language" v-model="draft.language" class="aw-input" maxlength="35" :disabled="busy" />
       </AwField>
-      <AwField id="new-character-openai-consent" label="Volitelná příprava pomocí AI">
+      <AwField id="new-character-openai-consent" :label="customerCopy.text('new-character.optional-ai')">
         <label class="new-character-consent">
           <input id="new-character-openai-consent" v-model="draft.openAiConsent" type="checkbox" :disabled="busy" />
-          Souhlasím s odesláním údajů této nové postavy společnosti OpenAI pro přípravu informací
-          a nápadů k rozhovoru, případně s vyhledáním veřejných zdrojů. Bez zaškrtnutí uložíte
-          profil bez AI přípravy.
+          {{ customerCopy.text('new-character.consent') }}
         </label>
       </AwField>
 
       <div class="new-character-actions">
-        <AwButton type="submit" variant="primary" :busy="busy">Vytvořit novou postavu</AwButton>
-        <AwButton type="button" variant="secondary" :disabled="busy" @click="cancel">Zrušit</AwButton>
+        <AwButton type="submit" variant="primary" :busy="busy">{{ customerCopy.text('new-character.create') }}</AwButton>
+        <AwButton type="button" variant="secondary" :disabled="busy" @click="cancel">{{ customerCopy.text('new-character.cancel') }}</AwButton>
       </div>
     </form>
   </component>

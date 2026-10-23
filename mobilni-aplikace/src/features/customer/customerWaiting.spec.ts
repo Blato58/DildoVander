@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { account, accountDeletionRequested, offlineSession } from '../identity/session';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 import CustomerWaiting from './CustomerWaiting.vue';
 
 const sessionMocks = vi.hoisted(() => ({
@@ -306,5 +307,44 @@ describe('CustomerWaiting', () => {
     account.value = { id: '99999999-9999-4999-8999-999999999999', displayName: 'Other', roles: ['Customer'] };
     expect(commandSignal?.aborted).toBe(true);
     wrapper.unmount();
+  });
+
+  it('reacts to English preference changes without refreshing or issuing a waiting-list command', async () => {
+    sessionMocks.transport.mockImplementation((path, init) => init?.method === 'GET'
+      ? Promise.resolve(response(waitingSnapshot()))
+      : Promise.resolve(response(waitingSnapshot())));
+    const wrapper = mountWaiting();
+    await flushPromises();
+    const initialCalls = sessionMocks.transport.mock.calls.length;
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Waiting list');
+    expect(wrapper.text()).toContain('You are number 1 in line out of 1.');
+    expect(wrapper.findAll('button').some(button => button.text() === 'Reserve your place')).toBe(true);
+    expect(sessionMocks.transport).toHaveBeenCalledTimes(initialCalls);
+    expect(sessionMocks.transport.mock.calls.every(call => call[1]?.method === 'GET')).toBe(true);
+    wrapper.unmount();
+    interfaceLanguagePreference.setLanguage('cs');
+  });
+
+  it('localizes a restored claim but does not emit the claim or start a conversation on language change', async () => {
+    const claimSnapshot = snapshot({
+      entry: { id: entryId, profileId, sequence: 1, revision: 4, state: 'claimed', claim: { id: claimId, expiresAt: Math.floor(Date.now() / 1000) + 600 } },
+      position: 1,
+      count: 1,
+    });
+    sessionMocks.transport.mockImplementation((_path, init) => Promise.resolve(response(claimSnapshot)));
+    const wrapper = mountWaiting();
+    await flushPromises();
+    const calls = sessionMocks.transport.mock.calls.length;
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Your place is reserved until');
+    expect(wrapper.findAll('button').some(button => button.text() === 'Use reserved place')).toBe(true);
+    expect(wrapper.emitted('claim')).toBeUndefined();
+    expect(sessionMocks.transport).toHaveBeenCalledTimes(calls);
+    expect(sessionMocks.transport.mock.calls.every(call => call[1]?.method === 'GET')).toBe(true);
+    wrapper.unmount();
+    interfaceLanguagePreference.setLanguage('cs');
   });
 });

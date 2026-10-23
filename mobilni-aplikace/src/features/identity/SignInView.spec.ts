@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
+import { nextTick } from 'vue';
 import SignInView from './SignInView.vue';
 import { account } from './session';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 const api = vi.hoisted(() => ({
   authenticate: vi.fn(),
@@ -48,12 +50,29 @@ async function mountSignIn(returnPath?: string) {
 }
 
 beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   account.value = null;
   api.authenticate.mockReset();
   api.enrollment = null;
 });
 
 describe('sign-in destinations', () => {
+  it('localizes sign-in and shows only a safe generic error for unrecognized failures', async () => {
+    api.authenticate.mockRejectedValueOnce(new Error('private-server-detail-token'));
+    const { wrapper } = await mountSignIn();
+    interfaceLanguagePreference.setLanguage('en');
+    await nextTick();
+    expect(wrapper.get('h1').text()).toBe('Sign in');
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Sign in with passkey');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Sign-in or the account change could not be completed.');
+    expect(wrapper.text()).not.toContain('private-server-detail-token');
+    expect(wrapper.get('details summary').text()).toBe('Lost access?');
+    wrapper.unmount();
+  });
+
   it('shows expandable lost-access guidance only on unauthenticated sign-in without making requests', async () => {
     const { router, wrapper } = await mountSignIn();
     const disclosure = wrapper.get('details');

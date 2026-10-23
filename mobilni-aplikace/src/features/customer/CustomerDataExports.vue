@@ -3,13 +3,12 @@ import { Capacitor } from '@capacitor/core';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
+import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
 import { account, accountDeletionRequested, accountTransport, offlineSession, shareNativeAccountDataFile } from '../identity/session';
 import {
   CustomerDataExportClient,
   CustomerDataExportError,
-  customerDataExportReasonCopy,
   deliverBrowserDownload,
-  exportErrorCopy,
   type CustomerAccountTransport,
   type CustomerDataExportJob,
   type CustomerDataExportStorage,
@@ -39,8 +38,8 @@ const missing = ref(false);
 const hasStoredJob = ref(false);
 const browserOnline = ref(typeof navigator === 'undefined' || navigator.onLine);
 const pageVisible = ref(typeof document !== 'undefined' && !document.hidden);
-const errorMessage = ref('');
-const deliveryMessage = ref('');
+const errorMessage = ref<CustomerCopyKey | ''>('');
+const deliveryMessage = ref<CustomerCopyKey | ''>('');
 const pendingKey = ref(false);
 const pendingKeyRejected = ref(false);
 const nowTick = ref(Date.now());
@@ -58,20 +57,41 @@ const allowed = computed(() => !!accountId.value && !accountDeletionRequested.va
 const busy = computed(() => loading.value || submitting.value || deleting.value || downloading.value);
 const canDownload = computed(() => allowed.value && !offlineSession.value && !stale.value
   && !busy.value && job.value?.state === 'ready' && !isExpired());
+function exportErrorKey(error: unknown): CustomerCopyKey {
+  if (error instanceof CustomerDataExportError) {
+    if (error.kind === 'unauthenticated') return 'export.error-unauthenticated';
+    if (error.kind === 'expired' || error.status === 410) return 'export.error-expired';
+    if (error.kind === 'too-large' || error.status === 413) return 'export.error-too-large';
+    if (error.status === 404) return 'export.error-not-found';
+    if (error.status === 409) return 'export.error-conflict';
+    if (error.status === 503) return 'export.error-busy';
+    if (error.kind === 'invalid-response') return 'export.error-invalid';
+  }
+  return 'export.error-generic';
+}
+const reasonKeys = {
+  inventory_unavailable: 'export.reason-inventory-unavailable',
+  memory_unavailable: 'export.reason-memory-unavailable',
+  source_changed: 'export.reason-source-changed',
+  payload_too_large: 'export.reason-payload-too-large',
+  preparation_interrupted: 'export.reason-preparation-interrupted',
+  download_expired: 'export.reason-download-expired',
+  export_failed: 'export.reason-failed',
+} as const satisfies Record<NonNullable<CustomerDataExportJob['reason']>, CustomerCopyKey>;
 const stateLabel = computed(() => {
-  if (pendingKeyRejected.value && !job.value) return 'Server odmítl předchozí klíč požadavku. Nový export můžete výslovně vyžádat s novým klíčem.';
-  if (pendingKey.value && !job.value) return 'Požadavek čeká na vaše potvrzení opakování.';
-  if (missing.value) return 'Předchozí export už pro toto přihlášení není dostupný.';
-  if (!job.value && hasStoredJob.value) return loading.value ? 'Ověřuji uložený export.' : 'Stav uloženého exportu se nepodařilo ověřit.';
-  if (!job.value) return 'Zatím nemáte připravený export.';
-  return {
-    requested: 'Export byl vyžádán.',
-    preparing: 'Export se připravuje.',
-    ready: 'Export je připraven.',
-    failed: 'Export se nepodařilo připravit.',
-  }[job.value.state];
+  if (pendingKeyRejected.value && !job.value) return customerCopy.text('export.pending-key-rejected-state');
+  if (pendingKey.value && !job.value) return customerCopy.text('export.pending-key-state');
+  if (missing.value) return customerCopy.text('export.missing-state');
+  if (!job.value && hasStoredJob.value) return customerCopy.text(loading.value ? 'export.stored-loading' : 'export.stored-unverified');
+  if (!job.value) return customerCopy.text('export.none');
+  return customerCopy.text(({
+    requested: 'export.state-requested',
+    preparing: 'export.state-preparing',
+    ready: 'export.state-ready',
+    failed: 'export.state-failed',
+  } as const)[job.value.state]);
 });
-const reason = computed(() => job.value?.reason ? customerDataExportReasonCopy[job.value.reason] : '');
+const reason = computed(() => job.value?.reason ? customerCopy.text(reasonKeys[job.value.reason]) : '');
 
 function isVisibleAndOnline(): boolean {
   return browserOnline.value && pageVisible.value;
@@ -158,7 +178,7 @@ async function refreshStatus(manual = true): Promise<void> {
       if ((failure as Error)?.name === 'AbortError' || disposed || attempt !== generation) return;
       const status = failure instanceof CustomerDataExportError ? failure.status : undefined;
       if (status === 404) { missing.value = true; applyJob(null); }
-      errorMessage.value = exportErrorCopy(failure);
+      errorMessage.value = exportErrorKey(failure);
       retryInitialLookup = !job.value && (status === undefined
         ? !(failure instanceof CustomerDataExportError)
         : [408, 429, 500, 502, 503, 504].includes(status));
@@ -177,7 +197,7 @@ async function prepareExport(): Promise<void> {
   const metadata = client.recoveryMetadata;
   const rejectedKey = pendingKeyRejected.value;
   if (!metadata.pendingIdempotencyKey || rejectedKey) {
-    const confirmed = window.confirm('Požádat o export? Pokud už účet obsahuje jinou úlohu exportu, server ji nahradí a zneplatní její soubor. Tímto se nemažou zdrojová data.');
+    const confirmed = window.confirm(customerCopy.text('export.prepare-confirmation'));
     if (!confirmed) return;
   }
   stale.value = true;
@@ -198,7 +218,7 @@ async function prepareExport(): Promise<void> {
     stale.value = false;
   } catch (failure) {
     if ((failure as Error)?.name !== 'AbortError' && !disposed && attempt === generation) {
-      errorMessage.value = exportErrorCopy(failure);
+      errorMessage.value = exportErrorKey(failure);
       pendingKeyRejected.value = failure instanceof CustomerDataExportError && failure.status === 409
         && !!client.recoveryMetadata.pendingIdempotencyKey;
     }
@@ -208,7 +228,7 @@ async function prepareExport(): Promise<void> {
 
 async function deleteTechnicalJob(): Promise<void> {
   if (!allowed.value || busy.value || offlineSession.value || !isVisibleAndOnline() || !client.recoveryMetadata.jobId) return;
-  const confirmed = window.confirm('Smazat pouze technickou úlohu exportu? Zdrojová data, postava ani památky se tím nesmažou.');
+  const confirmed = window.confirm(customerCopy.text('export.delete-confirmation'));
   if (!confirmed || !allowed.value || busy.value || offlineSession.value || !isVisibleAndOnline()) return;
   stale.value = true;
   deleting.value = true;
@@ -223,7 +243,7 @@ async function deleteTechnicalJob(): Promise<void> {
     pendingKey.value = false;
     stale.value = false;
   } catch (failure) {
-    if ((failure as Error)?.name !== 'AbortError' && !disposed && attempt === generation) errorMessage.value = exportErrorCopy(failure);
+    if ((failure as Error)?.name !== 'AbortError' && !disposed && attempt === generation) errorMessage.value = exportErrorKey(failure);
   } finally { if (!disposed && attempt === generation) deleting.value = false; }
 }
 
@@ -253,14 +273,14 @@ async function downloadExport(): Promise<void> {
       });
       checkDelivery();
       deliveryMessage.value = result.completed
-        ? 'Systém oznámil dokončení sdílení. To nepotvrzuje uložení ani doručení souboru.'
-        : 'Sdílení bylo zrušeno. Soubor můžete znovu výslovně sdílet.';
+        ? 'export.share-completed'
+        : 'export.share-cancelled';
     } else {
       await (props.deliver ?? deliverBrowserDownload)(file, 'customer-data-export.json');
     }
     if (!disposed && attempt === generation && allowed.value && job.value === selected) stale.value = false;
   } catch (failure) {
-    if ((failure as Error)?.name !== 'AbortError' && !disposed && attempt === generation) errorMessage.value = exportErrorCopy(failure);
+    if ((failure as Error)?.name !== 'AbortError' && !disposed && attempt === generation) errorMessage.value = exportErrorKey(failure);
   } finally {
     if (deliveryController === controller) deliveryController = undefined;
     if (!disposed && attempt === generation) downloading.value = false;
@@ -335,52 +355,51 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="customer-data-exports page-stack" aria-labelledby="customer-data-export-title">
-    <h2 id="customer-data-export-title">Stažení údajů účtu</h2>
-    <AwNotice tone="info" title="Co export obsahuje">
-      Zahrne identifikátor účtu, metadata historie postav a rozhovorů, identifikátory a revize vašich původních soukromých památek a pouze právě dostupná povolená fakta z paměti. Prázdný seznam faktů nepotvrzuje, že další data neexistují.
-      Nezahrne celé příběhy, fotografie ani jiné soubory, přepisy, podklady postav či jejich AI obohacení, údaje jiných lidí, propojené soukromé památky jiných vlastníků, přihlašovací údaje, bezpečnostní doklady, logy poskytovatelů ani prompty.
+    <h2 id="customer-data-export-title">{{ customerCopy.text('export.title') }}</h2>
+    <AwNotice tone="info" :title="customerCopy.text('export.contents-heading')">
+      {{ customerCopy.text('export.contents') }}
     </AwNotice>
 
     <AwNotice v-if="nativePlatform" tone="warning">
-      Soubor předáte systémové nabídce sdílení. Zvolená aplikace může uchovat vlastní kopii; po předání ji zde nelze odvolat.
+      {{ customerCopy.text('export.native-share-warning') }}
     </AwNotice>
     <AwNotice v-if="offlineSession || !isVisibleAndOnline()" tone="warning">
-      Pro přípravu a ověření exportu je potřeba připojení k internetu.
+      {{ customerCopy.text('export.offline') }}
     </AwNotice>
     <AwNotice v-if="pendingKey && !job && !pendingKeyRejected" tone="warning">
-      Předchozí požadavek nemá potvrzený výsledek. Nic neposíláme automaticky; ruční opakování použije stejný klíč požadavku.
+      {{ customerCopy.text('export.pending-uncertain') }}
     </AwNotice>
     <AwNotice v-if="pendingKeyRejected" tone="warning">
-      Server tento klíč odmítl. Další výslovná žádost použije nový klíč a může nahradit dřívější technickou úlohu.
+      {{ customerCopy.text('export.pending-rejected') }}
     </AwNotice>
     <AwNotice v-if="missing" tone="warning">
-      Tento export není pro aktuální přihlášení dostupný. Připravit nový můžete výslovně tlačítkem níže.
+      {{ customerCopy.text('export.missing') }}
     </AwNotice>
-    <AwNotice v-if="job" :tone="job.state === 'failed' ? 'warning' : 'info'" title="Stav exportu">
+    <AwNotice v-if="job" :tone="job.state === 'failed' ? 'warning' : 'info'" :title="customerCopy.text('export.state-heading')">
       <p>{{ stateLabel }}</p>
-      <p>Vyžádáno: {{ job.requestedAt }}</p>
-      <p v-if="job.readyAt">Připraveno: {{ job.readyAt }}</p>
-      <p v-if="job.downloadExpiresAt">Stažení vyprší: {{ job.downloadExpiresAt }}</p>
+      <p>{{ customerCopy.text('export.requested-at', { date: job.requestedAt }) }}</p>
+      <p v-if="job.readyAt">{{ customerCopy.text('export.ready-at', { date: job.readyAt }) }}</p>
+      <p v-if="job.downloadExpiresAt">{{ customerCopy.text('export.expires-at', { date: job.downloadExpiresAt }) }}</p>
       <p v-if="reason">{{ reason }}</p>
-      <p v-if="isExpired()">Lhůta pro stažení vypršela. Obnovte stav nebo připravte nový export.</p>
+      <p v-if="isExpired()">{{ customerCopy.text('export.expired') }}</p>
     </AwNotice>
-    <AwNotice v-if="errorMessage" tone="danger">{{ errorMessage }}</AwNotice>
-    <AwNotice v-if="deliveryMessage" tone="info">{{ deliveryMessage }}</AwNotice>
-    <p v-if="!allowed" role="status">Export je dostupný po přihlášení k účtu, jehož údaje chcete stáhnout.</p>
+    <AwNotice v-if="errorMessage" tone="danger">{{ customerCopy.text(errorMessage) }}</AwNotice>
+    <AwNotice v-if="deliveryMessage" tone="info">{{ customerCopy.text(deliveryMessage) }}</AwNotice>
+    <p v-if="!allowed" role="status">{{ customerCopy.text('export.signed-out') }}</p>
     <p v-else role="status" aria-live="polite">{{ stateLabel }}</p>
 
     <div v-if="allowed" class="customer-data-exports__actions">
       <AwButton :disabled="busy || offlineSession || !isVisibleAndOnline()" :busy="loading" @click="refreshStatus()">
-        Obnovit stav exportu
+        {{ customerCopy.text('export.refresh') }}
       </AwButton>
       <AwButton variant="primary" :disabled="busy || offlineSession || !isVisibleAndOnline()" :busy="submitting" @click="prepareExport">
-        {{ pendingKeyRejected ? 'Vyžádat nový export' : pendingKey ? 'Ručně opakovat požadavek' : job || missing ? 'Připravit nový export' : 'Připravit export' }}
+        {{ customerCopy.text(pendingKeyRejected ? 'export.prepare-rejected-button' : pendingKey ? 'export.prepare-pending-button' : job || missing ? 'export.prepare-existing-button' : 'export.prepare-button') }}
       </AwButton>
       <AwButton v-if="job?.state === 'ready'" :disabled="!canDownload" :busy="downloading" @click="downloadExport">
-        {{ nativePlatform ? 'Sdílet JSON' : 'Stáhnout JSON' }}
+        {{ customerCopy.text(nativePlatform ? 'export.share-json' : 'export.download-json') }}
       </AwButton>
       <AwButton v-if="job" variant="danger" :disabled="busy || offlineSession || !isVisibleAndOnline()" :busy="deleting" @click="deleteTechnicalJob">
-        Smazat pouze úlohu exportu
+        {{ customerCopy.text('export.delete-technical-job') }}
       </AwButton>
     </div>
   </section>

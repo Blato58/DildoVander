@@ -13,6 +13,8 @@ import { directorStop, clearDirectorStop } from '../features/director/directorSt
 import { servoBench } from '../features/suitcase/servoBench';
 import { accessDenial, canEnterStaffArea, canOperateSuitcase, isCustomerAccount } from './access';
 import { accessRedirect } from './accessGuard';
+import InterfaceLanguageSelect from './InterfaceLanguageSelect.vue';
+import { interfaceLanguagePreference } from './interfaceLanguage';
 
 const route = useRoute();
 const router = useRouter();
@@ -129,6 +131,7 @@ onBeforeUnmount(() => {
         <div v-if="canOperateSuitcase(account)" class="connection-context"><RouterLink to="/connections">{{ targetLabel }}</RouterLink><span v-if="servoBench.connected.value" class="context-detail">USB servo servis · Stop vypíná PWM, napájení není měřené</span><span v-else-if="phoneActive" class="context-detail">Aktivní telefonní zkouška · oddělená od hlasu kufru</span><span v-else-if="deviceSession.message.value" class="context-detail">{{ deviceSession.message.value }}</span></div>
         <p v-else class="connection-context">{{ customerAccount ? 'Můj účet · zákaznická část' : 'Modely a příběhy · veřejný přístup' }}</p>
         <div class="header-actions">
+          <InterfaceLanguageSelect :preference="interfaceLanguagePreference" :account-id="account?.id" />
           <label class="theme-control"><span class="sr-only">Vzhled aplikace</span><select v-model="preferences.theme" aria-label="Vzhled aplikace"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></label>
           <RouterLink v-if="!account" class="account-link" to="/signin">Přihlásit se</RouterLink><RouterLink v-else class="account-link" :to="customerAccount ? '/me/account' : '/settings'">{{ account.displayName }}</RouterLink>
           <AwButton v-if="!customerAccount && (canEnterStaffArea(account) || deviceCanStop || phoneActive || directorCanStop || servoBench.connected.value)" variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>

@@ -7,6 +7,7 @@ using Kufr.Backend.Features.VoiceTurns;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Memory;
 using Kufr.Backend.Features.Character;
+using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.DigitalTwin;
 using Kufr.Backend.Features.PersonaLab;
 
@@ -58,7 +59,7 @@ internal sealed partial class ConversationStore(
     }
 
     public CreateResult Create(string deviceId, Guid key, ReadOnlySpan<byte> requestBody, CreateConversationRequest request, LabHardwareContext? labHardware = null,
-        string? customerSessionId = null)
+        string? customerSessionId = null, CustomerConversationPreferenceSnapshot? customerPreferences = null)
     {
         var now = clock.GetUtcNow();
         var bodyHash = Convert.ToHexString(SHA256.HashData(requestBody));
@@ -84,6 +85,15 @@ internal sealed partial class ConversationStore(
                 }
                 return new CreateResult(201, previous.Response);
             }
+
+            // Validate and compose before reserving a new durable Create/lease.
+            if (customerPreferences is not null)
+            {
+                CustomerConversationPreferencePolicy.Validate(customerPreferences);
+                if (request.Locale != customerPreferences.ConversationLanguage) { return new CreateResult(409, null); }
+            }
+            var frozenPrompt = labPrompt ?? CreatePersonaSnapshot(personalityId, customerPreferences, request.Locale);
+            var guestTone = customerPreferences is null ? null : new ConversationGuestToneState(characterPolicy, customerPreferences);
 
             if (conversations.Values.Any(entry => entry.DeviceId == deviceId))
             {
@@ -130,7 +140,7 @@ internal sealed partial class ConversationStore(
                     personalityId,
                     response.ExpiresAt,
                     labHardware?.ExpiresAt ?? now.AddMinutes(30), request.OperationEpoch)
-                { ImageConsented = request.Consent.Image, LivePrompt = labPrompt ?? CreatePersonaSnapshot(personalityId),
+                { ImageConsented = request.Consent.Image, LivePrompt = frozenPrompt, GuestTone = guestTone, ConversationLanguage = request.Locale,
                     LabHardware = labHardware, ExpiresAt = labHardware?.ExpiresAt ?? response.ExpiresAt });
             return new CreateResult(201, response);
         }
@@ -1128,6 +1138,8 @@ internal sealed partial class ConversationStore(
         public int CostumeCorrectionCount { get; set; }
         public string PersonalityId { get; } = selectedPersonalityId;
         public LabHardwareContext? LabHardware { get; init; }
+        internal ConversationGuestToneState? GuestTone { get; init; }
+        internal string ConversationLanguage { get; init; } = "cs-CZ";
         public LivePromptSnapshot LivePrompt { get; init; } = LivePromptSnapshot.Create(selectedPersonalityId, new());
         public string LiveGeneration { get; } = Guid.NewGuid().ToString("D");
         public int? LiveReadyMask { get; set; }
