@@ -77,6 +77,9 @@ try {
     const request = route.request();
     const url = new URL(request.url());
     if (url.origin !== origin) { await route.abort(); return; }
+    if (url.pathname === '/__archive-browser-text-200.css') {
+      return route.fulfill({ contentType: 'text/css', body: 'html { font-size: 200% !important; }' });
+    }
     if (/^\/(app\/v1|guest\/v1|v1)\//.test(url.pathname)) {
       requests.push({ path: url.pathname, method: request.method(), body: request.postData(), key: request.headers()['idempotency-key'] });
       const explicitRecovery = permitRecoveryMutation && request.method() === 'POST'
@@ -217,10 +220,11 @@ try {
         await page.screenshot({ path: path.join(output, `${kind}-en-${theme}-${width}.png`), fullPage: true });
       }
     }
-    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    await page.addStyleTag({ url: '/__archive-browser-text-200.css' });
     await fits();
+    assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize), '32px', 'enlarged result text is actually 200%');
     await page.screenshot({ path: path.join(output, `${kind}-en-320-large-text.png`), fullPage: true });
-    await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+    await page.locator('link[href="/__archive-browser-text-200.css"]').evaluate(element => element.remove());
     await page.locator('.interface-language-select select').selectOption('cs');
   }
   assert.equal(errors.length, 0, JSON.stringify(errors));

@@ -424,6 +424,7 @@ try {
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await fits();
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize), '32px', 'enlarged preference text is actually 200%');
   await page.screenshot({ path: path.join(screenshots, 'customer-preferences-en-320-large-text.png'), fullPage: true });
   await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
   await page.getByLabel('Interface language', { exact: true }).selectOption('cs');

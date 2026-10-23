@@ -58,6 +58,28 @@ beforeEach(() => {
 });
 
 describe('sign-in destinations', () => {
+  it.each([
+    ['invitation_expired_or_used', 'Pozvánka už není platná.', 'This invitation has expired or was already used.'],
+    ['ceremony_expired_or_used', 'Ověření vypršelo.', 'Verification expired.'],
+    ['csrf_required', 'Platnost stránky vypršela.', 'This page has expired.'],
+    ['account_origin_required', 'Tato adresa není povolená', 'This address is not allowed'],
+    ['passkey_not_verified', 'Přístupový klíč se nepodařilo ověřit.', 'The passkey could not be verified.'],
+    ['recent_passkey_required', 'Nejprve znovu ověřte', 'Verify your identity with a passkey again.'],
+    ['same_account_passkey_required', 'Vyberte přístupový klíč', 'Choose a passkey for the currently signed-in account.'],
+    ['accounts_not_configured', 'Přihlášení je dostupné až po konfiguraci', 'Sign-in is available after an administrator configures'],
+  ])('preserves safe localized guidance for %s without displaying server details', async (code, czech, english) => {
+    api.authenticate.mockRejectedValueOnce(Object.assign(new Error('private-server-detail-token'), { code }));
+    const { wrapper } = await mountSignIn();
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain(czech);
+    interfaceLanguagePreference.setLanguage('en');
+    await nextTick();
+    expect(wrapper.get('[role="alert"]').text()).toContain(english);
+    expect(wrapper.text()).not.toContain('private-server-detail-token');
+    wrapper.unmount();
+  });
+
   it('localizes sign-in and shows only a safe generic error for unrecognized failures', async () => {
     api.authenticate.mockRejectedValueOnce(new Error('private-server-detail-token'));
     const { wrapper } = await mountSignIn();

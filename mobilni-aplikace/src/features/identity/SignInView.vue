@@ -23,6 +23,18 @@ function errorKey(value: unknown): CustomerCopyKey {
   if (value instanceof DOMException && value.name === 'NotAllowedError') return 'signin.error-cancelled';
   if (value instanceof Error && value.message === 'Přístupové klíče vyžadují HTTPS a podporovaný prohlížeč.') return 'signin.error-secure-context';
   if (value instanceof Error && value.message === 'Ověření přístupovým klíčem už probíhá.') return 'signin.error-pending';
+  if (value instanceof Error && 'code' in value) {
+    switch (value.code) {
+      case 'accounts_not_configured': return 'signin.accounts-disabled';
+      case 'invitation_expired_or_used': return 'signin.error-invitation';
+      case 'ceremony_expired_or_used': return 'signin.error-ceremony';
+      case 'csrf_required': return 'signin.error-page-expired';
+      case 'account_origin_required': return 'signin.error-origin';
+      case 'passkey_not_verified': return 'signin.error-passkey';
+      case 'recent_passkey_required': return 'signin.error-recent-passkey';
+      case 'same_account_passkey_required': return 'signin.error-same-account';
+    }
+  }
   return 'signin.error-generic';
 }
 onMounted(async () => {
