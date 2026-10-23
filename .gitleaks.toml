@@ -3,6 +3,17 @@ title = "DildoVander secret scan"
 [extend]
 useDefault = true
 
+[[allowlists]]
+description = "Reviewed synthetic export idempotency UUID declarations"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^mobilni-aplikace/src/features/customer/customerDataExport\.spec\.ts$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*const keyOne = '6d8c7912-48c7-499c-a61a-138d0ca7932d';\s*$''',
+  '''^\s*const keyTwo = 'b8b228c8-b9d5-43d4-ac5a-8c0c85607d0e';\s*$''',
+]
+
 # Keep every upstream detector. Only generic-api-key misreads these non-secrets.
 # AND binds each content exception to its intended file; no whole-file exclusions.
 # Source exceptions retain the former kufr/ prefix for full-history scanning.

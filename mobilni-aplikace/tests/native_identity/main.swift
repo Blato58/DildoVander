@@ -38,8 +38,8 @@ require(AccountTransportPolicy.accountRequestBodyLimit(path: tonightMemory, meth
         "Tonight memory status received a portrait upload limit")
 require(!AccountTransportPolicy.accountHeaderAllowed(path: tonightMemory, method: "GET", name: "X-DV10-Consent", value: "7"),
         "portrait consent entered Tonight transport")
-require(!AccountTransportPolicy.account(path: "/app/v1/customer/data/exports/\(id)/download", method: "GET"),
-        "future export route accidentally enabled")
+require(!AccountTransportPolicy.account(path: "/app/v1/customer/data/exports/\(id)/download-all", method: "GET"),
+        "unrecognized export download suffix accepted")
 let customerSession = "/app/v1/customer/sessions/\(id)"
 let customerResult = customerSession + "/result"
 require(AccountTransportPolicy.account(path: customerResult, method: "GET"), "customer session result unavailable")
