@@ -6,13 +6,20 @@ export interface EngineCapability {
 }
 export interface EngineCapabilities { schemaVersion: 1; primaryEngine: ConversationEngine; engines: EngineCapability[] }
 export interface GuestMemoryBinding { guestId: string; identityVerified: boolean; longTermAllowed: boolean; cloudExportAllowed: boolean }
+export type MemoryStorageStatus = 'available' | 'warning' | 'full';
+export interface MemoryStorageSnapshot {
+  provider: string; configured: boolean; degraded: boolean; configurationStatus: string;
+  pending: number; failed: number; deleting: number;
+  storedBytes: number; capacityBytes: number; rejectedWrites: number;
+  storageStatus?: MemoryStorageStatus; storageIncomplete?: boolean;
+  lastStorageErrorCode?: string | null; lastStorageErrorAt?: string | null;
+}
 export interface MemoryInspection {
   identity: (GuestMemoryBinding & { version: number; conversationId: string; deviceId: string }) | null;
   epoch: number; deletionEpoch: number;
   records: Array<{ memoryId: string; text: string; sourceReference: string; revision: number; isActive: boolean }>;
   totalRecords: number; hasMore: boolean;
-  memoryStatus: { provider: string; configured: boolean; degraded: boolean; configurationStatus: string;
-    pending: number; failed: number; deleting: number; storedBytes: number; capacityBytes: number; rejectedWrites: number };
+  memoryStatus: MemoryStorageSnapshot;
 }
 export const enginePreferenceKey = 'kufr.conversation.engine.v1';
 export const engineLabels: Record<ConversationEngine, string> = { 'gpt-live': 'GPT Live · gpt-live-1', realtime: 'GPT Realtime 2.1 · gpt-realtime-2.1' };

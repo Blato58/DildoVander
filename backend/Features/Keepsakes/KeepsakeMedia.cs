@@ -79,7 +79,7 @@ internal sealed partial class KeepsakeStore
         return (encoded.ToArray(), displayWidth, displayHeight);
     }
 
-    public int SetPortraitConsent(string id, string session, bool consent, string policyVersion, string key)
+    public int SetPortraitConsent(string id, KeepsakeActor session, bool consent, string policyVersion, string key)
     {
         RequireFeature("PortraitEnabled");
         if (policyVersion != "dv10-portrait-v1") { throw new KeepsakeException("unknown_consent_policy"); }
@@ -108,7 +108,7 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public async Task<KeepsakeUpload> AcceptPhotoAsync(string id, string session, Stream stream,
+    public async Task<KeepsakeUpload> AcceptPhotoAsync(string id, KeepsakeActor session, Stream stream,
         string mediaType, string key, int consentVersion, CancellationToken cancellationToken = default)
     {
         RequireFeature("PortraitEnabled");
@@ -132,7 +132,7 @@ internal sealed partial class KeepsakeStore
         finally { UploadAdmission.Release(); }
     }
 
-    private async Task<KeepsakeUpload> AcceptAdmittedPhotoAsync(string id, string session, Stream stream,
+    private async Task<KeepsakeUpload> AcceptAdmittedPhotoAsync(string id, KeepsakeActor session, Stream stream,
         string mediaType, string key, int consentVersion, CancellationToken cancellationToken)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -204,7 +204,7 @@ internal sealed partial class KeepsakeStore
         return bytes;
     }
 
-    public KeepsakeView Read(string id, string session, bool shareOnly = false, string? shareEditionId = null)
+    public KeepsakeView Read(string id, KeepsakeActor session, bool shareOnly = false, string? shareEditionId = null)
     {
         lock (gate)
         {
@@ -242,7 +242,7 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public KeepsakeAssetContent ReadAsset(string id, string session, string assetId, bool shareOnly = false, string? shareEditionId = null)
+    public KeepsakeAssetContent ReadAsset(string id, KeepsakeActor session, string assetId, bool shareOnly = false, string? shareEditionId = null)
     {
         lock (gate)
         {

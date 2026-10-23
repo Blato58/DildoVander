@@ -201,9 +201,12 @@ internal static partial class KeepsakeEndpoints
     private static object Receipt(KeepsakeDeletionReceipt receipt) => new
     { receipt.Id, receipt.Scope, accessRevoked = true, receipt.LocalState, receipt.ProviderState, receipt.BackupState, receipt.RequestedAt };
 
-    private static object Project(KeepsakeView v) => new
+    internal static object Project(KeepsakeView v, string? accessKind = null) => new
     {
         schemaVersion = 1, locator = v.Id, v.Revision, v.RetentionMode, deleteAfterUtc = (string?)null,
+        accessKind = accessKind ?? (v.SharedEditionId is null ? "guestOwner" : "sharedViewer"),
+        accountLinked = accessKind == "originalOwner",
+        canManage = !v.ReadOnly, canReadPrivate = !v.ReadOnly, canUnlink = false,
         v.State, v.ReadOnly, v.PortraitConsent, v.PortraitConsentVersion, v.WizardIdentities, v.Prophecies,
         snapshot = new { v.Snapshot.OfficialName, v.Snapshot.CatalogId, v.Snapshot.CatalogVersion, v.Snapshot.Slot, v.Snapshot.PhysicalEvidence },
         editions = v.Editions.Select(e => new { e.Id, e.Story, e.ArtworkAssetId, e.Synthetic, e.PublicationState, e.CreatedAt }),

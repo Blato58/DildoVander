@@ -297,7 +297,8 @@ async function payloadFiles(directory, current) {
 
 async function dispatch(api, current, head) {
   await api.github.rest.actions.createWorkflowDispatch({ ...api.context.repo, workflow_id: 'ci.yml', ref: current.branch,
-    inputs: { pr_number: String(current.number), expected_head_sha: head, expected_base_sha: current.base } });
+    inputs: { project: 'all', pr_number: String(current.number), expected_head_sha: head,
+      expected_base_sha: current.base } });
 }
 
 async function verifyCurrent(api, expected) {

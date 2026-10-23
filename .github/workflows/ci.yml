@@ -1,6 +1,6 @@
 name: CI
 run-name: >-
-  CI ${{ github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation' }} | ${{ github.repository }} | PR ${{ github.event.pull_request.number || 0 }} | ${{ github.event.pull_request.head.sha || github.sha }} | ${{ github.event.pull_request.base.sha || github.sha }}
+  ${{ github.event_name == 'workflow_dispatch' && format('CI candidate | {0} | PR {1} | {2} | {3} | project={4}', github.repository, inputs.pr_number || 0, inputs.expected_head_sha || github.sha, inputs.expected_base_sha || github.sha, inputs.project || 'all') || (github.event.pull_request.stack.number && format('CI stack {0} {1} | {2} | PR {3} | {4} | trunk {5} | layer {6}/{7}', github.event.pull_request.stack.number, github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation', github.repository, github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.stack.base.sha, github.event.pull_request.stack.position, github.event.pull_request.stack.size)) || format('CI {0} | {1} | PR {2} | {3} | {4}', github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation', github.repository, github.event.pull_request.number || 0, github.event.pull_request.head.sha || github.sha, github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha) }}
 
 on:
   pull_request:
@@ -30,8 +30,11 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: ci-${{ github.event.action == 'edited' && !github.event.changes.base && format('metadata-{0}', github.run_id) || github.event.pull_request.number || inputs.pr_number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || inputs.pr_number != '' }}
+  # Native pushes can emit sibling validation events out of creation order.
+  # Let each finish truthfully: canceling a sibling can leave a failing required
+  # check on the same head even when another exact-prefix validation succeeds.
+  group: ci-${{ github.event.action == 'edited' && !github.event.changes.base && format('metadata-{0}', github.run_id) || (github.event.pull_request.stack.number && format('stack-{0}-{1}', github.event.pull_request.number, github.run_id)) || github.event.pull_request.number || inputs.pr_number || github.ref }}
+  cancel-in-progress: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.stack.number) || inputs.pr_number != '' }}
 
 jobs:
   secret-scan:
@@ -73,6 +76,7 @@ jobs:
       ios: ${{ steps.projects.outputs.ios }}
       ai-eval: ${{ steps.projects.outputs.ai-eval }}
       site: ${{ steps.projects.outputs.site }}
+      native_stack_revision: ${{ steps.projects.outputs.native_stack_revision }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -107,13 +111,26 @@ jobs:
         id: projects
         env:
           CI_EVENT_NAME: ${{ github.event_name }}
-          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.expected_base_sha }}
+          CI_BASE_SHA: ${{ github.event.pull_request.stack.base.sha || github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.expected_base_sha }}
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || inputs.expected_head_sha }}
           CI_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          CI_STACK_NUMBER: ${{ github.event.pull_request.stack.number }}
+          CI_STACK_POSITION: ${{ github.event.pull_request.stack.position }}
+          CI_STACK_SIZE: ${{ github.event.pull_request.stack.size }}
+          CI_STACK_BASE_REF: ${{ github.event.pull_request.stack.base.ref }}
+          CI_STACK_BASE_SHA: ${{ github.event.pull_request.stack.base.sha }}
+          CI_STACK_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           CI_PROJECT: ${{ inputs.project || 'all' }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ "$CI_EVENT_NAME" = workflow_dispatch ] && [ -z "$CI_PR_NUMBER" ]; then
             python3 scripts/ci/select_projects.py select --project "$CI_PROJECT"
+          elif [ "$CI_EVENT_NAME" = pull_request ] && [ -n "$CI_STACK_NUMBER" ]; then
+            python3 scripts/ci/select_projects.py select --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA" \
+              --stack-pr "$CI_PR_NUMBER" --stack-number "$CI_STACK_NUMBER" \
+              --stack-position "$CI_STACK_POSITION" --stack-size "$CI_STACK_SIZE" \
+              --stack-base-ref "$CI_STACK_BASE_REF" --stack-base-sha "$CI_STACK_BASE_SHA" \
+              --stack-head-ref "$CI_STACK_HEAD_REF"
           else
             python3 scripts/ci/select_projects.py select --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
           fi
@@ -159,6 +176,18 @@ jobs:
           python3 -m unittest discover -s scripts -p 'test_design_system.py'
           python3 scripts/check_design_system.py
 
+  stack-proof:
+    name: Stack proof ${{ needs.changes.outputs.native_stack_revision }}
+    if: needs.changes.outputs.native_stack_revision != ''
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Bind validation to current ordered stack membership
+        env:
+          STACK_REVISION: ${{ needs.changes.outputs.native_stack_revision }}
+        run: test -n "$STACK_REVISION"
+
   backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -195,7 +224,7 @@ jobs:
   required:
     name: CI required
     if: always()
-    needs: [secret-scan, changes, repository, backend, firmware, web, ios, ai-eval, site]
+    needs: [secret-scan, changes, repository, backend, firmware, web, ios, ai-eval, site, stack-proof]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -206,6 +235,7 @@ jobs:
     env:
       RESULTS: ${{ toJSON(needs) }}
       SELECTED_PROJECTS: ${{ toJSON(needs.changes.outputs) }}
+      NATIVE_STACK_REVISION: ${{ needs.changes.outputs.native_stack_revision }}
       SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
