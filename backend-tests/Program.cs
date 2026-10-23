@@ -39,6 +39,12 @@ if (args is ["--keepsake-owner-authorization"])
     await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();
     return;
 }
+if (args is ["--keepsake-readiness"])
+{
+    await KeepsakeReadinessTests.RunAsync();
+    await AccountIdentityTests.RunCustomerSessionResultHttpAsync();
+    return;
+}
 if (args is ["--identity"])
 {
     await AccountIdentityTests.RunAsync();
@@ -115,6 +121,8 @@ await DuelTests.RunAsync();
 await KeepsakeCoreTests.RunAsync();
 await KeepsakeOwnerAuthorizationTests.RunAsync();
 await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();
+await KeepsakeReadinessTests.RunAsync();
+await AccountIdentityTests.RunCustomerSessionResultHttpAsync();
 KeepsakeOutcomeJournalTests.Run();
 FirmwareReleaseTests.Run();
 CharacterDirectorTests.Run();

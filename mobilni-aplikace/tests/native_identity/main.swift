@@ -11,6 +11,35 @@ require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", q
 
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+let customerSession = "/app/v1/customer/sessions/\(id)"
+let customerResult = customerSession + "/result"
+require(AccountTransportPolicy.account(path: customerResult, method: "GET"), "customer session result unavailable")
+require(AccountTransportPolicy.account(path: "/app/v1/customer/sessions/\(id.uppercased())/result", method: "GET"),
+        "canonical uppercase session UUID rejected")
+require(AccountTransportPolicy.account(path: customerSession, method: "GET"), "customer session read changed")
+require(AccountTransportPolicy.account(path: customerSession + "/end", method: "POST"), "customer session end changed")
+for method in ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "get"] {
+    require(!AccountTransportPolicy.account(path: customerResult, method: method), "customer result method broadened: \(method)")
+}
+for invalid in [
+    customerResult + "/", customerResult + "/extra", customerResult + "?deviceId=other", customerResult + "#fragment",
+    customerResult + "\n", customerResult + "%0a", customerResult.replacingOccurrences(of: "/result", with: "//result"),
+    String(customerResult.dropFirst()), "/" + customerResult, customerSession + "/../result",
+    "/app/v1/customer/sessions/not-a-uuid/result", "/app/v1/customer/sessions/\(id.dropLast())/result",
+    "/app/v1/customer/sessions/\(id.replacingOccurrences(of: "-", with: ""))/result",
+    "/app/v1/customer/sessions/{\(id)}/result", "/app/v1/customer/sessions/\(id)\n/result",
+    "/app/v1/customer/sessions/\(id)/%72esult", "/app/v1/customer/sessions/\(id)/Result"
+] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "GET"), "malformed customer result accepted: \(invalid)")
+    require(!AccountTransportPolicy.customer(path: invalid, method: "GET"), "customer result canonical-path guard bypassed")
+}
+require(!AccountTransportPolicy.guest(path: customerResult, method: "GET"), "customer result entered guest transport")
+require(AccountTransportPolicy.accountResponseLimit(path: customerResult, method: "GET") == 1024 * 1024,
+        "customer result received an asset response limit")
+require(AccountTransportPolicy.accountRequestBodyLimit(path: customerResult, method: "POST", contentType: "image/jpeg") == 256 * 1024,
+        "customer result received a portrait upload limit")
+require(!AccountTransportPolicy.accountHeaderAllowed(path: customerResult, method: "GET", name: "X-DV10-Consent", value: "7"),
+        "portrait consent entered customer result transport")
 require(AccountTransportPolicy.account(path: "/app/v1/account", method: "DELETE"), "account deletion unavailable")
 require(AccountTransportPolicy.account(path: "/app/v1/account/deletion", method: "GET"), "anonymous deletion receipt unavailable")
 for invalid in ["/app/v1/account/", "/app/v1/account?x=1", "/app/v1/account#fragment", "/app/v1/%61ccount", "/app/v1/account/../account", "/app/v1//account", "/app/v1/account/deletion", "/guest/v1/account"] {

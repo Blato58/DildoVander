@@ -15,6 +15,7 @@ const guidance: Record<CustomerJourneyMeaning, string> = {
   'profile-review': 'Zkontrolujte uloženou postavu nebo ji upřesněte. Oprava zachová její identitu a historii.',
   'preparation-pending': 'Příprava postavy ještě není dokončená. Na její obrazovce uvidíte aktuální stav.',
   'latest-result': 'Otevřete svou poslední dostupnou památku. Další rozhovor najdete v části Rozhovor.',
+  'result-preparing': 'Památka z dokončeného rozhovoru se ještě připravuje. Na obrazovce rozhovoru ověříte její aktuální stav.',
   'conversation-ready': 'Postava je uložená. Na obrazovce rozhovoru ověříte blízký kufr a zvolíte souhlasy pro tento rozhovor.',
 };
 </script>

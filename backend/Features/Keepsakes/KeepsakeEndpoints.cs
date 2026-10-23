@@ -207,7 +207,7 @@ internal static partial class KeepsakeEndpoints
         accessKind = accessKind ?? (v.SharedEditionId is null ? "guestOwner" : "sharedViewer"),
         accountLinked = accessKind == "originalOwner",
         canManage = !v.ReadOnly, canReadPrivate = !v.ReadOnly, canUnlink = false,
-        v.State, v.ReadOnly, v.PortraitConsent, v.PortraitConsentVersion, v.WizardIdentities, v.Prophecies,
+        v.State, v.ReadOnly, v.Readiness, v.PortraitConsent, v.PortraitConsentVersion, v.WizardIdentities, v.Prophecies,
         snapshot = new { v.Snapshot.OfficialName, v.Snapshot.CatalogId, v.Snapshot.CatalogVersion, v.Snapshot.Slot, v.Snapshot.PhysicalEvidence },
         editions = v.Editions.Select(e => new { e.Id, e.Story, e.ArtworkAssetId, e.Synthetic, e.PublicationState, e.CreatedAt }),
         portraits = v.Portraits.Select(p => new { p.Id, p.EditionId, p.UploadId, p.Variant, p.AssetId, p.Synthetic, p.CreatedAt }),

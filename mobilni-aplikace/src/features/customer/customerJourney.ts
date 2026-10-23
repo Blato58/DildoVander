@@ -18,6 +18,7 @@ export type CustomerJourneyKey =
   | 'review-character'
   | 'review-preparation'
   | 'open-latest-result'
+  | 'check-result'
   | 'continue-conversation';
 
 export type CustomerJourneyMeaning =
@@ -29,6 +30,7 @@ export type CustomerJourneyMeaning =
   | 'profile-review'
   | 'preparation-pending'
   | 'latest-result'
+  | 'result-preparing'
   | 'conversation-ready';
 
 export interface CustomerJourneyAction {
@@ -50,6 +52,7 @@ export interface CustomerJourneyInput {
   stale?: boolean;
   /** The locator from the server's account-associations response; never derive this from a session. */
   latestAuthorizedResult?: { locator: string } | null;
+  resultPending?: boolean;
 }
 
 /** Customer sign-in has a character-first default; staff keep the established settings default. */
@@ -96,6 +99,10 @@ export function getCustomerJourneyAction(input: CustomerJourneyInput): CustomerJ
 
   if (input.profile.status !== 'ready' && input.profile.status !== 'saved') {
     return action('review-character', 'Zkontrolovat postavu', '/me/character', 'profile-review');
+  }
+
+  if (input.resultPending) {
+    return action('check-result', 'Zkontrolovat památku', '/me/conversation', 'result-preparing');
   }
 
   const locator = input.latestAuthorizedResult?.locator;

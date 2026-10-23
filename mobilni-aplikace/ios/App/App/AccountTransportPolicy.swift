@@ -288,6 +288,10 @@ enum AccountTransportPolicy {
         let parts = path.split(separator: "/").map(String.init)
         if parts.count >= 5, Array(parts.prefix(4)) == ["app", "v1", "customer", "sessions"],
            UUID(uuidString: parts[4]) != nil {
+            if parts.count == 6, parts[5] == "result" {
+                return method == "GET" && parts[4].count == 36
+                    && path == "/app/v1/customer/sessions/\(parts[4])/result"
+            }
             return (parts.count == 5 && method == "GET") ||
                 (parts.count == 6 && parts[5] == "end" && method == "POST")
         }
