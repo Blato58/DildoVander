@@ -384,7 +384,7 @@ internal sealed class CharacterSession
         {
             return null;
         }
-        phrase = Regex.Replace(phrase, @"^(?:(?:ne|no),?\s+)?(?:(?:fakt|really)\s+)?", "", RegexOptions.CultureInvariant,
+        phrase = Regex.Replace(phrase, @"^(?:(?:ne,?|no,)\s+)?(?:(?:fakt|really)\s+)?", "", RegexOptions.CultureInvariant,
             TimeSpan.FromMilliseconds(20));
         if (phrase.StartsWith("prosím ", StringComparison.Ordinal))
         {

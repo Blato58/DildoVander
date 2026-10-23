@@ -21,6 +21,8 @@ internal static partial class AccountIdentityTests
         await CsrfAsync(owner);
         var firstProfile = await CustomerAsync(first, firstKey);
         var secondProfile = await CustomerAsync(second, secondKey);
+        const string preferencesRoute = "/app/v1/customer/conversation-preferences";
+        await SavePreferencesAsync(first, firstProfile, 0, "en-US", "cheeky");
         Check((await first.PutAsJsonAsync("/app/v1/customer/admin/devices/granted-device", new { enabled = true })).StatusCode
             == HttpStatusCode.Forbidden, "customer cannot enable the BLE mode");
         Check((await owner.PutAsJsonAsync("/app/v1/customer/admin/devices/granted-device", new { enabled = true })).IsSuccessStatusCode,
@@ -60,6 +62,7 @@ internal static partial class AccountIdentityTests
             && (await denied.Content.ReadAsStringAsync()).Contains("openai_consent_required"),
             "real HTTPS customer start rejects omitted OpenAI consent before issuing a ticket");
         var issuedFirst = await TicketAsync(first, firstProfile, firstOp);
+        await SavePreferencesAsync(first, firstProfile, 1, "cs-CZ", "gentle");
         var issuedSecond = await TicketAsync(second, secondProfile, secondOp);
         var redeemFirst = new CustomerRedemption(1, issuedFirst.GetProperty("ticket").GetString()!, firstOp, boot, challenge.Challenge);
         var redeemSecond = new CustomerRedemption(1, issuedSecond.GetProperty("ticket").GetString()!, secondOp, boot, challenge.Challenge);
@@ -74,6 +77,15 @@ internal static partial class AccountIdentityTests
         var accepted = await JsonAsync(replies[index]);
         var id = accepted.GetProperty("customerSessionId").GetString()!;
         var conversation = accepted.GetProperty("conversationId").GetString()!;
+        var acceptedSession = fixture.App.Services.GetRequiredService<OperationJournal>().CustomerSession(id)!;
+        using (var frozen = JsonDocument.Parse(acceptedSession.Snapshot))
+        {
+            var preferences = frozen.RootElement.GetProperty("preferences");
+            var wonFirst = index == 0;
+            Check(preferences.GetProperty("conversationLanguage").GetString() == (wonFirst ? "en-US" : "cs-CZ")
+                && preferences.GetProperty("tone").GetString() == (wonFirst ? "cheeky" : "roast"),
+                "ticket redemption keeps the issuance snapshot after preferences change");
+        }
         Check((await stranger.GetAsync($"/app/v1/customer/sessions/{id}")).StatusCode == HttpStatusCode.NotFound,
             "other customer cannot inspect a known session UUID");
         Check((await stranger.PostAsJsonAsync($"/app/v1/customer/sessions/{id}/end", new { })).StatusCode == HttpStatusCode.NotFound,
@@ -101,9 +113,19 @@ internal static partial class AccountIdentityTests
         await device.PostAsJsonAsync("/v1/customer-sessions/device-challenge", challenge);
         await device.PostAsJsonAsync("/v1/customer-sessions/device-idle", new { bootId = boot });
         var secondTicket = await TicketAsync(first, firstProfile, Guid.NewGuid().ToString("D"));
+        await SavePreferencesAsync(first, firstProfile, 2, "en-US", "roast");
         var secondCreated = await JsonAsync(await device.PostAsJsonAsync("/v1/customer-sessions/redeem", new CustomerRedemption(1,
             secondTicket.GetProperty("ticket").GetString()!, secondTicket.GetProperty("operationId").GetString()!, boot, challenge.Challenge)));
         var interrupted = secondCreated.GetProperty("customerSessionId").GetString()!;
+        var secondSnapshot = fixture.App.Services.GetRequiredService<OperationJournal>().CustomerSession(interrupted)!.Snapshot;
+        using (var frozen = JsonDocument.Parse(secondSnapshot))
+        {
+            var preferences = frozen.RootElement.GetProperty("preferences");
+            Check(preferences.GetProperty("preferenceRevision").GetInt64() == 2
+                && preferences.GetProperty("conversationLanguage").GetString() == "cs-CZ"
+                && preferences.GetProperty("tone").GetString() == "gentle",
+                "a later ticket freezes the latest saved preferences independently of subsequent edits");
+        }
         boot = Guid.NewGuid().ToString("D");
         challenge = challenge with { BootId = boot, Challenge = Guid.NewGuid().ToString("D") };
         await device.PostAsJsonAsync("/v1/customer-sessions/device-challenge", challenge);
@@ -124,6 +146,21 @@ internal static partial class AccountIdentityTests
                 challenge = challenge.Challenge, profileId = profile.GetProperty("profileId").GetString(),
                 profileRevision = profile.GetProperty("revision").GetInt64(), openAiConsent = true
             }));
+
+        async Task SavePreferencesAsync(HttpClient client, JsonElement profile, long revision,
+            string language, string tone)
+        {
+            using var response = await client.PutAsJsonAsync(preferencesRoute, new
+            {
+                schemaVersion = 1,
+                profileId = profile.GetProperty("profileId").GetString(),
+                profileRevision = profile.GetProperty("revision").GetInt64(),
+                expectedPreferenceRevision = revision,
+                conversationLanguage = language,
+                tone
+            });
+            Check(response.IsSuccessStatusCode, "owned conversation preferences save before ticket admission");
+        }
     }
 
     private static async Task<JsonElement> CustomerAsync(HttpClient client, VirtualPasskey key)

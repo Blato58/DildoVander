@@ -119,7 +119,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         var options = snapshot.Options;
         var inputActivity = new LiveInputActivity(clock, options.SpeechAmplitudeThreshold);
         var projection = new LiveConversationProjection(options);
-        var character = snapshot.Version == "dv01-adult-v1" ? new CharacterSession(call.SessionGeneration, options.Character, recentStyles) : null;
+        var character = snapshot.Version == "dv01-adult-v1"
+            ? new CharacterSession(call.SessionGeneration, options.Character, recentStyles, turn.GuestTone)
+            : null;
         using var showVisit = character is null ? null : show?.BeginVisit(call.Correlation.DeviceId, call.EveningId,
             call.Correlation.ConversationId, call.SessionGeneration);
         CharacterDirective? directive = null;
@@ -187,6 +189,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         var lastProviderAudio = TimeSpan.Zero;
         var minimumOutputStart = -1d;
         var lastCharacterContentVersion = -1L;
+        var lastGuestToneContentVersion = -1L;
         var inputRepairs = 0;
         long responseGeneration = 0, resumeContentVersion = long.MaxValue;
         var recoveryAudio = new List<byte[]>();
@@ -908,6 +911,20 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     }
                     await Direct(projection.Intent == LiveRequestIntent.Repeat ? CharacterPhase.Repair
                         : terminal is null ? CharacterPhase.Responding : CharacterPhase.Ready);
+                }
+                if (character is null && turn.GuestTone is { } guestTone && !closing
+                    && projection.ContentVersion != lastGuestToneContentVersion && projection.ContentVersion > 0
+                    && inputActivity.QuietFor(options.InputQuietMs)
+                    && Elapsed() - changedAt >= TimeSpan.FromMilliseconds(options.DelegationContextWaitMs))
+                {
+                    lastGuestToneContentVersion = projection.ContentVersion;
+                    var before = guestTone.Read().Revision;
+                    var updated = guestTone.AcceptInput(projection.LatestInputReference, projection.ContentVersion,
+                        projection.LatestInput);
+                    if (updated.Revision != before)
+                    {
+                        await tracker.AppendAsync("instructions", updated.Instructions, null, token);
+                    }
                 }
                 if (!closing && localPersistence is null && memory is not null && memoryAccess is not null
                     && projection.ContentVersion > persistedContentVersion && projection.Intent == LiveRequestIntent.Selection

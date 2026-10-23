@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 const bridge = vi.hoisted(() => ({native: false, request: vi.fn(), passkey: vi.fn(), accountTransport: vi.fn(), shareAccountDataFile: vi.fn(), cancelAccountRequest: vi.fn()}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => bridge.native }, registerPlugin: () => bridge }));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(complete => { resolve = complete; }); return {promise, resolve}; }
 const user = (id: string | null, token = id ?? 'anonymous') => ({ enabled: true, account: id ? {id, displayName: id, roles: ['Viewer']} : null, csrfToken: token, origin: 'https://accounts.invalid' });
 let request: ReturnType<typeof vi.fn>;
 beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.shareAccountDataFile.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { interfaceLanguagePreference.setScope(null); interfaceLanguagePreference.setLanguage('cs'); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('native account archive transport limits', () => {
   const archiveId = '123e4567-e89b-42d3-a456-426614174000';
@@ -323,6 +324,16 @@ describe('durable account deletion', () => {
     await expect(identity.deleteAccount('current')).rejects.toThrow('nebyla potvrzena');
     expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('Trvale smazat můj účet?'));
     expect(request).toHaveBeenCalledTimes(1);
+    expect(identity.account.value?.id).toBe('current');
+  });
+
+  it('uses the selected language for the final native deletion confirmation', async () => {
+    interfaceLanguagePreference.setScope(null);
+    interfaceLanguagePreference.setLanguage('en');
+    const identity = await signedIn();
+    const confirmation = vi.fn().mockReturnValue(false); vi.stubGlobal('confirm', confirmation);
+    await expect(identity.deleteAccount('current')).rejects.toThrow('not confirmed');
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('Permanently delete my account?'));
     expect(identity.account.value?.id).toBe('current');
   });
 

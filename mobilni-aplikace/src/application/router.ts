@@ -1,5 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, type RouteLocationNormalizedLoaded } from 'vue-router';
+import { watch } from 'vue';
 import { installAccessGuard } from './accessGuard';
+import { customerCopy, type CustomerCopyKey } from './customerCopy';
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -41,6 +43,30 @@ export const router = createRouter({
   scrollBehavior(to, from, saved) { return saved ?? (to.path === from.path ? false : { top: 0 }); },
 });
 
+const localizedRouteTitles: Partial<Record<string, CustomerCopyKey>> = {
+  home: 'home.title',
+  'customer-demo': 'route.title-demo',
+  support: 'support.title',
+  privacy: 'privacy.title',
+  'account-deletion': 'deletion.title',
+  'customer-character': 'customer.character-pane',
+  'customer-conversation': 'customer.conversation-pane',
+  'customer-keepsakes': 'customer.keepsakes-pane',
+  'customer-account': 'customer.account-pane',
+  archive: 'route.title-archive',
+  chronicle: 'route.title-chronicle',
+  keepsake: 'route.title-keepsake',
+  signin: 'signin.title',
+  workshop: 'route.title-workshop',
+  notFound: 'route.title-not-found',
+};
+
+function updateDocumentTitle(to: Pick<RouteLocationNormalizedLoaded, 'name' | 'meta'> = router.currentRoute.value): void {
+  const key = to.name ? localizedRouteTitles[String(to.name)] : undefined;
+  const title = key ? customerCopy.text(key) : to.meta.title ?? 'DildoVander';
+  document.title = `${title} · DildoVander`;
+}
+
 router.beforeEach(to => {
   if (to.hash === '#director' && ['/', '/suitcase', '/suitcase/diagnostics'].includes(to.path)) return {path: '/suitcase/director'};
   if (['/keepsake/evening/', '/keepsake/evening', '/keepsake/evening/index.html'].includes(to.path)) {
@@ -48,12 +74,14 @@ router.beforeEach(to => {
   }
 });
 router.afterEach(to => {
-  document.title = `${to.meta.title ?? 'DildoVander'} · DildoVander`;
+  updateDocumentTitle(to);
   let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
   if (to.meta.private) {
     if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.append(robots); }
     robots.content = 'noindex, nofollow, noarchive';
   } else { robots?.remove(); }
 });
+
+watch(customerCopy.language, () => updateDocumentTitle(), { flush: 'sync' });
 
 installAccessGuard(router);

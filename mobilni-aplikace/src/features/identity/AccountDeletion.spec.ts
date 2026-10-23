@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import AccountDeletion from './AccountDeletion.vue';
 import { account } from './session';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 
 const api = vi.hoisted(() => ({ authenticate: vi.fn(), deleteAccount: vi.fn(), status: vi.fn() }));
 vi.mock('./session', async () => {
@@ -10,6 +11,8 @@ vi.mock('./session', async () => {
 });
 const current = { id: 'current', displayName: 'Můj účet', roles: ['Customer'] };
 beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   account.value = { ...current };
   api.authenticate.mockReset().mockResolvedValue(undefined);
   api.deleteAccount.mockReset();
@@ -34,14 +37,28 @@ describe('account deletion confirmation', () => {
   });
 
   it('retains account after a rejection and requires fresh verification for a retry', async () => {
-    api.deleteAccount.mockRejectedValue(new Error('Alespoň jeden aktivní vlastník musí zůstat zachován.'));
+    api.deleteAccount.mockRejectedValue(new Error('provider error with private diagnostics'));
     const view = mount(AccountDeletion);
     await view.get('button').trigger('click'); await flushPromises();
     await view.get('button').trigger('click'); await flushPromises();
     expect(api.deleteAccount).toHaveBeenCalledExactlyOnceWith('current');
     expect(account.value?.id).toBe('current');
-    expect(view.get('[role="alert"]').text()).toContain('aktivní vlastník');
+    expect(view.get('[role="alert"]').text()).toContain('Žádost o smazání se nepodařilo dokončit.');
+    expect(view.get('[role="alert"]').text()).not.toContain('provider error');
     expect(view.text()).toContain('Ověřit účet pro smazání');
+    view.unmount();
+  });
+
+  it('updates deletion confirmation copy immediately when the interface language changes', async () => {
+    const view = mount(AccountDeletion);
+    expect(view.text()).toContain('Trvale smažete účet');
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(view.text()).toContain('You will permanently delete the account');
+    expect(view.text()).toContain('Verify account for deletion');
+    api.authenticate.mockRejectedValueOnce(new Error('raw native provider details'));
+    await view.get('button').trigger('click'); await flushPromises();
+    expect(view.get('[role="alert"]').text()).toBe('Could not verify the account. Try again.');
     view.unmount();
   });
 

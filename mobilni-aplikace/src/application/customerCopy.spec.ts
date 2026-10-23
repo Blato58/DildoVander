@@ -24,6 +24,24 @@ describe('customer copy catalog', () => {
     expect(Object.keys(customerCopyEn).sort()).toEqual(Object.keys(customerCopyCs).sort());
   });
 
+  it('provides the conversation preference copy in both interface languages', () => {
+    expect(customerCopyCs['preferences.intro']).toContain('rozběhnutý rozhovor se nemění');
+    expect(customerCopyCs['preferences.limits']).toContain('Souhlas s AI se uděluje zvlášť');
+    expect(customerCopyEn['preferences.intro']).toContain('an active conversation stays unchanged');
+    expect(customerCopyEn['preferences.limits']).toContain('AI consent is separate');
+  });
+
+  it('keeps the synthetic demo privacy and device boundaries explicit in both languages', () => {
+    expect(customerCopyCs['demo.disclaimer']).toContain('nepřipojuje kufr');
+    expect(customerCopyCs['demo.disclaimer']).toContain('nepoužívá mikrofon');
+    expect(customerCopyCs['demo.disclaimer']).toContain('neukládá ani nikam neodesílá');
+    expect(customerCopyCs['demo.disclaimer']).toContain('samostatném výslovném souhlasu');
+    expect(customerCopyEn['demo.disclaimer']).toContain('does not connect to a suitcase');
+    expect(customerCopyEn['demo.disclaimer']).toContain('use a microphone');
+    expect(customerCopyEn['demo.disclaimer']).toContain('not saved or sent anywhere');
+    expect(customerCopyEn['demo.disclaimer']).toContain('separate, explicit consent');
+  });
+
   it('interpolates parameters as plain text and leaves missing placeholders visible', () => {
     const resolved = resolveCustomerCopy('result.last-verified', 'en', {
       guidance: '<img src=x onerror=alert(1)>',

@@ -102,7 +102,15 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') { errors.push(message.text()); } });
   const notice = () => page.locator('[role="status"][aria-live="polite"][data-readiness-state]');
-  const fits = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no horizontal overflow');
+  const fits = async () => {
+    const layout = await page.evaluate(() => ({
+      viewport: innerWidth, width: document.documentElement.scrollWidth,
+      overflow: [...document.querySelectorAll('main *')].filter(element => element.getBoundingClientRect().right > innerWidth + 1)
+        .slice(-12).map(element => ({ tag: element.tagName, className: element.className,
+          width: element.getBoundingClientRect().width, text: element.textContent?.trim().slice(0, 80) })),
+    }));
+    assert(layout.width <= layout.viewport + 1, `no horizontal overflow: ${JSON.stringify(layout)}`);
+  };
   const open = async (kind, state) => {
     accessKind = kind;
     readiness = state;
@@ -165,6 +173,55 @@ try {
     assert.notEqual(await unlink.evaluate(button => getComputedStyle(button).outlineStyle), 'none', 'focused action has a visible outline');
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: path.join(output, `${name}-mobile.png`), fullPage: true });
+  }
+  for (const kind of ['originalOwner', 'linkedViewer']) {
+    await open(kind, states.reconciliation);
+    const mutationsBeforeLocale = requests.filter(request => request.method !== 'GET').length;
+    await page.locator('.interface-language-select select').selectOption('en');
+    const privacy = page.getByRole('button', { name: 'Privacy and data retention', exact: true });
+    await privacy.waitFor();
+    assert.equal(requests.filter(request => request.method !== 'GET').length, mutationsBeforeLocale,
+      'language switching cannot create content, grant consent, or delete data');
+    assert.equal(await page.getByText('PRIVATE_LINKED_PAYLOAD_MUST_NOT_RENDER').count(), 0);
+    await privacy.click();
+    const privacyDialog = page.getByRole('dialog', { name: 'Privacy and data retention', exact: true });
+    const privacyText = await privacyDialog.innerText();
+    assert.match(privacyText, /manual deletion|deleted manually|manually deleted/i);
+    assert.match(privacyText, /expir/i);
+    await privacyDialog.getByRole('button', { name: 'Close', exact: true }).click();
+    if (kind === 'originalOwner') {
+      await page.getByRole('button', { name: /Delete entire keepsake/i }).click();
+      const dialog = page.getByRole('dialog', { name: 'Delete entire keepsake?', exact: true });
+      await dialog.getByLabel('Type SMAZAT to confirm', { exact: true }).fill('DELETE');
+      const confirm = dialog.getByRole('button', { name: /Confirm deletion/i });
+      assert(await confirm.isDisabled(), 'translated copy retains the original explicit deletion gate');
+      await dialog.getByLabel('Type SMAZAT to confirm', { exact: true }).fill('SMAZAT');
+      assert(await confirm.isEnabled());
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    } else {
+      assert.equal(await page.getByRole('button', { name: /Delete entire keepsake/i }).count(), 0);
+      await page.getByRole('button', { name: 'Unlink this keepsake from the account', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Unlink keepsake from account?', exact: true });
+      await dialog.getByLabel('Type ODPOJIT to confirm', { exact: true }).fill('UNLINK');
+      const confirm = dialog.getByRole('button', { name: /Confirm unlink/i });
+      assert(await confirm.isDisabled());
+      await dialog.getByLabel('Type ODPOJIT to confirm', { exact: true }).fill('ODPOJIT');
+      assert(await confirm.isEnabled());
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    }
+    for (const theme of ['lord-voldemort', 'olivander']) {
+      await page.locator('.theme-control select').selectOption(theme);
+      for (const width of [390, 320]) {
+        await page.setViewportSize({ width, height: 844 });
+        await fits();
+        await page.screenshot({ path: path.join(output, `${kind}-en-${theme}-${width}.png`), fullPage: true });
+      }
+    }
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    await fits();
+    await page.screenshot({ path: path.join(output, `${kind}-en-320-large-text.png`), fullPage: true });
+    await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+    await page.locator('.interface-language-select select').selectOption('cs');
   }
   assert.equal(errors.length, 0, JSON.stringify(errors));
   assert.equal(requests.filter(request => request.method !== 'GET').length, 1, 'observer adds no mutations beyond the explicit owner click');

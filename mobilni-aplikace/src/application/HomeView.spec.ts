@@ -27,6 +27,7 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }
 
 import HomeView from './HomeView.vue';
 import { account } from '../features/identity/session';
+import { interfaceLanguagePreference } from './interfaceLanguage';
 
 interface Deferred<T> { promise: Promise<T>; resolve(value: T): void }
 function deferred<T>(): Deferred<T> {
@@ -61,6 +62,8 @@ const customer = { id: 'customer-1', displayName: 'Zákazník', roles: ['Custome
 const operator = { id: 'staff-1', displayName: 'Obsluha', roles: ['Operator'] };
 
 beforeEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   api.setAccount(null);
   api.setDeleting(false);
   api.request.mockReset();
@@ -76,6 +79,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -93,6 +98,21 @@ describe('Home customer journey', () => {
     expect(staff.wrapper.text()).not.toContain('Váš další krok');
     expect(api.request).not.toHaveBeenCalled();
     staff.wrapper.unmount();
+  });
+
+  it('switches guest home copy without repeating network reads', async () => {
+    const { wrapper } = await mountHome();
+    await flushPromises();
+    expect(wrapper.get('h1').text()).toBe('Kufr plný příběhů.');
+    const requests = vi.mocked(fetch).mock.calls.length;
+
+    interfaceLanguagePreference.setLanguage('en');
+    await nextTick();
+    expect(wrapper.get('h1').text()).toBe('A suitcase full of stories.');
+    expect(wrapper.text()).toContain('Explore the suitcase model and wand stories.');
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(requests);
+    expect(api.request).not.toHaveBeenCalled();
+    wrapper.unmount();
   });
 
   it('keeps mixed-role identities in the staff view', async () => {

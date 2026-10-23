@@ -646,7 +646,11 @@ internal static partial class AccountIdentityTests
             await AccountProvisioning.MigrateAsync(app.Services);
             await app.InitializeAccountsAsync();
             app.UseWebSockets(); app.UseRateLimiter(); app.UseAccountIdentity(); app.MapAccountEndpoints(); app.MapDigitalTwin(); app.MapModelReleases();
-            if (customerFeatures || customerMemoryFeatures || accountDataExportFeatures) { app.MapCustomerCharacters(); app.MapCustomerSessions(); }
+            if (customerFeatures || customerMemoryFeatures || accountDataExportFeatures)
+            {
+                app.MapCustomerCharacters(); app.MapCustomerSessions();
+                if (configureEndpoints is null) { app.MapCustomerConversationPreferences(); }
+            }
             if (customerMemoryFeatures || accountDataExportFeatures) { app.MapCustomerMemoryEndpoints(); }
             if (accountDataExportFeatures) { app.MapAccountDataExports(); }
             app.MapConversations();

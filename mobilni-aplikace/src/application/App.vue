@@ -15,6 +15,7 @@ import { accessDenial, canEnterStaffArea, canOperateSuitcase, isCustomerAccount 
 import { accessRedirect } from './accessGuard';
 import InterfaceLanguageSelect from './InterfaceLanguageSelect.vue';
 import { interfaceLanguagePreference } from './interfaceLanguage';
+import { customerCopy } from './customerCopy';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,10 +28,10 @@ let navigationObserver: ResizeObserver | undefined;
 const viewError = ref('');
 const customerAccount = computed(() => isCustomerAccount(account.value));
 const navigation = computed(() => customerAccount.value ? [
-  { to: '/me/character', label: 'Postava', symbol: '✦' },
-  { to: '/me/conversation', label: 'Rozhovor', symbol: '◉' },
-  { to: '/me/keepsakes', label: 'Památky', symbol: '▤' },
-  { to: '/me/account', label: 'Účet', symbol: '⚙' },
+  { to: '/me/character', label: customerCopy.text('shell.nav-character'), symbol: '✦' },
+  { to: '/me/conversation', label: customerCopy.text('shell.nav-conversation'), symbol: '◉' },
+  { to: '/me/keepsakes', label: customerCopy.text('shell.nav-keepsakes'), symbol: '▤' },
+  { to: '/me/account', label: customerCopy.text('shell.nav-account'), symbol: '⚙' },
 ] : canEnterStaffArea(account.value) ? [
   ...(canOperateSuitcase(account.value) ? [{ to: '/tonight', label: 'Dnes', symbol: '◉' }] : []),
   { to: '/suitcase', label: 'Kufr', symbol: '▣' },
@@ -41,10 +42,10 @@ const navigation = computed(() => customerAccount.value ? [
   ...(canOperateSuitcase(account.value) ? [{ to: '/admin/customer-sessions', label: 'Relace', symbol: '◎' }] : []),
   ...(account.value?.roles.some(role => ['Owner', 'Administrator'].includes(role)) ? [{ to: '/settings/admin', label: 'Správa', symbol: '⚙' }] : []),
 ] : [
-  { to: '/', label: 'Domov', symbol: '⌂' },
-  { to: '/workshop', label: 'Dílna', symbol: '◇' },
-  { to: '/archive', label: 'Archiv', symbol: '▤' },
-  { to: '/signin', label: 'Účet', symbol: '⚙' },
+  { to: '/', label: customerCopy.text('shell.nav-home'), symbol: '⌂' },
+  { to: '/workshop', label: customerCopy.text('shell.nav-workshop'), symbol: '◇' },
+  { to: '/archive', label: customerCopy.text('shell.nav-archive'), symbol: '▤' },
+  { to: '/signin', label: customerCopy.text('shell.nav-account'), symbol: '⚙' },
 ]);
 const identityKey = computed(() => account.value ? `${account.value.id}:${account.value.roles.join(',')}` : 'public');
 const routeAccessible = computed(() => accessDenial(route.meta, account.value, offlineSession.value) === null);
@@ -57,7 +58,7 @@ const stopBusy = computed(() => (deviceCanStop.value || phoneActive.value || dir
   && (!phoneActive.value || nativeDebug.cancellationPending.value)
   && (!directorCanStop.value || directorStop.value?.busy())
   && !servoBench.connected.value);
-const targetLabel = computed(() => ({ unavailable: 'Kufr není připojen', demo: 'Ukázka · bez zařízení', simulator: 'Simulátor · bez fyzických pohonů', native: 'Místní kufr' })[deviceSession.target.value]);
+const targetLabel = computed(() => ({ unavailable: customerCopy.text('shell.target-unavailable'), demo: customerCopy.text('shell.target-demo'), simulator: customerCopy.text('shell.target-simulator'), native: customerCopy.text('shell.target-native') })[deviceSession.target.value]);
 async function stop(): Promise<void> {
   // Start independent cancellation paths together; a slow USB acknowledgement
   // cannot delay the already-permitted phone or suitcase Stop.
@@ -91,7 +92,7 @@ watch(() => route.path, () => {
   // Announce route changes while leaving same-route form/telemetry focus intact.
   requestAnimationFrame(() => main.value?.focus({ preventScroll: true }));
 });
-const removeRouterError = router.onError(() => { viewError.value = 'Stránku se nepodařilo načíst. Zkontrolujte připojení a zkuste načtení znovu.'; });
+const removeRouterError = router.onError(() => { viewError.value = customerCopy.text('shell.page-error'); });
 function refreshSession(): void {
   if (!document.hidden) void refreshIdentity().catch(() => { /* Offline local operation remains available. */ });
 }
@@ -115,38 +116,38 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <a class="skip-link" href="#main-content">Přejít na obsah</a>
+  <a class="skip-link" href="#main-content">{{ customerCopy.text('shell.skip') }}</a>
   <div class="application-shell" :style="{ '--application-navigation-height': navigationHeight, '--application-navigation-count': navigation.length }">
-    <aside class="application-sidebar" aria-label="Hlavní navigace">
-      <RouterLink class="application-brand" to="/" aria-label="DildoVander, domov"><span class="brand-mark" aria-hidden="true">DV</span><span>DildoVander<small>Kufr. Dílna. Příběhy.</small></span></RouterLink>
-      <nav ref="navigationElement" class="primary-navigation" aria-label="Sekce aplikace">
+    <aside class="application-sidebar" :aria-label="customerCopy.text('shell.navigation')">
+      <RouterLink class="application-brand" to="/" :aria-label="customerCopy.text('shell.brand-home')"><span class="brand-mark" aria-hidden="true">DV</span><span>DildoVander<small>{{ customerCopy.text('shell.brand-tagline') }}</small></span></RouterLink>
+      <nav ref="navigationElement" class="primary-navigation" :aria-label="customerCopy.text('shell.sections')">
         <RouterLink v-for="item in navigation" :key="item.to" :to="item.to" :class="{ selected: item.to === '/' ? route.path === '/' : route.path.startsWith(item.to) }">
           <span aria-hidden="true">{{ item.symbol }}</span><span>{{ item.label }}</span>
         </RouterLink>
       </nav>
-      <div class="sidebar-details"><span class="eyebrow">{{ customerAccount ? 'Můj prostor' : 'Vapour Chrome' }}</span><p>{{ customerAccount ? 'Vaše postava, rozhovory a památky.' : 'Jeden prostor pro celý večer.' }}</p><RouterLink v-if="canEnterStaffArea(account)" to="/me/character">Můj zákaznický pohled</RouterLink><RouterLink v-if="canOperateSuitcase(account)" to="/admin/customer-sessions">Zákaznické relace</RouterLink></div>
+      <div class="sidebar-details"><span class="eyebrow">{{ customerAccount ? customerCopy.text('shell.my-space') : 'Vapour Chrome' }}</span><p>{{ customerAccount ? customerCopy.text('shell.customer-guidance') : customerCopy.text('shell.public-guidance') }}</p><RouterLink v-if="canEnterStaffArea(account)" to="/me/character">{{ customerCopy.text('shell.customer-view') }}</RouterLink><RouterLink v-if="canOperateSuitcase(account)" to="/admin/customer-sessions">{{ customerCopy.text('shell.customer-sessions') }}</RouterLink></div>
     </aside>
     <div class="application-body">
       <header class="application-header">
         <div v-if="canOperateSuitcase(account)" class="connection-context"><RouterLink to="/connections">{{ targetLabel }}</RouterLink><span v-if="servoBench.connected.value" class="context-detail">USB servo servis · Stop vypíná PWM, napájení není měřené</span><span v-else-if="phoneActive" class="context-detail">Aktivní telefonní zkouška · oddělená od hlasu kufru</span><span v-else-if="deviceSession.message.value" class="context-detail">{{ deviceSession.message.value }}</span></div>
-        <p v-else class="connection-context">{{ customerAccount ? 'Můj účet · zákaznická část' : 'Modely a příběhy · veřejný přístup' }}</p>
+        <p v-else class="connection-context">{{ customerAccount ? customerCopy.text('shell.customer-area') : customerCopy.text('shell.public') }}</p>
         <div class="header-actions">
           <InterfaceLanguageSelect :preference="interfaceLanguagePreference" :account-id="account?.id" />
-          <label class="theme-control"><span class="sr-only">Vzhled aplikace</span><select v-model="preferences.theme" aria-label="Vzhled aplikace"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.label }}</option></select></label>
-          <RouterLink v-if="!account" class="account-link" to="/signin">Přihlásit se</RouterLink><RouterLink v-else class="account-link" :to="customerAccount ? '/me/account' : '/settings'">{{ account.displayName }}</RouterLink>
+          <label class="theme-control"><span class="sr-only">{{ customerCopy.text('shell.theme') }}</span><select v-model="preferences.theme" :aria-label="customerCopy.text('shell.theme')"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.id === 'lord-voldemort' ? customerCopy.text('settings.theme-voldemort') : theme.id === 'olivander' ? customerCopy.text('settings.theme-olivander') : theme.label }}</option></select></label>
+          <RouterLink v-if="!account" class="account-link" to="/signin">{{ customerCopy.text('shell.sign-in') }}</RouterLink><RouterLink v-else class="account-link" :to="customerAccount ? '/me/account' : '/settings'">{{ account.displayName }}</RouterLink>
           <AwButton v-if="!customerAccount && (canEnterStaffArea(account) || deviceCanStop || phoneActive || directorCanStop || servoBench.connected.value)" variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
         </div>
       </header>
-      <div class="notification-stack" aria-label="Oznámení"><AwNotice v-for="notice in notifications" :key="notice.id" :tone="notice.tone"><div class="notification-content">{{ notice.message }}<button aria-label="Zavřít oznámení" @click="dismissNotice(notice.id)">×</button></div></AwNotice></div>
+      <div class="notification-stack" :aria-label="customerCopy.text('shell.notifications')"><AwNotice v-for="notice in notifications" :key="notice.id" :tone="notice.tone"><div class="notification-content">{{ notice.message }}<button :aria-label="customerCopy.text('shell.close-notice')" @click="dismissNotice(notice.id)">×</button></div></AwNotice></div>
       <main id="main-content" ref="main" class="application-main" tabindex="-1">
-        <AwNotice v-if="offlineSession" tone="warning">Offline přihlášení: dostupné je místní ovládání již spárovaného kufru. Cloudové funkce a správa vyžadují nové ověření serverem. Oprávnění se znovu zkontrolují po připojení.</AwNotice>
-        <AwNotice v-if="viewError" tone="danger"><p>{{ viewError }}</p><AwButton @click="router.go(0)">Načíst znovu</AwButton></AwNotice>
+        <AwNotice v-if="offlineSession" tone="warning">{{ customerCopy.text('shell.offline') }}</AwNotice>
+        <AwNotice v-if="viewError" tone="danger"><p>{{ viewError }}</p><AwButton @click="router.go(0)">{{ customerCopy.text('shell.reload') }}</AwButton></AwNotice>
         <RouterView v-else-if="routeAccessible" v-slot="{ Component, route: renderedRoute }">
           <KeepAlive :key="identityKey"><component :is="Component" v-if="renderedRoute.meta.keepAlive" :key="renderedRoute.name" /></KeepAlive>
           <component :is="Component" v-if="!renderedRoute.meta.keepAlive" :key="renderedRoute.meta.requiresAccount ? `${String(renderedRoute.name)}:${identityKey}` : renderedRoute.name" />
         </RouterView>
       </main>
-      <footer class="application-footer"><span>DildoVander</span><RouterLink to="/support">Podpora</RouterLink><RouterLink to="/privacy">Ochrana soukromí</RouterLink><a v-if="browserMode" class="application-install-link" href="/ios/">Aplikace pro iPhone</a><span>Model, simulace a fyzický kufr mají vlastní stav ověření.</span></footer>
+      <footer class="application-footer"><span>DildoVander</span><RouterLink to="/support">{{ customerCopy.text('shell.support') }}</RouterLink><RouterLink to="/privacy">{{ customerCopy.text('shell.privacy') }}</RouterLink><a v-if="browserMode" class="application-install-link" href="/ios/">{{ customerCopy.text('shell.iphone') }}</a><span>{{ customerCopy.text('shell.verification') }}</span></footer>
     </div>
   </div>
 </template>

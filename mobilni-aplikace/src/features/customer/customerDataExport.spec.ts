@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CustomerDataExportClient,
   CustomerDataExportError,
@@ -51,6 +51,11 @@ function createStorage(): CustomerDataExportStorage & { values: Map<string, stri
     setItem: (key, value) => { values.set(key, value); },
   };
 }
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-23T09:30:00Z'));
+});
 
 afterEach(() => vi.useRealTimers());
 

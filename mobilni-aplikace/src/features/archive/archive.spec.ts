@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import ArchiveView from './ArchiveView.vue';
 import KeepsakeView from './KeepsakeView.vue';
 import { account, offlineSession } from '../identity/session';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 const entry = vi.hoisted(() => ({ value: null as string | null }));
 vi.mock('../../application/guestClaim', () => ({ consumeGuestClaim: () => { const result = entry.value; entry.value = null; return result; } }));
 const id = '11111111-1111-4111-8111-111111111111';
@@ -27,14 +28,59 @@ beforeEach(() => {
   entry.value = null;
   account.value = null;
   offlineSession.value = false;
+  interfaceLanguagePreference.setScope(null);
+  interfaceLanguagePreference.setLanguage('cs');
   vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
   Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: async (_: string, action: () => Promise<unknown>) => action() } });
   URL.createObjectURL = vi.fn(() => 'blob:fixture'); URL.revokeObjectURL = vi.fn();
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new Event('close')); };
 });
-afterEach(() => { for (const wrapper of wrappers) wrapper.unmount(); wrappers = []; offlineSession.value = false; vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); document.body.innerHTML = ''; });
+afterEach(() => { for (const wrapper of wrappers) wrapper.unmount(); wrappers = []; offlineSession.value = false; interfaceLanguagePreference.setScope(null); interfaceLanguagePreference.setLanguage('cs'); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); document.body.innerHTML = ''; });
 describe('real archive SFC routes', () => {
+  it('keeps ready artwork labelled as loading until its asset download finishes in either language', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    let finishAsset!: (response: Response) => void;
+    const assetResponse = new Promise<Response>(resolve => { finishAsset = resolve; });
+    const fetchMock = vi.fn(async (path: string) => path.endsWith(`/assets/${secondId}`) ? assetResponse : Response.json({
+      ...ownerProjection, readiness: readyReadiness,
+      editions: [{ ...view.editions[0], artworkAssetId: secondId }],
+      assets: [{ id: secondId, kind: 'base_image', mediaType: 'image/png', length: 1 }],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    expect(wrapper.get('.archive-art-button').text()).toBe('Obraz se načítá.');
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(wrapper.get('.archive-art-button').text()).toContain('loading');
+    expect(wrapper.get('.archive-art-button').text()).not.toContain('unavailable');
+    finishAsset(new Response(new Uint8Array([0]), { headers: { 'Content-Type': 'image/png' } }));
+    await flushPromises();
+    expect(wrapper.find('.archive-art-button img').exists()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it('switches keepsake presentation language without issuing actions or changing confirmation gates', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json(ownerProjection));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    const reads = fetchMock.mock.calls.length;
+    expect(wrapper.text()).toContain('Soukromá památka · vlastník účtu');
+    await wrapper.findAll('button').find(button => button.text() === 'Soukromí a uchování dat')!.trigger('click');
+    interfaceLanguagePreference.setLanguage('en');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Private keepsake · account owner');
+    expect(wrapper.text()).toContain('Privacy and data retention');
+    expect(wrapper.text()).toContain('The archive is kept until it is manually deleted.');
+    expect(fetchMock).toHaveBeenCalledTimes(reads);
+    expect(fetchMock.mock.calls.some(([, init]) => ['POST', 'DELETE'].includes(init?.method ?? ''))).toBe(false);
+    expect(wrapper.find('input[type=file]').exists()).toBe(true);
+    expect((wrapper.find('input[type=checkbox]').element as HTMLInputElement).checked).toBe(false);
+    await wrapper.findAll('button').find(button => button.text() === 'Delete entire keepsake')!.trigger('click');
+    expect(wrapper.findAll('button').find(button => button.text() === 'Confirm deletion')!.attributes('disabled')).toBeDefined();
+    expect(wrapper.find('#archive-delete-confirm').exists()).toBe(true);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+  });
   it('public route only reads a credential-free gallery, renders escaped identity and never grants private tools', async () => {
     const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json({ schemaVersion: 1, evening: { id }, latest: null,
       items: [{ locator: id, editionId: id, officialName: '<script>catalog</script>', slot: 1, synthetic: true, story: { title: 'Edition', text: 'Story' }, assets: [] }] }));

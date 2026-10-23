@@ -14,6 +14,10 @@ enum AccountTransportPolicy {
     }
 
     static func accountRequestBodyLimit(path: String, method: String, contentType: String?) -> Int {
+        if path == "/app/v1/customer/conversation-preferences" {
+            if method == "GET" { return 0 }
+            if method == "PUT" { return 2 * 1024 }
+        }
         // These limits apply to accountTransport; the legacy JSON bridge keeps its own bound.
         if customerCompletionRead(path: path, method: method) { return 256 }
         if method == "POST", customerWaiting(path: path, method: method) { return 2 * 1024 }
@@ -427,6 +431,7 @@ enum AccountTransportPolicy {
             "/app/v1/customer/enrollment/options": ["POST"],
             "/app/v1/customer/enrollment/complete": ["POST"],
             "/app/v1/customer/character": ["GET", "PUT", "DELETE"],
+            "/app/v1/customer/conversation-preferences": ["GET", "PUT"],
             "/app/v1/customer/character/correction": ["POST"],
             "/app/v1/customer/sessions": ["GET"],
             "/app/v1/customer/start-tickets": ["POST"],

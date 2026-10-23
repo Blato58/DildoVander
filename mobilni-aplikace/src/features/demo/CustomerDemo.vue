@@ -2,17 +2,20 @@
 import { computed, ref } from 'vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
+import { customerCopy } from '../../application/customerCopy';
 import {
   customerDemoSteps,
   getCustomerDemoStep,
+  getCustomerDemoSteps,
   initialCustomerDemoStep,
   nextCustomerDemoStep,
   previousCustomerDemoStep,
 } from './customerDemoModel';
 
 const currentStepId = ref(initialCustomerDemoStep);
-const currentStep = computed(() => getCustomerDemoStep(currentStepId.value));
-const currentIndex = computed(() => customerDemoSteps.findIndex((step) => step.id === currentStepId.value));
+const steps = computed(() => getCustomerDemoSteps(customerCopy.language.value));
+const currentStep = computed(() => getCustomerDemoStep(currentStepId.value, customerCopy.language.value));
+const currentIndex = computed(() => steps.value.findIndex((step) => step.id === currentStepId.value));
 
 function goNext() {
   currentStepId.value = nextCustomerDemoStep(currentStepId.value);
@@ -29,19 +32,15 @@ function reset() {
 
 <template>
   <section class="customer-demo aw-card" aria-labelledby="customer-demo-title">
-    <p class="eyebrow">Ukázka pro nové návštěvníky</p>
-    <h1 id="customer-demo-title">Příběh bez připojení</h1>
+    <p class="eyebrow">{{ customerCopy.text('demo.eyebrow') }}</p>
+    <h1 id="customer-demo-title">{{ customerCopy.text('demo.title') }}</h1>
 
-    <AwNotice tone="info" title="Syntetická ukázka">
-      Všechny postavy a ukázky níže jsou smyšlené a zůstávají jen na této stránce.
-      Ukázka nepřipojuje kufr, nepoužívá mikrofon ani neposílá data službám AI.
-      Skutečný rozhovor zajišťuje samostatný kufr; telefon ukazuje stav a památku.
-      Ukázka se neukládá ani nikam neodesílá. Profil skutečné postavy můžete uložit i bez AI přípravy;
-      údaje skutečné postavy se společnosti OpenAI odešlou jen po vašem samostatném výslovném souhlasu.
+    <AwNotice tone="info" :title="customerCopy.text('demo.notice-title')">
+      {{ customerCopy.text('demo.disclaimer') }}
     </AwNotice>
 
-    <nav class="customer-demo__steps" aria-label="Kroky ukázky">
-      <span v-for="(step, index) in customerDemoSteps" :key="step.id"
+    <nav class="customer-demo__steps" :aria-label="customerCopy.text('demo.steps')">
+      <span v-for="(step, index) in steps" :key="step.id"
         :aria-current="index === currentIndex ? 'step' : undefined">
         {{ index + 1 }}. {{ step.label }}
       </span>
@@ -51,31 +50,31 @@ function reset() {
       <h2>{{ currentStep.title }}</h2>
       <p>{{ currentStep.description }}</p>
 
-      <ol v-if="currentStep.lines" class="customer-demo__dialogue" aria-label="Předem napsaný dialog">
+      <ol v-if="currentStep.lines" class="customer-demo__dialogue" :aria-label="customerCopy.text('demo.dialogue')">
         <li v-for="line in currentStep.lines" :key="line.speaker">
           <strong>{{ line.speaker }}:</strong> {{ line.text }}
         </li>
       </ol>
       <blockquote v-if="currentStep.result">„{{ currentStep.result }}“</blockquote>
       <dl v-if="currentStep.wandDesign" class="customer-demo__wand-design">
-        <div><dt>Tvar</dt><dd>{{ currentStep.wandDesign.shape }}</dd></div>
-        <div><dt>Rukojeť</dt><dd>{{ currentStep.wandDesign.handle }}</dd></div>
-        <div><dt>Ornament</dt><dd>{{ currentStep.wandDesign.ornament }}</dd></div>
-        <div><dt>Materiál</dt><dd>{{ currentStep.wandDesign.material }}</dd></div>
-        <div><dt>Magické téma</dt><dd>{{ currentStep.wandDesign.magicalTheme }}</dd></div>
+        <div><dt>{{ customerCopy.text('demo.wand.shape') }}</dt><dd>{{ currentStep.wandDesign.shape }}</dd></div>
+        <div><dt>{{ customerCopy.text('demo.wand.handle') }}</dt><dd>{{ currentStep.wandDesign.handle }}</dd></div>
+        <div><dt>{{ customerCopy.text('demo.wand.ornament') }}</dt><dd>{{ currentStep.wandDesign.ornament }}</dd></div>
+        <div><dt>{{ customerCopy.text('demo.wand.material') }}</dt><dd>{{ currentStep.wandDesign.material }}</dd></div>
+        <div><dt>{{ customerCopy.text('demo.wand.magical-theme') }}</dt><dd>{{ currentStep.wandDesign.magicalTheme }}</dd></div>
       </dl>
       <div v-if="currentStep.keepsake" class="customer-demo__keepsake">
-        <p class="eyebrow">Fiktivní náhled památky</p>
+        <p class="eyebrow">{{ customerCopy.text('demo.keepsake-label') }}</p>
         <strong>{{ currentStep.keepsake }}</strong>
       </div>
     </div>
 
     <div class="customer-demo__actions">
-      <AwButton :disabled="currentIndex === 0" @click="goBack">Zpět</AwButton>
+      <AwButton :disabled="currentIndex === 0" @click="goBack">{{ customerCopy.text('demo.back') }}</AwButton>
       <AwButton variant="primary" :disabled="currentIndex === customerDemoSteps.length - 1" @click="goNext">
-        Další krok
+        {{ customerCopy.text('demo.next') }}
       </AwButton>
-      <AwButton @click="reset">Začít ukázku znovu</AwButton>
+      <AwButton @click="reset">{{ customerCopy.text('demo.restart') }}</AwButton>
     </div>
   </section>
 </template>

@@ -163,6 +163,19 @@ acceptance steps.
 
 ## Upload and Apple review
 
+The public `/demo` route provides a repeatable, synthetic walkthrough without
+sign-in, an invitation, microphone permission, AI calls, saved guest data, or a
+suitcase connection. Select Czech or English in the application header, advance
+through character, conversation, wand result, and keepsake, then reset the demo
+to repeat it. The fictional data stays in the page. This is an explanation of the
+experience; it does not prove account, accessory, or signed-device operation.
+
+Review instructions may point to this demonstration without sharing an owner
+credential. Testing authenticated features still requires a dedicated account
+and tested passkey instructions; a temporary operator invitation is insufficient.
+Confirm the actual release candidate serves `/demo` as an exact public route,
+alongside the support and privacy routes, before entering those URLs in Apple.
+
 The application exposes public `/support` and `/privacy` routes, also linked
 from its footer. Publish the reviewed application and add their exact GET/HEAD
 locations from `web/deploy/site-locations.conf` to the installed application

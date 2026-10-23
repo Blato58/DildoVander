@@ -1,8 +1,18 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 import CustomerDemo from './CustomerDemo.vue';
 
 describe('CustomerDemo', () => {
+  beforeEach(() => {
+    interfaceLanguagePreference.setScope(null);
+    interfaceLanguagePreference.setLanguage('cs');
+  });
+  afterEach(() => {
+    interfaceLanguagePreference.setScope(null);
+    interfaceLanguagePreference.setLanguage('cs');
+  });
+
   it('walks through the fictional story, supports keyboard-focusable controls, and resets', async () => {
     const wrapper = mount(CustomerDemo, { attachTo: document.body });
     expect(wrapper.get('h1').text()).toBe('Příběh bez připojení');
@@ -38,5 +48,28 @@ describe('CustomerDemo', () => {
     expect(wrapper.get('h2').text()).toBe('Poznejte postavu');
     expect(wrapper.findAll('button')[0].attributes('disabled')).toBeDefined();
     wrapper.unmount();
+  });
+
+  it('switches static story copy reactively without leaving the current step or making requests', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    const wrapper = mount(CustomerDemo);
+    await wrapper.findAll('button')[1].trigger('click');
+    expect(wrapper.get('h2').text()).toBe('Ukázka rozhovoru');
+
+    interfaceLanguagePreference.setLanguage('en');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('h1').text()).toBe('A story without a connection');
+    expect(wrapper.get('h2').text()).toBe('Conversation sample');
+    expect(wrapper.text()).toContain('does not connect to a suitcase, use a microphone, or send data to AI services');
+    expect(wrapper.get('[aria-label="Prewritten dialogue"] li').text()).toContain('Guide');
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['Back', 'Next step', 'Start the demo again']);
+    expect(fetch).not.toHaveBeenCalled();
+
+    interfaceLanguagePreference.setLanguage('cs');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('h2').text()).toBe('Ukázka rozhovoru');
+    expect(fetch).not.toHaveBeenCalled();
+    wrapper.unmount();
+    fetch.mockRestore();
   });
 });

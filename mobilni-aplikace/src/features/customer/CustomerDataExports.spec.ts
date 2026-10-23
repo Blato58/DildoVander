@@ -78,7 +78,8 @@ beforeEach(() => {
   state.setDeleting?.(false);
   state.setOffline?.(false);
   state.share.mockReset();
-  vi.useRealTimers();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-23T09:30:00Z'));
 });
 
 afterEach(() => {

@@ -17,6 +17,7 @@ internal static class VoiceProviderTests
         CheckResampling();
         CheckConfiguration();
         await CheckProviderContractsAsync();
+        await CheckConversationLanguageAsync();
         await CheckRejectedProviderResponsesAsync();
         await CheckRuntimeAsync();
         Console.WriteLine("Voice provider, resampling and runtime tests passed.");
@@ -84,23 +85,71 @@ internal static class VoiceProviderTests
 
     private static async Task CheckProviderContractsAsync()
     {
-        var calls = 0;
-        using var http = new HttpClient(new Handler(async (request, cancellation) =>
+        foreach (var (language, code) in new[] { ("cs-CZ", "cs"), ("en-US", "en") })
         {
-            calls++;
-            Require(request.Headers.Authorization?.ToString() == "Bearer test-only", "key is in the header");
-            var upload = await request.Content!.ReadAsStringAsync(cancellation);
-            Require(request.Content.Headers.ContentType!.MediaType == "multipart/form-data"
-                && upload.Contains("name=model\r\n\r\ngpt-transcribe")
-                && upload.Contains("name=\"languages[]\"\r\n\r\ncs"),
-                "SDK multipart preserves GPT-Transcribe and Czech languages[]");
-            Require(upload.Contains("Content-Type: audio/wav") && upload.Contains("RIFF"),
-                "provider receives WAV without identity or history");
-            return Response(Encoding.UTF8.GetBytes("{\"text\":\"Jmenuju se Marek.\",\"languages\":[]}"), "application/json");
-        }));
-        var text = await new OpenAiTranscriptionClient(http, "test-only")
-            .TranscribeAsync(DeviceWav(), default);
-        Require(text == "Jmenuju se Marek." && calls == 1, "transcript is parsed without rewriting it");
+            var calls = 0;
+            using var http = new HttpClient(new Handler(async (request, cancellation) =>
+            {
+                calls++;
+                Require(request.Headers.Authorization?.ToString() == "Bearer test-only", "key is in the header");
+                var upload = await request.Content!.ReadAsStringAsync(cancellation);
+                Require(request.Content.Headers.ContentType!.MediaType == "multipart/form-data"
+                    && upload.Contains("name=model\r\n\r\ngpt-transcribe")
+                    && upload.Contains($"name=\"languages[]\"\r\n\r\n{code}"),
+                    "SDK multipart sends the selected language to GPT-Transcribe");
+                Require(upload.Contains("Content-Type: audio/wav") && upload.Contains("RIFF"),
+                    "provider receives WAV without identity or history");
+                return Response(Encoding.UTF8.GetBytes("{\"text\":\"Jmenuju se Marek.\",\"languages\":[]}"), "application/json");
+            }));
+            var client = new OpenAiTranscriptionClient(http, "test-only");
+            var text = language == "cs-CZ"
+                ? await client.TranscribeAsync(DeviceWav(), default)
+                : await client.TranscribeAsync(DeviceWav(), language, default);
+            Require(text == "Jmenuju se Marek." && calls == 1, "transcript is parsed without rewriting it");
+        }
+    }
+
+    private static async Task CheckConversationLanguageAsync()
+    {
+        string? receivedLanguage = null;
+        using var runner = new VoiceProviderRunner((_, language, _) =>
+        {
+            receivedLanguage = language;
+            return Task.FromResult("Hello, Marek.");
+        }, (_, _) => Task.FromResult(DeviceWav()));
+        try
+        {
+            await runner.TranscribeAsync(DeviceWav(), "fr-FR", default);
+            throw new Exception("Unsupported runner transcription language was accepted.");
+        }
+        catch (ArgumentOutOfRangeException) { }
+
+        using (var unusedHttp = new HttpClient(new Handler((_, _) =>
+            throw new Exception("Invalid language reached the transcription provider."))))
+        {
+            try
+            {
+                await new OpenAiTranscriptionClient(unusedHttp, "test-only")
+                    .TranscribeAsync(DeviceWav(), "fr-FR", default);
+                throw new Exception("Unsupported provider transcription language was accepted.");
+            }
+            catch (ArgumentOutOfRangeException) { }
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), $"kufr-voice-language-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var fixture = new Fixture(directory, "english", runner, locale: "en-US");
+            var accepted = fixture.Store.SubmitTranscription("device-a", fixture.Id, Guid.NewGuid(), fixture.Upload());
+            await PollAsync(fixture.Store, accepted.OperationId!, "completed");
+            Require(receivedLanguage == "en-US", "uploaded WAV transcription receives the conversation language snapshot");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static async Task CheckRejectedProviderResponsesAsync()
@@ -443,7 +492,8 @@ internal static class VoiceProviderTests
     private sealed class Fixture : IDisposable
     {
         private readonly OperationJournal journal;
-        public Fixture(string directory, string name, VoiceProviderRunner runner, long cap = 200_000, bool consent = true)
+        public Fixture(string directory, string name, VoiceProviderRunner runner, long cap = 200_000, bool consent = true,
+            string locale = "cs-CZ")
         {
             Path = System.IO.Path.Combine(directory, name + ".sqlite");
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -456,7 +506,7 @@ internal static class VoiceProviderTests
             journal = new OperationJournal(configuration, Clock);
             Store = new ConversationStore(Clock, journal, voiceRunner: runner);
             Id = Store.Create("device-a", Guid.NewGuid(), "create"u8,
-                new CreateConversationRequest("device-a", Boot, 0, "catalog-1", "cs-CZ",
+                new CreateConversationRequest("device-a", Boot, 0, "catalog-1", locale,
                     new ConversationConsent(consent, false))).Response!.ConversationId;
         }
 

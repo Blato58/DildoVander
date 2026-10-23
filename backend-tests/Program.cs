@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 if (args is ["--customer-data-browser-fixture"]) { await AccountIdentityTests.RunCustomerDataBrowserFixtureAsync(); return; }
 if (args is ["--customer-waiting-http"]) { await AccountIdentityTests.RunCustomerWaitingHttpAsync(); return; }
 if (args is ["--customer-preferences"]) { await AccountIdentityTests.RunCustomerConversationPreferenceHttpAsync(); return; }
+if (args is ["--voice-providers"]) { await VoiceProviderTests.RunAsync(); return; }
 if (args is ["--account-collection"])
 {
     await AccountCollectionTests.RunAsync();

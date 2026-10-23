@@ -1,5 +1,9 @@
 # Aktualizace pripravy vysledku
 
+Tato verze pouziva trvale aktualizace uvnitr aplikace. Nativni push a registrace
+APNs nejsou soucasti teto verze; aplikace nezada systemove povoleni ani neslibuje
+doruceni na zamcene obrazovce. Vysledek lze znovu nacist po prihlaseni.
+
 Uctove aktualizace informuji o priprave vlastni pamatky a portretu. Ziskani
 vysledku zustava dostupne bez povoleni systemovych oznameni. Implementace
 neprihlasuje zarizeni k APNs, neuklada push tokeny a netvrdi doruceni na telefon.

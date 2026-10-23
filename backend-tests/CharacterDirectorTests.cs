@@ -101,6 +101,22 @@ internal static class CharacterDirectorTests
         tones.AcceptInput("tone-up-again", 1, "Turn it up please");
         Check(tones.Tone == CharacterTone.Dry, "English no-swearing remains a ceiling after later tone-up");
 
+        foreach (var phrase in new[] { "No swearing", "No profanity", "No more roasts", "No photos of me",
+            "No swearing, please", "No profanity, please", "No more roasts, please", "No photos of me, please" })
+        {
+            Check(CharacterSession.ClassifyExplicitControl(phrase) is not null,
+                $"English negative preference remains a direct control: {phrase}");
+        }
+        Check(CharacterSession.ClassifyExplicitControl("The sign says no swearing") is null
+            && CharacterSession.ClassifyExplicitControl("My friend said no more roasts") is null
+            && CharacterSession.ClassifyExplicitControl("\"No photos of me\"") is null,
+            "quoted and attributed English negative preferences are not direct controls");
+        Check(CharacterSession.ClassifyExplicitControl("No, please stop talking") == CharacterSignalKind.RequestStopSpeech
+            && CharacterSession.ClassifyExplicitControl("No, stop roasting me") == CharacterSignalKind.WithdrawRoast
+            && CharacterSession.ClassifyExplicitControl("No, no swearing, please") == CharacterSignalKind.NoSwearing
+            && CharacterSession.ClassifyExplicitControl("No, no photos of me, please") == CharacterSignalKind.RevokeImage,
+            "an explicit discourse prefix preserves the following negative preference or stop request");
+
         var roast = Session(CharacterTone.Chaos);
         roast.AcceptInput("withdraw-roast", 1, "Please don't roast me, I only want the wand.");
         roast.AcceptInput("roast-tone-up", 1, "Make it edgier.");

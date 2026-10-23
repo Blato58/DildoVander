@@ -59,3 +59,10 @@ understanding and spoken replies. Personal memory remains a separate optional
 consent. Issuance, redemption and provider context reject missing/legacy consent;
 old clients must update and legacy unaccepted tickets must be issued again after
 consent. The BLE redemption shape is unchanged.
+
+The account-scoped conversation-preferences GET/PUT endpoint stores a validated
+Czech/English language and gentle/cheeky/adult-roast ceiling for the current owned
+profile. First ticket acceptance freezes those preferences independently of the
+phone's interface language. Provider retries retain the conversation's current
+opt-outs. See [guest preferences](../../../docs/customer-preferences.md) for
+revision checks, export behavior, native route bounds and focused validation.

@@ -58,10 +58,55 @@ export const customerDemoSteps: readonly CustomerDemoStep[] = [
   },
 ];
 
+const customerDemoStepsEn: readonly CustomerDemoStep[] = [
+  {
+    id: 'character',
+    title: 'Meet the character',
+    label: 'Character',
+    description: 'Amalia lives in the Moonlit Forest and collects stories about forgotten paths.',
+  },
+  {
+    id: 'conversation',
+    title: 'Conversation sample',
+    label: 'Conversation',
+    description: 'This short dialogue is prewritten and shown only as an example.',
+    lines: [
+      { speaker: 'Guide', text: 'Which path would you like to explore today?' },
+      { speaker: 'Amalia', text: 'The one where even old trees learn new names.' },
+    ],
+  },
+  {
+    id: 'wand-result',
+    title: 'Illustrative wand design',
+    label: 'Result',
+    description: 'This is a fictional text design inspired by the story. No object was created or manufactured.',
+    result: 'Amalia discovered a path that appears only to those who listen for a while.',
+    wandDesign: {
+      shape: 'Slender, gently curved',
+      handle: 'Bronze tone',
+      ornament: 'Spiral ornament',
+      material: 'Dark wood (description only)',
+      magicalTheme: 'Sparks of dry humor',
+    },
+  },
+  {
+    id: 'keepsake',
+    title: 'Keepsake preview',
+    label: 'Keepsake',
+    description: 'This is a fictional keepsake preview from the sample story, not a saved or actually created keepsake.',
+    keepsake: 'The Moonlit Path — Amalia’s story',
+  },
+];
+
 export const initialCustomerDemoStep: CustomerDemoStepId = 'character';
 
-export function getCustomerDemoStep(id: CustomerDemoStepId): CustomerDemoStep {
-  return customerDemoSteps.find((step) => step.id === id) ?? customerDemoSteps[0];
+export function getCustomerDemoSteps(language: 'cs' | 'en' = 'cs'): readonly CustomerDemoStep[] {
+  return language === 'en' ? customerDemoStepsEn : customerDemoSteps;
+}
+
+export function getCustomerDemoStep(id: CustomerDemoStepId, language: 'cs' | 'en' = 'cs'): CustomerDemoStep {
+  const steps = getCustomerDemoSteps(language);
+  return steps.find((step) => step.id === id) ?? steps[0];
 }
 
 export function nextCustomerDemoStep(id: CustomerDemoStepId): CustomerDemoStepId {

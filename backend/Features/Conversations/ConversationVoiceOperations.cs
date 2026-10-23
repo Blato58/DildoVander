@@ -95,13 +95,14 @@ internal sealed partial class ConversationStore
             }
 
             var now = clock.GetUtcNow();
+            var conversationLanguage = conversation.ConversationLanguage;
             conversation.ExpiresAt = now.AddMinutes(15) < conversation.AbsoluteExpiresAt
                 ? now.AddMinutes(15)
                 : conversation.AbsoluteExpiresAt;
             var workerInput = ownedInput;
             _ = Task.Run(() => ProcessVoiceCallAsync(
                 reservation.OperationId, correlation, kind, workerInput, reply,
-                outputTarget, speechOptions, cancellation));
+                outputTarget, speechOptions, conversationLanguage, cancellation));
             queued = true;
             return new SubmitTurnResult(202, reservation.OperationId, null);
         }
@@ -127,6 +128,7 @@ internal sealed partial class ConversationStore
         string? reply,
         string? outputTarget,
         SpeechOptions speechOptions,
+        string conversationLanguage,
         CancellationTokenSource cancellation)
     {
         byte[]? generatedWav = null;
@@ -145,7 +147,7 @@ internal sealed partial class ConversationStore
             string? transcript = null;
             if (kind == VoiceOperationKind.Transcription)
             {
-                transcript = await voiceRunner!.TranscribeAsync(inputWav!, cancellation.Token);
+                transcript = await voiceRunner!.TranscribeAsync(inputWav!, conversationLanguage, cancellation.Token);
                 if (string.IsNullOrWhiteSpace(transcript) || transcript.EnumerateRunes().Count() > 1000)
                 {
                     throw new InvalidDataException("Invalid transcription result.");

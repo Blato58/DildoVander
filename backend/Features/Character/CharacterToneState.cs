@@ -10,10 +10,19 @@ internal interface ICharacterToneState
     bool ApplyControl(CharacterSignalKind kind, string sourceId, long revision);
 }
 
-internal sealed class CharacterToneState(CharacterTone ceiling) : ICharacterToneState
+internal sealed class CharacterToneState : ICharacterToneState
 {
-    private int limit = (int)ceiling;
-    public CharacterTone Tone { get; private set; } = ceiling;
+    private readonly CharacterTone ceiling;
+    private int limit;
+
+    internal CharacterToneState(CharacterTone ceiling)
+    {
+        this.ceiling = ceiling;
+        limit = (int)ceiling;
+        Tone = ceiling;
+    }
+
+    public CharacterTone Tone { get; private set; }
     public bool RoastAllowed { get; private set; } = true;
 
     public void SetOperatorTone(CharacterTone requested)

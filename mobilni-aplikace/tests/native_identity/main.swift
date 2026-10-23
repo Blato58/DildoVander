@@ -11,6 +11,27 @@ require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", q
 
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+let conversationPreferencesPath = "/app/v1/customer/conversation-preferences"
+for method in ["GET", "PUT"] {
+    require(AccountTransportPolicy.account(path: conversationPreferencesPath, method: method), "conversation preference route unavailable")
+    for invalid in [conversationPreferencesPath + "/", conversationPreferencesPath + "?x=1",
+                    conversationPreferencesPath + "#fragment", conversationPreferencesPath + "\n",
+                    conversationPreferencesPath + "%2f", conversationPreferencesPath + "/extra",
+                    "/" + conversationPreferencesPath, conversationPreferencesPath.replacingOccurrences(of: "/customer/", with: "/customer//")] {
+        require(!AccountTransportPolicy.account(path: invalid, method: method), "malformed conversation preference route accepted")
+    }
+}
+for method in ["POST", "PATCH", "DELETE", "HEAD", "OPTIONS", "get", "put"] {
+    require(!AccountTransportPolicy.account(path: conversationPreferencesPath, method: method), "conversation preference method broadened")
+}
+require(AccountTransportPolicy.accountRequestBodyAllowed(path: conversationPreferencesPath, method: "PUT", contentType: "application/json", size: 2048), "conversation preference body boundary rejected")
+require(!AccountTransportPolicy.accountRequestBodyAllowed(path: conversationPreferencesPath, method: "PUT", contentType: "application/json", size: 2049), "conversation preference body cap bypassed")
+require(!AccountTransportPolicy.accountRequestBodyAllowed(path: conversationPreferencesPath, method: "GET", contentType: nil, size: 1), "conversation preference GET body accepted")
+require(AccountTransportPolicy.accountRequestBodyAllowed(path: conversationPreferencesPath, method: "GET", contentType: nil, size: 0), "empty conversation preference GET rejected")
+require(!AccountTransportPolicy.accountRequestBodyAllowed(path: conversationPreferencesPath, method: "PUT", contentType: "application/json", size: -1), "negative conversation preference body size accepted")
+require(!AccountTransportPolicy.guest(path: conversationPreferencesPath, method: "GET"), "conversation preferences entered guest transport")
+require(!AccountTransportPolicy.accountHeaderAllowed(path: conversationPreferencesPath, method: "PUT", name: "Authorization", value: "Bearer secret"), "conversation preferences accepted a bearer credential")
+require(!AccountTransportPolicy.accountHeaderAllowed(path: conversationPreferencesPath, method: "PUT", name: "X-DV10-Consent", value: "7"), "conversation preferences accepted guest consent")
 let tonightMemory = "/app/v1/tonight/devices/case_1.s3-A/memory-status"
 require(AccountTransportPolicy.account(path: tonightMemory, method: "GET"), "Tonight memory status unavailable")
 require(AccountTransportPolicy.account(path: "/app/v1/tonight/devices/\(String(repeating: "a", count: 128))/memory-status", method: "GET"),

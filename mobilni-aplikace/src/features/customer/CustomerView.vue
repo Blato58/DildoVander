@@ -12,6 +12,7 @@ import NewCharacterDialog, { type NewCharacterDraft } from './NewCharacterDialog
 import CustomerSessionResultCard from './CustomerSessionResultCard.vue';
 import CustomerWaiting from './CustomerWaiting.vue';
 import CustomerCompletionUpdates from './CustomerCompletionUpdates.vue';
+import ConversationPreferences from './ConversationPreferences.vue';
 import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
 import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
 import { customerBle, type CustomerBleDevice, type CustomerBleStatus } from './customerBle';
@@ -551,7 +552,10 @@ onBeforeUnmount(() => {
       <CustomerCompletionUpdates :locale="interfaceLanguage" />
       <AccountArchiveList :locale="interfaceLanguage" />
     </section>
-    <SettingsView v-else-if="pane === 'account'" customer-surface />
+    <section v-else-if="pane === 'account'" class="page-stack">
+      <ConversationPreferences v-if="profile" :profile-id="profile.profileId" :profile-revision="profile.revision" />
+      <SettingsView customer-surface />
+    </section>
   </section>
 </template>
 
