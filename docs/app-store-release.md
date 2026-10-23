@@ -125,6 +125,22 @@ for the existing installation path. Windows can run helper/cleanup tests and
 inspect workflow source; archive/export and actual signature acceptance require
 macOS/Xcode. Those tests do not establish Apple upload or review acceptance.
 
+## Encryption declaration
+
+`ITSAppUsesNonExemptEncryption` is `false`: the current App Store Connect
+questionnaire requires no documentation for standard encryption with distribution
+limited to Czechia and Germany (France excluded). This is a documentation
+exemption, not a claim that the app contains no encryption. Reassess before
+changing cryptographic dependencies or adding launch regions, especially France.
+
+The app uses Apple's Security, CryptoKit, CommonCrypto and transport frameworks.
+The pinned Espressif provisioning SDK also includes a Swift SRP6a implementation
+for Security2, so the dependency must be included in the standard-encryption
+answer even though the app requests Security1. Do not describe the whole linked
+app as using only operating-system encryption. See Apple's
+[export-compliance documentation requirements](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)
+and [Info.plist guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations).
+
 ## Upload and Apple review
 
 The application exposes public `/support` and `/privacy` routes, also linked
