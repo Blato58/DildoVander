@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -198,6 +199,7 @@ internal static class ShowAmbientPreviewTests
         builder.Services.AddSingleton(fixture.Show);
         builder.Services.AddSingleton(fixture.Preview);
         builder.Services.AddSingleton<ServerAdminAccess>();
+        builder.Services.Configure<IdentityOptions>(options => options.Stores.SchemaVersion = IdentitySchemaVersions.Version3);
         builder.Services.AddDbContext<AccountDatabase>(options => options.UseSqlite(
             new SqliteConnectionStringBuilder { DataSource = Path.Combine(fixture.DirectoryPath, "identity.sqlite") }.ToString()));
         await using var app = builder.Build();
