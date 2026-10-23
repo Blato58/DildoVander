@@ -172,7 +172,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .customer-memories { display: grid; gap: var(--aw-space-3, 1rem); min-width: 0; }
 .customer-memories__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--aw-space-4, 1.5rem); }
-.customer-memories__list li { padding: var(--aw-space-3, 1rem); border: 1px solid var(--aw-border, currentColor); border-radius: var(--aw-radius-md, .75rem); overflow-wrap: anywhere; }
+.customer-memories__list li { padding: var(--aw-space-3, 1rem); border: 1px solid var(--aw-border, currentColor); border-radius: var(--aw-radius-card, .75rem); overflow-wrap: anywhere; }
 .customer-memories__text { white-space: pre-wrap; }
 textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: transparent; }
 </style>

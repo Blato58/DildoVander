@@ -52,7 +52,7 @@ watch(() => [props.accountId, props.eligible] as const, () => {
 .customer-data-panel__header > div { min-width: 0; }
 .customer-data-panel__header p { overflow-wrap: anywhere; }
 .customer-data-panel__toggle { flex: 0 0 auto; max-width: 100%; white-space: normal; }
-.customer-data-panel__content { display: grid; gap: var(--aw-space-6, 2rem); margin-block-start: var(--aw-space-5, 1.5rem); min-width: 0; }
+.customer-data-panel__content { display: grid; gap: var(--aw-space-6, 2rem); margin-block-start: var(--aw-space-6, 1.5rem); min-width: 0; }
 @media (max-width: 30rem) {
   .customer-data-panel__header { flex-direction: column; }
 }
