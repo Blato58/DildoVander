@@ -3,7 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import ArchiveView from './ArchiveView.vue';
 import KeepsakeView from './KeepsakeView.vue';
-import { account } from '../identity/session';
+import { account, offlineSession } from '../identity/session';
 const entry = vi.hoisted(() => ({ value: null as string | null }));
 vi.mock('../../application/guestClaim', () => ({ consumeGuestClaim: () => { const result = entry.value; entry.value = null; return result; } }));
 const id = '11111111-1111-4111-8111-111111111111';
@@ -14,6 +14,8 @@ const view = { schemaVersion: 1, locator: id, revision: 1, state: 'ready', readO
   portraits: [], jobs: [], assets: [] };
 const ownerProjection = { ...view, readOnly: false, accountLinked: true, accessKind: 'originalOwner', canManage: true, canReadPrivate: true, canUnlink: false, uploads: [], prophecies: [] };
 const linkedProjection = { ...view, readOnly: true, accountLinked: true, accessKind: 'linkedViewer', canManage: false, canReadPrivate: false, canUnlink: true, uploads: [], prophecies: [] };
+const partialReadiness = { state: 'partial', reason: 'reconciliation_required', canRetry: false, shouldPoll: true, hasStory: true, hasArtwork: false };
+const readyReadiness = { state: 'ready', reason: null, canRetry: false, shouldPoll: false, hasStory: true, hasArtwork: true };
 let wrappers: VueWrapper[] = [];
 async function render(component: typeof ArchiveView | typeof KeepsakeView, location: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/archive', component: ArchiveView }, { path: '/keepsake/', component: KeepsakeView }, { path: '/other', component: { template: '<p>other</p>' } }] });
@@ -24,13 +26,14 @@ async function render(component: typeof ArchiveView | typeof KeepsakeView, locat
 beforeEach(() => {
   entry.value = null;
   account.value = null;
+  offlineSession.value = false;
   vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
   Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: async (_: string, action: () => Promise<unknown>) => action() } });
   URL.createObjectURL = vi.fn(() => 'blob:fixture'); URL.revokeObjectURL = vi.fn();
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new Event('close')); };
 });
-afterEach(() => { for (const wrapper of wrappers) wrapper.unmount(); wrappers = []; vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.innerHTML = ''; });
+afterEach(() => { for (const wrapper of wrappers) wrapper.unmount(); wrappers = []; offlineSession.value = false; vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); document.body.innerHTML = ''; });
 describe('real archive SFC routes', () => {
   it('public route only reads a credential-free gallery, renders escaped identity and never grants private tools', async () => {
     const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json({ schemaVersion: 1, evening: { id }, latest: null,
@@ -302,17 +305,258 @@ describe('real archive SFC routes', () => {
     expect(wrapper.text()).not.toContain('Sdílené odkazy byly odvolány.');
     expect(wrapper.text()).not.toContain('Testovací hůlka');
   });
+  it('renders reconciliation readiness without replacing the partial story or exposing a retry action', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ...view, readiness: partialReadiness }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?k=${id}`);
+    const notice = wrapper.get('[role="status"][aria-live="polite"][data-readiness-state="partial"]');
+    expect(notice.text()).toBe('Příběh je připravený, výsledek obrazu ještě ověřujeme. Nové generování nespouštíme.');
+    expect(wrapper.text()).toContain('One paragraph.');
+    expect(wrapper.findAll('button').some(button => /Zkusit znovu|Opakovat generování|Znovu vytvořit/.test(button.text()))).toBe(false);
+  });
+  it('renders and polls safe readiness for linked viewers while stripping private jobs, uploads and prophecy', async () => {
+    vi.useFakeTimers();
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const linked = { ...linkedProjection, readiness: partialReadiness, jobs: [], uploads: [], prophecies: [{ editionId: id, state: 'revealed', revelation: 'PRIVATE_LINKED_PROPHECY' }] };
+    const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json(linked));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    expect(wrapper.get('[role="status"][aria-live="polite"][data-readiness-state="partial"]').text()).toContain('výsledek obrazu ještě ověřujeme');
+    expect(wrapper.text()).toContain('One paragraph.');
+    expect(wrapper.text()).not.toContain('PRIVATE_LINKED_PROPHECY');
+    expect(wrapper.find('input[type=file]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Smazat celou památku');
+    await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    const archiveReads = fetchMock.mock.calls.filter(([path, init]) => String(path).startsWith('/app/v1/archive/') && (init?.method ?? 'GET') === 'GET');
+    expect(archiveReads).toHaveLength(2);
+    expect(fetchMock.mock.calls.every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true);
+  });
+  it.each([
+    { label: 'visitor owner', accountMode: false, projection: view },
+    { label: 'original account owner', accountMode: true, projection: ownerProjection },
+  ])('continues bounded readiness polling for a locked prophecy on a ready $label archive', async ({ accountMode, projection }) => {
+    vi.useFakeTimers();
+    if (accountMode) account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const locked = { editionId: id, state: 'locked', unlockAt: '2099-01-01T00:00:00Z', revelation: 'PRIVATE_FUTURE_TEXT' };
+    const revealed = { editionId: id, state: 'revealed', unlockAt: '2099-01-01T00:00:00Z', revelation: 'Server revealed this prophecy.' };
+    let reads = 0;
+    const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => {
+      reads++;
+      return Response.json({ ...projection, readiness: readyReadiness, prophecies: [reads === 1 ? locked : revealed] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?${accountMode ? 'account=1&' : ''}k=${id}`);
+    expect(wrapper.text()).not.toContain('PRIVATE_FUTURE_TEXT');
+    expect(wrapper.text()).toContain('Plné znění se odemkne');
+    await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    expect(reads).toBe(2);
+    expect(wrapper.text()).toContain('Server revealed this prophecy.');
+    await vi.advanceTimersByTimeAsync(15000); await flushPromises();
+    expect(reads).toBe(2);
+    expect(fetchMock.mock.calls.every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true);
+  });
+  it('does not poll a linked viewer for a hostile private locked-prophecy payload', async () => {
+    vi.useFakeTimers();
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json({ ...linkedProjection, readiness: readyReadiness,
+      jobs: [{ id: secondId, kind: 'base', state: 'queued' }], prophecies: [{ editionId: id, state: 'locked', unlockAt: 'past', revelation: 'PRIVATE_LINKED_SECRET' }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    expect(wrapper.text()).not.toContain('PRIVATE_LINKED_SECRET');
+    await vi.advanceTimersByTimeAsync(15000); await flushPromises();
+    expect(fetchMock.mock.calls.filter(([path]) => String(path) === `/app/v1/archive/associations/${id}`)).toHaveLength(1);
+  });
+  it('bounds readiness refreshes, offers a manual GET after the cap and cancels polling on unmount', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json({ ...view, readiness: partialReadiness }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?k=${id}`);
+    for (let index = 0; index < 12; index++) {
+      await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    }
+    const reads = () => fetchMock.mock.calls.filter(([path]) => String(path).endsWith(`/keepsakes/${id}`));
+    expect(reads()).toHaveLength(13);
+    const manualCheck = wrapper.findAll('button').find(button => button.text() === 'Zkontrolovat stav');
+    expect(manualCheck?.exists()).toBe(true);
+    expect(fetchMock.mock.calls.every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true);
+    await manualCheck!.trigger('click'); await flushPromises();
+    expect(reads()).toHaveLength(14);
+    expect(wrapper.findAll('button').some(button => button.text() === 'Zkontrolovat stav')).toBe(false);
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(60000); await flushPromises();
+    expect(reads()).toHaveLength(14);
+  });
+  it('does not poll terminal readiness or describe unavailable results as still preparing', async () => {
+    vi.useFakeTimers();
+    const terminal = { state: 'unavailable', reason: 'result_unavailable', canRetry: false, shouldPoll: false, hasStory: false, hasArtwork: false };
+    const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json({ ...view, editions: [{ id, synthetic: true, publicationState: 'unavailable' }], jobs: [{ id: secondId, kind: 'base', state: 'queued' }], readiness: terminal }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?k=${id}`);
+    expect(wrapper.find('[role="status"][data-readiness-state="unavailable"]').text()).toContain('Výsledek přípravy není dostupný');
+    expect(wrapper.text()).toContain('Příběh není dostupný.');
+    expect(wrapper.text()).toContain('Obraz není dostupný.');
+    await vi.advanceTimersByTimeAsync(60000); await flushPromises();
+    expect(fetchMock.mock.calls.filter(([path]) => String(path).endsWith(`/keepsakes/${id}`))).toHaveLength(1);
+  });
+  it('stops scheduled readiness reads when the browser goes offline', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (_path: string, _init?: RequestInit) => Response.json({ ...view, readiness: partialReadiness }));
+    vi.stubGlobal('fetch', fetchMock);
+    await render(KeepsakeView, `/keepsake/?k=${id}`);
+    window.dispatchEvent(new Event('offline'));
+    await vi.advanceTimersByTimeAsync(60000); await flushPromises();
+    expect(fetchMock.mock.calls.filter(([path]) => String(path).endsWith(`/keepsakes/${id}`))).toHaveLength(1);
+  });
+  it('ignores an old readiness response that finishes after transient offline and reloads on online', async () => {
+    vi.useFakeTimers();
+    let resolveOld!: (response: Response) => void;
+    const old = new Promise<Response>(resolve => resolveOld = resolve);
+    let reads = 0;
+    const fetchMock = vi.fn(async () => { reads++; return reads === 2 ? old : Response.json({ ...view, readiness: partialReadiness }); });
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?k=${id}`);
+    await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    expect(reads).toBe(2);
+    window.dispatchEvent(new Event('offline'));
+    resolveOld(Response.json({ ...view, snapshot: { officialName: 'OFFLINE STALE RESULT', slot: 1 }, readiness: { ...readyReadiness, state: 'failed', shouldPoll: false } }));
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('OFFLINE STALE RESULT');
+    expect(wrapper.find('[data-readiness-state="partial"]').exists()).toBe(true);
+    window.dispatchEvent(new Event('online')); await flushPromises();
+    expect(reads).toBe(3);
+    expect(wrapper.text()).not.toContain('OFFLINE STALE RESULT');
+  });
+  it('preserves owner POST idempotency across offlineSession cache mode and retries the same uncertain request', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    let rejectPost!: (error: Error) => void;
+    const uncertainPost = new Promise<Response>((_resolve, reject) => rejectPost = reject);
+    const posts: Array<{ body: string | null; idempotencyKey: string | null }> = [];
+    const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+      if (String(path).endsWith('/recovery-links') && init?.method === 'POST') {
+        posts.push({ body: init.body as string, idempotencyKey: new Headers(init.headers).get('Idempotency-Key') });
+        return posts.length === 1 ? uncertainPost : Response.json({ url: `${location.origin}/keepsake/#r=${'r'.repeat(40)}` });
+      }
+      return Response.json({ ...ownerProjection, readiness: partialReadiness });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    await wrapper.findAll('button').find(button => button.text() === 'Vytvořit soukromý návratový odkaz')!.trigger('click');
+    await flushPromises();
+    expect(posts).toHaveLength(1);
+    expect(posts[0].idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
+    window.dispatchEvent(new Event('offline'));
+    offlineSession.value = true; await flushPromises();
+    expect(wrapper.text()).not.toContain('Fiction edition');
+    rejectPost(new TypeError('connection lost after server commit became uncertain'));
+    await flushPromises();
+    offlineSession.value = false; await flushPromises();
+    window.dispatchEvent(new Event('online')); await flushPromises();
+    expect(wrapper.text()).toContain('Fiction edition');
+    await wrapper.findAll('button').find(button => button.text() === 'Vytvořit soukromý návratový odkaz')!.trigger('click');
+    await flushPromises();
+    expect(posts).toHaveLength(2);
+    expect(posts[1].body).toBe(posts[0].body);
+    expect(posts[1].idempotencyKey).toBe(posts[0].idempotencyKey);
+  });
+  it('withholds a successful late owner response and replays it under the same key after reconnect', async () => {
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    let resolvePost!: (response: Response) => void;
+    const pendingPost = new Promise<Response>(resolve => resolvePost = resolve);
+    const posts: Array<{ body: string | null; idempotencyKey: string | null }> = [];
+    const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+      if (String(path).endsWith('/recovery-links') && init?.method === 'POST') {
+        posts.push({ body: init.body as string, idempotencyKey: new Headers(init.headers).get('Idempotency-Key') });
+        return posts.length === 1 ? pendingPost : Response.json({ url: `${location.origin}/keepsake/#r=${'r'.repeat(40)}` });
+      }
+      return Response.json({ ...ownerProjection, readiness: partialReadiness });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    await wrapper.findAll('button').find(button => button.text() === 'Vytvořit soukromý návratový odkaz')!.trigger('click');
+    await flushPromises();
+    expect(posts).toHaveLength(1);
+    const originalKey = posts[0].idempotencyKey;
+    window.dispatchEvent(new Event('offline'));
+    offlineSession.value = true; await flushPromises();
+    resolvePost(Response.json({ url: `${location.origin}/keepsake/#r=${'r'.repeat(40)}` }));
+    await flushPromises();
+    expect(wrapper.find('#archive-issued-link').exists()).toBe(false);
+    expect(wrapper.html()).not.toContain('keepsake/#r=');
+
+    offlineSession.value = false; await flushPromises();
+    window.dispatchEvent(new Event('online')); await flushPromises();
+    await wrapper.findAll('button').find(button => button.text() === 'Vytvořit soukromý návratový odkaz')!.trigger('click');
+    await flushPromises();
+    expect(posts).toHaveLength(2);
+    expect(posts[1].body).toBe(posts[0].body);
+    expect(posts[1].idempotencyKey).toBe(originalKey);
+    expect(wrapper.find('#archive-issued-link').exists()).toBe(true);
+  });
+  it('resumes partial-result polling after a successful owner action', async () => {
+    vi.useFakeTimers();
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    let reads = 0;
+    const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+      if (String(path).endsWith('/recovery-links') && init?.method === 'POST') return Response.json({ url: `${location.origin}/keepsake/#r=${'r'.repeat(40)}` });
+      if (init?.method === 'GET') {
+        reads++;
+        return Response.json({ ...ownerProjection, readiness: reads === 1 ? partialReadiness : readyReadiness });
+      }
+      return Response.json({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    expect(reads).toBe(1);
+    await wrapper.findAll('button').find(button => button.text() === 'Vytvořit soukromý návratový odkaz')!.trigger('click');
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    expect(reads).toBe(2);
+    expect(wrapper.find('[data-readiness-state="ready"]').exists()).toBe(true);
+  });
+  it('lets an owner mutation supersede a stalled readiness GET and fences its late result', async () => {
+    vi.useFakeTimers();
+    let resolvePoll!: (response: Response) => void;
+    const pendingPoll = new Promise<Response>(resolve => resolvePoll = resolve);
+    let reads = 0;
+    account.value = { id: 'account-a', displayName: 'Current account', roles: ['Viewer'] };
+    const requests: Array<{ path: string; method: string; body?: string; key?: string }> = [];
+    const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      requests.push({ path: String(path), method, body: typeof init?.body === 'string' ? init.body : undefined, key: new Headers(init?.headers).get('Idempotency-Key') ?? undefined });
+      if (String(path).endsWith('/recovery-links')) return Response.json({ url: `${location.origin}/keepsake/#r=${'r'.repeat(40)}` });
+      if (method === 'GET') { reads++; return reads === 2 ? pendingPoll : Response.json({ ...ownerProjection, readiness: partialReadiness }); }
+      return Response.json(ownerProjection);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    expect(reads).toBe(2);
+    await wrapper.findAll('button').find(button => button.text() === 'Vytvořit soukromý návratový odkaz')!.trigger('click');
+    await flushPromises();
+    const create = requests.filter(request => request.path === `/app/v1/archive/owned/${id}/recovery-links`);
+    expect(create).toHaveLength(1);
+    expect(create[0]).toMatchObject({ method: 'POST', body: JSON.stringify({ schemaVersion: 1 }) });
+    expect(create[0].key).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(wrapper.find('#archive-issued-link').exists()).toBe(true);
+    resolvePoll(Response.json({ ...ownerProjection, snapshot: { officialName: 'STALE READ MUST NOT REPLACE THIS VIEW', slot: 1 }, readiness: { ...partialReadiness, state: 'failed', shouldPoll: false } }));
+    await flushPromises();
+    expect(wrapper.find('#archive-issued-link').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('STALE READ MUST NOT REPLACE THIS VIEW');
+    expect(wrapper.find('[data-readiness-state="partial"]').exists()).toBe(true);
+    expect(requests.filter(request => request.path === `/app/v1/archive/owned/${id}/recovery-links`)).toHaveLength(1);
+  });
   it('account switching immediately redacts private results and ignores an old noncooperative account response', async () => {
     account.value = { id: 'account-a', displayName: 'First account', roles: ['Viewer'] };
     let resolveOld!: (response: Response) => void;
     const old = new Promise<Response>(resolve => resolveOld = resolve); let reads = 0;
-    const fetchMock = vi.fn(async () => { reads++; if (reads === 1) return Response.json(linkedProjection); if (reads === 2) return old; return new Response('', { status: 404 }); });
+    const fetchMock = vi.fn(async () => { reads++; if (reads === 1) return Response.json({ ...linkedProjection, readiness: partialReadiness }); if (reads === 2) return old; return new Response('', { status: 404 }); });
     vi.stubGlobal('fetch', fetchMock);
     const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
     expect(wrapper.text()).toContain('Fiction edition');
     await wrapper.findAll('button').find(button => button.text() === 'Obnovit stav památky')!.trigger('click'); await flushPromises();
     account.value = { id: 'account-b', displayName: 'Second account', roles: ['Viewer'] }; await flushPromises();
     expect(wrapper.text()).not.toContain('Fiction edition');
+    expect(wrapper.find('[data-readiness-state="partial"]').exists()).toBe(false);
     resolveOld(Response.json({ ...linkedProjection, snapshot: { officialName: 'OLD ACCOUNT PRIVATE DATA', slot: 1 } })); await flushPromises();
     expect(wrapper.text()).not.toContain('OLD ACCOUNT PRIVATE DATA'); expect(wrapper.text()).not.toContain('Fiction edition');
   });

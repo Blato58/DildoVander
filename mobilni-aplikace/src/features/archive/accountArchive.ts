@@ -8,7 +8,7 @@ const accountAssociation = new RegExp(`^/app/v1/archive/associations/${uuid}$`, 
 const readPath = new RegExp(`^(?:/app/v1/archive/owned/${uuid}(?:/assets/${uuid})?|/app/v1/archive/owned/deletions/${uuid}|/app/v1/archive/associations/${uuid}(?:/assets/${uuid})?)$`, 'i');
 const mutationPath = new RegExp(`^/app/v1/archive/owned/${uuid}(?:/(?:recovery-links|share-links|revoke-access|portrait-consents|portrait-uploads|portraits|exports|portrait|wizard-identity|account-associations|portraits/${uuid}/cancel|generation/${uuid}/cancel))?$`, 'i');
 
-type MutationOptions = { method?: 'GET' | 'POST' | 'DELETE'; data?: object; bytes?: Blob; consentVersion?: number };
+type MutationOptions = { method?: 'GET' | 'POST' | 'DELETE'; data?: object; bytes?: Blob; consentVersion?: number; accept?: () => void };
 
 /** The account route remains bound to one account and one resolved keepsake at a time. */
 export class AccountArchiveClient {
@@ -87,6 +87,7 @@ export class AccountArchiveClient {
     const { response, check, complete } = await this.send(path, options);
     const value = response.status === 204 ? {} : await response.json();
     check();
+    if ((options.method ?? 'GET') !== 'GET') options.accept?.();
     complete();
     return value as T;
   }

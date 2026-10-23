@@ -4,15 +4,15 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import DuelView from './DuelView.vue';
 import ChronicleView from './ChronicleView.vue';
 import KeepsakeView from './KeepsakeView.vue';
-import { account, accountTransport, accountRequest } from '../identity/session';
+import { account, offlineSession, accountTransport, accountRequest } from '../identity/session';
 import { DuelClient } from './showClient';
 import { projectGalleryItem } from './client';
 import { publicIdentity, ownerProphecy, projectChronicle, projectDuel } from './showContracts';
 const captured = vi.hoisted(() => ({ grant: null as { token: string; side: 'left' | 'right' } | null }));
 vi.mock('../../application/guestClaim', () => ({ consumeGuestClaim: () => null, consumeDuelGrant: () => { const value = captured.grant; captured.grant = null; return value; } }));
 vi.mock('../identity/session', async () => {
-  const { ref } = await import('vue'); const account = ref<{ id: string; displayName: string; roles: string[] } | null>(null);
-  return { account, accountRequest: vi.fn(), accountTransport: vi.fn(), hasRole: (role: string) => account.value?.roles.includes(role) ?? false };
+  const { ref } = await import('vue'); const account = ref<{ id: string; displayName: string; roles: string[] } | null>(null); const offlineSession = ref(false);
+  return { account, offlineSession, accountRequest: vi.fn(), accountTransport: vi.fn(), hasRole: (role: string) => account.value?.roles.includes(role) ?? false };
 });
 const id = '11111111-1111-4111-8111-111111111111'; const other = '22222222-2222-4222-8222-222222222222';
 const identity = { editionId: id, visibility: 'public_fiction', wizardAlias: '<script>mág</script>', houseOrGuild: 'Cech', dubiousSpecialization: 'Lest', signatureAbility: 'Schopnost', weakness: 'Slabina', ministryAssessment: 'Fikce', wandBond: 'Pouto', motto: 'Motto', microStory: 'Příběh', omen: 'Indicie' };
@@ -30,7 +30,7 @@ async function render(component: object, path: string) {
   const wrapper = mount(component, { attachTo: document.body, global: { plugins: [router] } }); wrappers.push(wrapper); await flushPromises(); return { wrapper, router };
 }
 beforeEach(() => {
-  captured.grant = null; account.value = null; vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+  captured.grant = null; account.value = null; offlineSession.value = false; vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
   vi.mocked(accountRequest).mockReset().mockResolvedValue(deviceDetails);
   vi.mocked(accountTransport).mockReset().mockImplementation(async path => Response.json(path === '/v1/evenings' ? eveningList : {}));
   Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: async (_: string, work: () => Promise<unknown>) => work() } });

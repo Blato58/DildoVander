@@ -80,6 +80,7 @@ internal static class CustomerSessionEndpoints
             { return ApiProblem.Create(http, 401, "account_required"); }
             return await next(invocation);
         });
+        accounts.MapCustomerSessionResult();
         accounts.MapPost("/start-tickets", async (HttpContext http, CharacterProfileStore profiles,
             OperationJournal journal, IDataProtectionProvider protection) =>
         {

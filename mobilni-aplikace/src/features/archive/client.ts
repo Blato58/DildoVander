@@ -27,7 +27,37 @@ export interface GalleryPage { schemaVersion: number; evening: { id: string; lab
 export interface Edition { id: string; story?: Story; artworkAssetId?: string; synthetic: boolean; publicationState: string }
 export interface Portrait { id: string; editionId: string; assetId: string; synthetic: boolean; createdAt: string }
 export interface Job { id: string; kind: string; state: string }
-export interface Keepsake { schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; accountLinked?: boolean; sharedEditionId?: string; snapshot: { officialName: string; slot: number }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[]; wizardIdentities?: WizardIdentity[]; prophecies?: Prophecy[] }
+export type ArchiveReadinessState = 'pending' | 'processing' | 'partial' | 'ready' | 'failed' | 'unavailable';
+export type ArchiveReadinessReason = 'awaiting_result' | 'awaiting_capacity' | 'paused_preparing' | 'reconciliation_required' | 'generation_failed' | 'result_unavailable';
+export interface ArchiveReadiness {
+  state: ArchiveReadinessState;
+  reason: ArchiveReadinessReason | null;
+  canRetry: false;
+  shouldPoll: boolean;
+  hasStory: boolean;
+  hasArtwork: boolean;
+}
+const readinessStates = new Set<ArchiveReadinessState>(['pending', 'processing', 'partial', 'ready', 'failed', 'unavailable']);
+const readinessReasons = new Set<ArchiveReadinessReason>(['awaiting_result', 'awaiting_capacity', 'paused_preparing', 'reconciliation_required', 'generation_failed', 'result_unavailable']);
+export function parseArchiveReadiness(value: unknown): ArchiveReadiness | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Record<string, unknown>;
+  if (!readinessStates.has(source.state as ArchiveReadinessState)
+    || (source.reason !== null && !readinessReasons.has(source.reason as ArchiveReadinessReason))
+    || source.canRetry !== false
+    || typeof source.shouldPoll !== 'boolean'
+    || typeof source.hasStory !== 'boolean'
+    || typeof source.hasArtwork !== 'boolean') return null;
+  return {
+    state: source.state as ArchiveReadinessState,
+    reason: source.reason as ArchiveReadinessReason | null,
+    canRetry: false,
+    shouldPoll: source.shouldPoll,
+    hasStory: source.hasStory,
+    hasArtwork: source.hasArtwork,
+  };
+}
+export interface Keepsake { schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; accountLinked?: boolean; sharedEditionId?: string; readiness?: ArchiveReadiness | null; snapshot: { officialName: string; slot: number }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[]; wizardIdentities?: WizardIdentity[]; prophecies?: Prophecy[] }
 export interface DeletionReceipt { id: string; scope: string; localState: string; providerState: string; backupState: string }
 export class GuestError extends Error {
   readonly status: number;
@@ -107,11 +137,12 @@ export class ArchiveClient {
     const generation = this.generation;
     return () => { if (generation !== this.generation || this.controller.signal.aborted) throw new DOMException('Route changed', 'AbortError'); };
   }
-  async response(path: string, publicRead = false, options: { method?: string; data?: object; bytes?: Blob; consentVersion?: number } = {}) {
+  async response(path: string, publicRead = false, options: { method?: string; data?: object; bytes?: Blob; consentVersion?: number; accept?: () => void } = {}) {
     const check = this.capture(); check();
     if (!path.startsWith('/guest/v1/') || path.includes('://') || path.includes('#')) throw new GuestError(400);
     const method = options.method ?? 'GET';
     if (publicRead && method !== 'GET') throw new GuestError(400);
+    if (method !== 'GET') options.accept?.();
     const headers: Record<string, string> = { Accept: 'application/json' };
     const body = method === 'GET' ? undefined : options.bytes ?? JSON.stringify({ schemaVersion: 1, ...options.data });
     let identity = '';
@@ -133,9 +164,12 @@ export class ArchiveClient {
     }
     return { response, check, complete: () => this.keys.delete(identity) };
   }
-  async json<T>(path: string, options: { method?: string; data?: object; bytes?: Blob; consentVersion?: number } = {}, publicRead = false): Promise<T> {
+  async json<T>(path: string, options: { method?: string; data?: object; bytes?: Blob; consentVersion?: number; accept?: () => void } = {}, publicRead = false): Promise<T> {
     const { response, check, complete } = await this.response(path, publicRead, options);
-    const value = response.status === 204 ? {} : await response.json(); check(); complete(); return value as T;
+    const value = response.status === 204 ? {} : await response.json(); check();
+    // A caller may reject a late parsed response; keep its replay key until that acceptance check passes.
+    if (options.method !== undefined && options.method !== 'GET') options.accept?.();
+    complete(); return value as T;
   }
   async blob(path: string, allowedMedia: readonly string[], publicRead = false) {
     const { response, check } = await this.response(path, publicRead);
@@ -153,7 +187,7 @@ export class ArchiveClient {
       this.csrf = result.csrfToken;
     }); check();
   }
-  async mutate<T>(path: string, options: { method?: string; data?: object; bytes?: Blob; consentVersion?: number } = {}) {
+  async mutate<T>(path: string, options: { method?: string; data?: object; bytes?: Blob; consentVersion?: number; accept?: () => void } = {}) {
     const check = this.capture();
     if (!this.csrf) await this.bootstrap(); check();
     return this.json<T>(path, { ...options, method: options.method ?? 'POST' });

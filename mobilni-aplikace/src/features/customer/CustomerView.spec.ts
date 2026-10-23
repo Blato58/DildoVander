@@ -7,7 +7,7 @@ vi.mock('../identity/session', async () => {
   const { ref } = await import('vue');
   const account = ref({ id: 'customer-1', displayName: 'Guest', roles: ['Customer'] });
   api.setAccount.mockImplementation((value: typeof account.value) => { account.value = value; });
-  return { account, accountRequest: api.request, authenticatePasskey: vi.fn(), signOut: vi.fn() };
+  return { account, accountDeletionRequested: ref(false), accountRequest: api.request, authenticatePasskey: vi.fn(), signOut: vi.fn() };
 });
 vi.mock('./customerBle', () => ({
   customerBle: {
@@ -589,6 +589,37 @@ describe('customer conversation', () => {
     await flushPromises();
     oldProfile.resolve({ profile }); await flushPromises();
     expect((wrapper.get('#character-name').element as HTMLInputElement).value).toBe('Mira');
+    wrapper.unmount();
+  });
+
+  it('resolves a selected historical conversation through its exact server session binding', async () => {
+    const locators: Record<string, string> = {
+      newest: 'c907bf23-cdf6-4e0a-b334-9558fb1ee6bc',
+      older: '8d504e60-ad89-4d44-bfd7-8191ac4dc481',
+    };
+    api.request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/character')) return { profile };
+      if (path.endsWith('/sessions')) return { items: ['newest', 'older'].map((id, index) => ({
+        id, operationId: `operation-${id}`, deviceId: 'device-1', profileId: profile.profileId,
+        profileRevision: 1, state: 'completed', endRequested: false, createdAt: 1792540800 - index,
+      })) };
+      const id = path.split('/').at(-2)!;
+      return {
+        schemaVersion: 1, sessionId: id, resultLocator: locators[id],
+        readiness: { state: 'ready', reason: null, canRetry: false, shouldPoll: false, hasStory: true, hasArtwork: true },
+        accessKind: 'originalOwner', canReadPrivate: true, canManage: true, canUnlink: false,
+      };
+    });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    expect(wrapper.get('a[href^="/keepsake/"]').attributes('href')).toContain(locators.newest);
+    await wrapper.get('#result-session').setValue('older');
+    await flushPromises();
+    expect(wrapper.get('a[href^="/keepsake/"]').attributes('href')).toContain(locators.older);
+    const reads = api.request.mock.calls.filter(call => call[0].endsWith('/result'));
+    expect(reads.map(call => call[0])).toEqual(['/app/v1/customer/sessions/newest/result', '/app/v1/customer/sessions/older/result']);
+    expect(reads.every(call => call[1] === 'GET')).toBe(true);
+    expect(api.start).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 

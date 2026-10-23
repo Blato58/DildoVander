@@ -228,6 +228,7 @@ internal sealed partial class KeepsakeStore
             while (reader.Read()) { jobIds.Add(reader.GetString(0)); }
             reader.Close();
             var jobViews = jobIds.Select(jobId => ReadJob(connection, null, jobId)).ToArray();
+            var readiness = Readiness(connection, id, document);
             var ready = document.Editions.Any(item => document.Assets.Any(asset => asset.Id == item.ArtworkAssetId && asset.Kind == "base_image"));
             var state = ready ? "ready" : document.Editions.Any(item => item.PublicationState == "story_ready") ? "story_ready"
                 : document.NeedsBaseGeneration && document.CurrentBaseJob is null
@@ -238,7 +239,7 @@ internal sealed partial class KeepsakeStore
                 document.WizardIdentities.Where(identity => document.Editions.Any(edition => edition.Id == identity.EditionId
                     && edition.PublicationState != "private_history")).Select(ToCard).ToArray(),
                 document.Prophecies.Where(prophecy => document.Editions.Any(edition => edition.Id == prophecy.EditionId
-                    && edition.PublicationState != "private_history")).Select(OwnerProphecy).ToArray());
+                    && edition.PublicationState != "private_history")).Select(OwnerProphecy).ToArray(), readiness);
         }
     }
 

@@ -5,6 +5,7 @@ import { AccountArchiveClient } from './accountArchive';
 const id = '11111111-1111-4111-8111-111111111111';
 const path = `/app/v1/archive/associations/${id}`;
 const ownedPath = `/app/v1/archive/owned/${id}`;
+const defer = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => resolve = done); return { promise, resolve }; };
 beforeEach(() => { vi.resetAllMocks(); });
 describe('account archive read authority', () => {
   it('keeps reads on the exact association path and uses account transport with no redirects', async () => {
@@ -43,6 +44,28 @@ describe('account archive read authority', () => {
     await client.json(`${ownedPath}/share-links`, { method: 'POST', data: { editionId: id } });
     expect(new Headers(transport.mock.calls[0][1].headers).get('Idempotency-Key'))
       .toBe(new Headers(transport.mock.calls[1][1].headers).get('Idempotency-Key'));
+  });
+  it('retains the same idempotency key after a late successful response is rejected by the caller guard', async () => {
+    const pending = defer<Response>(); let accept = false; let exposed: unknown;
+    const client = new AccountArchiveClient(() => 'account-a');
+    transport.mockReturnValueOnce(pending.promise).mockImplementation(() => Promise.resolve(Response.json({ private: 'acknowledged response' })));
+    const options = { method: 'POST' as const, data: { editionId: id }, accept: () => { if (!accept) throw new DOMException('Context suspended', 'AbortError'); } };
+    const first = client.json(`${ownedPath}/recovery-links`, options).then(value => { exposed = value; return undefined; }, error => error);
+    const firstRequest = transport.mock.calls[0];
+    pending.resolve(Response.json({ private: 'late private response' }));
+    expect(await first).toMatchObject({ name: 'AbortError' });
+    expect(exposed).toBeUndefined();
+
+    accept = true;
+    expect(await client.json(`${ownedPath}/recovery-links`, options)).toEqual({ private: 'acknowledged response' });
+    const retry = transport.mock.calls[1];
+    expect(retry[0]).toBe(firstRequest[0]);
+    expect(retry[1].body).toBe(firstRequest[1].body);
+    expect(new Headers(retry[1].headers).get('Idempotency-Key')).toBe(new Headers(firstRequest[1].headers).get('Idempotency-Key'));
+
+    await client.json(`${ownedPath}/recovery-links`, options);
+    expect(new Headers(transport.mock.calls[2][1].headers).get('Idempotency-Key'))
+      .not.toBe(new Headers(retry[1].headers).get('Idempotency-Key'));
   });
   it('rejects unsupported account paths and method combinations before transport', async () => {
     const client = new AccountArchiveClient(() => 'account-a');
