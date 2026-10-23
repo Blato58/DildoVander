@@ -18,6 +18,7 @@ using System.Threading.RateLimiting;
 using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Show;
 using Kufr.Backend.Features.PersonaLab;
+using Kufr.Backend.Features.Tonight;
 
 var provisioning = args.Contains("--memory-provision");
 var accountProvisioning = AccountProvisioning.IsCommand(args);
@@ -170,6 +171,7 @@ app.UseAccountIdentity();
 app.MapAccountEndpoints();
 app.MapCustomerCharacters();
 app.MapCustomerSessions();
+app.MapTonightEndpoints();
 app.MapPersonaLab();
 app.MapModelReleases();
 

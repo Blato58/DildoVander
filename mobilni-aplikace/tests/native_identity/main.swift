@@ -11,6 +11,35 @@ require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", q
 
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+let tonightMemory = "/app/v1/tonight/devices/case_1.s3-A/memory-status"
+require(AccountTransportPolicy.account(path: tonightMemory, method: "GET"), "Tonight memory status unavailable")
+require(AccountTransportPolicy.account(path: "/app/v1/tonight/devices/\(String(repeating: "a", count: 128))/memory-status", method: "GET"),
+        "Tonight device identifier boundary rejected")
+for method in ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "get"] {
+    require(!AccountTransportPolicy.account(path: tonightMemory, method: method), "Tonight memory status method broadened: \(method)")
+}
+for invalid in [
+    tonightMemory + "/", tonightMemory + "/extra", tonightMemory + "?deviceId=other", tonightMemory + "#fragment",
+    tonightMemory + "\n", tonightMemory + "%0a", tonightMemory.replacingOccurrences(of: "/devices/", with: "/devices//"),
+    String(tonightMemory.dropFirst()), "/" + tonightMemory,
+    "/app/v1/tonight/devices//memory-status", "/app/v1/tonight/devices/./memory-status",
+    "/app/v1/tonight/devices/../memory-status", "/app/v1/tonight/devices/case 1/memory-status",
+    "/app/v1/tonight/devices/case:1/memory-status", "/app/v1/tonight/devices/caf\u{00e9}/memory-status",
+    "/app/v1/tonight/devices/case%2fother/memory-status", "/app/v1/tonight/devices/case\\other/memory-status",
+    "/app/v1/tonight/devices/\(String(repeating: "a", count: 129))/memory-status",
+    "/app/v1/tonight/devices/case_1.s3-A/history", "/app/v1/tonight/devices/case_1.s3-A/Memory-Status"
+] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "GET"), "malformed Tonight memory route accepted: \(invalid)")
+}
+require(!AccountTransportPolicy.guest(path: tonightMemory, method: "GET"), "Tonight entered guest transport")
+require(AccountTransportPolicy.accountResponseLimit(path: tonightMemory, method: "GET") == 1024 * 1024,
+        "Tonight memory status received an asset response limit")
+require(AccountTransportPolicy.accountRequestBodyLimit(path: tonightMemory, method: "POST", contentType: "image/jpeg") == 256 * 1024,
+        "Tonight memory status received a portrait upload limit")
+require(!AccountTransportPolicy.accountHeaderAllowed(path: tonightMemory, method: "GET", name: "X-DV10-Consent", value: "7"),
+        "portrait consent entered Tonight transport")
+require(!AccountTransportPolicy.account(path: "/app/v1/customer/data/exports/\(id)/download", method: "GET"),
+        "future export route accidentally enabled")
 let customerSession = "/app/v1/customer/sessions/\(id)"
 let customerResult = customerSession + "/result"
 require(AccountTransportPolicy.account(path: customerResult, method: "GET"), "customer session result unavailable")
