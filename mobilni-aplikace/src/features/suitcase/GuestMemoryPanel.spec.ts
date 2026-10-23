@@ -8,7 +8,7 @@ vi.mock('@capacitor/core', () => ({ registerPlugin: () => bridge }));
 vi.mock('./deviceSession', () => ({ deviceSession: { native: true } }));
 vi.mock('./deviceAssociation', async () => { const { ref } = await import('vue'); return { deviceAssociation: { account: ref({ id: 'admin', roles: ['Administrator'] }), administrator: ref(true) } }; });
 const inspection = { identity: null, epoch: 7, deletionEpoch: 2, records: [{ memoryId: 'record-1', text: 'Private approved fact', sourceReference: 'event-1', revision: 3, isActive: true }], totalRecords: 1, hasMore: false,
-  memoryStatus: { provider: 'cloud', configured: true, degraded: false, configurationStatus: 'ready', pending: 0, failed: 0, deleting: 0 } };
+  memoryStatus: { provider: 'cloud', configured: true, degraded: false, configurationStatus: 'ready', pending: 0, failed: 0, deleting: 0, storedBytes: 838861, capacityBytes: 1048576, rejectedWrites: 0 } };
 let wrapper: VueWrapper;
 function button(text: string) { return wrapper.findAll('button').find(item => item.text() === text)!; }
 beforeEach(() => { vi.clearAllMocks(); nativeDebug.pending.value = false;
@@ -47,5 +47,44 @@ describe('scoped memory administration', () => {
     await button('Načíst paměť rozhovoru').trigger('click'); await flushPromises();
     expect(wrapper.text()).toContain('Neověřená nebo odvolaná vazba'); expect(wrapper.text()).toContain('Dlouhodobá osobní paměť: nepovolena');
     expect(wrapper.text()).toContain('cloudový index: nepovolen'); expect(wrapper.text()).toContain('verze 4');
+  });
+  it('shows global archive capacity, exact byte counts and historical rejected writes', async () => {
+    bridge.inspectMemory.mockResolvedValue({ ...inspection, memoryStatus: { ...inspection.memoryStatus,
+      storageStatus: 'warning', storageIncomplete: true, rejectedWrites: 2,
+      lastStorageErrorCode: 'archive_capacity', lastStorageErrorAt: '2026-10-23T10:15:30.000Z' } });
+    wrapper = mount(GuestMemoryPanel); await wrapper.get('[data-memory-conversation]').setValue('conversation-1');
+    await button('Načíst paměť rozhovoru').trigger('click'); await flushPromises();
+    const storage = wrapper.get('[aria-label="Kapacita sdíleného archivu"]');
+    const storageText = storage.text().replaceAll('\u00a0', ' ');
+    expect(storage.text()).toContain('Varování: využití dosáhlo alespoň 80 %');
+    expect(storageText).toContain('0,8 MiB (838 861 B) z 1 MiB (1 048 576 B)');
+    expect(storage.text()).toContain('Odmítnuté zápisy: 2');
+    expect(storage.text()).toContain('Některé zápisy v minulosti nebyly uloženy');
+    expect(storage.text()).toContain('Tento přehled nepotvrzuje uložení všech zápisů');
+    expect(storage.text()).toContain('Kapacita společného archivu byla dosažena');
+    expect(storage.text()).toContain('2026-10-23T10:15:30.000Z');
+    expect(storage.text()).toContain('nikoli pouze k tomuto rozhovoru');
+  });
+  it('uses the authoritative full status and never renders an unknown backend error code', async () => {
+    const untrustedCode = '<img src=x onerror=alert(1)>private backend detail';
+    bridge.inspectMemory.mockResolvedValue({ ...inspection, memoryStatus: { ...inspection.memoryStatus,
+      storedBytes: 10, capacityBytes: 1000, storageStatus: 'full', storageIncomplete: false,
+      lastStorageErrorCode: untrustedCode, lastStorageErrorAt: 'not a timestamp' } });
+    wrapper = mount(GuestMemoryPanel); await wrapper.get('[data-memory-conversation]').setValue('conversation-1');
+    await button('Načíst paměť rozhovoru').trigger('click'); await flushPromises();
+    const storage = wrapper.get('[aria-label="Kapacita sdíleného archivu"]');
+    expect(storage.text()).toContain('Stav úložiště: Plná');
+    expect(storage.text()).toContain('Poslední odmítnutí mělo jinou příčinu');
+    expect(storage.text()).not.toContain(untrustedCode);
+    expect(storage.text()).not.toContain('not a timestamp');
+  });
+  it('keeps capacity counts readable when optional status fields are absent in an older fixture', async () => {
+    wrapper = mount(GuestMemoryPanel); await wrapper.get('[data-memory-conversation]').setValue('conversation-1');
+    await button('Načíst paměť rozhovoru').trigger('click'); await flushPromises();
+    const storage = wrapper.get('[aria-label="Kapacita sdíleného archivu"]');
+    const storageText = storage.text().replaceAll('\u00a0', ' ');
+    expect(storage.text()).toContain('Stav úložiště: Stav kapacity není dostupný');
+    expect(storageText).toContain('0,8 MiB (838 861 B) z 1 MiB (1 048 576 B)');
+    expect(storage.text()).not.toContain('Některé zápisy v minulosti nebyly uloženy');
   });
 });

@@ -108,6 +108,49 @@ Historické retention klíče se mohou načíst kvůli kompatibilitě, obsah nem
 - Limity payloadů, kontextu, času, souběhu a úložiště zůstávají technické.
   Měnové limity aplikace se neobnovují; náklady řídí OpenAI účet.
 
+### Kapacita místního archivu
+
+`Backend:Memory:MaxStoredBytes` (proměnná prostředí
+`Backend__Memory__MaxStoredBytes`) má výchozí hodnotu **67 108 864 B (64 MiB)**.
+Povoleny jsou celé hodnoty od 2 000 do 1 073 741 824 B (1 GiB), včetně.
+Neplatná hodnota zastaví načtení konfigurace s názvem klíče. Dosavadní explicitní
+nastavení 2 000 000 B zůstává platné; zvýšení výchozí hodnoty ho nepřepíše.
+Změna konfigurace vyžaduje restart backendu.
+
+Limit počítá UTF-8 obsah všech revizí `memory_records` a textů `live_transcripts`
+ve společné databázi, napříč rozhovory, zařízeními i namespaces. Nejde o velikost
+SQLite souboru ani limit disku: indexy, metadata, tombstones, fronty, další tabulky
+a journal potřebují další místo. Deterministická fixture příkazu
+`dotnet run --project backend-tests/BackendTests.csproj -- --memory-capacity`
+obsahuje 100 rozhovorů, 10 000 českých segmentů po 120 znacích a 500 faktů.
+Naměřila 1 325 450 B UTF-8 obsahu (1 290 000 B přepisů a 35 450 B faktů)
+a SQLite soubor 4 775 936 až 4 816 896 B ve dvou lokálních bězích (velikost
+indexů se může lišit podle rozložení identifikátorů). Výchozích 64 MiB poskytuje přibližně 50násobek
+tohoto obsahového vzorku; nejde o slib produkční délky večera ani propustnosti.
+Horní mez 1 GiB zachovává konečný technický limit; před zvýšením zkontrolujte
+volný disk a zálohy, včetně větší skutečné databáze. Automatické mazání nepřidává.
+
+Administrátorský stav (`/v1/admin/memory`, `memoryStatus` v inspekci rozhovoru
+a `memoryProvider` v autentizovaném `/v1/diagnostics`) uvádí `storedBytes`, `capacityBytes`,
+`rejectedWrites`, `storageStatus`, `storageIncomplete`, `lastStorageErrorCode`
+a `lastStorageErrorAt`. `storageStatus` je aktuální: `available` pod 80 %,
+`warning` od 80 % a `full` od 100 %. Odmítnout lze i větší zápis před dosažením
+100 %, pokud se už nevejde celý. `rejectedWrites` počítá odmítnuté záznamy či
+segmenty, nikoli rozhovory; opakovaný neúspěšný pokus jej může zvýšit znovu.
+`storageIncomplete` a poslední kód `archive_capacity` s UTC časem jsou trvalá
+historie odmítnutí, nikoli tvrzení, že úložiště právě selhává. Zvýšení kapacity
+ani ruční smazání je nenuluje a neobnoví chybějící obsah. Diagnostika neobsahuje
+text hosta. Panel Paměť hosta zobrazuje snímek stavu při načtení rozhovoru;
+pro nový stav ho načtěte znovu.
+
+Při nedostatku kapacity zůstává starší obsah zachován, včetně revizí. Přepisová
+dávka může uložit jen segmenty, které se vejdou, a vrací neúplný výsledek.
+Snížení limitu pod obsazené místo nic nemaže, pouze odmítá nové zápisy.
+Správce může po ověření kapacitu zvýšit, nebo použít existující výslovně
+potvrzené ruční odstranění příslušné paměti. Nezavádí se pruning, expirace
+ani automatický úklid obsahu; odstranění textu může uvolnit obsahový limit,
+aniž by zmenšilo SQLite soubor na disku.
+
 ## Provisioning OpenAI stores
 
 Lokální paměť nepotřebuje cloud ani provisioning. Volitelný index se nastavuje
