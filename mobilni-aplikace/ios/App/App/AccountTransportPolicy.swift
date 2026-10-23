@@ -328,6 +328,15 @@ enum AccountTransportPolicy {
         guard !path.contains("%"), !path.contains("?"), !path.contains("#"), !path.contains("\\"),
               !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else { return false }
         if accountArchive(path: path, method: method) { return true }
+        if path.hasPrefix("/app/v1/tonight/") {
+            let parts = path.split(separator: "/").map(String.init)
+            guard parts.count == 6, Array(parts.prefix(4)) == ["app", "v1", "tonight", "devices"],
+                  parts[5] == "memory-status" else { return false }
+            let deviceId = parts[4]
+            return method == "GET" && path == "/app/v1/tonight/devices/\(deviceId)/memory-status"
+                && !deviceId.isEmpty && deviceId.count <= 128
+                && deviceId.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") }
+        }
         if path.hasPrefix("/app/v1/customer/") { return customer(path: path, method: method) }
         if path.hasPrefix("/app/v1/persona-lab") { return personaLab(path: path, method: method) }
         if path == "/v1/evenings" { return ["GET", "POST"].contains(method) }

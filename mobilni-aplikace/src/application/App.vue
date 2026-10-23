@@ -30,6 +30,7 @@ const navigation = computed(() => customerAccount.value ? [
   { to: '/me/keepsakes', label: 'Památky', symbol: '▤' },
   { to: '/me/account', label: 'Účet', symbol: '⚙' },
 ] : canEnterStaffArea(account.value) ? [
+  ...(canOperateSuitcase(account.value) ? [{ to: '/tonight', label: 'Dnes', symbol: '◉' }] : []),
   { to: '/suitcase', label: 'Kufr', symbol: '▣' },
   { to: '/connections', label: 'Připojení', symbol: '⌁' },
   { to: '/persona-lab', label: 'Persona Lab', symbol: '◌' },
