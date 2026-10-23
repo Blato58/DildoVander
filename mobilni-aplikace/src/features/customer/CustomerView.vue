@@ -8,6 +8,7 @@ import { secureUuid } from '../../application/identifiers.mjs';
 import { account, accountRequest } from '../identity/session';
 import AccountArchiveList from '../identity/AccountArchiveList.vue';
 import SettingsView from '../identity/SettingsView.vue';
+import NewCharacterDialog, { type NewCharacterDraft } from './NewCharacterDialog.vue';
 import { customerBle, type CustomerBleDevice, type CustomerBleStatus } from './customerBle';
 import { projectCustomerSessionError } from './customerSessionFeedback';
 import { SessionRecoveryController, type SessionRecoveryState } from './sessionRecovery';
@@ -40,6 +41,8 @@ const connected = ref<CustomerBleStatus | null>(null);
 const selectedDevice = ref('');
 const personalMemoryConsent = ref(false);
 const enrichmentOpenAiConsent = ref(false);
+const newCharacterOpen = ref(false);
+const newCharacterError = ref('');
 const conversationOpenAiConsent = ref(false);
 const form = ref({ name: '', world: '', version: '', description: '', language: '' });
 let generation = 0;
@@ -109,6 +112,7 @@ function resetPrivateState(): void {
   if (enrichmentTimer) clearTimeout(enrichmentTimer); enrichmentTimer = undefined;
   profile.value = null; sessions.value = []; devices.value = []; connected.value = null; profileLoading.value = Boolean(account.value);
   busy.value = false;
+  newCharacterOpen.value = false; newCharacterError.value = '';
   selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; requestedEndSessions.clear(); error.value = ''; errorDiagnosticCode.value = ''; notice.value = '';
   form.value = { name: '', world: '', version: '', description: '', language: '' }; personalMemoryConsent.value = false; enrichmentOpenAiConsent.value = false; conversationOpenAiConsent.value = false;
   void Promise.resolve(customerBle.disconnect()).catch(() => {});
@@ -164,23 +168,49 @@ async function refreshSessionSnapshot(signal: AbortSignal): Promise<SessionSnaps
   return result;
 }
 
-async function saveCharacter(newCharacter = false): Promise<void> {
+async function saveCharacter(newCharacter = false, draft?: NewCharacterDraft): Promise<void> {
+  if (busy.value) return;
   error.value = ''; notice.value = ''; busy.value = true; const epoch = generation;
+  newCharacterError.value = '';
   try {
+    const input = draft ?? form.value;
     const expectedRevision = profile.value?.revision ?? 0;
     const result = await accountRequest<{ profile: CharacterProfile }>('/app/v1/customer/character', 'PUT', {
-      expectedRevision, expectedProfileId: profile.value?.profileId ?? null, openAiConsent: enrichmentOpenAiConsent.value,
-      userInput: { name: form.value.name.trim(), world: form.value.world.trim(), version: form.value.version.trim() || undefined,
-        description: form.value.description.trim() || undefined, language: form.value.language.trim() || undefined },
+      expectedRevision, expectedProfileId: profile.value?.profileId ?? null, openAiConsent: draft?.openAiConsent ?? enrichmentOpenAiConsent.value,
+      userInput: { name: input.name.trim(), world: input.world.trim(), version: input.version.trim() || undefined,
+        description: input.description.trim() || undefined, language: input.language.trim() || undefined },
       ...(newCharacter && profile.value ? { newCharacter: true } : {}),
     }, accountWorkController.signal);
     if (epoch !== generation) return;
     profile.value = result.profile;
+    if (newCharacter) {
+      form.value = {
+        name: result.profile.userInput.name, world: result.profile.userInput.world,
+        version: result.profile.userInput.version ?? '', description: result.profile.userInput.description ?? '',
+        language: result.profile.userInput.language ?? '',
+      };
+      newCharacterOpen.value = false;
+    }
     enrichmentOpenAiConsent.value = false;
     scheduleEnrichmentRefresh(epoch);
     notice.value = newCharacter ? 'Nová postava byla založena. Historie předchozí postavy zůstává uložená.' : 'Profil postavy byl uložen.';
-  } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
+  } catch (cause) {
+    if (epoch === generation) {
+      if (newCharacter) newCharacterError.value = (cause as Error).message;
+      else error.value = (cause as Error).message;
+    }
+  }
   finally { if (epoch === generation) busy.value = false; }
+}
+
+function beginNewCharacter(): void {
+  if (busy.value) return;
+  newCharacterError.value = '';
+  newCharacterOpen.value = true;
+}
+function cancelNewCharacter(): void {
+  // A dispatched profile write cannot be undone by closing its dialog.
+  if (!busy.value) newCharacterOpen.value = false;
 }
 
 async function requestCorrection(): Promise<void> {
@@ -409,7 +439,20 @@ onBeforeUnmount(() => {
     <AwNotice v-if="notice" tone="info" role="status">{{ notice }}</AwNotice>
 
     <p v-if="pane === 'character' && profileLoading" role="status">Načítám váš profil…</p>
-    <form v-if="pane === 'character' && !profileLoading" class="aw-card customer-form" @submit.prevent="saveCharacter(false)">
+    <section v-if="pane === 'character' && !profileLoading" class="page-stack">
+      <section v-if="profile" class="aw-card page-stack" aria-labelledby="character-confirmation-title">
+        <h2 id="character-confirmation-title">{{ profile.userInput.name }}</h2>
+        <p>{{ profile.userInput.world }}<span v-if="profile.userInput.version"> · {{ profile.userInput.version }}</span></p>
+        <p role="status">{{ characterStatusLabels[profile.status] ?? 'Stav se ověřuje' }} · Revize {{ profile.revision }}</p>
+        <p v-if="profile.status === 'saved'">Postava je uložená bez AI přípravy. Můžete pokračovat k rozhovoru.</p>
+        <AwNotice v-if="clarificationText" tone="info">Server potřebuje upřesnit některé informace: {{ clarificationText }}</AwNotice>
+        <RouterLink v-if="['saved', 'ready'].includes(profile.status) || startInProgress" class="aw-button aw-button--primary" to="/me/conversation">{{ startInProgress ? 'Vrátit se k rozhovoru' : 'Pokračovat k rozhovoru' }}</RouterLink>
+        <p class="aw-muted">Úprava níže zachová identitu a historii této postavy. Novou identitu vytvoříte samostatně.</p>
+        <AwButton type="button" variant="secondary" :disabled="busy" @click="beginNewCharacter">Nová postava</AwButton>
+      </section>
+      <details :open="!profile || profile.status === 'needs_clarification'" class="aw-card">
+        <summary>{{ profile ? 'Upravit nebo upřesnit postavu' : 'Vytvořit první postavu' }}</summary>
+    <form class="customer-form" @submit.prevent="saveCharacter(false)">
       <AwField id="character-name" label="Jméno postavy"><input id="character-name" v-model="form.name" class="aw-input" maxlength="120" required /></AwField>
       <AwField id="character-world" label="Film, seriál, hra nebo kniha"><input id="character-world" v-model="form.world" class="aw-input" maxlength="160" required /></AwField>
       <AwField id="character-version" label="Verze nebo období (nepovinné)"><input id="character-version" v-model="form.version" class="aw-input" maxlength="120" /></AwField>
@@ -419,11 +462,18 @@ onBeforeUnmount(() => {
       <p class="aw-muted">Bez zaškrtnutí profil uložíme bez odeslání k AI přípravě.</p>
       <p v-if="profile" class="aw-muted">Stav přípravy: {{ characterStatusLabels[profile.status] ?? 'Stav se ověřuje' }}<span v-if="profile.errorCode"> · {{ profile.errorCode }}</span></p>
       <AwNotice v-if="profile && clarificationText" tone="info">Server potřebuje upřesnit některé informace: {{ clarificationText }}</AwNotice>
-      <p v-if="enrichmentText" class="character-enrichment">{{ enrichmentText }}</p>
-      <section v-for="section in evidenceSections" :key="section.title" class="aw-card"><h2>{{ section.title }}</h2><ul><li v-for="line in section.lines" :key="line">{{ line }}</li></ul></section>
-      <div class="customer-actions"><AwButton type="submit" variant="primary" :busy="busy">{{ profile ? 'Uložit změny' : 'Vytvořit postavu' }}</AwButton><AwButton v-if="profile" :disabled="busy" @click="saveCharacter(true)">Nová postava</AwButton><AwButton v-if="profile" :disabled="busy || !enrichmentOpenAiConsent" @click="requestCorrection">Tohle není moje postava</AwButton><AwButton v-if="profile" variant="danger" :disabled="busy" @click="deleteCharacter">Smazat profil</AwButton></div>
+      <details v-if="enrichmentText || evidenceSections.length">
+        <summary>Podrobnosti přípravy a zdroje</summary>
+        <p v-if="enrichmentText" class="character-enrichment">{{ enrichmentText }}</p>
+        <section v-for="section in evidenceSections" :key="section.title" class="aw-card"><h2>{{ section.title }}</h2><ul><li v-for="line in section.lines" :key="line">{{ line }}</li></ul></section>
+      </details>
+      <div class="customer-actions"><AwButton type="submit" variant="primary" :busy="busy">{{ profile ? 'Uložit změny' : 'Vytvořit postavu' }}</AwButton><AwButton v-if="profile" type="button" :disabled="busy || !enrichmentOpenAiConsent" @click="requestCorrection">Tohle není moje postava</AwButton><AwButton v-if="profile" type="button" variant="danger" :disabled="busy" @click="deleteCharacter">Smazat profil</AwButton></div>
       <p v-if="profile" class="aw-muted">Revize {{ profile.revision }}</p>
     </form>
+      </details>
+      <RouterLink to="/me/account">Účet, souhlasy a pomoc s přístupem</RouterLink>
+      <NewCharacterDialog :open="newCharacterOpen" :busy="busy" :error="newCharacterError" :current-character-name="profile?.userInput.name" :active-session="startInProgress" @cancel="cancelNewCharacter" @confirm="draft => saveCharacter(true, draft)" />
+    </section>
 
     <section v-else-if="pane === 'conversation'" class="page-stack">
       <AwNotice v-if="!customerBle.supported()" tone="info">Bluetooth připojení je dostupné v instalované aplikaci pro iPhone. Safari může zobrazit účet a památky, ale neumí připojit kufr.<br><a href="/ios/">Otevřít instalaci aplikace pro iPhone</a></AwNotice>

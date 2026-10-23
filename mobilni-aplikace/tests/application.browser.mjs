@@ -52,6 +52,8 @@ try {
   let failedCustomerPolls = 0;
   let customerStatusReads = 0;
   const customerEndRequests = [];
+  let customerProfile = { profileId: 'browser-profile', revision: 2, userInput: { name: 'Luna', world: 'Moon Saga' }, status: 'ready', enrichment: { summary: 'A prepared character summary.', sources: ['Public character guide'] } };
+  const characterWrites = [];
   const ownerAccount = { id: 'browser-owner', displayName: 'Testovací vlastník', roles: ['Owner'] };
   const homeHeading = () => sessionAccount ? `Vítejte, ${sessionAccount.displayName}` : 'Kufr plný příběhů.';
   await context.route('**/*', async route => {
@@ -61,7 +63,14 @@ try {
     const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
     if (url.pathname === '/app/v1/session') return json({ enabled: true, account: sessionAccount, csrfToken: 'isolated-browser-csrf' });
     if (sessionAccount && url.pathname === '/app/v1/account') return json({ sessions: [{ id: 'browser-session', installationName: 'Tento prohlížeč', current: true, trusted: false, expiresAt: 1900000000 }], grants: [], associations: [], passkeyCount: 1, passkeys: [{ id: 'browser-passkey', name: 'Můj klíč', createdAt: '2026-10-20T00:00:00Z', isBackedUp: true }], devices: [] });
-    if (sessionAccount && url.pathname === '/app/v1/customer/character') return json({ profile: { profileId: 'browser-profile', revision: 2, userInput: { name: 'Luna', world: 'Moon Saga' }, status: 'ready', enrichment: { summary: 'A prepared character summary.', sources: ['Public character guide'] } } });
+    if (sessionAccount && url.pathname === '/app/v1/customer/character') {
+      if (request.method() === 'PUT') {
+        const body = request.postDataJSON();
+        characterWrites.push(body);
+        customerProfile = { profileId: body.newCharacter ? 'browser-new-profile' : customerProfile.profileId, revision: body.newCharacter ? 1 : customerProfile.revision + 1, userInput: body.userInput, status: body.openAiConsent ? 'queued' : 'saved' };
+      }
+      return json({ profile: customerProfile });
+    }
     if (sessionAccount && url.pathname === '/app/v1/customer/sessions') {
       customerStatusReads += 1;
       if (failedCustomerPolls > 0) {
@@ -152,15 +161,93 @@ try {
   await page.goto(origin + '/me/character'); await hasHeading('Moje postava');
   assert.equal(await page.getByRole('navigation', { name: 'Sekce aplikace' }).getByRole('link').count(), 4);
   assert.equal(await page.getByRole('button', { name: 'Stop', exact: true }).count(), 0);
-  assert.equal(await page.getByLabel('Jméno postavy').inputValue(), 'Luna');
+  await page.getByRole('heading', { name: 'Luna', exact: true }).waitFor();
+  assert.equal(await page.getByText('A prepared character summary.', { exact: true }).isVisible(), false, 'preparation detail starts collapsed');
+  await page.getByText('Upravit nebo upřesnit postavu', { exact: true }).click();
+  assert.equal(await page.locator('#character-name').inputValue(), 'Luna');
   assert.equal(await page.locator('#character-openai-consent').isChecked(), false, 'character enrichment requires an unchecked OpenAI opt-in');
   assert(await page.getByText(/společnosti OpenAI/).first().isVisible());
   assert.equal(await page.getByText('Public character guide').count(), 1);
+  await page.getByText('Upravit nebo upřesnit postavu', { exact: true }).click();
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
     await fits();
     await page.screenshot({ path: path.join(screenshots, `customer-character-${width}.png`), fullPage: true });
   }
+  await page.getByText('Upravit nebo upřesnit postavu', { exact: true }).click();
+  await page.locator('#character-name').fill('Neuložená oprava Luny');
+  await page.locator('#character-openai-consent').check();
+  await page.getByRole('button', { name: 'Nová postava', exact: true }).click();
+  const newCharacterDialog = page.getByRole('dialog', { name: 'Vytvořit novou postavu', exact: true });
+  await newCharacterDialog.waitFor();
+  assert.equal(await page.locator('#new-character-name').inputValue(), '');
+  assert.equal(await page.locator('#new-character-openai-consent').isChecked(), false, 'new identity never inherits existing AI consent');
+  await page.locator('#new-character-name').fill('Zrušený koncept');
+  await page.keyboard.press('Escape');
+  await newCharacterDialog.waitFor({ state: 'hidden' });
+  assert.equal(await page.locator('#character-name').inputValue(), 'Neuložená oprava Luny');
+  assert.equal(characterWrites.length, 0, 'canceling a new identity never saves');
+  assert.equal(await page.getByRole('button', { name: 'Nová postava', exact: true }).evaluate(button => button === document.activeElement), true, 'dialog restores focus to its opener');
+  await page.getByRole('button', { name: 'Nová postava', exact: true }).click();
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await fits();
+    await page.keyboard.press('Tab');
+    assert(await newCharacterDialog.evaluate(dialog => dialog.contains(document.activeElement)), 'keyboard focus stays in the new-identity dialog');
+    await page.screenshot({ path: path.join(screenshots, `customer-new-character-${width}.png`), fullPage: true });
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  const confirmNewCharacter = newCharacterDialog.getByRole('button', { name: 'Vytvořit novou postavu', exact: true });
+  await confirmNewCharacter.scrollIntoViewIfNeeded();
+  await fits();
+  assert(await confirmNewCharacter.isVisible(), 'new identity confirmation remains reachable with enlarged text');
+  assert(await newCharacterDialog.getByRole('button', { name: 'Zrušit', exact: true }).isVisible());
+  await page.screenshot({ path: path.join(screenshots, 'customer-new-character-320-text-200.png'), fullPage: true });
+  await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+  await page.locator('#new-character-name').fill('Mira');
+  await page.locator('#new-character-world').fill('Star Book');
+  await newCharacterDialog.getByRole('button', { name: 'Vytvořit novou postavu', exact: true }).click();
+  await newCharacterDialog.waitFor({ state: 'hidden' });
+  await page.getByRole('heading', { name: 'Mira', exact: true }).waitFor();
+  assert.equal(characterWrites.length, 1);
+  assert.equal(characterWrites[0].newCharacter, true);
+  assert.equal(characterWrites[0].expectedProfileId, 'browser-profile');
+  assert.equal(characterWrites[0].expectedRevision, 2);
+  assert.equal(characterWrites[0].openAiConsent, false);
+  assert(await page.getByText('Postava je uložená bez AI přípravy. Můžete pokračovat k rozhovoru.', { exact: true }).isVisible());
+  await page.goto(origin);
+  await page.getByRole('link', { name: 'Pokračovat k rozhovoru', exact: true }).waitFor();
+  assert(await page.getByRole('link', { name: 'Moje památky', exact: true }).last().isVisible());
+  // Exercise the capability fallback used by supported pre-15.4 iOS browsers.
+  // This is a desktop regression fixture, not an actual iPhone acceptance gate.
+  const fallbackPage = await context.newPage();
+  fallbackPage.on('pageerror', error => errors.push(error.message));
+  await fallbackPage.addInitScript(() => {
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: undefined });
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value: undefined });
+  });
+  await fallbackPage.setViewportSize({ width: 390, height: 844 });
+  await fallbackPage.goto(origin + '/me/character');
+  const fallbackOpener = fallbackPage.getByRole('button', { name: 'Nová postava', exact: true });
+  await fallbackOpener.click();
+  const inlineCharacter = fallbackPage.getByRole('region', { name: 'Vytvořit novou postavu', exact: true });
+  await inlineCharacter.waitFor();
+  assert.equal(await fallbackPage.locator('dialog').count(), 0);
+  assert.equal(await fallbackPage.locator('#new-character-name').evaluate(input => input === document.activeElement), true);
+  await inlineCharacter.getByRole('button', { name: 'Zrušit', exact: true }).click();
+  await inlineCharacter.waitFor({ state: 'hidden' });
+  assert.equal(await fallbackOpener.evaluate(button => button === document.activeElement), true);
+  await fallbackOpener.click();
+  await fallbackPage.locator('#new-character-name').fill('Sora');
+  await fallbackPage.locator('#new-character-world').fill('Sky Book');
+  await fallbackPage.screenshot({ path: path.join(screenshots, 'customer-inline-character-390.png'), fullPage: true });
+  await inlineCharacter.getByRole('button', { name: 'Vytvořit novou postavu', exact: true }).click();
+  await inlineCharacter.waitFor({ state: 'hidden' });
+  await fallbackPage.getByRole('heading', { name: 'Sora', exact: true }).waitFor();
+  assert.equal(characterWrites.length, 2);
+  assert.equal(characterWrites[1].newCharacter, true);
+  assert.equal(characterWrites[1].openAiConsent, false);
+  await fallbackPage.close();
   const customerNav = page.getByRole('navigation', { name: 'Sekce aplikace' });
   await customerNav.getByRole('link', { name: 'Rozhovor', exact: true }).click(); await hasHeading('Rozhovor s kufrem');
   assert.equal(await page.locator('#conversation-openai-consent').isChecked(), false, 'voice consent is separate and unchecked');

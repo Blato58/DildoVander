@@ -26,7 +26,7 @@ const profile = { profileId: 'profile-1', revision: 1, userInput: { name: 'Luna'
 const bleStatus = { v: 1, deviceId: 'device-1', bootId: 'boot-1', challenge: 'challenge-secret', capabilities: { customerStart: 1 }, state: 'idle' as const };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(complete => { resolve = complete; }); return { promise, resolve }; }
 const router = async (path = '/me/conversation') => {
-  const instance = createRouter({ history: createMemoryHistory(), routes: [{ path: '/me/character', component: CustomerView }, { path: '/me/conversation', component: CustomerView }] });
+  const instance = createRouter({ history: createMemoryHistory(), routes: [{ path: '/me/character', component: CustomerView }, { path: '/me/conversation', component: CustomerView }, { path: '/me/account', component: { template: '<div />' } }] });
   await instance.push(path); await instance.isReady(); return instance;
 };
 
@@ -507,9 +507,7 @@ describe('customer conversation', () => {
       if (path.endsWith('/sessions')) return { items: [] };
       throw new Error(`Unexpected request ${path}`);
     });
-    const instance = createRouter({ history: createMemoryHistory(), routes: [{ path: '/me/character', component: CustomerView }] });
-    await instance.push('/me/character'); await instance.isReady();
-    const wrapper = mount(CustomerView, { global: { plugins: [instance] } });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
     await flushPromises();
     await wrapper.get('#character-name').setValue('Luna');
     await wrapper.get('#character-world').setValue('Moon Saga');
@@ -518,8 +516,62 @@ describe('customer conversation', () => {
     expect(initial).toMatchObject({ expectedRevision: 0, expectedProfileId: null, userInput: { name: 'Luna', world: 'Moon Saga' } });
     expect(initial).not.toHaveProperty('newCharacter');
     await wrapper.findAll('button').find(button => button.text() === 'Nová postava')!.trigger('click'); await flushPromises();
+    expect(api.request.mock.calls.filter(call => call[1] === 'PUT')).toHaveLength(1);
+    expect(wrapper.get('#new-character-name').element).toHaveProperty('value', '');
+    await wrapper.get('#new-character-name').setValue('Mira');
+    await wrapper.get('#new-character-world').setValue('Star Book');
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
     const writes = api.request.mock.calls.filter(call => call[0].endsWith('/character') && call[1] === 'PUT');
-    expect(writes[1][2]).toMatchObject({ expectedRevision: 1, expectedProfileId: 'profile-1', newCharacter: true });
+    expect(writes[1][2]).toMatchObject({ expectedRevision: 1, expectedProfileId: 'profile-1', newCharacter: true, openAiConsent: false, userInput: { name: 'Mira', world: 'Star Book' } });
+    expect(wrapper.get('#character-name').element).toHaveProperty('value', 'Mira');
+    expect(wrapper.get('#character-confirmation-title').text()).toBe('Mira');
+    wrapper.unmount();
+  });
+
+  it('cancels a new identity without saving or losing existing unsaved corrections and consent', async () => {
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
+    await flushPromises();
+    await wrapper.get('#character-name').setValue('Moje neuložená oprava');
+    await wrapper.get('#character-openai-consent').setValue(true);
+    await wrapper.findAll('button').find(button => button.text() === 'Nová postava')!.trigger('click');
+    expect((wrapper.get('#new-character-openai-consent').element as HTMLInputElement).checked).toBe(false);
+    await wrapper.get('#new-character-name').setValue('Rozpracovaná nová');
+    await wrapper.findAll('button').find(button => button.text() === 'Zrušit')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.get('dialog').element).toHaveProperty('open', false);
+    expect(wrapper.get('#character-name').element).toHaveProperty('value', 'Moje neuložená oprava');
+    expect((wrapper.get('#character-openai-consent').element as HTMLInputElement).checked).toBe(true);
+    expect(api.request.mock.calls.filter(call => call[1] === 'PUT')).toHaveLength(0);
+    wrapper.unmount();
+  });
+
+  it('preserves both drafts after a rejected new identity and retries only on confirmation', async () => {
+    let writes = 0;
+    api.request.mockImplementation(async (path: string, method?: string, body?: Record<string, unknown>) => {
+      if (method === 'PUT') {
+        if (++writes === 1) throw new Error('Profil se mezitím změnil. Obnovte jej.');
+        return { profile: { ...profile, profileId: 'profile-2', userInput: body?.userInput, status: 'saved' } };
+      }
+      return path.endsWith('/character') ? { profile } : { items: [] };
+    });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } });
+    await flushPromises();
+    await wrapper.get('#character-name').setValue('Původní koncept');
+    await wrapper.findAll('button').find(button => button.text() === 'Nová postava')!.trigger('click');
+    await wrapper.get('#new-character-name').setValue('Mira');
+    await wrapper.get('#new-character-world').setValue('Star Book');
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
+    expect(wrapper.get('dialog').element).toHaveProperty('open', true);
+    expect(wrapper.get('dialog [role="alert"]').text()).toContain('Profil se mezitím změnil');
+    expect(wrapper.get('#character-name').element).toHaveProperty('value', 'Původní koncept');
+    expect(wrapper.get('#new-character-name').element).toHaveProperty('value', 'Mira');
+    expect(wrapper.get('#character-confirmation-title').text()).toBe('Luna');
+    expect(writes).toBe(1);
+    await wrapper.get('dialog form').trigger('submit'); await flushPromises();
+    expect(writes).toBe(2);
+    expect(wrapper.get('dialog').element).toHaveProperty('open', false);
+    expect(wrapper.text()).toContain('Postava je uložená bez AI přípravy');
     wrapper.unmount();
   });
 
