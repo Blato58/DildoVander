@@ -9,6 +9,7 @@ import { account, accountRequest } from '../identity/session';
 import AccountArchiveList from '../identity/AccountArchiveList.vue';
 import SettingsView from '../identity/SettingsView.vue';
 import NewCharacterDialog, { type NewCharacterDraft } from './NewCharacterDialog.vue';
+import CustomerSessionResultCard from './CustomerSessionResultCard.vue';
 import { customerBle, type CustomerBleDevice, type CustomerBleStatus } from './customerBle';
 import { projectCustomerSessionError } from './customerSessionFeedback';
 import { SessionRecoveryController, type SessionRecoveryState } from './sessionRecovery';
@@ -31,6 +32,10 @@ const route = useRoute();
 const pane = computed(() => route.path.split('/').at(-1) ?? 'character');
 const profile = ref<CharacterProfile | null>(null);
 const sessions = ref<CustomerSession[]>([]);
+const resultSessionId = ref<string | null>(null);
+const completedSessions = computed(() => sessions.value.filter(session => session.state === 'completed'));
+const resultSession = computed(() => completedSessions.value.find(session => session.id === resultSessionId.value)
+  ?? completedSessions.value[0] ?? null);
 const busy = ref(false);
 const profileLoading = ref(false);
 const error = ref('');
@@ -113,6 +118,7 @@ function resetPrivateState(): void {
   profile.value = null; sessions.value = []; devices.value = []; connected.value = null; profileLoading.value = Boolean(account.value);
   busy.value = false;
   newCharacterOpen.value = false; newCharacterError.value = '';
+  resultSessionId.value = null;
   selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; requestedEndSessions.clear(); error.value = ''; errorDiagnosticCode.value = ''; notice.value = '';
   form.value = { name: '', world: '', version: '', description: '', language: '' }; personalMemoryConsent.value = false; enrichmentOpenAiConsent.value = false; conversationOpenAiConsent.value = false;
   void Promise.resolve(customerBle.disconnect()).catch(() => {});
@@ -498,6 +504,15 @@ onBeforeUnmount(() => {
         <AwButton variant="secondary" :disabled="sessionRecoveryState.refreshing" @click="refreshConversationStatus">Obnovit stav rozhovoru</AwButton>
       </div>
       <div v-for="session in sessions" :key="session.id" class="aw-card"><h2>{{ session.characterName || profile?.userInput.name || 'Rozhovor' }}</h2><p>Stav: {{ sessionStatusLabels[session.state] ?? 'Stav se ověřuje' }}</p><p>Začátek: {{ new Date(session.createdAt * 1000).toLocaleString('cs') }}</p><AwButton v-if="['running', 'starting', 'context_ready', 'recovering'].includes(session.state)" variant="secondary" :disabled="busy || session.endRequested" @click="endConversation(session)">{{ session.endRequested ? 'Konec požádán' : 'Ukončit rozhovor' }}</AwButton></div>
+      <section v-if="resultSession" class="page-stack">
+        <AwField v-if="completedSessions.length > 1" id="result-session" label="Dokončený rozhovor">
+          <select id="result-session" v-model="resultSessionId" class="aw-input">
+            <option :value="null">Nejnovější dokončený rozhovor</option>
+            <option v-for="session in completedSessions" :key="session.id" :value="session.id">{{ session.characterName || 'Rozhovor' }} · {{ new Date(session.createdAt * 1000).toLocaleString('cs') }}</option>
+          </select>
+        </AwField>
+        <CustomerSessionResultCard :key="resultSession.id" :session-id="resultSession.id" />
+      </section>
     </section>
 
     <AccountArchiveList v-else-if="pane === 'keepsakes'" />

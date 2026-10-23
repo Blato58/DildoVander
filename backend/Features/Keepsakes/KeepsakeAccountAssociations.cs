@@ -88,7 +88,8 @@ internal sealed partial class KeepsakeStore
             return new(id, document.Snapshot, "manual_only", ready ? "ready" : "pending", document.Editions,
                 portraits, [], [], assets, true, null, document.Revision,
                 WizardIdentities: document.WizardIdentities.Where(identity => document.Editions.Any(edition =>
-                    edition.Id == identity.EditionId && edition.PublicationState != "private_history")).Select(ToCard).ToArray());
+                    edition.Id == identity.EditionId && edition.PublicationState != "private_history")).Select(ToCard).ToArray(),
+                Readiness: Readiness(connection, id, document));
         }
     }
 

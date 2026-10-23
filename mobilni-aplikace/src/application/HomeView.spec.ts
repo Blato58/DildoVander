@@ -47,6 +47,7 @@ async function mountHome() {
       { path: '/workshop', component: { template: '<div />' } },
       { path: '/archive', component: { template: '<div />' } },
       { path: '/me/:pane', component: { template: '<div />' } },
+      { path: '/keepsake/:pathMatch(.*)*', component: { template: '<div />' } },
     ],
   });
   await router.push('/');
@@ -247,6 +248,67 @@ describe('Home customer journey', () => {
     batches[1].sessions.resolve({ items: [] });
     await flushPromises();
     expect(wrapper.get('a[href="/me/conversation"]').text()).toBe('Pokračovat k rozhovoru');
+    wrapper.unmount();
+  });
+
+  it('opens only the newest completed session’s server-bound result and performs no writes', async () => {
+    api.setAccount(customer);
+    const locator = '8391bc53-f77b-46ee-a415-a8f82a3d2348';
+    api.request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/character')) return { profile: { status: 'saved' } };
+      if (path.endsWith('/sessions')) return { items: [{ id: 'newest', state: 'completed' }, { id: 'older', state: 'completed' }] };
+      if (path === '/app/v1/customer/sessions/newest/result') return {
+        schemaVersion: 1, sessionId: 'newest', resultLocator: locator,
+        readiness: { state: 'ready', reason: null, canRetry: false, shouldPoll: false, hasStory: true, hasArtwork: true },
+        accessKind: 'originalOwner', canReadPrivate: true, canManage: true, canUnlink: false,
+      };
+      throw new Error('Unexpected read');
+    });
+    const { wrapper } = await mountHome();
+    await flushPromises();
+    expect(wrapper.get('.customer-journey-card .aw-button--primary').attributes('href')).toBe(`/keepsake/?account=1&k=${locator}`);
+    expect(api.request.mock.calls.every(call => call[1] === 'GET')).toBe(true);
+    expect(api.request.mock.calls.some(call => call[0].includes('older/result'))).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('checks an unbound completed result instead of presenting it as a ready keepsake', async () => {
+    vi.useFakeTimers();
+    api.setAccount(customer);
+    api.request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/character')) return { profile: { status: 'ready' } };
+      if (path.endsWith('/sessions')) return { items: [{ id: 'pending-result', state: 'completed' }] };
+      return {
+        schemaVersion: 1, sessionId: 'pending-result', resultLocator: null,
+        readiness: { state: 'pending', reason: 'awaiting_result', canRetry: false, shouldPoll: true, hasStory: false, hasArtwork: false },
+        accessKind: null, canReadPrivate: false, canManage: false, canUnlink: false,
+      };
+    });
+    const { wrapper } = await mountHome();
+    await flushPromises();
+    expect(wrapper.get('.customer-journey-card .aw-button--primary').text()).toBe('Zkontrolovat památku');
+    expect(wrapper.find('a[href^="/keepsake/"]').exists()).toBe(false);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(api.request.mock.calls.filter(call => call[0].endsWith('/result'))).toHaveLength(2);
+    expect(api.request.mock.calls.every(call => call[1] === 'GET')).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('rejects a result for a different session without retaining a keepsake link', async () => {
+    api.setAccount(customer);
+    api.request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/character')) return { profile: { status: 'ready' } };
+      if (path.endsWith('/sessions')) return { items: [{ id: 'expected-session', state: 'completed' }] };
+      return {
+        schemaVersion: 1, sessionId: 'different-session', resultLocator: '8391bc53-f77b-46ee-a415-a8f82a3d2348',
+        readiness: { state: 'ready', reason: null, canRetry: false, shouldPoll: false, hasStory: true, hasArtwork: true },
+        accessKind: 'originalOwner', canReadPrivate: true, canManage: true, canUnlink: false,
+      };
+    });
+    const { wrapper } = await mountHome();
+    await flushPromises();
+    expect(wrapper.get('.customer-journey-card .aw-button--primary').text()).toBe('Obnovit stav rozhovoru');
+    expect(wrapper.find('a[href^="/keepsake/"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

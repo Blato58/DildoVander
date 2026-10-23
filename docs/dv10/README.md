@@ -71,6 +71,30 @@ stavy nadále rozlišují nepotvrzené externí smazání. Retence zůstává ru
 Samostatné syntetické policy a HTTPS testy lze spustit pomocí
 `dotnet run --project backend-tests/BackendTests.csproj -- --keepsake-owner-authorization`.
 
+## Výsledek zákaznické relace
+
+`GET /app/v1/customer/sessions/{id}/result` hledá výsledek podle serverem
+uložené zákaznické relace a jejího původního účtu. Locator klient neposílá.
+Platná účtová relace, security stamp, přístupová epocha a deletion fence se
+ověřují i při tomto čtení. Ruční připojení památky ke čtení neopravňuje k
+přístupu k původní zákaznické relaci.
+
+Odpověď má `schemaVersion=1`, `sessionId`, `resultLocator`, `readiness` a stejné
+příznaky oprávnění jako detail archivu. Bez jednoznačné platné vazby je locator
+i `accessKind` null a všechny příznaky oprávnění false. Dosud nevytvořená vazba
+vrací `pending`; smazaný, odvolaný nebo nejednoznačný výsledek `unavailable`.
+Cizí nebo neexistující relace vrací 404.
+
+`readiness` obsahuje `state`, `reason`, `canRetry`, `shouldPoll`, `hasStory`
+a `hasArtwork`. Stav rozlišuje čekání, zpracování, částečný textový výsledek,
+hotový výsledek, doložené selhání a nedostupnost. Neurčitý provider výsledek
+zachovává důvod `reconciliation_required` a `canRetry=false`. Čtení nikdy
+nepřidává úlohu ani znovu negeneruje obsah. Detail ručně připojené památky
+může vrátit stejnou bezpečnou připravenost, ale nadále vynechává soukromé
+úlohy a uploady. Endpoint pro opakování generování tato projekce nepřidává.
+
+Samostatné policy a HTTPS testy používají přepínač `--keepsake-readiness`.
+
 ## Co je implementované
 
 | Etapa | Zdroj a chování |

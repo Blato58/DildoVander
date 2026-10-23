@@ -6,7 +6,7 @@ const identifiers = await readFile(new URL('../../application/identifiers.mjs', 
 const identifiersUrl = `data:text/javascript;base64,${Buffer.from(identifiers).toString('base64')}`;
 const source = (await readFile(new URL('./client.ts', import.meta.url), 'utf8')).replace('../../application/identifiers.mjs', identifiersUrl);
 const clientModule = await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source, { mode: 'transform' })).toString('base64')}`);
-const { ArchiveClient, projectGallery, guestPath, parseClaim, safeIssuedLink, downloadName } = clientModule;
+const { ArchiveClient, projectGallery, guestPath, parseClaim, safeIssuedLink, downloadName, parseArchiveReadiness } = clientModule;
 const id = '11111111-1111-4111-8111-111111111111';
 const defer = () => { let resolve; const promise = new Promise(r => resolve = r); return { promise, resolve }; };
 
@@ -50,6 +50,63 @@ test('mutations retain idempotency after uncertain server response without retai
     assert.ok(!JSON.stringify(claims[1].init.headers).includes('a'.repeat(40)));
   } finally { Object.defineProperty(navigator, 'locks', { configurable: true, value: oldLocks }); }
 });
+test('successful mutation replay identity stays until the caller accepts the parsed response', async () => {
+  const pending = defer(); const requests = []; let accept = true; let exposed;
+  const oldLocks = navigator.locks;
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: async (_name, action) => action() } });
+  try {
+    const client = new ArchiveClient(async (path, init) => {
+      requests.push({ path, init });
+      if (path.endsWith('bootstrap')) return Response.json({ schemaVersion: 1, csrfToken: 'csrf' });
+      return requests.filter(request => request.path.endsWith('/claim')).length === 1
+        ? pending.promise : Response.json({ private: 'acknowledged result' });
+    });
+    const options = { data: { token: 'same-request' }, accept: () => { if (!accept) throw new DOMException('Context suspended', 'AbortError'); } };
+    const first = client.mutate('/guest/v1/claim', options).then(value => { exposed = value; return undefined; }, error => error);
+    await new Promise(resolve => setImmediate(resolve));
+    const firstRequest = requests.find(request => request.path.endsWith('/claim'));
+    accept = false;
+    pending.resolve(Response.json({ private: 'late private response' }));
+    const error = await first;
+    assert.equal(error.name, 'AbortError');
+    assert.equal(exposed, undefined);
+
+    accept = true;
+    const replayed = await client.mutate('/guest/v1/claim', options);
+    assert.deepEqual(replayed, { private: 'acknowledged result' });
+    const retry = requests.filter(request => request.path.endsWith('/claim'))[1];
+    assert.equal(retry.init.headers['Idempotency-Key'], firstRequest.init.headers['Idempotency-Key']);
+    assert.equal(retry.init.body, firstRequest.init.body);
+
+    await client.mutate('/guest/v1/claim', options);
+    const afterAcknowledgement = requests.filter(request => request.path.endsWith('/claim'))[2];
+    assert.notEqual(afterAcknowledgement.init.headers['Idempotency-Key'], retry.init.headers['Idempotency-Key']);
+  } finally { Object.defineProperty(navigator, 'locks', { configurable: true, value: oldLocks }); }
+});
+test('a pending bootstrap cannot dispatch a mutation after logical suspension', async () => {
+  const bootstrap = defer(); const requests = []; let active = true;
+  const oldLocks = navigator.locks;
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: async (_name, action) => action() } });
+  try {
+    const client = new ArchiveClient(async path => {
+      requests.push(path);
+      return path.endsWith('bootstrap') ? bootstrap.promise : Response.json({ locator: id });
+    });
+    const options = { data: { token: 'a'.repeat(40) }, accept: () => {
+      if (!active) throw new DOMException('Action suspended', 'AbortError');
+    } };
+    const mutation = client.mutate('/guest/v1/claim', options);
+    await new Promise(resolve => setImmediate(resolve));
+    active = false;
+    bootstrap.resolve(Response.json({ schemaVersion: 1, csrfToken: 'csrf' }));
+    await assert.rejects(mutation, { name: 'AbortError' });
+    assert.deepEqual(requests, ['/guest/v1/bootstrap']);
+    active = true;
+    await client.mutate('/guest/v1/claim', options);
+    assert.deepEqual(requests, ['/guest/v1/bootstrap', '/guest/v1/claim']);
+  } finally { Object.defineProperty(navigator, 'locks', { configurable: true, value: oldLocks }); }
+});
+
 test('a queued bootstrap cannot send a mutation after route departure', async () => {
   const queued = defer(); let callback; let calls = 0;
   const oldLocks = navigator.locks;
@@ -81,4 +138,12 @@ test('download extensions reflect validated bytes, including a JPEG returned for
   assert.equal(downloadName('wand-art.png', 'image/jpeg'), 'wand-art.jpg');
   assert.equal(downloadName('bundle.zip', 'application/zip'), 'bundle.zip');
   assert.throws(() => downloadName('wand-art.png', 'text/html'));
+});
+test('readiness accepts only the no-retry server projection and remains optional for older views', () => {
+  const ready = { state: 'partial', reason: 'reconciliation_required', canRetry: false, shouldPoll: true, hasStory: true, hasArtwork: false };
+  assert.deepEqual(parseArchiveReadiness(ready), ready);
+  assert.equal(parseArchiveReadiness(null), null);
+  assert.equal(parseArchiveReadiness(undefined), null);
+  assert.equal(parseArchiveReadiness({ ...ready, canRetry: true }), null);
+  assert.equal(parseArchiveReadiness({ ...ready, reason: 'retry_now' }), null);
 });

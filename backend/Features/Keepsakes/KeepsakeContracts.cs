@@ -25,7 +25,7 @@ internal sealed record KeepsakeView(string Id, KeepsakeIssueSnapshot Snapshot, s
     IReadOnlyList<KeepsakeUpload> Uploads, IReadOnlyList<KeepsakeJob> Jobs, IReadOnlyList<KeepsakeAsset> Assets,
     bool ReadOnly, string? SharedEditionId, int Revision = 0, bool PortraitConsent = false,
     int PortraitConsentVersion = 0, IReadOnlyList<WizardIdentityCard>? WizardIdentities = null,
-    IReadOnlyList<ProphecyView>? Prophecies = null);
+    IReadOnlyList<ProphecyView>? Prophecies = null, KeepsakeReadiness? Readiness = null);
 internal sealed record KeepsakeAssetContent(KeepsakeAsset Asset, byte[] Bytes);
 internal sealed record KeepsakeDeletionReceipt(string Id, string Scope, string LocalState,
     string ProviderState, string BackupState, DateTimeOffset RequestedAt);

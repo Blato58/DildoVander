@@ -54,6 +54,12 @@ try {
   const customerEndRequests = [];
   let customerProfile = { profileId: 'browser-profile', revision: 2, userInput: { name: 'Luna', world: 'Moon Saga' }, status: 'ready', enrichment: { summary: 'A prepared character summary.', sources: ['Public character guide'] } };
   const characterWrites = [];
+  const resultLocator = 'b1dfd34f-5362-4e60-8e31-a7fac4b326c8';
+  let sessionResult = {
+    schemaVersion: 1, sessionId: 'browser-recovering-session', resultLocator: null,
+    readiness: { state: 'pending', reason: 'awaiting_result', canRetry: false, shouldPoll: true, hasStory: false, hasArtwork: false },
+    accessKind: null, canReadPrivate: false, canManage: false, canUnlink: false,
+  };
   const ownerAccount = { id: 'browser-owner', displayName: 'Testovací vlastník', roles: ['Owner'] };
   const homeHeading = () => sessionAccount ? `Vítejte, ${sessionAccount.displayName}` : 'Kufr plný příběhů.';
   await context.route('**/*', async route => {
@@ -78,6 +84,10 @@ try {
         return json({ code: 'temporarily_unavailable' }, 503);
       }
       return json({ items: customerSessions });
+    }
+    if (sessionAccount && url.pathname === '/app/v1/customer/sessions/browser-recovering-session/result') {
+      assert.equal(request.method(), 'GET', 'result observation is read-only');
+      return json(sessionResult);
     }
     if (sessionAccount && request.method() === 'POST' && url.pathname === '/app/v1/customer/sessions/browser-recovering-session/end') {
       customerEndRequests.push(url.pathname);
@@ -275,6 +285,39 @@ try {
   customerSessions = customerSessions.map(session => ({ ...session, state: 'completed' }));
   await refreshConversation.click();
   await page.getByText('Stav: Dokončen', { exact: true }).waitFor();
+  await page.getByText('Výsledek se připravuje.', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('link', { name: 'Otevřít památku', exact: true }).count(), 0, 'a completed session does not fabricate a result locator');
+  const refreshResult = page.getByRole('button', { name: 'Obnovit stav památky', exact: true });
+  sessionResult = {
+    ...sessionResult, resultLocator, accessKind: 'originalOwner', canManage: true, canReadPrivate: true,
+    readiness: { state: 'partial', reason: 'reconciliation_required', canRetry: false, shouldPoll: true, hasStory: true, hasArtwork: false },
+  };
+  await refreshResult.click();
+  await page.getByText('Výsledek čeká na ověření. Aplikace ho automaticky znovu nevytváří.', { exact: true }).waitFor();
+  assert(await page.getByText('Text památky je dostupný.', { exact: true }).isVisible());
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await fits();
+    await page.screenshot({ path: path.join(screenshots, `customer-result-partial-${width}.png`), fullPage: true });
+  }
+  sessionResult = { ...sessionResult, readiness: { state: 'ready', reason: null, canRetry: false, shouldPoll: false, hasStory: true, hasArtwork: true } };
+  await refreshResult.click();
+  await page.getByText('Památka je připravená.', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('link', { name: 'Otevřít památku', exact: true }).getAttribute('href'), `/keepsake/?account=1&k=${resultLocator}`);
+  await page.goto(origin);
+  const latestResultLink = page.getByRole('link', { name: 'Otevřít poslední památku', exact: true });
+  await latestResultLink.waitFor();
+  assert.equal(await latestResultLink.getAttribute('href'), `/keepsake/?account=1&k=${resultLocator}`);
+  await page.goto(origin + '/me/conversation');
+  await page.getByText('Památka je připravená.', { exact: true }).waitFor();
+  sessionResult = {
+    ...sessionResult, resultLocator: null, accessKind: null, canManage: false, canReadPrivate: false,
+    readiness: { state: 'unavailable', reason: 'result_unavailable', canRetry: false, shouldPoll: false, hasStory: false, hasArtwork: false },
+  };
+  await page.getByRole('button', { name: 'Obnovit stav památky', exact: true }).click();
+  await page.getByText('Tato památka už není dostupná.', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('link', { name: 'Otevřít památku', exact: true }).count(), 0);
+  assert.equal(customerEndRequests.length, 1, 'result polling never repeats the conversation end');
   assert.equal(requests.filter(request => request.path.includes('customerBle') || request.path.includes('start-tickets')).length, 0, 'recovery never issues a replacement start or controls BLE');
   customerSessions = [];
   await page.goto(origin + '/me/account'); await hasHeading('Můj účet');

@@ -34,7 +34,7 @@ internal static partial class KeepsakeEndpoints
             schemaVersion = 1, locator = view.Id, view.Revision, view.RetentionMode, state = view.State,
             readOnly = true, accountLinked = true, sharedEditionId = (string?)null,
             accessKind = "linkedViewer", canManage = false, canReadPrivate = false, canUnlink = true,
-            view.WizardIdentities, prophecies = (object?)null,
+            view.Readiness, view.WizardIdentities, prophecies = (object?)null,
             snapshot = new { view.Snapshot.OfficialName, view.Snapshot.CatalogId, view.Snapshot.CatalogVersion, view.Snapshot.Slot },
             editions = view.Editions.Select(edition => new { edition.Id, edition.Story, edition.ArtworkAssetId, edition.Synthetic, edition.PublicationState, edition.CreatedAt }),
             portraits = view.Portraits.Select(portrait => new { portrait.Id, portrait.EditionId, portrait.AssetId, portrait.Synthetic, portrait.CreatedAt }),

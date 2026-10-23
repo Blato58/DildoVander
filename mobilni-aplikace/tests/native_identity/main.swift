@@ -11,6 +11,35 @@ require(!AccountTransportPolicy.show(path: ambientPreviewRoot, method: "POST", q
 
 func require(_ value: Bool, _ description: String) { if !value { fatalError(description) } }
 let id = "7fc470e2-e25e-46a2-b51b-97d50275ae77"
+let customerSession = "/app/v1/customer/sessions/\(id)"
+let customerResult = customerSession + "/result"
+require(AccountTransportPolicy.account(path: customerResult, method: "GET"), "customer session result unavailable")
+require(AccountTransportPolicy.account(path: "/app/v1/customer/sessions/\(id.uppercased())/result", method: "GET"),
+        "canonical uppercase session UUID rejected")
+require(AccountTransportPolicy.account(path: customerSession, method: "GET"), "customer session read changed")
+require(AccountTransportPolicy.account(path: customerSession + "/end", method: "POST"), "customer session end changed")
+for method in ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "get"] {
+    require(!AccountTransportPolicy.account(path: customerResult, method: method), "customer result method broadened: \(method)")
+}
+for invalid in [
+    customerResult + "/", customerResult + "/extra", customerResult + "?deviceId=other", customerResult + "#fragment",
+    customerResult + "\n", customerResult + "%0a", customerResult.replacingOccurrences(of: "/result", with: "//result"),
+    String(customerResult.dropFirst()), "/" + customerResult, customerSession + "/../result",
+    "/app/v1/customer/sessions/not-a-uuid/result", "/app/v1/customer/sessions/\(id.dropLast())/result",
+    "/app/v1/customer/sessions/\(id.replacingOccurrences(of: "-", with: ""))/result",
+    "/app/v1/customer/sessions/{\(id)}/result", "/app/v1/customer/sessions/\(id)\n/result",
+    "/app/v1/customer/sessions/\(id)/%72esult", "/app/v1/customer/sessions/\(id)/Result"
+] {
+    require(!AccountTransportPolicy.account(path: invalid, method: "GET"), "malformed customer result accepted: \(invalid)")
+    require(!AccountTransportPolicy.customer(path: invalid, method: "GET"), "customer result canonical-path guard bypassed")
+}
+require(!AccountTransportPolicy.guest(path: customerResult, method: "GET"), "customer result entered guest transport")
+require(AccountTransportPolicy.accountResponseLimit(path: customerResult, method: "GET") == 1024 * 1024,
+        "customer result received an asset response limit")
+require(AccountTransportPolicy.accountRequestBodyLimit(path: customerResult, method: "POST", contentType: "image/jpeg") == 256 * 1024,
+        "customer result received a portrait upload limit")
+require(!AccountTransportPolicy.accountHeaderAllowed(path: customerResult, method: "GET", name: "X-DV10-Consent", value: "7"),
+        "portrait consent entered customer result transport")
 require(AccountTransportPolicy.account(path: "/app/v1/account", method: "DELETE"), "account deletion unavailable")
 require(AccountTransportPolicy.account(path: "/app/v1/account/deletion", method: "GET"), "anonymous deletion receipt unavailable")
 for invalid in ["/app/v1/account/", "/app/v1/account?x=1", "/app/v1/account#fragment", "/app/v1/%61ccount", "/app/v1/account/../account", "/app/v1//account", "/app/v1/account/deletion", "/guest/v1/account"] {
@@ -105,6 +134,72 @@ require(AccountTransportPolicy.account(path: "/app/v1/passkeys/reauthenticate", 
 require(AccountTransportPolicy.account(path: "/app/v1/admin/operations/logs?level=warning&after=12", method: "GET"), "bounded logs unavailable")
 require(!AccountTransportPolicy.account(path: "/app/v1/admin/operations/logs?url=https://evil.invalid", method: "GET"), "log proxy broadened")
 require(AccountTransportPolicy.account(path: "/app/v1/archive/associations/\(id)/assets/\(id)", method: "GET"), "account-linked portrait result unavailable")
+let ownedArchive = "/app/v1/archive/owned/\(id)"
+for (path, method) in [
+    (ownedArchive, "GET"), (ownedArchive, "DELETE"),
+    (ownedArchive + "/assets/\(id)", "GET"),
+    ("/app/v1/archive/owned/deletions/\(id)", "GET"),
+    (ownedArchive + "/portrait-uploads", "POST"),
+    (ownedArchive + "/generation", "POST"),
+    (ownedArchive + "/portraits/\(id)/cancel", "POST"),
+    (ownedArchive + "/generation/\(id)/cancel", "POST"),
+    (ownedArchive + "/recovery-links", "DELETE"), (ownedArchive + "/share-links", "DELETE"),
+    (ownedArchive + "/portrait", "DELETE")
+] {
+    require(AccountTransportPolicy.account(path: path, method: method), "valid owned archive route rejected: \(method) \(path)")
+}
+for (path, method) in [
+    (ownedArchive + "/portrait-uploads", "GET"), (ownedArchive + "/assets/\(id)", "POST"),
+    (ownedArchive + "/assets/not-a-uuid", "GET"), (ownedArchive + "/portraits/not-a-uuid/cancel", "POST"),
+    (ownedArchive + "/portrait-uploads/", "POST"), (ownedArchive + "/portrait-uploads?x=1", "POST"),
+    (ownedArchive + "//portrait-uploads", "POST"), (ownedArchive + "/portrait-uploads/extra", "POST"),
+    ("/app/v1/archive/owned/not-a-uuid/portrait-uploads", "POST")
+] {
+    require(!AccountTransportPolicy.account(path: path, method: method), "invalid owned archive route accepted: \(method) \(path)")
+}
+let uploadPath = ownedArchive + "/portrait-uploads"
+for path in [String(uploadPath.dropFirst()), uploadPath + "#fragment", uploadPath + "%0a", uploadPath + "/../portrait-uploads"] {
+    require(!AccountTransportPolicy.account(path: path, method: "POST"), "noncanonical owner route accepted: \(path)")
+    require(AccountTransportPolicy.accountRequestBodyLimit(path: path, method: "POST", contentType: "image/jpeg") == 256 * 1024,
+            "noncanonical owner route received expanded upload limit")
+}
+for path in [ownedArchive + "/assets/\(id)\n", String((ownedArchive + "/assets/\(id)").dropFirst())] {
+    require(!AccountTransportPolicy.account(path: path, method: "GET"), "noncanonical owner asset accepted")
+    require(AccountTransportPolicy.accountResponseLimit(path: path, method: "GET") == 1024 * 1024,
+            "noncanonical asset received expanded response limit")
+}
+require(AccountTransportPolicy.accountRequestBodyLimit(path: uploadPath, method: "POST", contentType: "image/jpeg") == 8 * 1024 * 1024,
+        "valid original portrait upload did not receive the 8 MiB native limit")
+for contentType in ["image/png", "image/webp"] {
+    require(AccountTransportPolicy.accountRequestBodyLimit(path: uploadPath, method: "POST", contentType: contentType) == 8 * 1024 * 1024,
+            "supported portrait MIME did not receive the native upload limit")
+}
+require(AccountTransportPolicy.accountRequestBodyLimit(path: uploadPath, method: "POST", contentType: "image/svg+xml") == 256 * 1024,
+        "unsupported portrait MIME received the expanded request limit")
+require(AccountTransportPolicy.accountRequestBodyLimit(path: uploadPath, method: "GET", contentType: "image/jpeg") == 256 * 1024,
+        "wrong method received the expanded request limit")
+require(8 * 1024 * 1024 <= AccountTransportPolicy.accountRequestBodyLimit(path: uploadPath, method: "POST", contentType: "image/jpeg")
+        && 8 * 1024 * 1024 + 1 > AccountTransportPolicy.accountRequestBodyLimit(path: uploadPath, method: "POST", contentType: "image/jpeg"),
+        "portrait upload limit boundary changed")
+require(AccountTransportPolicy.accountRequestBodyAllowed(path: uploadPath, method: "POST", contentType: "image/jpeg", size: 8 * 1024 * 1024)
+        && !AccountTransportPolicy.accountRequestBodyAllowed(path: uploadPath, method: "POST", contentType: "image/jpeg", size: 8 * 1024 * 1024 + 1),
+        "portrait upload cap plus one was accepted")
+require(AccountTransportPolicy.accountHeaderAllowed(path: uploadPath, method: "POST", name: "X-DV10-Consent", value: "7"),
+        "numeric portrait consent rejected")
+for (path, method, value) in [(ownedArchive, "GET", "7"), (uploadPath, "GET", "7"), (uploadPath, "POST", "2147483648"), (uploadPath, "POST", "1.5")] {
+    require(!AccountTransportPolicy.accountHeaderAllowed(path: path, method: method, name: "X-DV10-Consent", value: value),
+            "invalid consent header accepted: \(path) \(method) \(value)")
+}
+require(AccountTransportPolicy.accountResponseLimit(path: ownedArchive + "/assets/\(id)", method: "GET") == 32 * 1024 * 1024,
+        "owned archive asset did not receive its exact response limit")
+require(AccountTransportPolicy.accountResponseAllowed(path: ownedArchive + "/assets/\(id)", method: "GET", size: 32 * 1024 * 1024)
+        && !AccountTransportPolicy.accountResponseAllowed(path: ownedArchive + "/assets/\(id)", method: "GET", size: 32 * 1024 * 1024 + 1),
+        "owned asset response cap plus one was accepted")
+require(AccountTransportPolicy.accountResponseLimit(path: "/app/v1/archive/associations/\(id)/assets/\(id)", method: "GET") == 32 * 1024 * 1024,
+        "association asset response limit changed")
+require(AccountTransportPolicy.accountResponseLimit(path: ownedArchive + "/assets/not-a-uuid", method: "GET") == 1024 * 1024
+        && AccountTransportPolicy.accountResponseLimit(path: ownedArchive + "/assets/\(id)", method: "POST") == 1024 * 1024,
+        "non-asset or invalid asset response received the expanded limit")
 require(AccountTransportPolicy.account(path: "/app/v1/devices/kufr-1/association", method: "POST"), "association unavailable")
 require(!AccountTransportPolicy.account(path: "/v1/device-access/token", method: "POST"), "account bridge accepted device credentials")
 require(!AccountTransportPolicy.account(path: "/guest/v1/bootstrap", method: "POST"), "account bridge accepted guest credentials")

@@ -2,6 +2,61 @@ import Foundation
 
 // Shared by the live native bridge and standalone macOS regression tests.
 enum AccountTransportPolicy {
+    private static let accountArchiveUUIDPattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+
+    static func accountArchivePortraitUpload(path: String, method: String) -> Bool {
+        guard path.hasPrefix("/"), method == "POST", !path.contains("?"), !path.contains("#"), !path.contains("%"),
+              !path.contains("//"), !path.contains("\\"), !path.hasSuffix("/") else { return false }
+        let parts = path.split(separator: "/").map(String.init)
+        let routeParts = parts.map { $0.lowercased() }
+        return parts.count == 6 && Array(routeParts.prefix(4)) == ["app", "v1", "archive", "owned"]
+            && validArchiveUUID(parts[4]) && routeParts[5] == "portrait-uploads"
+    }
+
+    static func accountRequestBodyLimit(path: String, method: String, contentType: String?) -> Int {
+        guard accountArchivePortraitUpload(path: path, method: method),
+              let type = contentType?.split(separator: ";", maxSplits: 1).first?
+                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              ["image/jpeg", "image/png", "image/webp"].contains(type) else { return 256 * 1024 }
+        return 8 * 1024 * 1024
+    }
+
+    static func accountRequestBodyAllowed(path: String, method: String, contentType: String?, size: Int) -> Bool {
+        size >= 0 && size <= accountRequestBodyLimit(path: path, method: method, contentType: contentType)
+    }
+
+    static func accountResponseLimit(path: String, method: String) -> Int {
+        guard path.hasPrefix("/"), method == "GET", !path.contains("?"), !path.contains("#"), !path.contains("%"),
+              !path.contains("//"), !path.contains("\\"), !path.hasSuffix("/") else { return 1024 * 1024 }
+        let parts = path.split(separator: "/").map(String.init)
+        let routeParts = parts.map { $0.lowercased() }
+        if parts.count == 7, Array(routeParts.prefix(4)) == ["app", "v1", "archive", "owned"],
+           validArchiveUUID(parts[4]), routeParts[5] == "assets", validArchiveUUID(parts[6]) {
+            return 32 * 1024 * 1024
+        }
+        if parts.count == 7, Array(routeParts.prefix(4)) == ["app", "v1", "archive", "associations"],
+           validArchiveUUID(parts[4]), routeParts[5] == "assets", validArchiveUUID(parts[6]) {
+            return 32 * 1024 * 1024
+        }
+        return 1024 * 1024
+    }
+
+    static func accountResponseAllowed(path: String, method: String, size: Int) -> Bool {
+        size >= 0 && size <= accountResponseLimit(path: path, method: method)
+    }
+
+    static func accountHeaderAllowed(path: String, method: String, name: String, value: String) -> Bool {
+        guard name.lowercased() == "x-dv10-consent" else { return true }
+        guard accountArchivePortraitUpload(path: path, method: method),
+              value.utf8.count <= 10, value.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let version = Int32(value), version > 0 else { return false }
+        return true
+    }
+
+    private static func validArchiveUUID(_ value: String) -> Bool {
+        value.count == 36 && value.range(of: accountArchiveUUIDPattern, options: .regularExpression) != nil
+    }
+
     static func accountDeletionAccepted(path: String, method: String, status: Int, body: Data) -> Bool {
         guard path == "/app/v1/account", method == "DELETE", status == 202,
               let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return false }
@@ -233,6 +288,10 @@ enum AccountTransportPolicy {
         let parts = path.split(separator: "/").map(String.init)
         if parts.count >= 5, Array(parts.prefix(4)) == ["app", "v1", "customer", "sessions"],
            UUID(uuidString: parts[4]) != nil {
+            if parts.count == 6, parts[5] == "result" {
+                return method == "GET" && parts[4].count == 36
+                    && path == "/app/v1/customer/sessions/\(parts[4])/result"
+            }
             return (parts.count == 5 && method == "GET") ||
                 (parts.count == 6 && parts[5] == "end" && method == "POST")
         }
@@ -268,6 +327,7 @@ enum AccountTransportPolicy {
         }
         guard !path.contains("%"), !path.contains("?"), !path.contains("#"), !path.contains("\\"),
               !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else { return false }
+        if accountArchive(path: path, method: method) { return true }
         if path.hasPrefix("/app/v1/customer/") { return customer(path: path, method: method) }
         if path.hasPrefix("/app/v1/persona-lab") { return personaLab(path: path, method: method) }
         if path == "/v1/evenings" { return ["GET", "POST"].contains(method) }
@@ -330,6 +390,30 @@ enum AccountTransportPolicy {
             let id = String(path.dropFirst(prefix.count))
             return !id.isEmpty && id.count <= 128 && id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
         }
+    }
+
+    private static func accountArchive(path: String, method: String) -> Bool {
+        guard path.hasPrefix("/"), !path.hasSuffix("/"), !path.contains("//") else { return false }
+        let parts = path.split(separator: "/").map(String.init)
+        let routeParts = parts.map { $0.lowercased() }
+        if parts.count == 6, Array(routeParts.prefix(4)) == ["app", "v1", "archive", "owned"],
+           routeParts[4] == "deletions", validArchiveUUID(parts[5]) { return method == "GET" }
+        guard parts.count >= 5, Array(routeParts.prefix(4)) == ["app", "v1", "archive", "owned"],
+              validArchiveUUID(parts[4]) else { return false }
+        if parts.count == 5 { return ["GET", "DELETE"].contains(method) }
+        if parts.count == 6 {
+            let route = routeParts[5]
+            if route == "assets" { return false }
+            if ["recovery-links", "share-links"].contains(route) { return ["POST", "DELETE"].contains(method) }
+            if route == "portrait" { return method == "DELETE" }
+            return method == "POST" && ["revoke-access", "portrait-consents", "portrait-uploads", "portraits", "exports", "generation", "wizard-identity", "account-associations"].contains(route)
+        }
+        if parts.count == 7, routeParts[5] == "assets", method == "GET" {
+            return validArchiveUUID(parts[6])
+        }
+        if parts.count == 8, ["portraits", "generation"].contains(routeParts[5]),
+           validArchiveUUID(parts[6]), routeParts[7] == "cancel" { return method == "POST" }
+        return false
     }
 }
 

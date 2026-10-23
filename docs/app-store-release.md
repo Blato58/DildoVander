@@ -146,6 +146,21 @@ app as using only operating-system encryption. See Apple's
 [export-compliance documentation requirements](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)
 and [Info.plist guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations).
 
+## Native account archive transport
+
+Original account owners use the account bridge for owned keepsake actions;
+linked viewers retain the association routes and server-side read-only policy.
+JavaScript and Swift allow up to 8 MiB only for an exact owned portrait-upload
+POST with JPEG, PNG or WebP content. The portrait consent version header is
+limited to that route. Exact owned and association asset GETs allow up to 32 MiB;
+ordinary account requests and responses retain 256 KiB and 1 MiB limits.
+
+The identity Vitest suite exercises the native bridge adapter, and
+`scripts/test-native-identity.sh` exercises the shared Swift policy on macOS.
+These checks establish software transport compatibility; authenticated signed
+device behavior, provider output, physical hardware and Apple review are separate
+acceptance steps.
+
 ## Upload and Apple review
 
 The application exposes public `/support` and `/privacy` routes, also linked

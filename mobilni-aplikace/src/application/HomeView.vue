@@ -9,6 +9,7 @@ import AwNotice from '../components/AwNotice.vue';
 import CustomerJourneyCard from '../features/customer/CustomerJourneyCard.vue';
 import { SessionRecoveryController, type SessionRecoveryState } from '../features/customer/sessionRecovery';
 import type { CustomerJourneyInput } from '../features/customer/customerJourney';
+import { projectCustomerResult, type CustomerResultProjection } from '../features/customer/customerResult';
 
 const route = useRoute();
 const canOperate = computed(() => canOperateSuitcase(account.value));
@@ -19,11 +20,12 @@ const greeting = computed(() => account.value ? `Vítejte, ${account.value.displ
 const evening = ref<{ label: string; latest?: string } | null>(null);
 const eveningState = ref('Načítám přehled večera…');
 const eveningController = new AbortController();
-interface CustomerProfileSnapshot { profile: { status: string } | null; sessionState: string | null; activeSession: boolean }
+interface CustomerProfileSnapshot { profile: { status: string } | null; sessionState: string | null; activeSession: boolean; latestResult: CustomerResultProjection | null }
 interface CustomerSessionsResponse { items: unknown[] }
 const terminalSessionStates = new Set(['completed', 'failed']);
 const journeyProfile = ref<CustomerProfileSnapshot['profile']>(null);
 const journeySessionState = ref<string | null>(null);
+const journeyResult = ref<CustomerResultProjection | null>(null);
 const journeyLoading = ref(false);
 const journeyStale = ref(false);
 const recoveryState = reactive<SessionRecoveryState>({
@@ -41,16 +43,28 @@ const journeyRecovery = new SessionRecoveryController<CustomerProfileSnapshot>({
     ]);
     const profile = parseCustomerProfile(character.profile);
     const sessionState = parseSessionState(sessions);
+    const activeSession = sessionState !== null && !terminalSessionStates.has(sessionState);
+    // The account endpoint returns newest sessions first. Resolve its exact
+    // completed session through the server binding; archive associations are not outcomes.
+    const completed = !activeSession ? sessions.items.find(item =>
+      !!item && typeof item === 'object' && (item as { state?: unknown }).state === 'completed') : undefined;
+    const sessionId = (completed as { id?: unknown } | undefined)?.id;
+    if (completed && (typeof sessionId !== 'string' || !sessionId)) throw new Error('Neplatná identita rozhovoru.');
+    const latestResult = typeof sessionId === 'string'
+      ? projectCustomerResult(await accountRequest<unknown>(`/app/v1/customer/sessions/${encodeURIComponent(sessionId)}/result`, 'GET', undefined, signal), sessionId)
+      : null;
     return {
       profile,
       sessionState,
-      activeSession: sessionState !== null && !terminalSessionStates.has(sessionState),
+      activeSession,
+      latestResult,
     };
   },
-  hasActiveSession: snapshot => snapshot.activeSession,
+  hasActiveSession: snapshot => snapshot.activeSession || snapshot.latestResult?.shouldPoll === true,
   onValue: snapshot => {
     journeyProfile.value = snapshot.profile;
     journeySessionState.value = snapshot.sessionState;
+    journeyResult.value = snapshot.latestResult;
     journeyLoading.value = false;
     journeyStale.value = false;
   },
@@ -60,8 +74,10 @@ const customerJourney = computed<CustomerJourneyInput>(() => ({
   profile: journeyProfile.value,
   sessionState: journeySessionState.value,
   loading: journeyLoading.value || recoveryState.refreshing,
-  error: Boolean(recoveryState.error),
+  error: Boolean(recoveryState.error) || journeyResult.value?.valid === false,
   stale: journeyStale.value || recoveryState.stale,
+  latestAuthorizedResult: journeyResult.value?.locator ? { locator: journeyResult.value.locator } : null,
+  resultPending: journeyResult.value?.valid === true && !journeyResult.value.route && journeyResult.value.shouldPoll,
 }));
 const pageMounted = ref(false);
 watch(() => recoveryState.refreshing, refreshing => {
@@ -74,6 +90,7 @@ watch(
     journeyRecovery.invalidate();
     journeyProfile.value = null;
     journeySessionState.value = null;
+    journeyResult.value = null;
     journeyLoading.value = isCustomer.value;
     journeyStale.value = isCustomer.value;
     if (isCustomer.value && pageMounted.value) refreshCustomerJourney();
