@@ -7,7 +7,7 @@ internal sealed record KeepsakeAccountProof(string Locator, int Epoch);
 
 internal sealed partial class KeepsakeStore
 {
-    public KeepsakeAccountProof AuthorizeAccountAssociation(string id, string session)
+    public KeepsakeAccountProof AuthorizeAccountAssociation(string id, KeepsakeActor session)
     {
         lock (gate)
         {
@@ -39,7 +39,7 @@ internal sealed partial class KeepsakeStore
         return command.ExecuteScalar() is not null;
     }
 
-    public string? RecallAccountAssociationTicket(KeepsakeAccountProof proof, string session, string targetAccountId, string key)
+    public string? RecallAccountAssociationTicket(KeepsakeAccountProof proof, KeepsakeActor session, string targetAccountId, string key)
     {
         lock (gate)
         {
@@ -47,13 +47,13 @@ internal sealed partial class KeepsakeStore
             using var transaction = connection.BeginTransaction();
             RequireAccess(connection, transaction, proof.Locator, session, KeepsakeScope.Write);
             if (!HasAccountEpoch(connection, proof.Locator, proof.Epoch, transaction)) { throw new KeepsakeException("access_unavailable", 404); }
-            var replay = Replay(connection, transaction, "account-association:" + proof.Locator + ":" + Hash(session), key, targetAccountId + ":" + proof.Epoch);
+            var replay = Replay(connection, transaction, "account-association:" + proof.Locator + ":" + Hash(session.StableIdentity), key, targetAccountId + ":" + proof.Epoch);
             transaction.Commit();
             return replay is null ? null : replayProtector.Unprotect(replay);
         }
     }
 
-    public string RememberAccountAssociationTicket(KeepsakeAccountProof proof, string session, string targetAccountId, string key, string ticket)
+    public string RememberAccountAssociationTicket(KeepsakeAccountProof proof, KeepsakeActor session, string targetAccountId, string key, string ticket)
     {
         lock (gate)
         {
@@ -61,7 +61,7 @@ internal sealed partial class KeepsakeStore
             using var transaction = connection.BeginTransaction();
             RequireAccess(connection, transaction, proof.Locator, session, KeepsakeScope.Write);
             if (!HasAccountEpoch(connection, proof.Locator, proof.Epoch, transaction)) { throw new KeepsakeException("access_unavailable", 404); }
-            var scope = "account-association:" + proof.Locator + ":" + Hash(session);
+            var scope = "account-association:" + proof.Locator + ":" + Hash(session.StableIdentity);
             var body = targetAccountId + ":" + proof.Epoch;
             var replay = Replay(connection, transaction, scope, key, body);
             if (replay is not null) { return replayProtector.Unprotect(replay); }

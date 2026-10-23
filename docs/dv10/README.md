@@ -32,13 +32,44 @@ jednorázový ticket vázaný na cílový účet. `POST /app/v1/archive/associat
 jej spotřebuje pouze s relací a CSRF tohoto účtu; ticket nepatří do URL ani
 úložiště prohlížeče. Veřejný přehled a share scope ticket nevydají.
 
-Účet čte pouze přesnou připojenou památku a její výsledné portréty; zdrojové
+Výslovně připojený účet čte pouze přesnou připojenou památku a její výsledné portréty; zdrojové
 fotografie, provider prompty a guest správa nejsou součástí tohoto přístupu.
 Každé čtení dokumentu i assetu znovu ověřuje účet, locator a přístupovou epochu.
 Odvolání všech guest přístupů nebo ruční smazání přístup zneplatní. Expirace
 guest relace sama spojení účtu ani obsah nemaže. Odebrání spojení z účtu
 nemaže památku ani původní guest vlastnictví. Přepnutí účtu okamžitě skryje
 předchozí soukromá data a ignoruje opožděné odpovědi.
+
+## Správa původním účtem
+
+Památka vytvořená pro zákaznickou relaci zachovává původního vlastníka v
+`dv10_customer_owners`. Tento záznam je oddělený od ručních připojení ke čtení.
+`GET /app/v1/archive/associations/{id}` vrací serverem ověřené `accessKind`
+(`originalOwner` nebo `linkedViewer`) a příznaky `canManage`, `canReadPrivate`
+a `canUnlink`. Guest detail používá stejné příznaky s `guestOwner` nebo
+`sharedViewer`. Parametr `account=1`, locator ani připojení k archivu vlastnictví
+neudělují. Neoprávněný účet nedostane dokument ani příznaky.
+
+Původní účet používá `/app/v1/archive/owned/{id}` pro detail, assety a stejné
+podporované akce jako guest owner: generování, souhlas/fotografii/portrét,
+export, návratový nebo sdílecí odkaz, odvolání přístupu a ruční mazání.
+`wizard-identity` zachovává výslovné doplnění starší edice a
+`account-associations` vydává stejný cílově vázaný ticket ke čtení pro jiný účet.
+Změny vyžadují platnou účtovou relaci, povolený origin, CSRF a UUID
+`Idempotency-Key`; mazání navíc potvrzení a aktuální revizi. Každá autorizace
+znovu kontroluje relaci, security stamp, původní vlastnictví, přístupovou epochu
+a deletion fence. Opětovná kontrola po asynchronním příjmu fotografie brání
+pozdnímu zápisu po odvolání přístupu nebo zahájení mazání účtu.
+
+Odebrání čtenářského připojení přes `DELETE /app/v1/archive/associations/{id}`
+nemaže obsah. Původnímu vlastníkovi tento endpoint vrací 409 a jeho oprávnění
+nemění; odpovídá to `canUnlink=false`. Odvolání sdílení ruší sdílecí odkazy; ruční smazání celé památky
+odvolá přístup a zahájí stávající cleanup. Jeho receipt je dostupný vlastníkově
+relaci přes `/app/v1/archive/owned/deletions/{receiptId}`. Provider a záložní
+stavy nadále rozlišují nepotvrzené externí smazání. Retence zůstává ruční.
+
+Samostatné syntetické policy a HTTPS testy lze spustit pomocí
+`dotnet run --project backend-tests/BackendTests.csproj -- --keepsake-owner-authorization`.
 
 ## Co je implementované
 

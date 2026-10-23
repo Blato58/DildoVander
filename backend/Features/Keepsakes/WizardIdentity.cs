@@ -264,7 +264,7 @@ internal sealed partial class KeepsakeStore
         }
     }
 
-    public WizardIdentityCard CreateLegacyWizardIdentity(string id, string session, string editionId)
+    public WizardIdentityCard CreateLegacyWizardIdentity(string id, KeepsakeActor session, string editionId)
     {
         lock (gate)
         {
