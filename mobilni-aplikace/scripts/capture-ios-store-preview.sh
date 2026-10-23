@@ -85,7 +85,8 @@ for slot in iphone-6.3 ipad-13; do
   run_bounded 30 xcrun simctl boot "$device"
   run_bounded 180 xcrun simctl bootstatus "$device" -b
   run_bounded 180 xcrun simctl install "$device" "$app_path"
-  launch_output="$(run_bounded 60 xcrun simctl launch "$device" "$bundle_id")"
+  # The second cold device can need longer for LaunchServices after bootstatus.
+  launch_output="$(run_bounded 180 xcrun simctl launch "$device" "$bundle_id")"
   app_pid="${launch_output##*: }"
   if [[ ! "$app_pid" =~ ^[0-9]+$ ]]; then
     echo "Simulator did not return the launched app PID." >&2

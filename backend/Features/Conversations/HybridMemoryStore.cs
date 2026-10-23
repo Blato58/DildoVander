@@ -753,7 +753,7 @@ internal sealed partial class EveningMemoryStore
         rejected.ExecuteNonQuery();
     }
 
-    internal (long StoredBytes, long RejectedWrites) MemoryStorageStatus()
+    internal (long StoredBytes, long RejectedWrites, string? LastErrorCode, DateTimeOffset? LastErrorAt) MemoryStorageStatus()
     {
         lock (gate)
         {
@@ -761,11 +761,14 @@ internal sealed partial class EveningMemoryStore
             using var command = Command(c, null, """
                 SELECT (SELECT COALESCE(SUM(content_bytes),0) FROM memory_records)
                     +(SELECT COALESCE(SUM(length(CAST(text AS BLOB))),0) FROM live_transcripts),
-                    (SELECT COALESCE(SUM(rejected_writes),0) FROM memory_storage_failures);
+                    (SELECT COALESCE(SUM(rejected_writes),0) FROM memory_storage_failures),
+                    (SELECT code FROM memory_storage_failures ORDER BY last_at_ms DESC,code LIMIT 1),
+                    (SELECT MAX(last_at_ms) FROM memory_storage_failures);
                 """);
             using var reader = command.ExecuteReader();
             reader.Read();
-            return (reader.GetInt64(0), reader.GetInt64(1));
+            return (reader.GetInt64(0), reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(3)));
         }
     }
 
