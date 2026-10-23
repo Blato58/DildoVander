@@ -7,7 +7,16 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--customer-data-browser-fixture"]) { await AccountIdentityTests.RunCustomerDataBrowserFixtureAsync(); return; }
 if (args is ["--device-media"]) { await DeviceMediaTransportTests.RunAsync(); return; }
+if (args is ["--customer-data"]) { await CustomerDataAcceptanceTests.RunAsync(); return; }
+if (args is ["--customer-data-startup"]) { await AccountIdentityTests.RunCustomerDataStartupAsync(); return; }
+if (args is ["--customer-data-lock-contention"]) { await AccountIdentityTests.RunCustomerDataLockContentionAsync(); return; }
+if (args is ["--account-data-export-authority"]) { await AccountDataExportAuthorityTests.RunAsync(); return; }
+if (args is ["--account-data-export-store"]) { await AccountDataExportStoreTests.RunAsync(); return; }
+if (args is ["--account-data-export-document"]) { await AccountDataExportDocumentTests.RunAsync(); return; }
+if (args is ["--account-data-export-download-guard"]) { await AccountDataExportDownloadGuardTests.RunAsync(); return; }
+if (args is ["--account-data-export-http"]) { await AccountIdentityTests.RunAccountDataExportHttpAsync(); return; }
 if (args is ["--operation-epochs"])
 {
     await OperationEpochTests.RunAsync();
@@ -94,6 +103,13 @@ if (args is ["--conversation-engines"]) { await RealtimeTests.RunAsync(); await 
 if (args is ["--memory"]) { await HybridMemoryTests.RunAsync(); await EveningMemoryTests.RunAsync(); return; }
 if (args is ["--memory-capacity"]) { await MemoryCapacityTests.RunAsync(); return; }
 if (args is ["--tonight-memory-status"]) { await TonightMemoryStatusTests.RunAsync(); return; }
+if (args is ["--customer-memory-origin"]) { await CustomerMemoryOriginTests.RunAsync(); return; }
+if (args is ["--customer-memory-read-policy"]) { await CustomerMemoryOriginTests.RunAsync(); await CustomerMemoryReadPolicyTests.RunAsync(); return; }
+if (args is ["--customer-memory-write-lease"]) { await CustomerMemoryWriteLeaseTests.RunAsync(); return; }
+if (args is ["--customer-memory-data"]) { await AccountIdentityTests.RunCustomerMemoryDataAsync(); return; }
+if (args is ["--customer-memory-http"]) { await AccountIdentityTests.RunCustomerMemoryHttpAsync(); return; }
+if (args is ["--customer-memory-mutations"]) { await AccountIdentityTests.RunCustomerMemoryMutationsAsync(); return; }
+if (args is ["--customer-memory-export-integration"]) { await AccountIdentityTests.RunCustomerMemoryExportIntegrationAsync(); return; }
 if (args is ["--gpt-live-smoke"])
 {
     Environment.ExitCode = await GptLiveSmoke.RunAsync();
@@ -138,6 +154,7 @@ await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();
 await MemoryCapacityTests.RunAsync();
 await TonightMemoryStatusTests.RunAsync();
+await CustomerDataAcceptanceTests.RunAsync();
 ResponsesTextDialogBudgetTests.Run();
 await TextDialogRuntimeTests.RunAsync();
 await EveningMemoryTests.RunAsync();

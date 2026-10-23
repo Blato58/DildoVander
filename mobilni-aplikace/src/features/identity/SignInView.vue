@@ -5,6 +5,7 @@ import { consumeEnrollment } from '../../application/guestClaim';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import AwField from '../../components/AwField.vue';
+import LostAccessHelp from './LostAccessHelp.vue';
 import { defaultSignedInDestination } from '../customer/customerJourney';
 import { account, accountsEnabled, initialized, loading, signingOut, refreshIdentity, authenticatePasskey } from './session';
 const router = useRouter();
@@ -62,6 +63,7 @@ async function submit() {
       <p v-if="enrollment" class="identity-hint">Při ztrátě všech klíčů požádejte vlastníka o jednorázový kód obnovy. Pozvánku nebo obnovovací kód vložte jen na důvěryhodné adrese serveru.</p>
       <p v-else-if="!customerEnrollment" class="identity-hint">Nový zákaznický účet vytvoříte bez pozvánky. Přihlášení obsluhy používá soukromou pozvánku.</p>
     </form>
+    <LostAccessHelp v-if="!account && !enrollment && !customerEnrollment" />
     <RouterLink to="/archive">Prohlédnout veřejný archiv</RouterLink>
   </section>
 </template>

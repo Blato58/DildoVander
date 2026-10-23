@@ -1,14 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import SettingsView from './SettingsView.vue';
-const api = vi.hoisted(() => ({request: vi.fn(), signOut: vi.fn()}));
+const api = vi.hoisted(() => ({
+  request: vi.fn(),
+  signOut: vi.fn(),
+  setAccount: (_value: {id: string; displayName: string; roles: string[]} | null) => {},
+  setDeletionRequested: (_value: boolean) => {},
+}));
 vi.mock('./session', async () => {
   const {ref} = await import('vue');
-  return {account: ref({id: 'owner', displayName: 'Guest', roles: ['Owner']}), accountRequest: api.request, signOut: api.signOut, refreshIdentity: vi.fn(), authenticatePasskey: vi.fn(), deleteAccount: vi.fn(), getAccountDeletionStatus: vi.fn().mockResolvedValue(null), hasRole: () => true};
+  const account = ref<{id: string; displayName: string; roles: string[]} | null>({id: 'owner', displayName: 'Guest', roles: ['Owner']});
+  const accountDeletionRequested = ref(false);
+  api.setAccount = value => { account.value = value; };
+  api.setDeletionRequested = value => { accountDeletionRequested.value = value; };
+  return {account, accountDeletionRequested, accountRequest: api.request, signOut: api.signOut, refreshIdentity: vi.fn(), authenticatePasskey: vi.fn(), deleteAccount: vi.fn(), getAccountDeletionStatus: vi.fn().mockResolvedValue(null), hasRole: () => true};
 });
 vi.mock('../../application/preferences', () => ({usePreferences: () => ({theme: 'lord-voldemort', themes: [{id: 'lord-voldemort', label: 'Stínový čaroděj'}, {id: 'olivander', label: 'Mistr hůlek'}]})}));
 beforeEach(() => {
   let name: string | null = null;
+  api.setAccount({id: 'owner', displayName: 'Guest', roles: ['Owner']});
+  api.setDeletionRequested(false);
   api.signOut.mockReset(); api.request.mockReset(); api.request.mockImplementation(async (_path, method, body) => {
     if (method === 'PUT') { name = body.name; return; }
     return {sessions: [{id: 'current', current: true, installationName: 'This installation', expiresAt: 1900000000, trusted: false}], grants: [], associations: [], passkeyCount: 1, passkeys: [{id: 'owned_key', name, createdAt: '2026-10-19T10:00:00Z', isBackedUp: true}]};
@@ -44,6 +55,39 @@ describe('credential naming settings', () => {
     expect(wrapper.text()).not.toContain('Kufry propojené s účtem');
     expect(wrapper.text()).not.toContain('HTTP API v1');
     expect(wrapper.findAll('h1')).toHaveLength(0);
+    wrapper.unmount();
+  });
+
+  it('shows collapsed My Data only for an eligible customer and defers its data requests', async () => {
+    api.setAccount({id: 'customer-1', displayName: 'Guest', roles: ['Customer']});
+    const wrapper = mount(SettingsView, { props: { customerSurface: true }, global: { stubs: { AccountArchiveList: true, EveningPanel: true, RouterLink: { template: '<a><slot /></a>' } } } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Moje data');
+    expect(wrapper.text()).not.toContain('Moje paměti');
+    expect(wrapper.text()).not.toContain('Stažení údajů účtu');
+    expect(api.request.mock.calls.map(call => call[0])).toEqual(['/app/v1/account']);
+    expect(wrapper.find('button[aria-controls]').attributes('aria-expanded')).toBe('false');
+    wrapper.unmount();
+  });
+
+  it.each([
+    ['staff', {id: 'owner', displayName: 'Staff', roles: ['Owner']}],
+    ['mixed', {id: 'mixed', displayName: 'Mixed', roles: ['Customer', 'Operator']}],
+  ])('does not show customer data for %s roles', async (_label, identity) => {
+    api.setAccount(identity);
+    const wrapper = mount(SettingsView, { props: { customerSurface: true }, global: { stubs: { AccountArchiveList: true, EveningPanel: true, RouterLink: { template: '<a><slot /></a>' } } } });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Moje data');
+    wrapper.unmount();
+  });
+
+  it('hides My Data when account deletion is requested', async () => {
+    api.setAccount({id: 'customer-1', displayName: 'Guest', roles: ['Customer']});
+    api.setDeletionRequested(true);
+    const wrapper = mount(SettingsView, { props: { customerSurface: true }, global: { stubs: { AccountArchiveList: true, EveningPanel: true, RouterLink: { template: '<a><slot /></a>' } } } });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Moje data');
     wrapper.unmount();
   });
 });

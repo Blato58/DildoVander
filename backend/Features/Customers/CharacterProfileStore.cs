@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Kufr.Backend.Features.CustomerData;
 using Microsoft.Data.Sqlite;
 
 namespace Kufr.Backend.Features.Customers;
@@ -58,6 +59,36 @@ internal sealed class CharacterProfileStore
             DELETE FROM character_jobs WHERE openai_consent=0;
             """;
         column.ExecuteNonQuery();
+    }
+
+    internal string CustomerDataDatabasePath => new SqliteConnectionStringBuilder(connectionString).DataSource;
+
+    internal CustomerDataSqliteGuard OpenCustomerDataGuard(CustomerDataGuardDeadline deadline)
+    {
+        return CustomerDataSqliteGuard.Acquire(connectionString, deadline);
+    }
+
+    internal void ValidateCustomerDataAccount(CustomerDataSqliteGuard guard, string accountId)
+    {
+        using var command = guard.Command("""
+            SELECT 1 FROM character_account_fences WHERE account_id=$account
+            UNION ALL
+            SELECT 1 FROM character_deletions WHERE account_id=$account AND profile_id='*'
+            LIMIT 1;
+            """);
+        command.Parameters.AddWithValue("$account", accountId);
+        if (command.ExecuteScalar() is not null)
+        {
+            throw new CustomerDataAccessException(401, "customer_data_unavailable");
+        }
+    }
+
+    internal bool CustomerDataProfileRevoked(CustomerDataSqliteGuard guard, string accountId, string profileId)
+    {
+        using var command = guard.Command("SELECT 1 FROM character_deletions WHERE account_id=$account AND profile_id=$profile LIMIT 1");
+        command.Parameters.AddWithValue("$account", accountId);
+        command.Parameters.AddWithValue("$profile", profileId);
+        return command.ExecuteScalar() is not null;
     }
 
     internal Task<CharacterProfile?> ReadAsync(string accountId, CancellationToken token = default)

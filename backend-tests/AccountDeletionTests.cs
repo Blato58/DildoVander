@@ -1,4 +1,5 @@
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.CustomerData;
 using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Identity;
@@ -30,13 +31,15 @@ internal static partial class AccountIdentityTests
             var keepsakes = new KeepsakeStore(config, TimeProvider.System, memoryStore: memory);
             var lab = new PersonaLabStore(Path.Combine(root, "lab.sqlite"),
                 LivePromptSnapshot.Create(PersonalityCatalog.OllivanderId, new GptLiveOptions()));
+            var exports = new AccountDataExportStore(Path.Combine(root, "accounts"), TimeProvider.System);
+            var conversations = new ConversationStore(TimeProvider.System, journal, eveningMemory: memory);
             var services = new ServiceCollection();
             services.Configure<IdentityOptions>(options => options.Stores.SchemaVersion = IdentitySchemaVersions.Version3);
             services.AddDbContext<AccountDatabase>(options => options.UseSqlite("Data Source=" + Path.Combine(root, "identity.sqlite")));
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton(journal); services.AddSingleton(memory); services.AddSingleton(characters);
-            services.AddSingleton(keepsakes); services.AddSingleton(lab);
-            services.AddSingleton(new ConversationStore(TimeProvider.System, journal, eveningMemory: memory));
+            services.AddSingleton(keepsakes); services.AddSingleton(lab); services.AddSingleton(exports);
+            services.AddSingleton(conversations);
             services.AddLogging();
             services.AddIdentityCore<AccountUser>(options => options.Stores.SchemaVersion = IdentitySchemaVersions.Version3)
                 .AddRoles<IdentityRole>().AddEntityFrameworkStores<AccountDatabase>();
@@ -50,6 +53,14 @@ internal static partial class AccountIdentityTests
             db.Sessions.Add(new AccountSession { Id = "session", UserId = "alice" });
             db.ArchiveAssociations.Add(new AccountArchiveAssociation { UserId = "alice", Locator = "other-guest" });
             await db.SaveChangesAsync();
+            var aliceExportAccess = new CustomerDataAccess("alice", "export-session-alice", "export-revision-alice");
+            var aliceOldRequest = Guid.NewGuid();
+            exports.Create(aliceExportAccess, aliceOldRequest);
+            var aliceCurrentRequest = Guid.NewGuid();
+            var aliceExport = exports.Create(aliceExportAccess, aliceCurrentRequest);
+            var bobExportAccess = new CustomerDataAccess("bob", "export-session-bob", "export-revision-bob");
+            var bobExportRequest = Guid.NewGuid();
+            var bobExport = exports.Create(bobExportAccess, bobExportRequest);
             await characters.SaveAsync("alice", new(0, new CharacterUserInput("Secret", "Original")));
             await characters.SaveAsync("bob", new(0, new CharacterUserInput("Other", "Original")));
             var aliceLab = lab.CreateSession("alice", new(lab.ActiveRevisionId, "gpt-live-1", "first-visit", "empty", "private"));
@@ -109,6 +120,25 @@ internal static partial class AccountIdentityTests
             Check((await db.Users.FindAsync("alice"))!.Disabled && !await db.Sessions.AnyAsync(x => x.UserId == "alice"),
                 "accepted account is disabled and sessions revoked atomically");
             Check(await service.ReadStatusAsync(result.ReceiptId!) == "pending", "receipt starts pending");
+            var missingExportServices = new ServiceCollection();
+            missingExportServices.AddSingleton(journal);
+            missingExportServices.AddSingleton(memory);
+            missingExportServices.AddSingleton(characters);
+            missingExportServices.AddSingleton(keepsakes);
+            missingExportServices.AddSingleton(lab);
+            missingExportServices.AddSingleton(conversations);
+            using (var missingExportProvider = missingExportServices.BuildServiceProvider())
+            {
+                try
+                {
+                    await new AccountDeletionService(db, missingExportProvider, TimeProvider.System).RequestAsync("bob");
+                    throw new InvalidOperationException("Account deletion accepted without the required export store.");
+                }
+                catch (AccountDeletionUnavailableException) { }
+            }
+            Check(!await db.Users.Where(user => user.Id == "bob").Select(user => user.Disabled).SingleAsync()
+                && !await db.DeletionRequests.AnyAsync(request => request.UserId == "bob"),
+                "missing export registration rejects deletion before disabling the account or recording intent");
             // Missing stores on a later process must leave the accepted durable request retryable.
             var missingServices = new ServiceCollection().BuildServiceProvider();
             await new AccountDeletionService(db, missingServices, TimeProvider.System).ProcessPendingAsync();
@@ -119,12 +149,22 @@ internal static partial class AccountIdentityTests
             using (var blockedPhoto = new FileStream(blockedPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 blockedPhoto.Write([1,2,3]);
-                await service.ProcessPendingAsync();
                 if (OperatingSystem.IsWindows())
                 {
+                    await service.ProcessPendingAsync();
                     Check(await service.ReadStatusAsync(result.ReceiptId!) == "pending",
                         "filesystem cleanup failure cannot report completed deletion");
                 }
+            }
+            using (var exportConnection = new SqliteConnection("Data Source=" + exports.DatabasePath))
+            {
+                exportConnection.Open();
+                using var writeBlock = exportConnection.BeginTransaction(deferred: false);
+                await service.ProcessPendingAsync();
+                Check(await service.ReadStatusAsync(result.ReceiptId!) == "pending"
+                    && exports.Find(aliceExport.Id, aliceExportAccess) is not null
+                    && HasExportRequest(exports.DatabasePath, "alice", aliceOldRequest),
+                    "busy export metadata database leaves deletion pending before its export cleanup commits");
             }
             using (var retryScope = provider.CreateScope())
             {
@@ -132,6 +172,32 @@ internal static partial class AccountIdentityTests
             }
             Check(!Directory.Exists(blockedDirectory), "fresh worker retry physically removes owned photo directory");
             Check(await service.ReadStatusAsync(result.ReceiptId!) == "completed", "retry completes durable saga");
+            Check(exports.Find(aliceExport.Id, aliceExportAccess) is null
+                && !HasExportRequest(exports.DatabasePath, "alice", aliceOldRequest)
+                && !HasExportRequest(exports.DatabasePath, "alice", aliceCurrentRequest),
+                "original account export jobs and accepted-key receipts are purged after deletion fences");
+            Check(exports.Find(bobExport.Id, bobExportAccess) is not null
+                && exports.Create(bobExportAccess, bobExportRequest).Id == bobExport.Id,
+                "deleting Alice's export metadata preserves Bob's job and request receipt");
+            var deletedReplayRejected = false;
+            try { exports.Create(aliceExportAccess, aliceCurrentRequest); }
+            catch (AccountDataExportException error) when (error.Status == 410 && error.Code == "account_export_deleted")
+            { deletedReplayRejected = true; }
+            Check(deletedReplayRejected, "permanent export account fence rejects an in-flight captured access proof");
+            Check(!exports.Complete(aliceExport.Id,
+                    new("inventory", "memory", "keepsake", new string('A', 64)))
+                && !exports.Fail(aliceExport.Id, AccountDataExportFailure.SourceChanged),
+                "late export worker completion or failure cannot recreate deleted job metadata");
+            var restartedExports = new AccountDataExportStore(Path.Combine(root, "accounts"), TimeProvider.System);
+            var restartedDeletedReplayRejected = false;
+            try { restartedExports.Create(aliceExportAccess, Guid.NewGuid()); }
+            catch (AccountDataExportException error) when (error.Status == 410 && error.Code == "account_export_deleted")
+            { restartedDeletedReplayRejected = true; }
+            Check(restartedDeletedReplayRejected && restartedExports.Find(bobExport.Id, bobExportAccess) is not null,
+                "permanent account fence survives store restart without affecting other accounts");
+            await service.ProcessPendingAsync();
+            Check(await service.ReadStatusAsync(result.ReceiptId!) == "completed",
+                "reprocessing a completed deletion remains idempotently complete");
             Check(!await db.Users.AnyAsync(x => x.Id == "alice") && await db.Users.AnyAsync(x => x.Id == "bob"),
                 "final identity deletion preserves other guests");
             Check(!await db.ArchiveAssociations.AnyAsync(x => x.UserId == "alice"), "access-only archive associations unlinked");
@@ -216,4 +282,15 @@ internal static partial class AccountIdentityTests
 
     private static KeepsakeIssueSnapshot DeletionSnapshot(string id)
         => new("account-delete-" + id, "device", 1, "wand", "Wand", "facts", "evidence");
+
+    private static bool HasExportRequest(string databasePath, string accountId, Guid requestId)
+    {
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM account_data_export_requests WHERE account_id=$account AND request_id=$request";
+        command.Parameters.AddWithValue("$account", accountId);
+        command.Parameters.AddWithValue("$request", requestId.ToString("N"));
+        return command.ExecuteScalar() is not null;
+    }
 }

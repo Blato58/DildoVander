@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const bridge = vi.hoisted(() => ({native: false, request: vi.fn(), passkey: vi.fn(), accountTransport: vi.fn(), cancelAccountRequest: vi.fn()}));
+const bridge = vi.hoisted(() => ({native: false, request: vi.fn(), passkey: vi.fn(), accountTransport: vi.fn(), shareAccountDataFile: vi.fn(), cancelAccountRequest: vi.fn()}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => bridge.native }, registerPlugin: () => bridge }));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(complete => { resolve = complete; }); return {promise, resolve}; }
 const user = (id: string | null, token = id ?? 'anonymous') => ({ enabled: true, account: id ? {id, displayName: id, roles: ['Viewer']} : null, csrfToken: token, origin: 'https://accounts.invalid' });
 let request: ReturnType<typeof vi.fn>;
-beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
+beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.shareAccountDataFile.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('native account archive transport limits', () => {
@@ -82,6 +82,230 @@ describe('native account archive transport limits', () => {
     bridge.accountTransport.mockResolvedValueOnce({status: 200, headers: {}, bodyBase64: oversizedGeneric});
     const asset = await identity.accountTransport(`/app/v1/archive/owned/${archiveId}/assets/${archiveId}`);
     expect((await asset.arrayBuffer()).byteLength).toBe(1024 * 1024 + 1);
+  });
+});
+
+describe('native account data export', () => {
+  const filename = 'customer-data-export.json';
+  async function signedIn() {
+    bridge.native = true;
+    const identity = await import('./session');
+    bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current'))});
+    await identity.refreshIdentity();
+    return identity;
+  }
+
+  it('extends only the exact customer memory and export download GET responses', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    const exportId = 'A23E4567-E89B-42D3-A456-426614174000';
+    const roles = [
+      ['/app/v1/customer/memory', 'GET'],
+      [`/app/v1/customer/data/exports/${exportId}/download`, 'GET'],
+    ] as const;
+    for (const [path, method] of roles) {
+      expect(identity.accountTransportResponseLimit(path, method)).toBe(32 * 1024 * 1024);
+      expect(identity.accountTransportResponseAllowed(path, method, 32 * 1024 * 1024)).toBe(true);
+      expect(identity.accountTransportResponseAllowed(path, method, 32 * 1024 * 1024 + 1)).toBe(false);
+    }
+    for (const path of [
+      '/app/v1/customer/memory?x=1', '/app/v1/customer/memory#x', '/app/v1/customer/memory/',
+      '/app/v1/customer//memory', '/app/v1/customer/MEMORY', '/app/v1/customer/memory%2f',
+      '/app/v1/customer/memory/extra', '/app/v1/customer/data/exports/not-a-guid/download',
+      '/app/v1/customer/data/exports/123e4567e89b42d3a456426614174000/download',
+    ]) expect(identity.accountTransportResponseLimit(path, 'GET')).toBe(1024 * 1024);
+    expect(identity.accountTransportResponseLimit('/app/v1/customer/memory', 'POST')).toBe(1024 * 1024);
+    expect(identity.accountTransportResponseLimit('/app/v1/customer/data/exports/123e4567-e89b-42d3-a456-426614174000/download', 'DELETE')).toBe(1024 * 1024);
+
+    const largerThanGeneric = btoa('x'.repeat(1024 * 1024 + 1));
+    bridge.accountTransport.mockResolvedValueOnce({status: 200, headers: {}, bodyBase64: largerThanGeneric});
+    bridge.accountTransport.mockResolvedValueOnce({status: 200, headers: {}, bodyBase64: largerThanGeneric});
+    for (const [path, method] of roles) {
+      const response = await identity.accountTransport(path, {method});
+      expect((await response.arrayBuffer()).byteLength).toBe(1024 * 1024 + 1);
+    }
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('keeps cap plus one rejected on generic, wrong-method and malformed roles', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    const largerThanGeneric = btoa('x'.repeat(1024 * 1024 + 1));
+    for (const [path, method] of [
+      ['/app/v1/account', 'GET'], ['/app/v1/customer/memory', 'POST'],
+      ['/app/v1/customer/memory/extra', 'GET'],
+    ]) {
+      bridge.accountTransport.mockResolvedValueOnce({status: 200, headers: {}, bodyBase64: largerThanGeneric});
+      await expect(identity.accountTransport(path, {method})).rejects.toThrow('příliš velká');
+    }
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('shares only a bounded, complete UTF-8 JSON object through the native bridge', async () => {
+    const identity = await signedIn();
+    const content = '{"schemaVersion":1,"label":"Příběh"}';
+    bridge.shareAccountDataFile.mockResolvedValueOnce({completed: true});
+    const check = vi.fn();
+    const result = await identity.shareNativeAccountDataFile(
+      new Blob([content], {type: 'application/json'}), filename, {check},
+    );
+    const call = bridge.shareAccountDataFile.mock.calls[0]![0];
+    expect(call).toMatchObject({filename, mediaType: 'application/json'});
+    expect(call.requestId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(new TextDecoder().decode(Uint8Array.from(atob(call.bodyBase64), char => char.charCodeAt(0)))).toBe(content);
+    expect(result).toEqual({completed: true});
+    expect(check.mock.calls.length).toBeGreaterThanOrEqual(4);
+    bridge.shareAccountDataFile.mockResolvedValueOnce({completed: false});
+    await expect(identity.shareNativeAccountDataFile(new Blob([content], {type: 'application/json'}), filename))
+      .resolves.toEqual({completed: false});
+    expect(bridge.accountTransport).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('rejects unauthenticated, web, unsupported, and invalid file inputs without fallback requests', async () => {
+    bridge.native = true;
+    const identity = await import('./session');
+    const validBlob = new Blob(['{}'], {type: 'application/json'});
+    await expect(identity.shareNativeAccountDataFile(validBlob, filename)).rejects.toMatchObject({name: 'AbortError'});
+    expect(bridge.shareAccountDataFile).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+
+    await signedIn();
+    const invalidInputs: Array<[Blob, string]> = [
+      [new Blob([], {type: 'application/json'}), filename],
+      [new Blob(['{}'], {type: 'text/plain'}), filename],
+      [validBlob, 'other.json'],
+      [new Blob(['{'], {type: 'application/json'}), filename],
+      [new Blob(['{} trailing'], {type: 'application/json'}), filename],
+      [new Blob(['[]'], {type: 'application/json'}), filename],
+      [new Blob(['null'], {type: 'application/json'}), filename],
+      [new Blob([new Uint8Array([0xff])], {type: 'application/json'}), filename],
+      [new Blob([new Uint8Array(32 * 1024 * 1024 + 1)], {type: 'application/json'}), filename],
+    ];
+    for (const [blob, selectedFilename] of invalidInputs) {
+      await expect(identity.shareNativeAccountDataFile(blob, selectedFilename)).rejects.toThrow();
+    }
+    const mismatched = new Blob(['{}'], {type: 'application/json'});
+    vi.spyOn(mismatched, 'arrayBuffer').mockResolvedValue(new TextEncoder().encode('{').buffer);
+    await expect(identity.shareNativeAccountDataFile(mismatched, filename)).rejects.toThrow('Velikost exportního souboru se změnila');
+    expect(bridge.shareAccountDataFile).not.toHaveBeenCalled();
+
+    const registeredShare = bridge.shareAccountDataFile;
+    (bridge as unknown as Record<string, unknown>).shareAccountDataFile = undefined;
+    await expect(identity.shareNativeAccountDataFile(validBlob, filename)).rejects.toThrow('není dostupné');
+    (bridge as unknown as Record<string, unknown>).shareAccountDataFile = registeredShare;
+
+    bridge.native = false;
+    vi.resetModules();
+    const webIdentity = await import('./session');
+    request.mockResolvedValueOnce(Response.json(user('web-account')));
+    await webIdentity.refreshIdentity();
+    await expect(webIdentity.shareNativeAccountDataFile(validBlob, filename)).rejects.toThrow('pouze v nativní aplikaci');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('checks the caller context after reading and immediately before dispatch', async () => {
+    const identity = await signedIn();
+    const delayedBytes = deferred<ArrayBuffer>();
+    const blob = new Blob(['{}'], {type: 'application/json'});
+    vi.spyOn(blob, 'arrayBuffer').mockReturnValue(delayedBytes.promise);
+    const check = vi.fn().mockImplementationOnce(() => {}).mockImplementationOnce(() => {
+      throw new DOMException('Owner view changed', 'AbortError');
+    });
+    const pending = identity.shareNativeAccountDataFile(blob, filename, {check});
+    const rejected = expect(pending).rejects.toMatchObject({name: 'AbortError'});
+    delayedBytes.resolve(new TextEncoder().encode('{}').buffer);
+    await rejected;
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(bridge.shareAccountDataFile).not.toHaveBeenCalled();
+  });
+
+  it('does not dispatch if cancellation arrives while Blob bytes are being read', async () => {
+    const identity = await signedIn();
+    const delayedBytes = deferred<ArrayBuffer>();
+    const blob = new Blob(['{}'], {type: 'application/json'});
+    vi.spyOn(blob, 'arrayBuffer').mockReturnValue(delayedBytes.promise);
+    const controller = new AbortController();
+    const pending = identity.shareNativeAccountDataFile(blob, filename, {signal: controller.signal});
+    const rejected = expect(pending).rejects.toMatchObject({name: 'AbortError'});
+    controller.abort();
+    delayedBytes.resolve(new TextEncoder().encode('{}').buffer);
+    await rejected;
+    expect(bridge.shareAccountDataFile).not.toHaveBeenCalled();
+    expect(bridge.cancelAccountRequest).not.toHaveBeenCalled();
+  });
+
+  it('checks caller ownership at final bridge dispatch and rejects malformed outcomes without retry', async () => {
+    const identity = await signedIn();
+    let checks = 0;
+    const check = () => {
+      if (++checks === 4) throw new DOMException('Owner job changed', 'AbortError');
+    };
+    await expect(identity.shareNativeAccountDataFile(new Blob(['{}'], {type: 'application/json'}), filename, {check}))
+      .rejects.toMatchObject({name: 'AbortError'});
+    expect(bridge.shareAccountDataFile).not.toHaveBeenCalled();
+
+    bridge.shareAccountDataFile.mockResolvedValueOnce({completed: 'yes'});
+    await expect(identity.shareNativeAccountDataFile(new Blob(['{}'], {type: 'application/json'}), filename))
+      .rejects.toThrow('neplatný výsledek');
+    expect(bridge.shareAccountDataFile).toHaveBeenCalledTimes(1);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('fences an authentication change away and back while Blob preparation is pending', async () => {
+    const identity = await signedIn();
+    bridge.passkey.mockResolvedValue(undefined);
+    bridge.request.mockResolvedValueOnce({status: 200, body: JSON.stringify(user('other'))})
+      .mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current'))});
+    const delayedBytes = deferred<ArrayBuffer>();
+    const blob = new Blob(['{}'], {type: 'application/json'});
+    vi.spyOn(blob, 'arrayBuffer').mockReturnValue(delayedBytes.promise);
+    const pending = identity.shareNativeAccountDataFile(blob, filename);
+    const rejected = expect(pending).rejects.toMatchObject({name: 'AbortError'});
+    await identity.authenticatePasskey('signin');
+    await identity.authenticatePasskey('signin');
+    expect(identity.account.value?.id).toBe('current');
+    delayedBytes.resolve(new TextEncoder().encode('{}').buffer);
+    await rejected;
+    expect(bridge.shareAccountDataFile).not.toHaveBeenCalled();
+  });
+
+  it('cancels native sharing, rejects late account changes, and surfaces bridge failures', async () => {
+    const identity = await signedIn();
+    const delayedShare = deferred<{completed: boolean}>();
+    bridge.shareAccountDataFile.mockReturnValueOnce(delayedShare.promise);
+    const controller = new AbortController();
+    const pending = identity.shareNativeAccountDataFile(new Blob(['{}'], {type: 'application/json'}), filename, {signal: controller.signal});
+    await vi.waitFor(() => expect(bridge.shareAccountDataFile).toHaveBeenCalledTimes(1));
+    const requestId = bridge.shareAccountDataFile.mock.calls[0]![0].requestId;
+    controller.abort();
+    expect(bridge.cancelAccountRequest).toHaveBeenCalledExactlyOnceWith({requestId});
+    delayedShare.resolve({completed: true});
+    await expect(pending).rejects.toMatchObject({name: 'AbortError'});
+
+    let refreshCount = 0;
+    bridge.request.mockImplementation(async ({method}: {method: string}) => {
+      if (method === 'DELETE') return {status: 204, body: ''};
+      refreshCount++;
+      return {status: 200, body: JSON.stringify(user(refreshCount === 1 ? 'current' : null))};
+    });
+    await identity.refreshIdentity();
+    const lateAccountChange = deferred<{completed: boolean}>();
+    bridge.shareAccountDataFile.mockReturnValueOnce(lateAccountChange.promise);
+    const accountChange = identity.shareNativeAccountDataFile(new Blob(['{}'], {type: 'application/json'}), filename);
+    const accountChangeRejected = expect(accountChange).rejects.toMatchObject({name: 'AbortError'});
+    await vi.waitFor(() => expect(bridge.shareAccountDataFile).toHaveBeenCalledTimes(2));
+    await identity.signOut();
+    lateAccountChange.resolve({completed: true});
+    await accountChangeRejected;
+    expect(bridge.accountTransport).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+
+    bridge.request.mockReset().mockResolvedValueOnce({status: 200, body: JSON.stringify(user('current'))});
+    await signedIn();
+    bridge.shareAccountDataFile.mockRejectedValueOnce(new Error('native share failed'));
+    await expect(identity.shareNativeAccountDataFile(new Blob(['{}'], {type: 'application/json'}), filename))
+      .rejects.toThrow('native share failed');
   });
 });
 

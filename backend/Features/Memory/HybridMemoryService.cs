@@ -20,6 +20,26 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
     private volatile bool degraded;
     private readonly SemaphoreSlim localWrites = new(1, 1);
     internal HybridMemoryOptions Options => options;
+    internal async Task<IDisposable?> TryAcquireCustomerMemoryWritesAsync(CancellationToken token)
+    {
+        if (!await localWrites.WaitAsync(TimeSpan.FromMilliseconds(100), token))
+        {
+            return null;
+        }
+
+        return new CustomerMemoryWriteLease(localWrites);
+    }
+
+    private sealed class CustomerMemoryWriteLease(SemaphoreSlim semaphore) : IDisposable
+    {
+        private SemaphoreSlim? heldSemaphore = semaphore;
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref heldSemaphore, null)?.Release();
+        }
+    }
+
     internal long StoreEpochFor(MemoryAccess access) => store.MemoryFactEpochFor(access);
     internal bool RecordConfirmedOutcome(MemoryAccess access, string operationId, string outcomeId,
         string wandLabel, string source, long expectedDeletionEpoch)

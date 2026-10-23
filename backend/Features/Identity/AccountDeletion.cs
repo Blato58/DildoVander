@@ -1,4 +1,5 @@
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.CustomerData;
 using Kufr.Backend.Features.Customers;
 using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Memory;
@@ -16,12 +17,14 @@ internal sealed class AccountDeletionService(AccountDatabase db, IServiceProvide
     ILogger<AccountDeletionService>? logger = null)
 {
     private (CharacterProfileStore Character, OperationJournal Journal, EveningMemoryStore Memory,
-        KeepsakeStore Keepsakes, PersonaLabStore Lab, ConversationStore Conversations) Stores()
+        KeepsakeStore Keepsakes, PersonaLabStore Lab, ConversationStore Conversations,
+        AccountDataExportStore Exports) Stores()
     {
         try
         {
             return (Required<CharacterProfileStore>(), Required<OperationJournal>(), Required<EveningMemoryStore>(),
-                Required<KeepsakeStore>(), Required<PersonaLabStore>(), Required<ConversationStore>());
+                Required<KeepsakeStore>(), Required<PersonaLabStore>(), Required<ConversationStore>(),
+                Required<AccountDataExportStore>());
         }
         catch (Exception) { throw new AccountDeletionUnavailableException(); }
     }
@@ -96,6 +99,7 @@ internal sealed class AccountDeletionService(AccountDatabase db, IServiceProvide
                 if (services.GetService<PersonaLabRuntime>() is { } runtime) { runtime.DeleteAccountContent(request.UserId); }
                 else { stores.Lab.DeleteAccountContent(request.UserId); }
                 services.GetService<PersonaLabImages>()?.FenceAccountDeletion(request.UserId);
+                stores.Exports.DeleteAccountMetadata(request.UserId);
                 await stores.Character.CompleteDeletionAsync(request.UserId, "*");
                 await using var transaction = await db.Database.BeginTransactionAsync(token);
                 await RemoveExtensionsAsync(request.UserId, token);
