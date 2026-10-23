@@ -17,9 +17,9 @@ function condition(name, github, needs = {}) {
 
 function concurrencyGroup(github, inputs = {}) {
   const expression = ci.match(/^  group: ci-\$\{\{ (.+) \}\}$/m)[1];
-  return new Function('github', 'inputs', 'format', `return ${expression}`)(
-    github, inputs, (template, value) => template.replace('{0}', value),
-  );
+  return String(new Function('github', 'inputs', 'format', `return ${expression}`)(
+    github, inputs, (template, ...values) => template.replace(/\{(\d+)\}/g, (_, index) => values[Number(index)]),
+  ));
 }
 
 test('main ruleset requires the GitHub Actions aggregate and preserves pull request protections', () => {
@@ -41,9 +41,9 @@ test('main ruleset requires the GitHub Actions aggregate and preserves pull requ
 });
 
 test('metadata edits reuse exact candidate proof without superseding product validation', () => {
-  const validation = { event: { action: 'synchronize', changes: {}, pull_request: { number: 42 } }, run_id: 1 };
-  const metadata = { event: { action: 'edited', changes: {}, pull_request: { number: 42 } }, run_id: 2 };
-  const baseChange = { event: { action: 'edited', changes: { base: {} }, pull_request: { number: 42 } }, run_id: 3 };
+  const validation = { event: { action: 'synchronize', changes: {}, pull_request: { number: 42, stack: {} } }, run_id: 1 };
+  const metadata = { event: { action: 'edited', changes: {}, pull_request: { number: 42, stack: {} } }, run_id: 2 };
+  const baseChange = { event: { action: 'edited', changes: { base: {} }, pull_request: { number: 42, stack: {} } }, run_id: 3 };
   for (const name of ['secret-scan', 'changes']) {
     assert.equal(condition(name, metadata), false, name);
     assert.equal(condition(name, validation), true, name);
@@ -63,6 +63,25 @@ test('metadata edits reuse exact candidate proof without superseding product val
   assert.match(ci, /pull_request:\s+types: \[opened, reopened, synchronize, edited, ready_for_review\]\s+branches: \[main\]/);
   assert.match(ci, /cancel-in-progress:.*github.event_name == 'pull_request'/);
   assert.match(ci, /merge_group:\s+types: \[checks_requested\]/);
+});
+
+test('native sibling validations cannot cancel each other or replace an ordinary PR run', () => {
+  const expression = ci.match(/^  cancel-in-progress: \$\{\{ (.+) \}\}$/m)[1];
+  const cancels = (github, inputs = { pr_number: '' }) => new Function('github', 'inputs', `return ${expression}`)(github, inputs);
+  const native = { event_name: 'pull_request', event: { action: 'synchronize', changes: {},
+    pull_request: { number: 42, stack: { number: 273 } } }, run_id: 1 };
+  const sibling = { ...native, run_id: 2 };
+  const ordinary = { ...native, event: { ...native.event, pull_request: { number: 42, stack: {} } } };
+  assert.notEqual(concurrencyGroup(native), concurrencyGroup(sibling));
+  assert.notEqual(concurrencyGroup(native), concurrencyGroup(ordinary));
+  assert.equal(Boolean(cancels(native)), false);
+  assert.equal(Boolean(cancels(ordinary)), true);
+  assert.equal(concurrencyGroup(ordinary), concurrencyGroup({ ...ordinary, run_id: 2 }));
+  const metadata = { ...native, event: { ...native.event, action: 'edited' } };
+  assert.notEqual(concurrencyGroup(metadata), concurrencyGroup(native));
+  const dispatch = { event_name: 'workflow_dispatch', event: { pull_request: { stack: {} } }, ref: 'feature' };
+  assert.equal(concurrencyGroup(dispatch, { pr_number: '42' }), concurrencyGroup(ordinary));
+  assert.equal(Boolean(cancels(dispatch, { pr_number: '42' })), true);
 });
 
 test('site requires selected web build success and permits independent site builds', () => {

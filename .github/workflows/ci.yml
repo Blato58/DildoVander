@@ -30,8 +30,11 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: ci-${{ github.event.action == 'edited' && !github.event.changes.base && format('metadata-{0}', github.run_id) || github.event.pull_request.number || inputs.pr_number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || inputs.pr_number != '' }}
+  # Native pushes can emit sibling validation events out of creation order.
+  # Let each finish truthfully: canceling a sibling can leave a failing required
+  # check on the same head even when another exact-prefix validation succeeds.
+  group: ci-${{ github.event.action == 'edited' && !github.event.changes.base && format('metadata-{0}', github.run_id) || (github.event.pull_request.stack.number && format('stack-{0}-{1}', github.event.pull_request.number, github.run_id)) || github.event.pull_request.number || inputs.pr_number || github.ref }}
+  cancel-in-progress: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.stack.number) || inputs.pr_number != '' }}
 
 jobs:
   secret-scan:
