@@ -42,13 +42,136 @@ describe('customer conversation', () => {
     expect(wrapper.text()).toContain('OpenAI');
     expect(wrapper.text()).toContain('Bez zaškrtnutí profil uložíme');
     await wrapper.get('form').trigger('submit'); await flushPromises();
-    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: false }));
+    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: false }), expect.any(AbortSignal));
     expect(wrapper.findAll('button').find(button => button.text() === 'Tohle není moje postava')!.attributes('disabled')).toBeDefined();
     await consent.setValue(true);
     await wrapper.get('form').trigger('submit'); await flushPromises();
-    expect(api.request).toHaveBeenLastCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: true }));
+    expect(api.request).toHaveBeenLastCalledWith('/app/v1/customer/character', 'PUT', expect.objectContaining({ openAiConsent: true }), expect.any(AbortSignal));
     expect((consent.element as HTMLInputElement).checked).toBe(false);
     wrapper.unmount();
+  });
+  it.each(['expired', 'ended', 'cancelled', 'future_runtime_state'])('continues reconciling unrecognized session state %s', async state => {
+    vi.useFakeTimers();
+    let sessionReads = 0;
+    api.request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/character')) return { profile };
+      if (path.endsWith('/sessions')) {
+        sessionReads += 1;
+        return { items: [{ id: 'uncertain-session', operationId: 'original-operation', deviceId: 'device-1', profileId: profile.profileId, profileRevision: 1, state, endRequested: false, createdAt: 1792540800 }] };
+      }
+      throw new Error(`Unexpected request ${path}`);
+    });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    const initialReads = sessionReads;
+    await vi.advanceTimersByTimeAsync(2500);
+    await flushPromises();
+    expect(sessionReads).toBeGreaterThan(initialReads);
+    expect(wrapper.text()).toContain('Stav se ověřuje');
+    expect(api.start).not.toHaveBeenCalled();
+    expect(api.request.mock.calls.some(call => call[0].endsWith('/start-tickets'))).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('recovers a restored session after a failed initial poll and waits for recovering Stop acknowledgement', async () => {
+    vi.useFakeTimers();
+    api.supported = false;
+    let sessionReads = 0;
+    let state = 'recovering';
+    let endRequested = false;
+    api.request.mockImplementation(async (path: string, method?: string) => {
+      if (path.endsWith('/character')) return { profile };
+      if (path.endsWith('/sessions') && method === 'GET') {
+        sessionReads += 1;
+        if (sessionReads === 1) throw new TypeError('Failed to fetch');
+        return { items: [{ id: 'session-recovery', operationId: 'accepted-before-relaunch', deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, state, endRequested, createdAt: 1792540800, characterName: 'Restored' }] };
+      }
+      if (path.endsWith('/session-recovery/end') && method === 'POST') { endRequested = true; return { state: 'ending' }; }
+      throw new Error(`Unexpected request ${path}`);
+    });
+
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Server není dostupný');
+    expect(wrapper.findAll('button').some(button => button.text() === 'Obnovit stav rozhovoru')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushPromises();
+    expect(wrapper.text()).toContain('Stav: Obnovuje se');
+    expect(wrapper.text()).not.toContain('Ověřujeme, zda kufr rozhovor přijal');
+    expect(api.request.mock.calls.some(call => call[0].endsWith('/start-tickets'))).toBe(false);
+    expect(api.start).not.toHaveBeenCalled();
+
+    await wrapper.findAll('button').find(button => button.text() === 'Ukončit rozhovor')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('button').find(button => button.text() === 'Konec požádán')?.attributes('disabled')).toBeDefined();
+    expect(api.end).not.toHaveBeenCalled();
+    expect(api.request.mock.calls.filter(call => call[0].endsWith('/session-recovery/end'))).toHaveLength(1);
+
+    state = 'completed';
+    await wrapper.findAll('button').find(button => button.text() === 'Obnovit stav rozhovoru')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Stav: Dokončen');
+    expect(wrapper.findAll('button').some(button => button.text() === 'Konec požádán')).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('redacts unknown native failures while showing actionable Bluetooth permission feedback', async () => {
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
+    api.discover.mockRejectedValue(new Error('permission_denied'));
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+
+    await wrapper.findAll('button').find(button => button.text() === 'Najít kufr poblíž')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Povolte aplikaci přístup k Bluetooth');
+    expect(wrapper.text()).toContain('Diagnostika: permission_denied');
+
+    api.discover.mockRejectedValueOnce(new Error('Authorization: Bearer sensitive-device-token'));
+    await wrapper.findAll('button').find(button => button.text() === 'Najít kufr poblíž')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('sensitive-device-token');
+    expect(wrapper.text()).toContain('Stav rozhovoru se nepodařilo načíst');
+    wrapper.unmount();
+  });
+
+  it('cancels stale session work while hidden and refreshes when visible or online', async () => {
+    vi.useFakeTimers();
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+    const firstRead = deferred<{ items: Array<{ id: string; operationId: string; deviceId: string; profileId: string; profileRevision: number; state: string; endRequested: boolean; createdAt: number; characterName: string }> }>();
+    let sessionReads = 0;
+    api.request.mockImplementation((path: string) => {
+      if (path.endsWith('/character')) return Promise.resolve({ profile });
+      if (path.endsWith('/sessions')) {
+        sessionReads += 1;
+        return sessionReads === 1 ? firstRead.promise : Promise.resolve({ items: [] });
+      }
+      return Promise.resolve({ items: [] });
+    });
+
+    const wrapper = mount(CustomerView, { global: { plugins: [await router()] } });
+    await flushPromises();
+    const firstRequest = api.request.mock.calls.find(call => call[0].endsWith('/sessions'))!;
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    firstRead.resolve({ items: [{ id: 'late-session', operationId: 'late-op', deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, state: 'running', endRequested: false, createdAt: 1792540800, characterName: 'Late response' }] });
+    await flushPromises();
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(firstRequest[3].aborted).toBe(true);
+    expect(sessionReads).toBe(1);
+    expect(wrapper.text()).not.toContain('Late response');
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushPromises();
+    expect(sessionReads).toBe(2);
+    window.dispatchEvent(new Event('online'));
+    await flushPromises();
+    expect(sessionReads).toBe(3);
+    wrapper.unmount();
+    if (originalVisibility) Object.defineProperty(document, 'visibilityState', originalVisibility);
+    else Reflect.deleteProperty(document, 'visibilityState');
   });
   it('does not request Bluetooth until the visitor explicitly starts discovery', async () => {
     api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile } : { items: [] });
@@ -91,7 +214,7 @@ describe('customer conversation', () => {
     await wrapper.get('#conversation-openai-consent').setValue(true);
     const startButton = wrapper.findAll('button').find(button => button.text() === 'Promluvit s kufrem')!;
     await startButton.trigger('click'); await flushPromises();
-    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/start-tickets', 'POST', expect.objectContaining({ protocolVersion: 1, deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, openAiConsent: true }));
+    expect(api.request).toHaveBeenCalledWith('/app/v1/customer/start-tickets', 'POST', expect.objectContaining({ protocolVersion: 1, deviceId: 'device-1', profileId: 'profile-1', profileRevision: 1, openAiConsent: true }), expect.any(AbortSignal));
     expect(api.start).toHaveBeenCalledWith('ephemeral-ticket', expect.any(String));
     expect(api.status).toHaveBeenCalled();
     const operationId = api.start.mock.calls[0][1];
@@ -334,7 +457,10 @@ describe('customer conversation', () => {
     const callsBeforeSwitch = listCalls;
     api.setAccount({ id: 'customer-2', displayName: 'Second guest', roles: ['Customer'] });
     await flushPromises(); await vi.advanceTimersByTimeAsync(5000); await flushPromises();
-    expect(listCalls).toBe(callsBeforeSwitch);
+    const callsAfterNewAccountLoad = listCalls;
+    expect(callsAfterNewAccountLoad).toBeGreaterThan(callsBeforeSwitch);
+    await vi.advanceTimersByTimeAsync(5000); await flushPromises();
+    expect(listCalls).toBe(callsAfterNewAccountLoad);
     expect(wrapper.text()).not.toContain('Ověřujeme, zda kufr rozhovor přijal');
     wrapper.unmount(); vi.useRealTimers();
   });

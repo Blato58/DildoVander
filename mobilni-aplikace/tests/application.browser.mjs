@@ -48,6 +48,10 @@ try {
     if (message.type() === 'error' && /Content Security Policy|unsafe-eval|Refused to|EvalError/i.test(message.text())) errors.push(message.text());
   });
   let sessionAccount = null;
+  let customerSessions = [];
+  let failedCustomerPolls = 0;
+  let customerStatusReads = 0;
+  const customerEndRequests = [];
   const ownerAccount = { id: 'browser-owner', displayName: 'Testovací vlastník', roles: ['Owner'] };
   const homeHeading = () => sessionAccount ? `Vítejte, ${sessionAccount.displayName}` : 'Kufr plný příběhů.';
   await context.route('**/*', async route => {
@@ -58,7 +62,19 @@ try {
     if (url.pathname === '/app/v1/session') return json({ enabled: true, account: sessionAccount, csrfToken: 'isolated-browser-csrf' });
     if (sessionAccount && url.pathname === '/app/v1/account') return json({ sessions: [{ id: 'browser-session', installationName: 'Tento prohlížeč', current: true, trusted: false, expiresAt: 1900000000 }], grants: [], associations: [], passkeyCount: 1, passkeys: [{ id: 'browser-passkey', name: 'Můj klíč', createdAt: '2026-10-20T00:00:00Z', isBackedUp: true }], devices: [] });
     if (sessionAccount && url.pathname === '/app/v1/customer/character') return json({ profile: { profileId: 'browser-profile', revision: 2, userInput: { name: 'Luna', world: 'Moon Saga' }, status: 'ready', enrichment: { summary: 'A prepared character summary.', sources: ['Public character guide'] } } });
-    if (sessionAccount && url.pathname === '/app/v1/customer/sessions') return json({ items: [] });
+    if (sessionAccount && url.pathname === '/app/v1/customer/sessions') {
+      customerStatusReads += 1;
+      if (failedCustomerPolls > 0) {
+        failedCustomerPolls -= 1;
+        return json({ code: 'temporarily_unavailable' }, 503);
+      }
+      return json({ items: customerSessions });
+    }
+    if (sessionAccount && request.method() === 'POST' && url.pathname === '/app/v1/customer/sessions/browser-recovering-session/end') {
+      customerEndRequests.push(url.pathname);
+      customerSessions = customerSessions.map(session => ({ ...session, endRequested: true }));
+      return json({}, 202);
+    }
     if (sessionAccount && url.pathname === '/app/v1/customer/admin/sessions') return json({ items: [] });
     if (sessionAccount && url.pathname === '/app/v1/customer/admin/characters') return json({ items: [] });
     if (sessionAccount && url.pathname === '/app/v1/admin/users') return json({ users: [], grants: [] });
@@ -125,7 +141,8 @@ try {
   await page.getByRole('button', { name: 'Vytvořit zákaznický účet', exact: true }).click();
   assert(await page.getByLabel('Jak vám máme říkat?').isVisible());
   assert.equal(await page.locator('#account-invite').count(), 0, 'customer registration does not ask for an invite');
-  // Customer pages use a synthetic account and read-only API fixtures. Browser mode must never request BLE.
+  // Customer pages use isolated API fixtures. The end request below changes only
+  // synthetic session state; browser mode never requests BLE or a start ticket.
   sessionAccount = { id: 'browser-customer', displayName: 'Testovací host', roles: ['Customer'] };
   for (const entry of ['/me', '/me/']) {
     await page.goto(origin + entry);
@@ -150,6 +167,29 @@ try {
   assert(await page.getByRole('button', { name: 'Promluvit s kufrem', exact: true }).isDisabled());
   assert(await page.getByText(/Bluetooth připojení je dostupné v instalované aplikaci/).isVisible());
   assert.equal(requests.filter(request => request.path.includes('customerBle') || request.path.includes('start-tickets')).length, 0);
+  customerSessions = [{ id: 'browser-recovering-session', operationId: 'browser-original-operation', deviceId: 'browser-suitcase', profileId: 'browser-profile', profileRevision: 2, state: 'recovering', endRequested: false, createdAt: 1792710000, characterName: 'Obnovený rozhovor' }];
+  failedCustomerPolls = 1;
+  const readsBeforeRecovery = customerStatusReads;
+  await page.reload();
+  await page.getByText('Stav: Obnovuje se', { exact: true }).waitFor({ timeout: 10000 });
+  assert(customerStatusReads >= readsBeforeRecovery + 2, 'a failed initial poll automatically retries the authoritative restored session');
+  const refreshConversation = page.getByRole('button', { name: 'Obnovit stav rozhovoru', exact: true });
+  assert(await refreshConversation.isVisible(), 'restored sessions can refresh without a local pending operation or native BLE');
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await fits();
+    await page.screenshot({ path: path.join(screenshots, `customer-recovering-${width}.png`), fullPage: true });
+  }
+  await page.getByRole('button', { name: 'Ukončit rozhovor', exact: true }).click();
+  await page.getByRole('button', { name: 'Konec požádán', exact: true }).waitFor();
+  assert(await page.getByRole('button', { name: 'Konec požádán', exact: true }).isDisabled());
+  assert.equal(customerEndRequests.length, 1, 'one user request creates only one end command');
+  assert(await page.getByText('Stav: Obnovuje se', { exact: true }).isVisible(), 'an accepted end request does not claim physical completion');
+  customerSessions = customerSessions.map(session => ({ ...session, state: 'completed' }));
+  await refreshConversation.click();
+  await page.getByText('Stav: Dokončen', { exact: true }).waitFor();
+  assert.equal(requests.filter(request => request.path.includes('customerBle') || request.path.includes('start-tickets')).length, 0, 'recovery never issues a replacement start or controls BLE');
+  customerSessions = [];
   await page.goto(origin + '/me/account'); await hasHeading('Můj účet');
   await page.getByRole('heading', { name: 'Přístupové klíče' }).waitFor();
   await page.getByRole('heading', { name: 'Přihlášená zařízení' }).waitFor();

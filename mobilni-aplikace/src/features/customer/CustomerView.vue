@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AwButton from '../../components/AwButton.vue';
 import AwField from '../../components/AwField.vue';
@@ -9,6 +9,8 @@ import { account, accountRequest } from '../identity/session';
 import AccountArchiveList from '../identity/AccountArchiveList.vue';
 import SettingsView from '../identity/SettingsView.vue';
 import { customerBle, type CustomerBleDevice, type CustomerBleStatus } from './customerBle';
+import { projectCustomerSessionError } from './customerSessionFeedback';
+import { SessionRecoveryController, type SessionRecoveryState } from './sessionRecovery';
 
 interface CharacterProfile {
   profileId: string; revision: number;
@@ -19,6 +21,7 @@ interface CustomerSession {
   id: string; operationId: string; deviceId: string; profileId: string; profileRevision: number;
   state: string; endRequested: boolean; createdAt: number; characterName?: string;
 }
+interface SessionSnapshot { items: CustomerSession[]; expiredOperations?: string[] }
 interface StartTicketRequest {
   protocolVersion: 1; operationId: string; deviceId: string; bootId: string; challenge: string;
   profileId: string; profileRevision: number; personalMemoryConsent?: true; openAiConsent: true;
@@ -30,6 +33,7 @@ const sessions = ref<CustomerSession[]>([]);
 const busy = ref(false);
 const profileLoading = ref(false);
 const error = ref('');
+const errorDiagnosticCode = ref('');
 const notice = ref('');
 const devices = ref<CustomerBleDevice[]>([]);
 const connected = ref<CustomerBleStatus | null>(null);
@@ -39,21 +43,31 @@ const enrichmentOpenAiConsent = ref(false);
 const conversationOpenAiConsent = ref(false);
 const form = ref({ name: '', world: '', version: '', description: '', language: '' });
 let generation = 0;
-let pollTimer: ReturnType<typeof setTimeout> | undefined;
-let pollController: AbortController | undefined;
+let accountWorkController = new AbortController();
 const pendingOperationId = ref<string>();
 const pendingTicketRequest = ref<StartTicketRequest>();
 let bleStartAttempted = false;
-let pendingPollCount = 0;
+const requestedEndSessions = new Set<string>();
 let enrichmentTimer: ReturnType<typeof setTimeout> | undefined;
-const MAX_PENDING_POLLS = 12;
+const sessionRecoveryState = reactive<SessionRecoveryState>({
+  refreshing: false, stale: false, retrying: false, retryDelayMs: null, error: undefined,
+});
+const sessionRecovery = new SessionRecoveryController<SessionSnapshot>({
+  refresh: refreshSessionSnapshot,
+  hasActiveSession: snapshot => isRecoveryVisible() && (Boolean(pendingOperationId.value) || snapshot.items.some(isActiveSession)),
+  state: sessionRecoveryState,
+  pollIntervalMs: 2500,
+  retryBaseDelayMs: 1000,
+  retryMaxDelayMs: 30_000,
+});
+const sessionRecoveryFeedback = computed(() => projectCustomerSessionError(sessionRecoveryState.error));
 
 const headings: Record<string, string> = {
   character: 'Moje postava', conversation: 'Rozhovor s kufrem', keepsakes: 'Moje památky', account: 'Můj účet',
 };
-const startInProgress = computed(() => sessions.value.some(session => ['starting', 'context_ready', 'running', 'recovering'].includes(session.state)));
+const startInProgress = computed(() => sessions.value.some(isActiveSession));
 const characterStatusLabels: Record<string, string> = { saved: 'Uloženo bez AI přípravy', queued: 'Čeká na přípravu', running: 'Příprava probíhá', ready: 'Připraveno', needs_clarification: 'Potřebuje upřesnění', failed: 'Příprava se nezdařila' };
-const sessionStatusLabels: Record<string, string> = { queued: 'Čeká na kufr', starting: 'Kufr se připravuje', context_ready: 'Rozhovor se připravuje', running: 'Probíhá', completed: 'Dokončen', ended: 'Ukončen', failed: 'Nepodařilo se spustit', recovering: 'Obnovuje se' };
+const sessionStatusLabels: Record<string, string> = { starting: 'Kufr se připravuje', context_ready: 'Rozhovor se připravuje', running: 'Probíhá', completed: 'Dokončen', failed: 'Nepodařilo se spustit', recovering: 'Obnovuje se' };
 const enrichmentText = computed(() => {
   if (!profile.value?.enrichment) return '';
   if (typeof profile.value.enrichment === 'string') return profile.value.enrichment;
@@ -90,12 +104,12 @@ const clarificationText = computed(() => {
 
 function resetPrivateState(): void {
   generation += 1;
-  pollController?.abort(); pollController = undefined;
-  if (pollTimer) clearTimeout(pollTimer); pollTimer = undefined;
+  accountWorkController.abort(); accountWorkController = new AbortController();
+  sessionRecovery.invalidate();
   if (enrichmentTimer) clearTimeout(enrichmentTimer); enrichmentTimer = undefined;
   profile.value = null; sessions.value = []; devices.value = []; connected.value = null; profileLoading.value = Boolean(account.value);
   busy.value = false;
-  selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; pendingPollCount = 0; error.value = ''; notice.value = '';
+  selectedDevice.value = ''; pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; requestedEndSessions.clear(); error.value = ''; errorDiagnosticCode.value = ''; notice.value = '';
   form.value = { name: '', world: '', version: '', description: '', language: '' }; personalMemoryConsent.value = false; enrichmentOpenAiConsent.value = false; conversationOpenAiConsent.value = false;
   void Promise.resolve(customerBle.disconnect()).catch(() => {});
 }
@@ -104,7 +118,7 @@ async function loadProfile(epoch = generation): Promise<void> {
   if (!account.value) return;
   profileLoading.value = true;
   try {
-    const result = await accountRequest<{ profile: CharacterProfile | null }>('/app/v1/customer/character');
+    const result = await accountRequest<{ profile: CharacterProfile | null }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
     if (epoch !== generation) return;
     profile.value = result.profile;
     form.value = {
@@ -117,13 +131,35 @@ async function loadProfile(epoch = generation): Promise<void> {
   finally { if (epoch === generation) profileLoading.value = false; }
 }
 
-async function loadSessions(epoch = generation, signal?: AbortSignal): Promise<{ items: CustomerSession[]; expiredOperations?: string[] } | undefined> {
-  const result = await accountRequest<{ items: CustomerSession[]; expiredOperations?: string[] }>('/app/v1/customer/sessions', 'GET', undefined, signal);
+async function loadSessions(epoch = generation, signal = accountWorkController.signal): Promise<SessionSnapshot | undefined> {
+  const result = await accountRequest<SessionSnapshot>('/app/v1/customer/sessions', 'GET', undefined, signal);
+  if (signal.aborted) throw new DOMException('Načítání relací bylo zrušeno.', 'AbortError');
   if (epoch !== generation) return undefined;
-  sessions.value = result.items;
+  sessions.value = result.items.map(item => requestedEndSessions.has(item.id) ? { ...item, endRequested: true } : item);
   if (pendingOperationId.value && result.expiredOperations?.includes(pendingOperationId.value)) {
-    pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; pendingPollCount = 0;
+    pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false;
     notice.value = 'Předchozí žádost vypršela dříve, než ji kufr přijal. Zkontrolujte připojení a stiskněte znovu „Promluvit s kufrem“ pro novou žádost.';
+  }
+  return result;
+}
+
+async function refreshSessionSnapshot(signal: AbortSignal): Promise<SessionSnapshot> {
+  const epoch = generation;
+  const result = await loadSessions(epoch, signal);
+  if (!result) throw new DOMException('Účet se mezitím změnil.', 'AbortError');
+
+  const pendingSession = pendingOperationId.value
+    ? result.items.find(item => item.operationId === pendingOperationId.value)
+    : undefined;
+  if (pendingSession && isTerminal(pendingSession.state)) {
+    pendingOperationId.value = undefined;
+    pendingTicketRequest.value = undefined;
+    bleStartAttempted = false;
+    try { await reconcileBle(epoch); }
+    catch (cause) { if (epoch === generation) error.value = projectCustomerSessionError(cause).message; }
+  }
+  for (const session of result.items) {
+    if (isTerminal(session.state)) requestedEndSessions.delete(session.id);
   }
   return result;
 }
@@ -137,7 +173,7 @@ async function saveCharacter(newCharacter = false): Promise<void> {
       userInput: { name: form.value.name.trim(), world: form.value.world.trim(), version: form.value.version.trim() || undefined,
         description: form.value.description.trim() || undefined, language: form.value.language.trim() || undefined },
       ...(newCharacter && profile.value ? { newCharacter: true } : {}),
-    });
+    }, accountWorkController.signal);
     if (epoch !== generation) return;
     profile.value = result.profile;
     enrichmentOpenAiConsent.value = false;
@@ -153,7 +189,7 @@ async function requestCorrection(): Promise<void> {
   try {
     await accountRequest('/app/v1/customer/character/correction', 'POST', {
       expectedRevision: profile.value.revision, expectedProfileId: profile.value.profileId, openAiConsent: true,
-    });
+    }, accountWorkController.signal);
     if (epoch === generation) { enrichmentOpenAiConsent.value = false; notice.value = 'Označili jste, že tato postava není vaše. Příprava informací se obnoví.'; await refreshEnrichment(epoch); }
   } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
   finally { if (epoch === generation) busy.value = false; }
@@ -163,33 +199,33 @@ async function deleteCharacter(): Promise<void> {
   if (!profile.value || !window.confirm('Smazat profil postavy? Historie rozhovorů zůstane zachována.')) return;
   error.value = ''; busy.value = true; const epoch = generation;
   try {
-    await accountRequest('/app/v1/customer/character?expectedRevision=' + profile.value.revision + '&expectedProfileId=' + encodeURIComponent(profile.value.profileId), 'DELETE');
+    await accountRequest('/app/v1/customer/character?expectedRevision=' + profile.value.revision + '&expectedProfileId=' + encodeURIComponent(profile.value.profileId), 'DELETE', undefined, accountWorkController.signal);
     if (epoch === generation) { profile.value = null; form.value = { name: '', world: '', version: '', description: '', language: '' }; notice.value = 'Profil postavy byl smazán.'; }
   } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
   finally { if (epoch === generation) busy.value = false; }
 }
 
 async function discover(): Promise<void> {
-  error.value = ''; devices.value = []; connected.value = null;
+  error.value = ''; errorDiagnosticCode.value = ''; devices.value = []; connected.value = null;
   if (!customerBle.supported()) { error.value = 'Bluetooth start je dostupný v instalované aplikaci pro iPhone. Safari nepodporuje tuto kufrovou funkci.'; return; }
   const epoch = generation; busy.value = true;
   try { const result = await customerBle.discover(); if (epoch === generation) devices.value = result.devices; }
-  catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
+  catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) busy.value = false; }
 }
 
 async function connect(): Promise<void> {
   if (!selectedDevice.value) return;
-  error.value = ''; busy.value = true; const epoch = generation;
+  error.value = ''; errorDiagnosticCode.value = ''; busy.value = true; const epoch = generation;
   try { const status = await customerBle.connect(selectedDevice.value); if (epoch === generation) connected.value = status; }
-  catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
+  catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) busy.value = false; }
 }
 
 async function startConversation(): Promise<void> {
   if (!profile.value || !connected.value || !connected.value.capabilities.customerStart
     || (!conversationOpenAiConsent.value && !pendingTicketRequest.value)) return;
-  error.value = ''; notice.value = ''; busy.value = true; const epoch = generation;
+  error.value = ''; errorDiagnosticCode.value = ''; notice.value = ''; busy.value = true; const epoch = generation;
   // A retried operation keeps its ID; a rejected or unknown outcome is reconciled first.
   const hadPendingOperation = Boolean(pendingOperationId.value);
   const operationId = pendingOperationId.value ?? secureUuid(); pendingOperationId.value = operationId;
@@ -201,7 +237,7 @@ async function startConversation(): Promise<void> {
     if (existing.expiredOperations?.includes(operationId)) return;
     const prior = existing.items.find(item => item.operationId === operationId);
     if (prior) {
-      const status = await accountRequest<CustomerSession>(`/app/v1/customer/sessions/${encodeURIComponent(prior.id)}`);
+      const status = await accountRequest<CustomerSession>(`/app/v1/customer/sessions/${encodeURIComponent(prior.id)}`, 'GET', undefined, accountWorkController.signal);
       if (epoch !== generation) return;
       sessions.value = existing.items.map(item => item.id === prior.id ? status : item);
       await reconcileBle(epoch);
@@ -217,7 +253,7 @@ async function startConversation(): Promise<void> {
       // Consent can be withdrawn while session/BLE reconciliation is awaiting a reply.
       // Once issuance is attempted, retries keep the original immutable consent-bearing body.
       if (!conversationOpenAiConsent.value) {
-        pendingOperationId.value = undefined; bleStartAttempted = false; pendingPollCount = 0;
+        pendingOperationId.value = undefined; bleStartAttempted = false;
         notice.value = 'Souhlas s OpenAI byl odvolán před odesláním žádosti. Rozhovor jsme nespustili.';
         return;
       }
@@ -228,27 +264,26 @@ async function startConversation(): Promise<void> {
       };
       pendingTicketRequest.value = request;
     }
-    const ticket = await accountRequest<{ ticket: string; operationId: string; expiresAt: string; sessionId?: string }>('/app/v1/customer/start-tickets', 'POST', request);
+    const ticket = await accountRequest<{ ticket: string; operationId: string; expiresAt: string; sessionId?: string }>('/app/v1/customer/start-tickets', 'POST', request, accountWorkController.signal);
     if (epoch !== generation) return;
     bleStartAttempted = true;
     const bleStatus = await customerBle.start(ticket.ticket, operationId);
     if (epoch !== generation) return;
     connected.value = bleStatus;
     if (bleStatus.sessionId) {
-      const status = await accountRequest<CustomerSession>(`/app/v1/customer/sessions/${encodeURIComponent(bleStatus.sessionId)}`);
+      const status = await accountRequest<CustomerSession>(`/app/v1/customer/sessions/${encodeURIComponent(bleStatus.sessionId)}`, 'GET', undefined, accountWorkController.signal);
       if (epoch === generation) sessions.value = [status, ...sessions.value.filter(item => item.id !== status.id)];
       if (epoch === generation && isTerminal(status.state)) {
         pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false;
         await reconcileBle(epoch);
       }
     }
-    pendingPollCount = 0;
     scheduleSessionPoll(epoch);
   } catch (cause) {
     if (epoch === generation) {
-      error.value = (cause as Error).message;
+      showProjectedError(cause);
       if (!bleStartAttempted && isDefinitiveTicketIssuerRejection(cause)) {
-        pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; pendingPollCount = 0;
+        pendingOperationId.value = undefined; pendingTicketRequest.value = undefined;
         notice.value = 'Kufr odmítl žádost ještě před pokusem o připojení. Stiskněte znovu „Promluvit s kufrem“ pro novou žádost.';
       }
       try { await loadSessions(epoch); await reconcileBle(epoch); } catch { /* Keep the original start error. */ }
@@ -260,42 +295,31 @@ async function startConversation(): Promise<void> {
 async function endConversation(session: CustomerSession): Promise<void> {
   error.value = ''; busy.value = true; const epoch = generation;
   try {
-    await accountRequest(`/app/v1/customer/sessions/${encodeURIComponent(session.id)}/end`, 'POST');
+    await accountRequest<{ state: string }>(`/app/v1/customer/sessions/${encodeURIComponent(session.id)}/end`, 'POST', undefined, accountWorkController.signal);
     if (epoch !== generation) return;
     notice.value = 'Konec rozhovoru byl požádán.';
-    try { connected.value = await customerBle.end(session.id); } catch { /* Phone disconnect never becomes a stop. */ }
-    await pollSessions(epoch);
-  } catch (cause) { if (epoch === generation) error.value = (cause as Error).message; }
+    requestedEndSessions.add(session.id);
+    if (session.state === 'recovering') {
+      sessions.value = sessions.value.map(item => item.id === session.id ? { ...item, endRequested: true } : item);
+    } else {
+      try { connected.value = await customerBle.end(session.id); } catch { /* Phone disconnect never becomes a stop. */ }
+    }
+    scheduleSessionPoll(epoch);
+    await sessionRecovery.refresh();
+  } catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) busy.value = false; }
 }
 
-async function pollSessions(epoch: number): Promise<void> {
-  pollController?.abort(); pollController = new AbortController();
-  try {
-    await loadSessions(epoch, pollController.signal);
-    if (epoch !== generation) return;
-    const pendingSession = pendingOperationId.value && sessions.value.find(item => item.operationId === pendingOperationId.value);
-    if (pendingSession && isTerminal(pendingSession.state)) {
-      pendingOperationId.value = undefined; pendingTicketRequest.value = undefined; bleStartAttempted = false; pendingPollCount = 0;
-      await reconcileBle(epoch);
-    }
-    const keepChecking = Boolean(pendingOperationId.value && pendingPollCount < MAX_PENDING_POLLS)
-      || sessions.value.some(item => ['starting', 'context_ready', 'running', 'recovering'].includes(item.state));
-    if (pendingOperationId.value) pendingPollCount += 1;
-    if (keepChecking && epoch === generation) pollTimer = setTimeout(() => { void pollSessions(epoch); }, 2500);
-  } catch (cause) { if (epoch === generation && (cause as Error).name !== 'AbortError') error.value = (cause as Error).message; }
-}
 async function refreshConversationStatus(): Promise<void> {
-  const epoch = generation;
-  if (busy.value) return;
-  error.value = ''; busy.value = true;
-  try {
-    await pollSessions(epoch);
-    if (epoch === generation && pendingOperationId.value && !pollTimer) notice.value = 'Stav se stále ověřuje. Při dalším pokusu se použije stejná žádost.';
-  } finally { if (epoch === generation) busy.value = false; }
+  const result = isRecoveryVisible()
+    ? await (sessionRecovery.setActive(true) ?? sessionRecovery.refresh())
+    : await sessionRecovery.refresh();
+  if (!result && pendingOperationId.value && !sessionRecoveryState.retrying) {
+    notice.value = 'Stav se stále ověřuje. Další pokus použije stejnou žádost.';
+  }
 }
 
-function isTerminal(state: string): boolean { return !['queued', 'starting', 'context_ready', 'running', 'recovering'].includes(state); }
+function isTerminal(state: string): boolean { return ['completed', 'failed'].includes(state); }
 function isDefinitiveTicketIssuerRejection(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const status = 'status' in error && typeof error.status === 'number' ? error.status : 0;
@@ -306,8 +330,7 @@ function isDefinitiveTicketIssuerRejection(error: unknown): boolean {
     || (status === 429 && code === 'start_ticket_limit');
 }
 function scheduleSessionPoll(epoch: number): void {
-  if (pollTimer) clearTimeout(pollTimer);
-  pollTimer = setTimeout(() => { void pollSessions(epoch); }, 2500);
+  if (epoch === generation && isRecoveryVisible()) void sessionRecovery.setActive(true);
 }
 async function reconcileBle(epoch: number): Promise<void> {
   const status = await customerBle.status();
@@ -323,7 +346,7 @@ function scheduleEnrichmentRefresh(epoch: number): void {
 }
 async function refreshEnrichment(epoch = generation): Promise<void> {
   try {
-    const result = await accountRequest<{ profile: CharacterProfile | null }>('/app/v1/customer/character');
+    const result = await accountRequest<{ profile: CharacterProfile | null }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
     if (epoch !== generation || !result.profile || result.profile.profileId !== profile.value?.profileId || result.profile.revision !== profile.value.revision) return;
     // Refresh server-derived enrichment only; never replace the visitor's in-progress form edits.
     profile.value = { ...profile.value, status: result.profile.status, enrichment: result.profile.enrichment, errorCode: result.profile.errorCode, updatedAt: result.profile.updatedAt };
@@ -331,17 +354,58 @@ async function refreshEnrichment(epoch = generation): Promise<void> {
   } catch { if (epoch === generation) scheduleEnrichmentRefresh(epoch); }
 }
 
+function isActiveSession(session: CustomerSession): boolean {
+  return Boolean(session.state) && !isTerminal(session.state);
+}
+function showProjectedError(cause: unknown): void {
+  const feedback = projectCustomerSessionError(cause);
+  error.value = feedback.message;
+  errorDiagnosticCode.value = feedback.diagnosticCode ?? '';
+}
+function isRecoveryVisible(): boolean {
+  return pane.value === 'conversation' && Boolean(account.value) && document.visibilityState !== 'hidden';
+}
+function updateRecoveryActivity(): void {
+  if (isRecoveryVisible()) void sessionRecovery.setActive(true);
+  else void sessionRecovery.setActive(false);
+}
+function refreshSessionsForCurrentPane(): void {
+  if (isRecoveryVisible()) void sessionRecovery.setActive(true);
+  else void sessionRecovery.refresh();
+}
+function onWindowOnline(): void {
+  if (isRecoveryVisible()) void (sessionRecovery.setActive(true) ?? sessionRecovery.refresh());
+}
+function onDocumentVisibilityChange(): void { updateRecoveryActivity(); }
+
+watch(pane, updateRecoveryActivity);
 watch(() => account.value?.id, (next, previous) => {
-  if (next !== previous) { resetPrivateState(); if (next) void loadProfile(); }
+  if (next !== previous) {
+    resetPrivateState();
+    if (next) {
+      const epoch = generation;
+      void loadProfile(epoch);
+      refreshSessionsForCurrentPane();
+    }
+  }
 }, { flush: 'sync' });
-onMounted(() => { if (account.value) { const epoch = generation; void loadProfile(epoch); void loadSessions(epoch).then(() => { if (sessions.value.some(item => ['starting', 'context_ready', 'running', 'recovering'].includes(item.state))) void pollSessions(epoch); }).catch(cause => { if (epoch === generation) error.value = (cause as Error).message; }); } });
-onBeforeUnmount(resetPrivateState);
+onMounted(() => {
+  window.addEventListener('online', onWindowOnline);
+  document.addEventListener('visibilitychange', onDocumentVisibilityChange);
+  if (account.value) { const epoch = generation; void loadProfile(epoch); refreshSessionsForCurrentPane(); }
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('online', onWindowOnline);
+  document.removeEventListener('visibilitychange', onDocumentVisibilityChange);
+  sessionRecovery.dispose();
+  resetPrivateState();
+});
 </script>
 
 <template>
   <section class="page-stack customer-page" :aria-labelledby="`customer-${pane}-title`">
     <header><p class="eyebrow">Můj prostor</p><h1 :id="`customer-${pane}-title`">{{ headings[pane] ?? 'Můj prostor' }}</h1><p v-if="pane === 'character'">Vyberte postavu a její svět. Profil můžete uložit bez AI. Informace od OpenAI připravíme pouze s vaším souhlasem.</p><p v-else-if="pane === 'conversation'">Rozhovor spustíte ručně po připojení ke kufru.</p></header>
-    <AwNotice v-if="error" tone="warning" role="alert">{{ error }}</AwNotice>
+    <AwNotice v-if="error" tone="warning" role="alert">{{ error }}<small v-if="errorDiagnosticCode"> Diagnostika: {{ errorDiagnosticCode }}</small></AwNotice>
     <AwNotice v-if="notice" tone="info" role="status">{{ notice }}</AwNotice>
 
     <p v-if="pane === 'character' && profileLoading" role="status">Načítám váš profil…</p>
@@ -373,9 +437,17 @@ onBeforeUnmount(resetPrivateState);
         <AwField id="personal-memory-consent" label="Soukromá kontinuita"><label><input id="personal-memory-consent" v-model="personalMemoryConsent" type="checkbox" /> Souhlasím s použitím mé ověřené osobní paměti v tomto rozhovoru</label></AwField>
         <AwButton variant="primary" :busy="busy" :disabled="busy || !profile || !connected?.capabilities.customerStart || startInProgress || (!conversationOpenAiConsent && !pendingOperationId)" @click="startConversation">Promluvit s kufrem</AwButton>
         <p v-if="pendingOperationId" role="status">Ověřujeme, zda kufr rozhovor přijal. Telefonní spojení rozhovor neukončuje.</p>
-        <AwButton v-if="pendingOperationId" :disabled="busy" variant="secondary" @click="refreshConversationStatus">Obnovit stav rozhovoru</AwButton>
       </div>
-      <div v-for="session in sessions" :key="session.id" class="aw-card"><h2>{{ session.characterName || profile?.userInput.name || 'Rozhovor' }}</h2><p>Stav: {{ sessionStatusLabels[session.state] ?? 'Stav se ověřuje' }}</p><p>Začátek: {{ new Date(session.createdAt * 1000).toLocaleString('cs') }}</p><AwButton v-if="session.state === 'running' || session.state === 'starting' || session.state === 'context_ready'" variant="secondary" :disabled="busy || session.endRequested" @click="endConversation(session)">{{ session.endRequested ? 'Konec požádán' : 'Ukončit rozhovor' }}</AwButton></div>
+      <div class="aw-card session-recovery" aria-live="polite">
+        <p v-if="sessionRecoveryState.refreshing" role="status">Obnovuji stav rozhovorů…</p>
+        <p v-else-if="sessionRecoveryState.retrying" role="status">Spojení se serverem se obnovuje. Další pokus proběhne automaticky.</p>
+        <AwNotice v-if="sessionRecoveryState.stale" tone="warning" role="alert">
+          {{ sessionRecoveryFeedback.message }}
+          <small v-if="sessionRecoveryFeedback.diagnosticCode"> Diagnostika: {{ sessionRecoveryFeedback.diagnosticCode }}</small>
+        </AwNotice>
+        <AwButton variant="secondary" :disabled="sessionRecoveryState.refreshing" @click="refreshConversationStatus">Obnovit stav rozhovoru</AwButton>
+      </div>
+      <div v-for="session in sessions" :key="session.id" class="aw-card"><h2>{{ session.characterName || profile?.userInput.name || 'Rozhovor' }}</h2><p>Stav: {{ sessionStatusLabels[session.state] ?? 'Stav se ověřuje' }}</p><p>Začátek: {{ new Date(session.createdAt * 1000).toLocaleString('cs') }}</p><AwButton v-if="['running', 'starting', 'context_ready', 'recovering'].includes(session.state)" variant="secondary" :disabled="busy || session.endRequested" @click="endConversation(session)">{{ session.endRequested ? 'Konec požádán' : 'Ukončit rozhovor' }}</AwButton></div>
     </section>
 
     <AccountArchiveList v-else-if="pane === 'keepsakes'" />
