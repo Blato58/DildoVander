@@ -134,7 +134,10 @@ internal static class AccountRoles
     public const string Operator = "Operator";
     public const string Viewer = "Viewer";
     public const string Customer = "Customer";
-    public static readonly string[] All = [Owner, Administrator, Operator, Viewer, Customer];
+    public const string Tester = "Tester";
+    public static readonly string[] All = [Owner, Administrator, Operator, Viewer, Customer, Tester];
+    public static bool CanUsePersonaLab(System.Security.Claims.ClaimsPrincipal principal) =>
+        IsStaff(principal) || principal.Identity?.IsAuthenticated == true && principal.IsInRole(Tester);
     public static bool IsStaff(System.Security.Claims.ClaimsPrincipal principal) =>
         principal.Identity?.IsAuthenticated == true &&
         (principal.IsInRole(Owner) || principal.IsInRole(Administrator)

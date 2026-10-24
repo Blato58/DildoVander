@@ -20,6 +20,7 @@ using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Show;
 using Kufr.Backend.Features.PersonaLab;
 using Kufr.Backend.Features.Tonight;
+using Kufr.Backend.Features.TestingSessions;
 
 var provisioning = args.Contains("--memory-provision");
 var accountProvisioning = AccountProvisioning.IsCommand(args);
@@ -104,6 +105,7 @@ builder.Services.AddHostedService<MemoryIndexWorker>();
 builder.Services.AddSingleton<ConversationStore>();
 builder.Services.AddCustomerCharacters(builder.Configuration);
 builder.Services.AddPersonaLab();
+builder.Services.AddTestingSessions();
 builder.Services.AddHostedService<RetentionWorker>();
 var keepsakesEnabled = builder.Configuration.GetValue<bool>("Keepsake:Enabled");
 var keepsakeDataRoot = builder.Configuration["Keepsake:DataRoot"];
@@ -189,6 +191,7 @@ if (keepsakeArchiveConfigured)
     app.MapCustomerCompletionUpdates();
 }
 app.MapPersonaLab();
+app.MapTestingSessions();
 app.MapModelReleases();
 
 app.Use(async (context, next) =>

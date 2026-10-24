@@ -7,6 +7,13 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
+if (args is ["--tester-identity"]) { await AccountIdentityTests.RunTesterIdentityAsync(); return; }
+if (args is ["--testing-hardware"]) { await TestingHardwareTests.RunAsync(); return; }
+if (args is ["--testing-conversations"]) { await TestingConversationTests.RunAsync(); return; }
+if (args is ["--testing-resources"]) { await TestingResourcesTests.RunAsync(); return; }
+if (args is ["--testing-session-http"]) { await AccountIdentityTests.RunTestingSessionHttpAsync(); return; }
+if (args is ["--testing-sessions"]) { await TestingSessionsTests.RunAsync(); return; }
+if (args is ["--testing-character-race"]) { await TestingCharacterRaceTests.RunAsync(); return; }
 if (args is ["--wand-artwork"]) { await WandArtworkTests.RunAsync(); return; }
 if (args is ["--generated-wands"]) { await WandGenerationTests.RunAsync(); await GeneratedWandFlowTests.RunAsync(); await WandArtworkTests.RunAsync(); return; }
 if (args is ["--customer-data-browser-fixture"]) { await AccountIdentityTests.RunCustomerDataBrowserFixtureAsync(); return; }
@@ -180,6 +187,13 @@ await CostumeImageTests.RunAsync();
 await RealtimeTests.RunAsync();
 await GptLiveTests.RunAsync();
 await DeviceMediaTransportTests.RunAsync();
+await AccountIdentityTests.RunTesterIdentityAsync();
+await TestingConversationTests.RunAsync();
+await TestingHardwareTests.RunAsync();
+await TestingResourcesTests.RunAsync();
+await TestingCharacterRaceTests.RunAsync();
+await AccountIdentityTests.RunTestingSessionHttpAsync();
+await TestingSessionsTests.RunAsync();
 await PersonalityTests.RunAsync();
 await AutonomousLiveTests.RunAsync();
 await HybridMemoryTests.RunAsync();

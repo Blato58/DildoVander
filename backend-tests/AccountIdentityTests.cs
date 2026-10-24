@@ -555,7 +555,8 @@ internal static partial class AccountIdentityTests
         public CookieContainer Cookies(HttpClient client) => jars[client];
         public static async Task<Fixture> StartAsync(bool browserMode = false, bool customerFeatures = false,
             bool deletionFeatures = false, bool customerMemoryFeatures = false,
-            bool accountDataExportFeatures = false, Action<WebApplication>? configureEndpoints = null)
+            bool accountDataExportFeatures = false, Action<WebApplication>? configureEndpoints = null,
+            Action<IServiceCollection>? configureServices = null)
         {
             var root = Path.Combine(Path.GetTempPath(), "dv-account-tests-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
@@ -642,6 +643,7 @@ internal static partial class AccountIdentityTests
                         services.GetRequiredService<TimeProvider>()));
                 }
             }
+            configureServices?.Invoke(builder.Services);
             var app = builder.Build();
             await AccountProvisioning.MigrateAsync(app.Services);
             await app.InitializeAccountsAsync();

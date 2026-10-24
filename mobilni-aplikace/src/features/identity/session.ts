@@ -23,6 +23,7 @@ const native = Capacitor.isNativePlatform();
 const archiveUuid = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const ownedPortraitUpload = new RegExp(`^/app/v1/archive/owned/${archiveUuid}/portrait-uploads$`, 'i');
 const archiveAsset = new RegExp(`^/app/v1/archive/(?:owned|associations)/${archiveUuid}/assets/${archiveUuid}$`, 'i');
+const testingAsset = new RegExp(`^/app/v1/testing-sessions/[0-9a-f]{32}/keepsakes/${archiveUuid}/assets/${archiveUuid}$`);
 const customerMemoryPath = /^\/app\/v1\/customer\/memory$/;
 const customerExportDownloadPath = /^\/app\/v1\/customer\/data\/exports\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/download$/;
 
@@ -40,6 +41,7 @@ export function accountTransportBodyLimit(path: string, method: string, contentT
 export function accountTransportResponseLimit(path: string, method: string): number {
   if (method !== 'GET') return 1024 * 1024;
   return matchesExactTransportPath(archiveAsset, path)
+    || matchesExactTransportPath(testingAsset, path)
     || matchesExactTransportPath(customerMemoryPath, path)
     || matchesExactTransportPath(customerExportDownloadPath, path)
     ? 32 * 1024 * 1024 : 1024 * 1024;

@@ -11,6 +11,7 @@ export interface VoiceObserver {
   error(code: string, recoverable: boolean): void;
   closed(): void;
   interrupted?(): void;
+  providerReady?(providerSessionId: string | null): void;
 }
 
 export function socketUrl(ticket: SocketTicket, sessionId: string, origin: string): string {
@@ -62,6 +63,8 @@ export class LabVoice {
   private source: MediaStreamAudioSourceNode | null = null;
   private processor: AudioWorkletNode | null = null;
   private silentGain: GainNode | null = null;
+  private outputGain: GainNode | null = null;
+  private outputEnabled = true;
   private playback = new Map<AudioBufferSourceNode, ScheduledAudio>();
   private pcm: Int16Array | null = null;
   private pcmRead = 0;
@@ -69,6 +72,7 @@ export class LabVoice {
   private completedSamples = 0;
   private playbackMode: 'acknowledged' | 'stream' | null = null;
   private streamComplete = true;
+  private typedInput = false;
   private activePlayback: AcknowledgedPlayback | null = null;
   private retiredPlaybackIds: string[] = [];
   private playbackTimer: ReturnType<typeof setInterval> | null = null;
@@ -95,13 +99,14 @@ export class LabVoice {
     this.phase = next; this.observer.phase(next);
   }
 
-  async connect(ticket: () => Promise<SocketTicket>, sessionId: string, origin: string): Promise<void> {
+  async connect(ticket: () => Promise<SocketTicket>, sessionId: string, origin: string, options: { capture?: boolean } = {}): Promise<void> {
     this.dispose();
     const generation = this.generation;
+    const capture = options.capture !== false;
     this.terminal = false; this.transition('connecting', generation);
     const current = () => generation === this.generation;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined')
+      if ((capture && !navigator.mediaDevices?.getUserMedia) || typeof AudioContext === 'undefined')
         throw new Error('microphone_unavailable');
       // Called directly from a click so iOS can unlock audio before permission awaits.
       const context = new AudioContext({ sampleRate: 24000 }); this.context = context;
@@ -110,11 +115,13 @@ export class LabVoice {
         if (current() && this.ready && ['suspended', 'interrupted', 'closed'].includes(context.state as string))
           this.failPlayback('audio_interrupted');
       };
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      let stream: MediaStream | null = null;
+      if (capture) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
       if (!current()) { stream.getTracks().forEach(track => track.stop()); return; }
-      this.stream = stream;
+        this.stream = stream;
       stream.getTracks().forEach(track => track.addEventListener('ended', () => { if (current()) this.fail('microphone_disconnected', false); }));
       const installed = document.querySelector<HTMLMetaElement>('meta[name="kufr-capture-worklet"]')?.content;
       if (!context.audioWorklet) throw new Error('microphone_unavailable');
@@ -124,11 +131,15 @@ export class LabVoice {
         try { await context.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
       }
       if (!current()) return;
+      }
+      const outputGain = context.createGain(); this.outputGain = outputGain;
+      outputGain.gain.value = this.outputEnabled ? 1 : 0; outputGain.connect(context.destination);
       const credentials = await ticket(); if (!current()) return;
       const address = new URL(socketUrl(credentials, sessionId, origin));
       address.searchParams.set('playback', '1');
       const socket = new WebSocket(address.href);
       socket.binaryType = 'arraybuffer'; this.socket = socket;
+      if (stream) {
       const resampler = new PcmResampler(context.sampleRate);
       const source = context.createMediaStreamSource(stream); this.source = source;
       // Reuse the application's published capture worklet. The laboratory owns
@@ -152,6 +163,7 @@ export class LabVoice {
         while (combined.length - offset >= 480) { socket.send(combined.slice(offset, offset + 480).buffer); offset += 480; }
         pendingPcm = combined.slice(offset);
       };
+      }
       this.connectionTimeout = setTimeout(() => { if (current() && !this.ready) this.fail('connection_timeout', true); }, 15000);
       socket.onmessage = event => {
         if (!current()) return;
@@ -160,9 +172,15 @@ export class LabVoice {
           const value = JSON.parse(String(event.data));
           if (value.type === 'ready' && !this.ready && this.phase === 'connecting') {
             if (!['acknowledged', 'stream'].includes(value.playbackMode)) { this.fail('invalid_server_event', false); return; }
-            this.playbackMode = value.playbackMode;
+            this.playbackMode = value.playbackMode; this.typedInput = value.inputMode === 'text';
             this.clearTimeout(); this.ready = true; this.transition('listening', generation);
           }
+          else if (value.type === 'text_ready') {
+            if (!this.ready || !this.typedInput || this.playbackMode !== 'stream') { this.fail('invalid_server_event', false); return; }
+            this.streamComplete = true; this.finishPlayback();
+          }
+          else if (value.type === 'busy') this.observer.error('lab_session_busy', false);
+          else if (value.type === 'provider_ready') this.observer.providerReady?.(typeof value.providerSessionId === 'string' ? value.providerSessionId : null);
           else if (value.type === 'playback_started') this.startAcknowledgedPlayback(value.playbackId);
           else if (value.type === 'playback_end') this.completeAcknowledgedPlayback(value);
           else if (value.type === 'listening') {
@@ -308,7 +326,7 @@ export class LabVoice {
           this.pcmRead = (this.pcmRead + 1) % this.pcm.length;
         }
         this.queuedSamples -= length;
-        const node = context.createBufferSource(); node.buffer = buffer; node.connect(context.destination);
+        const node = context.createBufferSource(); node.buffer = buffer; node.connect(this.outputGain ?? context.destination);
         const start = Math.max(context.currentTime, this.nextAudioTime);
         this.playback.set(node, { start, samples: length, channel });
         this.nextAudioTime = start + buffer.duration;
@@ -350,6 +368,7 @@ export class LabVoice {
     this.playback.clear(); this.nextAudioTime = 0;
     this.pcm?.fill(0); this.pcm = null; this.pcmRead = 0; this.queuedSamples = 0; this.completedSamples = 0;
   }
+  setOutputEnabled(value: boolean): void { this.outputEnabled = value; if (this.outputGain) this.outputGain.gain.value = value ? 1 : 0; }
   setMuted(value: boolean): void { this.muted = value; this.stream?.getAudioTracks().forEach(track => { track.enabled = !value; }); }
   interrupt(): void {
     if (!this.ready || this.awaitingInterrupt || this.socket?.readyState !== WebSocket.OPEN) return;
@@ -367,7 +386,9 @@ export class LabVoice {
   }
   sendText(text: string): boolean {
     if (!this.ready || this.socket?.readyState !== WebSocket.OPEN) return false;
-    this.socket.send(JSON.stringify({ type: 'text', text })); return true;
+    this.socket.send(JSON.stringify({ type: 'text', text }));
+    if(this.typedInput) { this.streamComplete = false; this.transition('waiting'); }
+    return true;
   }
   end(): void {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ type: 'end' }));
@@ -379,12 +400,12 @@ export class LabVoice {
     if (socket) { socket.onmessage = socket.onclose = socket.onerror = null; socket.close(); }
     this.stopPlayback();
     if (this.processor) { this.processor.port.onmessage = null; this.processor.port.close(); this.processor.disconnect(); }
-    this.source?.disconnect(); this.silentGain?.disconnect();
+    this.source?.disconnect(); this.silentGain?.disconnect(); this.outputGain?.disconnect(); this.outputGain = null;
     this.processor = null; this.source = null; this.silentGain = null;
     this.stream?.getTracks().forEach(track => track.stop()); this.stream = null;
     if (this.context) { this.context.onstatechange = null; void this.context.close().catch(() => {}); this.context = null; }
     this.speakingInput = false; this.quietSamples = 0;
-    this.awaitingInterrupt = false; this.playbackMode = null; this.streamComplete = true; this.activePlayback = null; this.retiredPlaybackIds = [];
+    this.awaitingInterrupt = false; this.playbackMode = null; this.streamComplete = true; this.typedInput = false; this.activePlayback = null; this.retiredPlaybackIds = [];
     this.phase = 'idle';
   }
 }

@@ -9,7 +9,7 @@ interface ManagedAccount extends Account { disabled: boolean }
 const users = ref<ManagedAccount[]>([]); const grants = ref<ResourceGrant[]>([]);
 const error = ref(''); const busy = ref(false); const inviteRole = ref('Viewer'); const recoveryId = ref(''); const token = ref('');
 const selectedUser = ref(''); const resourceType = ref('device'); const resourceId = ref(''); const permission = ref('read');
-const roles = ['Owner', 'Administrator', 'Operator', 'Viewer'];
+const roles = ['Owner', 'Administrator', 'Operator', 'Viewer', 'Customer', 'Tester'];
 const invitationKind = ref('invite');
 const invitationLink = computed(() => token.value && accountOrigin.value ? `${accountOrigin.value}/signin#${invitationKind.value}=${encodeURIComponent(token.value)}` : '');
 async function load() {

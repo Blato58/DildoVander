@@ -34,6 +34,7 @@ internal sealed record LabSession(string Id, string OwnerId, string Label, strin
     }
     public bool HasImage { get; init; }
     public LabHardwareMetadata? Hardware { get; init; }
+    public LabTestingContext? Testing { get; init; }
 }
 internal sealed record LabScenario(string Id, string Name, string Description, string OpeningText)
 {
@@ -61,7 +62,8 @@ internal sealed record LabSuiteRequest(string RevisionId, string Engine, string 
     string Label, bool RecordContent = false, string Platform = "web", string? ExecutionPlatform = null);
 internal sealed record LabFixture(string Id, string Name, string Description, string Current, string Evening, string Returning);
 internal sealed record LabTicket(string Url, string Path, DateTimeOffset ExpiresAt);
-internal sealed record LabTicketRequest(string? SocketOrigin = null, bool Recovery = false, string? Platform = null);
+internal sealed record LabTicketRequest(string? SocketOrigin = null, bool Recovery = false, string? Platform = null,
+    bool TextInputOnly = false);
 internal sealed class LabException(int status, string code) : Exception(code)
 {
     internal int Status { get; } = status;
