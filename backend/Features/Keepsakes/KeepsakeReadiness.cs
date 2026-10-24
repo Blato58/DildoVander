@@ -79,5 +79,6 @@ internal sealed record KeepsakeReadiness
 internal sealed record CustomerSessionResult(int SchemaVersion, string SessionId, string? ResultLocator,
     KeepsakeReadiness Readiness, string? AccessKind, bool CanManage, bool CanReadPrivate, bool CanUnlink,
     Kufr.Backend.Features.Wands.GeneratedWandPublicSnapshot? GeneratedWand = null,
-    WandGenerationReadiness? WandGeneration = null, bool WandPublicationApproved = false);
+    WandGenerationReadiness? WandGeneration = null, bool WandPublicationApproved = false,
+    string? ArtworkAssetId = null);
 internal sealed record WandGenerationReadiness(string Status, string? ErrorCode, bool CanRetry);
