@@ -2,6 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import GeneratedWand from '../archive/GeneratedWand.vue';
+import { AccountArchiveClient } from '../archive/accountArchive';
+import { useArchiveMedia } from '../archive/useArchiveMedia';
+import { isUuid } from '../archive/client';
 import { projectGeneratedWand, type GeneratedWand as GeneratedWandSnapshot } from '../archive/generatedWand';
 import AwButton from '../../components/AwButton.vue';
 import AwField from '../../components/AwField.vue';
@@ -42,6 +45,25 @@ watch(() => account.value?.id, id => interfaceLanguagePreference.setScope(id), {
 const pane = computed(() => route.path.split('/').at(-1) ?? 'character');
 const profile = ref<CharacterProfile | null>(null);
 const selectedWand = ref<GeneratedWandSnapshot | null>(null);
+const profileArtworkClient = new AccountArchiveClient(() => account.value?.id ?? '');
+const profileArtwork = useArchiveMedia(profileArtworkClient);
+let profileArtworkPath = '';
+function clearProfileArtwork(): void {
+  profileArtworkPath = '';
+  profileArtworkClient.invalidate();
+  profileArtwork.clear();
+}
+function bindProfileArtwork(raw: unknown): void {
+  const value = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
+  const locator = value && isUuid(value.locator) ? value.locator : null;
+  const assetId = value && isUuid(value.assetId) ? value.assetId : null;
+  const path = selectedWand.value && locator && assetId
+    ? `/app/v1/archive/owned/${locator}/assets/${assetId}` : '';
+  if (path === profileArtworkPath) return;
+  clearProfileArtwork();
+  profileArtworkPath = path;
+  if (path) void profileArtwork.artwork(path);
+}
 const sessions = ref<CustomerSession[]>([]);
 const resultSessionId = ref<string | null>(null);
 const resultSessions = computed(() => sessions.value.filter(session => ['completed', 'failed'].includes(session.state)));
@@ -131,6 +153,7 @@ const clarificationText = computed(() => {
 });
 
 function resetPrivateState(): void {
+  clearProfileArtwork();
   generation += 1;
   accountWorkController.abort(); accountWorkController = new AbortController();
   sessionRecovery.invalidate();
@@ -149,10 +172,11 @@ async function loadProfile(epoch = generation): Promise<void> {
   if (!account.value) return;
   profileLoading.value = true;
   try {
-    const result = await accountRequest<{ profile: CharacterProfile | null; generatedWand?: unknown }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
+    const result = await accountRequest<{ profile: CharacterProfile | null; generatedWand?: unknown; artwork?: unknown }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
     if (epoch !== generation) return;
     profile.value = result.profile;
     selectedWand.value = result.profile ? projectGeneratedWand(result.generatedWand) : null;
+    bindProfileArtwork(result.artwork);
     form.value = {
       name: result.profile?.userInput.name ?? '', world: result.profile?.userInput.world ?? '',
       version: result.profile?.userInput.version ?? '', description: result.profile?.userInput.description ?? '',
@@ -212,6 +236,7 @@ async function saveCharacter(newCharacter = false, draft?: NewCharacterDraft): P
     if (epoch !== generation) return;
     profile.value = result.profile;
     selectedWand.value = null;
+    clearProfileArtwork();
     if (newCharacter) {
       form.value = {
         name: result.profile.userInput.name, world: result.profile.userInput.world,
@@ -422,9 +447,10 @@ function scheduleEnrichmentRefresh(epoch: number): void {
 }
 async function refreshEnrichment(epoch = generation): Promise<void> {
   try {
-    const result = await accountRequest<{ profile: CharacterProfile | null; generatedWand?: unknown }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
+    const result = await accountRequest<{ profile: CharacterProfile | null; generatedWand?: unknown; artwork?: unknown }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
     if (epoch !== generation || !result.profile || result.profile.profileId !== profile.value?.profileId || result.profile.revision !== profile.value.revision) return;
     selectedWand.value = projectGeneratedWand(result.generatedWand);
+    bindProfileArtwork(result.artwork);
     // Refresh server-derived enrichment only; never replace the visitor's in-progress form edits.
     profile.value = { ...profile.value, status: result.profile.status, enrichment: result.profile.enrichment, errorCode: result.profile.errorCode, updatedAt: result.profile.updatedAt };
     scheduleEnrichmentRefresh(epoch);
@@ -495,7 +521,10 @@ onBeforeUnmount(() => {
         <p class="aw-muted">{{ customerCopy.text('customer.correction-guidance') }}</p>
         <AwButton type="button" variant="secondary" :disabled="busy" @click="beginNewCharacter">{{ customerCopy.text('customer.new-character') }}</AwButton>
       </section>
-      <GeneratedWand v-if="profile && selectedWand" :wand="selectedWand" show-name />
+      <GeneratedWand v-if="profile && selectedWand" :wand="selectedWand" show-name
+        :image-url="profileArtwork.artworkUrl.value"
+        :image-pending="!!profileArtworkPath && !profileArtwork.artworkUrl.value && !profileArtwork.artworkError.value"
+        :image-error="profileArtwork.artworkError.value" />
       <details :open="!profile || profile.status === 'needs_clarification'" class="aw-card">
         <summary>{{ customerCopy.text(profile ? 'customer.edit-character' : 'customer.create-first') }}</summary>
     <form class="customer-form" @submit.prevent="saveCharacter(false)">
