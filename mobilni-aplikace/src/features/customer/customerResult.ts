@@ -27,6 +27,8 @@ export interface CustomerResultProjection {
   route: string | null;
   locator: string | null;
   wandPublicationApproved?: boolean;
+  /** Asset ID only; image bytes require a fresh owner-authorized request. */
+  artworkAssetId?: string;
   generatedWand?: GeneratedWand;
   wandGeneration?: { status: string; canRetry: boolean };
 }
@@ -104,6 +106,9 @@ export function projectCustomerResult(value: unknown, expectedSessionId: string)
     route,
     locator: route ? locator : null,
     ...(verifiedOwner && typeof value.wandPublicationApproved === 'boolean' ? { wandPublicationApproved: value.wandPublicationApproved } : {}),
+    ...(route && readiness.hasArtwork === true && projectGeneratedWand(value.generatedWand)
+      && typeof value.artworkAssetId === 'string' && safeUuidPattern.test(value.artworkAssetId)
+      ? { artworkAssetId: value.artworkAssetId } : {}),
     ...(isRecord(value.wandGeneration) && ['queued', 'running', 'ready', 'selected', 'failed', 'unavailable', 'cancelled', 'stale'].includes(String(value.wandGeneration.status))
       ? { wandGeneration: { status: String(value.wandGeneration.status), canRetry: value.wandGeneration.canRetry === true } } : {}),
     ...(verifiedOwner && state !== 'unavailable' && projectGeneratedWand(value.generatedWand) ? { generatedWand: projectGeneratedWand(value.generatedWand)! } : {}),
