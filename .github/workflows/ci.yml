@@ -1,6 +1,6 @@
 name: CI
 run-name: >-
-  ${{ github.event_name == 'workflow_dispatch' && format('CI candidate | {0} | PR {1} | {2} | {3} | project={4}', github.repository, inputs.pr_number || 0, inputs.expected_head_sha || github.sha, inputs.expected_base_sha || github.sha, inputs.project || 'all') || (github.event.pull_request.stack.number && format('CI stack {0} {1} | {2} | PR {3} | {4} | trunk {5} | layer {6}/{7}', github.event.pull_request.stack.number, github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation', github.repository, github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.stack.base.sha, github.event.pull_request.stack.position, github.event.pull_request.stack.size)) || format('CI {0} | {1} | PR {2} | {3} | {4}', github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation', github.repository, github.event.pull_request.number || 0, github.event.pull_request.head.sha || github.sha, github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha) }}
+  ${{ github.event_name == 'workflow_dispatch' && inputs.release_request != '' && format('Main release | {0}', inputs.release_request) || github.event_name == 'workflow_dispatch' && format('CI candidate | {0} | PR {1} | {2} | {3} | project={4}', github.repository, inputs.pr_number || 0, inputs.expected_head_sha || github.sha, inputs.expected_base_sha || github.sha, inputs.project || 'all') || (github.event.pull_request.stack.number && format('CI stack {0} {1} | {2} | PR {3} | {4} | trunk {5} | layer {6}/{7}', github.event.pull_request.stack.number, github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation', github.repository, github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.stack.base.sha, github.event.pull_request.stack.position, github.event.pull_request.stack.size)) || format('CI {0} | {1} | PR {2} | {3} | {4}', github.event.action == 'edited' && !github.event.changes.base && 'metadata' || 'validation', github.repository, github.event.pull_request.number || 0, github.event.pull_request.head.sha || github.sha, github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha) }}
 
 on:
   pull_request:
@@ -10,6 +10,9 @@ on:
     types: [checks_requested]
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Internal main release correlation UUID (empty for manual recovery)
+        type: string
       project:
         description: Project to rebuild for an artifact on the current tree
         type: choice

@@ -33,6 +33,7 @@ vystupy explicitniho buildu aktualniho `main`.
 | Workflow | Ucel |
 | --- | --- |
 | `ci.yml` | PR kontroly, secret scan historie checkoutu, rucni main build |
+| `main-release.yml` | Po kazdem push na main overene CI all a oba podpisy; rucni recovery |
 | `kufr-backend.yml` | Backend/testy, backend-publish a backend-diagnostics |
 | `kufr-firmware.yml` | ESP-IDF host testy a firmware build |
 | `kufr-web.yml` | Web a offline testy |
@@ -40,7 +41,8 @@ vystupy explicitniho buildu aktualniho `main`.
 | `kufr-site.yml` | Jedna Vue aplikace a viewer fixtures bez CAD; kompatibilni nazev artefaktu arcane-site |
 | `kufr-ai-eval.yml` | Pouze offline synteticky corpus a parser |
 | `reuse-build.yml` | Overeni aktualniho main artefaktu pred podpisem |
-| `kufr-ios-sign.yml` | Rucni podepsane Ad Hoc IPA na macOS |
+| `kufr-ios-sign.yml` | Podepsane Ad Hoc IPA na macOS, main controller nebo rucni recovery |
+| `kufr-ios-app-store.yml` | Podepsane App Store IPA na macOS, main controller nebo rucni recovery |
 | `pr-sync.yml` | API-only synchronizace vlastnich PR za private podminky |
 | `dependabot-generate.yml` | Read-only regenerace NuGet lockfiles a nativnich Capacitor pinu |
 | `dependabot-publish.yml` | Overeny API-only commit generovanych souboru do Dependabot vetve |
@@ -128,16 +130,46 @@ nenahrazuje. Provoz privatniho repozitare popisuje jeho `README.md`.
 
 ## Priprava artefaktu a podpis IPA
 
+Od rozhodnuti majitele 24. 10. 2026 kazdy push (vcetne merge) na kanonicky
+`main` spousti **Build current main release**. Hostovany controller pouziva
+jen verejny `GITHUB_TOKEN` s `contents: read` a `actions: write`. Vyvola
+stare `ci.yml` pres `workflow_dispatch` s `project=all`, po jeho uspechu
+postupne `kufr-ios-sign.yml` a `kufr-ios-app-store.yml` se stejnym CI run ID.
+Apple credentials zustavaji jen ve stavajicich podpisovych prostredich;
+controller nema produkcni prostredi, cross-repository token ani SSH.
+
+Controller kontroluje vlastni nemenny SHA a aktualni `main` pred dispatchi,
+behem cekani a po dokonceni. Sdilena concurrency skupina nerusi aktivni
+behy; zastaraly controller skonci s vysledkem `superseded` bez ruseni deti.
+GitHub muze nahradit cekajici concurrency run novejsim; promuje se pouze
+aktualni `main`. Cely controller ceka nejvyse 150 minut, korelace noveho
+behu nejvyse tri minuty. Chybejici, nejednoznacny nebo neuspesny beh zablokuje
+dalsi kroky. Stabilni interni `release_request` UUID a presny run-name
+umoznuji opakovani stejneho controlleru bez duplicitnich deti. Selhane dite
+se automaticky neopakuje; nove rucni spusteni controlleru je novy recovery
+pokus. Po nejiste odpovedi dispatch API controller nezavola dispatch znovu.
+
+Artefakt `main-release-receipt` obsahuje `main-release.json` se schematem 1:
+`repository`, `source_sha`, `controller_run_id`, `controller_run_attempt`,
+`ci_run_id`, `adhoc_run_id`, `app_store_run_id` a `outcome`. Jeho retence je
+14 dni; produktove balicky maji vlastni kratsi retenci. Pouze uspesny
+controller presneho aktualniho main a receipt s `outcome=success` je kandidat
+pro oddelenou privatni automatickou publikaci vcetne TestFlight. Privatni
+orchestrace znovu overuje behy a artefakty; receipt samotny neprokazuje
+produkci. `release_request` je pouze korelace, nikoli opravnujici credential.
+
+Pro rucni zotaveni lze spustit cely controller nebo jednotlive existujici kroky:
+
 1. Po kontrole a slouceni spust zdrojove **CI** na `main` s projektem
    `backend`, `web`, `ios`, `firmware`, `site` nebo `all`. Interni `pr_number`,
    `expected_head_sha` a `expected_base_sha` nech prazdne.
 2. Pro IPA spust **Build signed Kufr IPA** na `main` s ID uspesneho CI,
    ktery obsahuje `web-dist`.
-3. Aktivaci spusti explicitne v privatnim deployment repozitari na `main`.
+3. Pripadnou samostatnou recovery aktivaci spust v privatnim deployment repozitari na `main`.
    IPA publisher dostane ID podepsaneho buildu, ostatni produkty ID CI.
 
 PR artefakt ani artefakt ze slouceneho PR neni promotovatelny. Po prepisu
-historie je nutny novy primy rucni build aktualniho `main`. Verifier kontroluje
+historie je nutny novy primy dispatch build aktualniho `main`. Verifier kontroluje
 kanonicky repozitar i head repozitar, workflow, celkove uspesny
 `workflow_dispatch` na `main`, ID/pokus behu, manifest a presny aktualni
 commit i cely Git tree. Stejny tree s jinym commitem nestaci. API vybere
@@ -149,8 +181,9 @@ Retence CI balicku je jeden den, `signed-ipa` tri dny. `backend-diagnostics`
 obsahuje zkompilovany synteticky testovaci harness bez provider klice,
 produkcnich dat nebo konfigurace. Samotny build nevola placenou AI.
 
-Podpisovy workflow funguje pred i po zverejneni. Vyhradne rucni kanonicky
-`main` pouziva prostredi `ios-signing`. Po overeni webu provede Capacitor
+Podpisovy workflow funguje pred i po zverejneni. Pouze kanonicky dispatch na
+`main` pouziva prostredi `ios-signing` nebo `ios-app-store`; controller zadne
+podpisove secrets necte. Po overeni webu provede Capacitor
 sync, vytvori puvodni ikonu pomoci `scripts/generate-native-assets.mjs`,
 overi pripnuty Xcode a nativni testy. Tesne pred podpisem znovu overi `main`.
 Podpisova tajemstvi patri vyhradne do tohoto prostredi:
@@ -177,13 +210,15 @@ kontroluje source `main` tesne pred aktivaci. Backend zachovava root-owned
 activation helper; web atomickou aktivaci, HTTPS readback a rollback pri
 selhani; OTA root-owned podpisovou autoritu. IPA ani web publisher nebuildi.
 
-Cross-repository `workflow_run` se nepouziva. Kazda publikace, diagnostika,
-provisioning a placeny test vyzaduje explicitni maintainer dispatch. Privatni
-repo nema automaticke PR ani cron spousteni produkcnich jobs. Prostredi
+Cross-repository `workflow_run` se nepouziva. Publikaci uspesneho aktualniho
+main po kazdem merge autorizuje vyse popsana automaticka cesta. Diagnostika,
+provisioning a placeny test nadale vyzaduji explicitni maintainer dispatch.
+Detaily soukromeho controlleru a produkcnich jobs vede privatni README. Prostredi
 `backend-production` seskupuje secrets; neznamena aktivni required reviewers.
 Pro privatni repo na Free/Pro/Team tito reviewers nejsou k dispozici.
-Operator gate tvori rucni dispatch a minimalni write pristup k privatnimu
-repozitaru. Ochrany pri podporovanem tarifu musi spravce skutecne overit.
+Operator recovery gate tvori rucni dispatch a minimalni write pristup k privatnimu
+repozitaru. Automaticka cesta musi overit presny soucasny main a duveryhodne
+zdrojove buildy. Ochrany pri podporovanem tarifu musi spravce skutecne overit.
 
 Migrace registraci, credentials a root-owned OTA verifieru se doklada
 skutecnymi API/runner vysledky; novy kod sam neprokazuje presun ani deployment.
@@ -223,4 +258,5 @@ spravce overit GitHub API; lokalni soubory nejsou dukaz aktivace.
 `--apply` vyzaduje spravcovska opravneni a podporu tarifu.
 
 Build, zverejneni zdroje, release, deployment, placeny AI test a flash desky
-zustavaji odlisne operace. Toto rozdeleni workflow je automaticky nespousti.
+zustavaji odlisne operace. Automaticke main buildy, podpis a nasledne nasazeni
+autorizuje vyse popsana main release cesta. Placenou AI ani flash desky nespousti.
