@@ -65,8 +65,16 @@ internal sealed partial class KeepsakeStore
             var document = Load(connection, transaction, locator);
             var readiness = Readiness(connection, locator, document, transaction);
             var approved = WandPublicationApproved(connection, locator, document, transaction);
+            // The original account owner may display the same canonical base illustration
+            // as the keepsake. Return an asset identifier, never an unauthenticated URL;
+            // every image byte request rechecks the existing owner authorization.
+            var artwork = document.Snapshot.GeneratedWand is null ? null : document.Editions
+                .Where(edition => edition.PublicationState != "private_history")
+                .LastOrDefault(edition => document.Assets.Any(asset => asset.Id == edition.ArtworkAssetId
+                    && asset.Kind == "base_image" && asset.UploadId is null))?.ArtworkAssetId;
             transaction.Commit();
-            return new(1, sessionId, locator, readiness, "originalOwner", true, true, false, document.Snapshot.GeneratedWand, WandPublicationApproved: approved);
+            return new(1, sessionId, locator, readiness, "originalOwner", true, true, false,
+                document.Snapshot.GeneratedWand, WandPublicationApproved: approved, ArtworkAssetId: artwork);
         }
     }
 
