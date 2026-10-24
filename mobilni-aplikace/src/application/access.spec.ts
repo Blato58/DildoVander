@@ -6,6 +6,18 @@ const viewer = { id: 'viewer', displayName: 'Viewer', roles: ['Viewer'] };
 const operator = { id: 'operator', displayName: 'Operator', roles: ['Operator'] };
 
 describe('customer and staff route boundaries', () => {
+  it('grants Tester only testing and Lab routes without production privileges', () => {
+    const tester = { id: 'tester', displayName: 'Tester', roles: ['Tester'] };
+    expect(accessDenial({ requiresAccount: true, tester: true }, tester)).toBeNull();
+    expect(accessDenial({ requiresAccount: true, lab: true }, tester)).toBeNull();
+    expect(accessDenial({ requiresAccount: true, lab: true }, customer)).toBe('staff');
+    expect(accessDenial({ requiresAccount: true, tester: true }, operator)).toBe('tester');
+    expect(accessDenial({ requiresAccount: true, staff: true }, tester)).toBe('staff');
+    expect(accessDenial({ requiresAccount: true, administrator: true }, tester)).toBe('administrator');
+    expect(canEnterStaffArea(tester)).toBe(false);
+    expect(canOperateSuitcase(tester)).toBe(false);
+    expect(accessDenial({ requiresAccount: true, tester: true }, tester, true)).toBe('online');
+  });
   it('allows every signed-in identity into its own customer pages', () => {
     expect(accessDenial({ requiresAccount: true }, customer)).toBeNull();
     expect(accessDenial({ requiresAccount: true }, operator)).toBeNull();

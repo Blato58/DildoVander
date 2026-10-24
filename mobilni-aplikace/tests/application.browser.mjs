@@ -35,7 +35,7 @@ let browser;
 let page;
 const errors = [];
 try {
-  try { browser = await chromium.launch({ ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) }); }
+  try { browser = await chromium.launch({ ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}), ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) }); }
   catch (error) {
     if (process.env.PLAYWRIGHT_CHANNEL || process.platform !== 'win32') throw error;
     browser = await chromium.launch({ channel: 'chrome' });

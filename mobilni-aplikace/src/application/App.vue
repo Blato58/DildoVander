@@ -29,6 +29,11 @@ const navigation = computed(() => customerAccount.value ? [
   { to: '/me/conversation', label: customerCopy.text('shell.nav-conversation'), symbol: '◉' },
   { to: '/me/keepsakes', label: customerCopy.text('shell.nav-keepsakes'), symbol: '▤' },
   { to: '/me/account', label: customerCopy.text('shell.nav-account'), symbol: '⚙' },
+] : account.value?.roles.includes('Tester') ? [
+  { to: '/testing-sessions', label: 'Testovací relace', symbol: '◎' },
+  { to: '/persona-lab', label: 'Persona Lab', symbol: '◌' },
+  { to: '/workshop', label: 'Dílna', symbol: '◇' },
+  { to: '/settings', label: customerCopy.text('shell.nav-account'), symbol: '⚙' },
 ] : canEnterStaffArea(account.value) ? [
   ...(canOperateSuitcase(account.value) ? [{ to: '/tonight', label: 'Dnes', symbol: '◉' }] : []),
   { to: '/suitcase', label: 'Kufr', symbol: '▣' },

@@ -33,6 +33,8 @@ enum AccountTransportPolicy {
     }
 
     static func accountResponseLimit(path: String, method: String) -> Int {
+        if method == "GET", path.contains("/keepsakes/"), path.contains("/assets/"),
+           testingSessions(path: path, method: method) { return 32 * 1024 * 1024 }
         if method == "GET" && (path == "/app/v1/customer/memory" || accountDataExportDownload(path: path, method: method)) {
             return 32 * 1024 * 1024
         }
@@ -391,6 +393,36 @@ enum AccountTransportPolicy {
             && UUID(uuidString: segments[5]) != nil && segments[6] == "cancel"
     }
 
+    static func testingSessions(path: String, method: String) -> Bool {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 4, Array(parts.prefix(4)) == ["", "app", "v1", "testing-sessions"] else { return false }
+        let route = Array(parts.dropFirst(4))
+        func id(_ value: String) -> Bool { value.count == 32 && value.allSatisfy { "0123456789abcdef".contains($0) } }
+        if route.isEmpty { return ["GET", "POST"].contains(method) }
+        if route == ["catalog"] { return method == "GET" }
+        if route[0] == "characters" {
+            if route.count == 1 { return ["GET", "POST"].contains(method) }
+            guard id(route[1]) else { return false }
+            if route.count == 2 { return ["PUT", "DELETE"].contains(method) }
+            return route.count == 3 && route[2] == "enrich" && method == "POST"
+        }
+        guard id(route[0]) else { return false }
+        if route.count == 1 { return ["GET", "DELETE"].contains(method) }
+        if route.count == 2 {
+            if route[1] == "mode" { return method == "PUT" }
+            if ["duels", "diagnostics"].contains(route[1]) && method == "GET" { return true }
+            return ["character", "select", "generate", "retry-generation", "fault", "cancel", "end", "duels", "portrait"].contains(route[1]) && method == "POST"
+        }
+        if route.count == 3, route[1] == "duels", UUID(uuidString: route[2]) != nil { return method == "GET" }
+        if route.count == 4, route[1] == "duels", UUID(uuidString: route[2]) != nil {
+            return ["start", "move", "narrate", "advance"].contains(route[3]) && method == "POST"
+        }
+        if route.count == 4, route[1] == "keepsakes", UUID(uuidString: route[2]) != nil,
+           route[3] == "photo" { return method == "POST" }
+        return route.count == 5 && route[1] == "keepsakes" && UUID(uuidString: route[2]) != nil
+            && route[3] == "assets" && UUID(uuidString: route[4]) != nil && method == "GET"
+    }
+
     static func personaLab(path: String, method: String) -> Bool {
         let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 5, Array(parts.prefix(4)) == ["", "app", "v1", "persona-lab"] else { return false }
@@ -503,6 +535,7 @@ enum AccountTransportPolicy {
                 && deviceId.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") }
         }
         if path.hasPrefix("/app/v1/customer/") { return customer(path: path, method: method) }
+        if path.hasPrefix("/app/v1/testing-sessions") { return testingSessions(path: path, method: method) }
         if path.hasPrefix("/app/v1/persona-lab") { return personaLab(path: path, method: method) }
         if path == "/v1/evenings" { return ["GET", "POST"].contains(method) }
         let evening = path.split(separator: "/").map(String.init)
@@ -962,7 +995,7 @@ struct NativeOfflineAccountSession {
               let id = account["id"] as? String, !id.isEmpty, id.utf8.count <= 128,
               let name = account["displayName"] as? String, name.utf8.count <= 320,
               let roles = account["roles"] as? [String], !roles.isEmpty, roles.count <= 5,
-              roles.allSatisfy({ ["Owner", "Administrator", "Operator", "Viewer", "Customer"].contains($0) }),
+              roles.allSatisfy({ ["Owner", "Administrator", "Operator", "Viewer", "Customer", "Tester"].contains($0) }),
               let expiry = object["expiresAt"] as? NSNumber,
               expiry.doubleValue.isFinite, expiry.doubleValue > now,
               binding.utf8.count == 64 else { return nil }

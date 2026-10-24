@@ -27,6 +27,10 @@ remain the authority for local snapshots, lease and command reconciliation.
 - `src/features/persona-lab/PersonaLabView.vue` owns account-scoped persona
   testing, evaluations and version management. Its backend feature keeps test
   memory separate and enforces administrator-only production publication.
+- `src/features/testing-sessions/TestingSessionsView.vue` composes the existing
+  provider transports and domain services in durable Tester-owned virtual
+  sessions. [Testing execution](../contracts/testing-sessions.md) preserves
+  physical authorization and separates provider evidence from simulated hardware.
 - `src/features/archive/ArchiveView.vue` and `KeepsakeView.vue` own public and
   private guest journeys. Fragment claims are captured and removed before
   application assets or router navigation can disclose them.

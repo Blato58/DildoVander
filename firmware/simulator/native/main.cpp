@@ -195,7 +195,7 @@ class Host final {
       const bool accepted = media_.Handle(words, payload, extension_, attachment_, &rejectionCode);
       return Snapshot(accepted, accepted ? "media-accepted" : rejectionCode.empty() ? "media-rejected" : rejectionCode);
     }
-    if (media_.Busy() && (command == "TEXT" || command == "DANCE" || command == "INTEGRATION_PREPARE"))
+    if (media_.Busy() && (command == "TEXT" || command == "ACCEPTED_PROPOSAL" || command == "DANCE" || command == "INTEGRATION_PREPARE"))
       return Snapshot(false, "media-busy");
     if (command == "INTEGRATION_CANCEL" && words.size() == 1) {
       integration_ = Integration{};
@@ -250,11 +250,11 @@ class Host final {
     if (command == "INSPECT" && words.size() == 1) {
       return Snapshot(Inspect(), "inspection");
     }
-    if (command == "TEXT" && words.size() == 4) {
+    if ((command == "TEXT" || command == "ACCEPTED_PROPOSAL") && words.size() == 4) {
       uint64_t slot = 0;
       if (!Uuid(words[1]) || !Decimal(words[2], slot) || slot < 1 || slot > 6 ||
           (words[3] != "main" && words[3] != "short")) return Snapshot(false, "invalid-proposal");
-      return Start(words[1], static_cast<uint8_t>(slot), words[3] == "short");
+      return Start(words[1], static_cast<uint8_t>(slot), words[3] == "short", command == "ACCEPTED_PROPOSAL");
     }
     if (command == "FAULT" && words.size() == 3) {
       uint64_t slot = 0;
@@ -336,7 +336,7 @@ class Host final {
     return true;
   }
 
-  std::string Start(const std::string& id, uint8_t slot, bool shortVariant) {
+  std::string Start(const std::string& id, uint8_t slot, bool shortVariant, bool acceptedBackendDecision = false) {
     const CommandJournal::Lookup lookup = journal_.Find(id, slot, Fingerprint(shortVariant));
     if (lookup != CommandJournal::Lookup::Missing) {
       return Snapshot(false, lookup == CommandJournal::Lookup::Same ? "duplicate" : "operation-conflict");
@@ -348,7 +348,7 @@ class Host final {
     TurnCorrelation expected;
     expected.deviceId = instance_;
     expected.bootId = boot_;
-    expected.conversationId = "native-synthetic-conversation";
+    expected.conversationId = acceptedBackendDecision ? "backend-accepted-test-decision" : "native-synthetic-conversation";
     expected.clientTurnId = id;
     expected.generation = snapshot.generation;
     expected.deviceRevision = snapshot.deviceRevision;
@@ -357,7 +357,9 @@ class Host final {
     observed.kind = "turn";
     observed.status = TurnOperationStatus::Completed;
     observed.correlation = expected;
-    observed.reply = "Synthetic native proposal";
+    // The integration transport has already accepted the backend decision. It
+    // supplies no dialogue: provider content never comes from this hardware port.
+    observed.reply = acceptedBackendDecision ? "" : "Synthetic native proposal";
     observed.decision = "propose";
     observed.hasProposal = true;
     TurnProposal& proposal = observed.proposal;
@@ -380,9 +382,9 @@ class Host final {
     char formatted[32]{};
     std::strftime(formatted, sizeof(formatted), "%Y-%m-%dT%H:%M:%SZ", &utc);
     proposal.expiresAt = formatted;
-    if (EvaluateTurnOperationWithProposal(id, expected, snapshot.generation,
+    if ((!acceptedBackendDecision && EvaluateTurnOperationWithProposal(id, expected, snapshot.generation,
         snapshot.deviceRevision, snapshot.catalogVersion, snapshot.readyMask,
-        utcNow, observed) != TurnPollDecision::ProposalReady ||
+        utcNow, observed) != TurnPollDecision::ProposalReady) ||
         !pending_.Store(proposal, snapshot, state_, now_, ProposalRemainingMs(proposal, utcNow))) {
       return Snapshot(false, "proposal-guard-rejected");
     }

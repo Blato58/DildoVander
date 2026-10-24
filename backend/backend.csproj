@@ -27,4 +27,14 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />
   </ItemGroup>
 
+  <!-- Bundle the existing portable hardware twin; the account never starts an
+       emulator or supplies an executable path. No ESP-IDF/GPIO build is involved. -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <TestingTwinSource Include="../firmware/simulator/native/*.cpp;../firmware/simulator/native/*.h;../firmware/src/features/**/*.cpp;../firmware/src/features/**/*.h;../firmware/simulator/native/build_host.py" />
+    <Content Include="$(IntermediateOutputPath)testing-native/kufr-native-twin" Link="testing-native/kufr-native-twin" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="BuildTestingHardwareTwin" BeforeTargets="BeforeBuild" Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Inputs="@(TestingTwinSource)" Outputs="$(IntermediateOutputPath)testing-native/kufr-native-twin">
+    <Exec Command="python3 &quot;$(MSBuildProjectDirectory)/../firmware/simulator/native/build_host.py&quot; --output &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)testing-native/kufr-native-twin&quot;" />
+  </Target>
 </Project>

@@ -49,7 +49,7 @@ internal static class PersonaLabEndpoints
                 // Authenticated account principals, including Viewer, may test without a device grant.
                 if (http.User.FindFirstValue(ClaimTypes.NameIdentifier) is not { Length: > 0 })
                 { return ApiProblem.Create(http, 401, "account_required"); }
-                if (!AccountRoles.IsStaff(http.User))
+                if (!AccountRoles.CanUsePersonaLab(http.User))
                 { return ApiProblem.Create(http, 403, "persona_lab_permission_required"); }
                 return await next(invocation);
             }
@@ -78,7 +78,7 @@ internal static class PersonaLabEndpoints
             var denied = await AdminAsync(http);
             return denied ?? Results.Json(store.Publish(request.RevisionId, request.ExpectedActiveRevisionId, rollback: true));
         });
-        group.MapGet("/sessions", (HttpContext http, PersonaLabStore store) => Results.Json(store.Sessions(Owner(http))));
+        group.MapGet("/sessions", (HttpContext http, PersonaLabStore store) => Results.Json(store.Sessions(Owner(http)).Where(session => session.Testing is null)));
         group.MapGet("/suites", (HttpContext http, PersonaLabStore store) => Results.Json(store.Suites(Owner(http))));
         group.MapGet("/suites/{id}", (HttpContext http, string id, PersonaLabStore store) => Results.Json(store.Suite(Owner(http), id)));
         group.MapPost("/suites", async (HttpContext http, LabSuiteRequest request, PersonaLabSuites suites) =>
@@ -94,19 +94,26 @@ internal static class PersonaLabEndpoints
         group.MapGet("/sessions/{id}/context", (HttpContext http, string id, PersonaLabStore store) =>
         {
             var session = store.Session(Owner(http), id);
+            if (session.Testing is not null)
+            { return Results.Json(new { synthetic = false, virtualHardware = true, context = session.Testing }); }
             return Results.Json(new { synthetic = true, fixture = session.MemorySnapshot ?? LabContract.Fixtures.Single(x => x.Id == session.FixtureId) });
         });
         group.MapDelete("/sessions/{id}", (HttpContext http, string id, PersonaLabRuntime runtime) =>
         {
+            RequireStandalone(runtime.Detail(Owner(http), id));
             runtime.Delete(Owner(http), id);
             return Results.NoContent();
         });
         group.MapPost("/sessions/{id}/turns", async (HttpContext http, string id, LabTurnRequest request, PersonaLabRuntime runtime) =>
             Results.Json(await runtime.TurnAsync(Owner(http), id, request.Text, http.RequestAborted, platform: request.Platform)));
-        group.MapPost("/sessions/{id}/end", (HttpContext http, string id, PersonaLabRuntime runtime) => Results.Json(runtime.End(Owner(http), id)));
+        group.MapPost("/sessions/{id}/end", (HttpContext http, string id, PersonaLabRuntime runtime) =>
+        {
+            RequireStandalone(runtime.Detail(Owner(http), id));
+            return Results.Json(runtime.End(Owner(http), id));
+        });
         group.MapPut("/sessions/{id}/evaluation", (HttpContext http, string id, LabEvaluation request, PersonaLabStore store) =>
             Results.Json(store.Evaluate(Owner(http), id, request)));
-        group.MapGet("/analytics", (HttpContext http, PersonaLabStore store) => Results.Json(LabAnalytics.Summarize(store.Sessions(Owner(http)))));
+        group.MapGet("/analytics", (HttpContext http, PersonaLabStore store) => Results.Json(LabAnalytics.Summarize(store.Sessions(Owner(http)).Where(session => session.Testing is null).ToArray())));
         group.MapGet("/diagnostics", (HttpContext http, PersonaLabStore store, PersonaLabRuntime runtime) =>
             AccountRoles.IsAdmin(http.User)
                 ? Results.Json(new { storage = store.Diagnostics(), activeConnections = runtime.ActiveCount,
@@ -126,6 +133,7 @@ internal static class PersonaLabEndpoints
             if (socketOrigin != "capacitor://localhost" && !configuration.AllowedOrigins.Contains(socketOrigin, StringComparer.Ordinal))
             { throw new LabException(403, "lab_socket_origin_required"); }
             var admission = await AdmissionAsync(http, id, socketOrigin, request.Recovery, request.Platform);
+            admission = admission with { TextInputOnly = request.TextInputOnly };
             var ticket = registry.Mint(admission);
             var path = "/app/v1/persona-lab/sessions/" + id + "/live?ticket=" + ticket.Token;
             // A configured allowed origin, rather than Host/forwarded Host, owns the credential destination.
@@ -138,6 +146,10 @@ internal static class PersonaLabEndpoints
     }
     private static string Owner(HttpContext context) => context.User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? throw new LabException(401, "account_required");
+    private static void RequireStandalone(LabSession session)
+    {
+        if (session.Testing is not null) { throw new LabException(409, "testing_session_managed_elsewhere"); }
+    }
     private static async Task<IResult?> AdminAsync(HttpContext context)
     {
         if (!AccountRoles.IsAdmin(context.User)) { return ApiProblem.Create(context, 403, "administrator_required"); }
@@ -151,8 +163,13 @@ internal static class PersonaLabEndpoints
         var db = scope.ServiceProvider.GetRequiredService<AccountDatabase>();
         var session = await db.Sessions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == admission.AccountSessionId, token);
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == admission.Owner, token);
-        return session is not null && session.UserId == admission.Owner && session.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-            && user is not null && !user.Disabled && user.SecurityStamp == admission.SecurityStamp;
+        if (session is null || session.UserId != admission.Owner || session.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            || user is null || user.Disabled || user.SecurityStamp != admission.SecurityStamp) { return false; }
+        var principal = await scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<AccountUser>>().CreateAsync(user);
+        if (!AccountRoles.CanUsePersonaLab(principal)) { return false; }
+        if (admission.SessionId == "suite") { return true; }
+        var lab = scope.ServiceProvider.GetRequiredService<PersonaLabStore>().Session(admission.Owner, admission.SessionId);
+        return lab.Testing is null || principal.IsInRole(AccountRoles.Tester);
     }
     private static async Task<LabAdmission> AdmissionAsync(HttpContext http, string sessionId, string origin,
         bool recovery = false, string? platform = null)
@@ -185,7 +202,8 @@ internal static class PersonaLabEndpoints
             {
                 await runtime.VoiceAsync(admission.Owner, id, socket,
                     token => AuthorizedAsync(http.RequestServices, admission, token), http.RequestAborted, admission.Recovery,
-                    acknowledgedPlayback: http.Request.Query["playback"] == "1", platform: admission.Platform);
+                    acknowledgedPlayback: http.Request.Query["playback"] == "1", platform: admission.Platform,
+                    textInputOnly: admission.TextInputOnly);
                 await sender.JsonAsync(new { type = "session", session = runtime.Detail(admission.Owner, id) }, http.RequestAborted);
                 await sender.JsonAsync(new { type = "ended" }, http.RequestAborted);
             }

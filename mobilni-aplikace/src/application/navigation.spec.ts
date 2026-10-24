@@ -3,7 +3,7 @@ import { safeReturnPath } from './navigation';
 
 describe('customer and staff sign-in return paths', () => {
   it('preserves local customer and staff destinations, including their query and fragment', () => {
-    for (const path of ['/me', '/me/', '/me/character', '/me/conversation?resume=1', '/me/keepsakes#saved', '/me/account', '/admin/customer-sessions']) {
+    for (const path of ['/testing-sessions?session=test-1', '/me', '/me/', '/me/character', '/me/conversation?resume=1', '/me/keepsakes#saved', '/me/account', '/admin/customer-sessions']) {
       expect(safeReturnPath(path)).toBe(path);
     }
   });

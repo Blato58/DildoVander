@@ -71,12 +71,12 @@ export class PersonaLabClient {
     return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/turns`, 'POST', { text, platform });
   }
   end(id: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/end`, 'POST', {}); }
-  ticket(id: string, recovery = false) {
+  ticket(id: string, recovery = false, textInputOnly = false) {
     const platform = labClientPlatform();
     if (!platform) return Promise.reject(new LabError('client_platform_unsupported', 0));
     const socketOrigin = window.location.protocol === 'capacitor:' && window.location.hostname === 'localhost'
       ? 'capacitor://localhost' : window.location.origin;
-    return this.request<SocketTicket>(`/sessions/${encodeURIComponent(id)}/socket-ticket`, 'POST', { socketOrigin, recovery, platform });
+    return this.request<SocketTicket>(`/sessions/${encodeURIComponent(id)}/socket-ticket`, 'POST', { socketOrigin, recovery, platform, ...(textInputOnly ? {textInputOnly:true} : {}) });
   }
   evaluate(id: string, evaluation: Evaluation) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/evaluation`, 'PUT', evaluation); }
   attachImage(id: string, dataBase64: string) { return this.request<LabSession>(`/sessions/${encodeURIComponent(id)}/image`, 'POST', { mimeType: 'image/jpeg', dataBase64, consent: true }); }

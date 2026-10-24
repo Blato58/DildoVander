@@ -105,6 +105,26 @@ describe('bounded audio playback', () => {
   });
   afterEach(() => { voice.dispose(); meta.remove(); vi.unstubAllGlobals(); vi.useRealTimers(); });
   const ready = (playbackMode = 'acknowledged') => event({ type: 'ready', playbackMode });
+  it('waits for actual typed PCM drain after text_ready before returning to listening',()=>{
+    event({type:'ready',playbackMode:'stream',inputMode:'text'});
+    expect(voice.sendText('Psaná zpráva')).toBe(true);expect(observer.phase).toHaveBeenLastCalledWith('waiting');
+    message(new Int16Array(4800).fill(100).buffer);event({type:'text_ready'});
+    expect(observer.phase).toHaveBeenLastCalledWith('speaking');advance(.2);
+    expect(observer.phase).toHaveBeenLastCalledWith('listening');expect(observer.error).not.toHaveBeenCalled();
+    expect(voice.sendText('Další skutečný tah')).toBe(true);
+  });
+  it('mutes assistant output independently while preserving capture, playback acknowledgements and typed input', () => {
+    ready();
+    voice.setOutputEnabled(false);
+    const gain = (voice as unknown as { outputGain: {gain:{value:number}} }).outputGain;
+    expect(gain.gain.value).toBe(0);
+    start(); message(new Int16Array(4800).fill(500).buffer); end(4800); advance(.2);
+    expect(controls('playback_done')).toEqual([{type:'playback_done',playbackId:'a',playedSamples:4800}]);
+    expect(stopTrack).not.toHaveBeenCalled();
+    expect(voice.sendText('Pokračuj')).toBe(true);
+    expect(controls('text')).toEqual([{type:'text',text:'Pokračuj'}]);
+    voice.setOutputEnabled(true); expect(gain.gain.value).toBe(1);
+  });
   it('accepts thirty seconds produced faster than a healthy playback clock and drains every ordered sample', () => {
     ready(); start();
     const expected: number[] = [];
@@ -354,5 +374,31 @@ describe('voice lifecycle', () => {
       expect(observer.phase).toHaveBeenLastCalledWith('ended');
       expect(stop).toHaveBeenCalledOnce(); expect(socket.close).toHaveBeenCalledOnce(); expect(close).toHaveBeenCalledOnce();
     } finally { meta.remove(); vi.unstubAllGlobals(); }
+  });
+});
+
+describe('microphone-free real audio output transport',()=>{
+  afterEach(()=>vi.unstubAllGlobals());
+  it('opens playback and typed input without inspecting mediaDevices or initializing capture',async()=>{
+    const microphone=vi.fn(); const worklet=vi.fn();let receive!:(data:unknown)=>void;const send=vi.fn();
+    Object.defineProperty(navigator,'mediaDevices',{configurable:true,get:microphone});
+    vi.stubGlobal('AudioWorkletNode',worklet);
+    vi.stubGlobal('AudioContext',class{
+      state='running';sampleRate=24000;currentTime=0;destination={};onstatechange=null;
+      resume=async()=>{};close=async()=>{};createGain=()=>({gain:{value:1},connect:vi.fn(),disconnect:vi.fn()});
+    });
+    vi.stubGlobal('WebSocket',class{static OPEN=1;readyState=1;binaryType='';bufferedAmount=0;onmessage:((event:{data:unknown})=>void)|null=null;onclose=null;onerror=null;send=send;close=vi.fn();constructor(){receive=data=>this.onmessage?.({data});}});
+    const observer:VoiceObserver={phase:vi.fn(),transcript:vi.fn(),turn:vi.fn(),session:vi.fn(),error:vi.fn(),closed:vi.fn(),providerReady:vi.fn()};
+    const voice=new LabVoice(observer);
+    await voice.connect(async()=>({url:'wss://lab.example/app/v1/persona-lab/sessions/test/live?ticket=one',path:'',expiresAt:''}),'test','https://lab.example',{capture:false});
+    receive(JSON.stringify({type:'ready',playbackMode:'stream',inputMode:'text'}));
+    expect(observer.providerReady).not.toHaveBeenCalled();
+    expect(voice.sendText('Ahoj z desktopu bez mikrofonu')).toBe(true);
+    expect(send).toHaveBeenCalledWith(JSON.stringify({type:'text',text:'Ahoj z desktopu bez mikrofonu'}));
+    receive(JSON.stringify({type:'provider_ready',providerSessionId:'actual-provider-session'}));
+    expect(observer.providerReady).toHaveBeenCalledWith('actual-provider-session');
+    expect(microphone).not.toHaveBeenCalled();expect(worklet).not.toHaveBeenCalled();expect(observer.error).not.toHaveBeenCalled();
+    voice.dispose();
+    Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:undefined});
   });
 });
