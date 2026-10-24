@@ -20,6 +20,8 @@ namespace Kufr.Backend.Features.TestingSessions;
 internal sealed class TestingResources : IDisposable
 {
     private readonly ConcurrentDictionary<string, CharacterProfileStore> profiles = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CharacterProfileStore> profileStoresByPath = new(StringComparer.OrdinalIgnoreCase);
+    private readonly TestingSessionStore sessionStore;
     private readonly OpenAiWandGenerationProvider wandProvider;
     private readonly OpenAiVectorMemoryProvider vectorProvider;
     private readonly TestingDuelIdentities duelIdentities;
@@ -29,6 +31,7 @@ internal sealed class TestingResources : IDisposable
     private readonly ICharacterEnrichmentProvider? characterOverride;
     internal IConfiguration Configuration { get; }
     internal string Root { get; }
+    internal TestingSessionStore SessionsStore => sessionStore;
     internal OperationJournal Journal { get; }
     internal EveningMemoryStore MemoryStore { get; }
     internal HybridMemoryService HybridMemory { get; }
@@ -59,6 +62,7 @@ internal sealed class TestingResources : IDisposable
         Root = Path.GetFullPath((configuration["Backend:DatabasePath"]
             ?? throw new InvalidOperationException("Backend:DatabasePath missing.")) + ".testing");
         Directory.CreateDirectory(Root);
+        sessionStore = new TestingSessionStore(Root);
         // Copy only service configuration needed by this graph. Physical device
         // secrets, production grants, twin targets and deployment controls are
         // never available to the virtual-device composition.
@@ -108,35 +112,80 @@ internal sealed class TestingResources : IDisposable
         if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(characterId))
             throw new CharacterException("character_not_found", 404);
         var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(owner + ":" + characterId)));
-        return profiles.GetOrAdd(key, id => new CharacterProfileStore(Path.Combine(Root, "characters", id)));
+        return profiles.GetOrAdd(key, id =>
+        {
+            var path = Path.Combine(Root, "characters", id);
+            return profileStoresByPath.GetOrAdd(path, _ => new CharacterProfileStore(path));
+        });
     }
 
-    internal async Task<CharacterProfile> EnrichAsync(string owner, string characterId, CancellationToken token)
+    internal async Task<bool> ProcessNextCharacterEnrichmentAsync(CancellationToken token)
     {
-        var store = Profiles(owner, characterId);
-        var job = await store.ClaimAsync(token);
-        if (job is null) return await store.ReadAsync(owner, token) ?? throw new CharacterException("character_not_found", 404);
-        if (job.AccountId != owner) throw new CharacterException("character_not_found", 404);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(45));
-        using var realProvider = characterOverride is null ? new OpenAiCharacterEnrichmentProvider(Configuration, store) : null;
-        try
+        var charactersRoot = Path.Combine(Root, "characters");
+        if (!Directory.Exists(charactersRoot)) return false;
+
+        foreach (var databasePath in Directory.EnumerateFiles(charactersRoot, "customer-characters.sqlite", SearchOption.AllDirectories))
         {
-            var enrichment = await (characterOverride ?? realProvider!).EnrichAsync(job, timeout.Token);
-            timeout.Token.ThrowIfCancellationRequested();
-            if (!await store.CanDispatchAsync(job, token)) throw new CharacterException("character_revision_conflict", 409);
-            if (!await store.CompleteAsync(job, enrichment, null, token)) throw new CharacterException("character_revision_conflict", 409);
-        }
-        catch (Exception error) when (error is not OutOfMemoryException)
-        {
-            var code = error is CharacterException character ? character.Code
-                : error is OperationCanceledException ? "character_provider_timeout"
-                : ProviderErrorCode(error, "character_provider_error");
-            await store.CompleteAsync(job, null, code, CancellationToken.None);
             token.ThrowIfCancellationRequested();
-            throw new CharacterException(code, error is CharacterException known ? known.Status : 502);
+            var directory = Path.GetDirectoryName(databasePath)!;
+            var store = profileStoresByPath.GetOrAdd(directory, path => new CharacterProfileStore(path));
+            var job = await store.ClaimAsync(token);
+            if (job is null) continue;
+
+            if (job.Attempt > 3)
+            {
+                await store.CompleteAsync(job, null, "character_job_interrupted", token);
+                return true;
+            }
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(45));
+            using var provider = characterOverride is null ? new OpenAiCharacterEnrichmentProvider(Configuration, store) : null;
+            try
+            {
+                if (!await store.CanDispatchAsync(job, timeout.Token)) return true;
+                Task<CharacterEnrichment>? pending = null;
+                var dispatched = sessionStore.TryStartUnlessFenced(job.AccountId,
+                    () => pending = (characterOverride ?? provider!).EnrichAsync(job, timeout.Token));
+                if (!dispatched)
+                {
+                    await store.FenceAccountDeletionAsync(job.AccountId, CancellationToken.None);
+                    return true;
+                }
+                var enrichment = await pending!;
+                timeout.Token.ThrowIfCancellationRequested();
+                if (sessionStore.IsFenced(job.AccountId))
+                {
+                    await store.FenceAccountDeletionAsync(job.AccountId, CancellationToken.None);
+                    return true;
+                }
+                await store.CompleteAsync(job, enrichment, null, timeout.Token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                var transient = error is HttpRequestException or OperationCanceledException
+                    || error is ClientResultException response && (response.Status is 408 or 429 || response.Status >= 500);
+                if (transient && job.Attempt < 3)
+                {
+                    await store.RetryAsync(job, token);
+                }
+                else
+                {
+                    var code = error is CharacterException character ? character.Code
+                        : error is OperationCanceledException ? "character_provider_timeout"
+                        : ProviderErrorCode(error, "character_provider_error");
+                    await store.CompleteAsync(job, null, code, token);
+                }
+            }
+
+            return true;
         }
-        return await store.ReadAsync(owner, token) ?? throw new CharacterException("character_not_found", 404);
+
+        return false;
     }
 
     internal async Task GenerateKeepsakeAsync(string keepsakeId, CancellationToken token)

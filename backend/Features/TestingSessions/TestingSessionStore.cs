@@ -83,8 +83,20 @@ internal sealed class TestingSessionStore
     }
     internal void Fence(string owner)
     {
-        using var c=Open();using var cmd=c.CreateCommand();cmd.CommandText="INSERT OR IGNORE INTO testing_owner_fences VALUES($owner)";
-        cmd.Parameters.AddWithValue("$owner",owner);cmd.ExecuteNonQuery();
+        lock(gate)
+        {
+            using var c=Open();using var cmd=c.CreateCommand();cmd.CommandText="INSERT OR IGNORE INTO testing_owner_fences VALUES($owner)";
+            cmd.Parameters.AddWithValue("$owner",owner);cmd.ExecuteNonQuery();
+        }
+    }
+    internal bool TryStartUnlessFenced(string owner,Action start)
+    {
+        lock(gate)
+        {
+            if(IsFenced(owner))return false;
+            start();
+            return true;
+        }
     }
     internal void PurgeOwnerContent(string owner)
     {

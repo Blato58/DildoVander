@@ -5,6 +5,7 @@ using Kufr.Backend.Features.PersonaLab;
 using Kufr.Backend.Features.Realtime;
 using Kufr.Backend.Features.TestingSessions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Data.Sqlite;
 
 internal static class TestingCharacterRaceTests
 {
@@ -24,18 +25,20 @@ internal static class TestingCharacterRaceTests
             using var hardware=new TestingHardwareAdapter(config);
             var service=new TestingSessionService(resources,lab,runtime,hardware,TimeProvider.System);
             var character=await service.SaveCharacterAsync("owner",null,new(new("Original","Library"),true,true),default);
-            var pending=service.EnrichAsync("owner",character.Id,true,default);
+            var pending=await service.EnrichAsync("owner",character.Id,true,default);
+            if(pending.Profile.Status!="queued")throw new InvalidOperationException("Enrichment request did not return while queued.");
+            var processing=resources.ProcessNextCharacterEnrichmentAsync(default);
             await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
             var withdrawn=await service.SaveCharacterAsync("owner",character.Id,
                 new(new("Corrected","Library"),false,false,character.Profile.Revision),default);
             provider.Continue.SetResult();
-            try { await pending; } catch(CharacterException) { }
+            await processing;
             var current=service.Characters("owner").Single();
             if(current.LongTermConsent || current.Profile.Revision<withdrawn.Profile.Revision || current.Profile.UserInput.Name!="Corrected")
                 throw new InvalidOperationException("Late enrichment restored withdrawn consent or stale profile.");
             Console.WriteLine("Testing character enrichment race preserves withdrawn consent and latest profile (controlled provider).");
         }
-        finally { Directory.Delete(root,true); }
+        finally { SqliteConnection.ClearAllPools(); Directory.Delete(root,true); }
     }
     private sealed class HeldEnrichment:ICharacterEnrichmentProvider
     {

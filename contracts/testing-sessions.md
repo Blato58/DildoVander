@@ -22,6 +22,18 @@ state. Realtime tickets retain the existing one-use, short-lived, origin/account
 session/security-stamp constraints; reconnect uses actual retained history.
 Client generations/AbortSignal reject stale work after account/session changes.
 
+Saving a test character with OpenAI consent durably queues enrichment in the
+isolated character store. Name and world are sufficient; description/version are
+optional. The enrich endpoint returns promptly and ensures queued/running work
+without duplicating it. Character reads expose the current background status and
+result. Clients select the latest profile before beginning a conversation; later
+enrichment does not change an already started conversation's snapshot.
+
+After a failed text request the client reads the saved conversation, since the
+server may have persisted the user turn before provider failure. It never replays
+the mutation on refresh, and blocks a new HTTP turn while conversationActive is
+reported by the server.
+
 The existing Lab session gets a server-only Testing context and bridge. The
 public Lab session request cannot supply that context. Managed session end and
 delete use the Testing API, not the ordinary Lab lifecycle. Production publication,

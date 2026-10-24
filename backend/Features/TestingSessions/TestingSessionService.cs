@@ -25,11 +25,21 @@ internal sealed partial class TestingSessionService
         TestingHardwareAdapter hardware,TimeProvider clock)
     {
         this.resources=resources;this.lab=lab;this.runtime=runtime;this.hardware=hardware;this.clock=clock;
-        store=new(resources.Root);
+        store=resources.SessionsStore;
         resources.ResolveDuelIdentity=ResolveDuelIdentity;
     }
     internal TestingSession[] Sessions(string owner)=>store.List<TestingSession>(owner,"session").OrderByDescending(x=>x.CreatedAt).ToArray();
     internal TestingCharacter[] Characters(string owner)=>store.List<TestingCharacter>(owner,"character");
+    internal async Task<TestingCharacter[]> CharactersAsync(string owner,CancellationToken token)
+    {
+        var characters=Characters(owner);
+        foreach(var character in characters)
+        {
+            var profile=await resources.Profiles(owner,character.Id).ReadAsync(owner,token);
+            if(profile is not null)StoreEnrichedCharacter(owner,character.Id,profile);
+        }
+        return Characters(owner);
+    }
     internal TestingSession Read(string owner,string id)=>store.Read<TestingSession>(owner,"session",id);
     internal TestingSession RequireOpen(string owner,string id)
     {
@@ -107,23 +117,22 @@ internal sealed partial class TestingSessionService
         if(previous.Status is not("queued" or "running"))
         {
             previous=await profiles.CorrectAsync(owner,new(previous.Revision,previous.ProfileId,true),token);
-            StoreEnrichedCharacter(owner,id,previous);
         }
-        CharacterProfile profile;
-        try{profile=await resources.EnrichAsync(owner,id,token);}
-        catch{var failed=await resources.Profiles(owner,id).ReadAsync(owner,CancellationToken.None);if(failed is not null)StoreEnrichedCharacter(owner,id,failed);throw;}
-        return StoreEnrichedCharacter(owner,id,profile);
+        return StoreEnrichedCharacter(owner,id,previous);
     }
-    private TestingCharacter StoreEnrichedCharacter(string owner,string id,CharacterProfile profile)
+    internal TestingCharacter StoreEnrichedCharacter(string owner,string id,CharacterProfile profile)
     {
         lock(gate)
         {
             var latest=store.Read<TestingCharacter>(owner,"character",id);
             if(latest.Profile.Revision>profile.Revision)return latest;
+            if(latest.Profile.Revision==profile.Revision&&IsTerminalProfile(latest.Profile.Status)
+                &&!IsTerminalProfile(profile.Status))return latest;
             var updated=latest with {Profile=profile};
             store.Put(owner,"character",id,updated);return updated;
         }
     }
+    private static bool IsTerminalProfile(string status)=>status is "saved" or "ready" or "needs_clarification" or "failed";
     internal async Task<TestingSessionDetail> SelectCharacterAsync(string owner,string id,TestingCharacterSelection request,CancellationToken token)
     {
         lock(gate)
@@ -218,6 +227,7 @@ internal sealed partial class TestingSessionService
     internal async Task DeleteCharacterAsync(string owner,string id,CancellationToken token)
     {
         var character=store.Read<TestingCharacter>(owner,"character",id);
+        await resources.Profiles(owner,id).FenceAccountDeletionAsync(owner,CancellationToken.None);
         foreach(var session in Sessions(owner).Where(s=>s.CharacterId==id&&s.Status=="open"))
             await EndAsync(owner,session.Id,token);
         await resources.Profiles(owner,id).DeleteAsync(owner,character.Profile.Revision,character.Profile.ProfileId,token);
@@ -228,6 +238,12 @@ internal sealed partial class TestingSessionService
     internal async Task DeleteAccountAsync(string owner,CancellationToken token=default)
     {
         store.Fence(owner);
+        var characters=Characters(owner);
+        foreach(var character in characters)
+        {
+            await resources.Profiles(owner,character.Id)
+                .FenceAccountDeletionAsync(owner,CancellationToken.None);
+        }
         foreach(var s in Sessions(owner))
         {
             CancelOperation(s.Id);runtime.End(owner,s.LabSessionId);
@@ -239,9 +255,8 @@ internal sealed partial class TestingSessionService
             await hardware.DeleteAsync(s.Id,s.VirtualDeviceId,token);
             store.Remove(owner,"session",s.Id);store.Remove(owner,"hardware",s.Id);
         }
-        foreach(var c in Characters(owner))
+        foreach(var c in characters)
         {
-            await resources.Profiles(owner,c.Id).FenceAccountDeletionAsync(owner,token);
             await resources.Profiles(owner,c.Id).DeleteAsync(owner,c.Profile.Revision,c.Profile.ProfileId,token);
             resources.MemoryStore.DeleteScopedMemory(MemoryDevice(owner),"guest","test-"+c.Id,resources.MemoryStore.MemoryEpoch);
             store.Remove(owner,"character",c.Id);

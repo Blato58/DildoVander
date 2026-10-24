@@ -10,7 +10,7 @@
 .testing-start-controls .aw-field { flex: 1 1 14rem; }
 .testing-consent { display: flex; align-items: flex-start; gap: .75rem; max-width: 78ch; line-height: 1.5; }
 .testing-consent input { flex: 0 0 auto; min-width: 1.25rem; min-height: 1.25rem; margin-top: .15rem; }
-.testing-workspace { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2rem; }
+.testing-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; }
 .testing-session-list { min-width: 0; }
 .testing-session-list ul { list-style: none; padding: 0; display: grid; gap: .5rem; margin: 0 0 1rem; }
 .testing-session-button { display: grid; gap: .4rem; width: 100%; padding: .875rem; background: transparent; color: var(--aw-ivory); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); text-align: left; cursor: pointer; font: inherit; }
@@ -52,3 +52,9 @@
 .testing-new-session > .aw-field { margin-bottom: .75rem; }
 .testing-new-session > summary { color: var(--aw-link); }
 .testing-sessions .testing-session-list details { margin-top: 0; }
+.testing-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+.testing-steps button { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem; min-height: 44px; padding: .75rem .5rem; color: var(--aw-ivory); background: var(--aw-surface); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); font: inherit; cursor: pointer; }
+.testing-steps button[aria-current] { background: var(--aw-accent-soft); border-color: var(--aw-accent); }
+.testing-steps button:disabled { color: var(--aw-muted); cursor: default; }
+.testing-character-form details > .aw-field { margin-block: 1rem; }
+@media (max-width: 30rem) { .testing-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
