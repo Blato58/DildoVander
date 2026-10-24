@@ -79,7 +79,7 @@ try {
   assert.deepEqual(Object.keys(JSON.parse(moves[0].body)).sort(), ['action', 'operationKey', 'revision', 'round', 'side']);
   assert.equal(JSON.parse(moves[0].body).revision, 1);
   await page.setViewportSize({ width: 390, height: 844 }); await fits(); await page.screenshot({ path: path.join(output, 'duel-mobile.png'), fullPage: true });
-  await page.goto(`${origin}/archive/duel?duel=${id}`); await page.getByRole('heading', { name: 'Souboj kouzelnických identit' }).waitFor();
+  await page.goto(`${origin}/archive/duel?duel=${id}`); await page.getByRole('heading', { name: 'Souboj postav', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Úder', exact: true }).count(), 0);
   await page.goto(`${origin}/archive`); await page.getByRole('heading', { name: identity.wizardAlias }).waitFor(); await fits();
   assert(!(await page.locator('main').innerText()).includes('PRIVATE_PUBLIC_EXTRA')); await page.screenshot({ path: path.join(output, 'identity-mobile.png'), fullPage: true });
