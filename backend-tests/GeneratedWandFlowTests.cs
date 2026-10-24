@@ -92,6 +92,12 @@ internal static class GeneratedWandFlowTests
                     "replaying deserialized generated snapshot with spell arrays reuses the original keepsake");
                 Check(view.Editions.Single().Story.Design == OpenAiKeepsakeProvider.CanonicalDesign(wand.ToPublic()),
                     "final store ingestion enforces canonical design independently of the provider");
+                var illustrated = keepsakes.FindOwnedWandArtwork(account, wand.WandId);
+                Check(illustrated?.Locator == issuedKeepsake.Id
+                    && illustrated.AssetId == view.Editions.Single().ArtworkAssetId,
+                    "original character owner can reuse the exact saved image in profile and result");
+                Check(keepsakes.FindOwnedWandArtwork("unrelated-account", wand.WandId) is null,
+                    "another account cannot resolve an owner's generated wand artwork");
                 Check(keepsakes.GetPublicWizardIdentity(view.WizardIdentities!.Single().IdentityId, evening, "device") is null,
                     "private generated wand requires explicit owner publication before public card or duel admission");
                 view = keepsakes.SetWandPublication(issuedKeepsake.Id,
