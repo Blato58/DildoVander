@@ -56,7 +56,7 @@ class ApplicationRoutingTests(unittest.TestCase):
 
     def test_customer_pages_are_private_get_only_and_do_not_catch_apis(self):
         config = proxy.render_compatibility('keepsake.example.invalid')
-        for route in ('/account-deletion', '/me', '/me/', '/me/character', '/me/conversation', '/me/keepsakes', '/me/account', '/tonight', '/admin/customer-sessions'):
+        for route in ('/account-deletion', '/me', '/me/', '/me/character', '/me/conversation', '/me/keepsakes', '/me/account', '/tonight', '/admin/customer-sessions', '/testing-sessions'):
             with self.subTest(route=route):
                 block = config.split('location = ' + route + ' {', 1)[1].split('\n}', 1)[0]
                 for value in ('GET|HEAD', 'no-store', 'no-referrer', 'noindex, nofollow', 'access_log off;', 'try_files /index.html =404;'):
