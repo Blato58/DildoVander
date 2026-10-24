@@ -56,15 +56,17 @@ Pro zahájení další práce stačí: **„Začni implementovat aplikaci podle 
 ## CI a standardy repozitáře
 
 PR CI ověřuje dotčené projekty; změny samotné dokumentace nevyžadují
-nesouvisející buildy. Nasazení, podpis a živé placené testy jsou oddělené
-správcovské operace. Postup a konfiguraci CI popisuje
+nesouvisející buildy. Každý push na `main` spouští ověřené release buildy
+a podpis IPA; oddělená soukromá orchestrace nasazuje úspěšný aktuální `main`
+včetně TestFlight. Živé placené testy vyžadují samostatné zadání. Konfiguraci popisuje
 [CI/CD návod](docs/ci-cd.md). Pravidla předání jsou v [CONTRIBUTING.md](CONTRIBUTING.md)
 a hlášení zranitelností v [SECURITY.md](SECURITY.md).
 
 Zdrojový repozitář je od 12. 10. 2026 veřejný. Buildy používají standardní
 GitHub-hosted runnery; produkční runnery nejsou ke zdroji připojené.
-Podepsaná IPA vzniká ve stávajícím ručním macOS workflow s prostředím
-`ios-signing`. Produkční nasazení serveru, OTA a distribuce IPA mají oddělenou
+Podepsaná IPA vzniká ve stávajících macOS workflow s prostředími
+`ios-signing` a `ios-app-store`, vyvolaných controllerem `main-release.yml`
+nebo ručně pro zotavení. Produkční nasazení serveru, OTA a distribuce IPA mají oddělenou
 orchestraci v soukromém repozitáři `Blato58/DildoVander-deploy`; místní fake
 vývoj tento repozitář nepotřebuje. Přesun konfigurace sám neprokazuje nasazení.
 

@@ -1,0 +1,51 @@
+name: Build current main release
+run-name: Main release builds | ${{ github.sha }}
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-release
+  cancel-in-progress: false
+
+jobs:
+  builds:
+    if: github.repository == 'Duloc-Dungeon/DildoVander' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 155
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      outcome: ${{ steps.release.outputs.outcome }}
+      source_sha: ${{ steps.release.outputs.source_sha }}
+      ci_run_id: ${{ steps.release.outputs.ci_run_id }}
+      adhoc_run_id: ${{ steps.release.outputs.adhoc_run_id }}
+      app_store_run_id: ${{ steps.release.outputs.app_store_run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Dispatch and verify direct main builds
+        id: release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            await require('./scripts/ci/main-release.cjs').run({ github, context, core }, {
+              receiptPath: 'main-release.json',
+            });
+      - name: Save release build receipt
+        if: always() && steps.release.outputs.outcome != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: main-release-receipt
+          path: main-release.json
+          overwrite: true
+          if-no-files-found: error
+          retention-days: 14

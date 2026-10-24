@@ -1,8 +1,12 @@
 name: Build Wand Night Stand App Store IPA
+run-name: ${{ inputs.release_request != '' && format('Main release | {0}', inputs.release_request) || 'Build Wand Night Stand App Store IPA' }}
 
 on:
   workflow_dispatch:
     inputs:
+      release_request:
+        description: Internal main release correlation UUID (empty for manual recovery)
+        type: string
       build_run_id:
         description: Successful CI run ID for current main
         type: string
