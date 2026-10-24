@@ -22,12 +22,21 @@ internal static class ServerLogEvents
                 : context.RequestAborted.IsCancellationRequested ? 499 : context.Response.StatusCode;
             // Polling/PCM uploads and the log reader itself would overwhelm the
             // useful history. Their failures remain visible.
-            var quiet = context.Request.Method == "GET" || route.EndsWith("/{streamId}/audio", StringComparison.Ordinal);
+            var sessionCheck = route == "/app/v1/session" && context.Request.Method == "GET";
+            var quiet = context.Request.Method == "GET" && !sessionCheck || route.EndsWith("/{streamId}/audio", StringComparison.Ordinal);
+            var eventCode = (route, context.Request.Method) switch
+            {
+                ("/app/v1/passkeys/sign-in", "POST") => status < 400 ? "account_sign_in_completed" : "account_sign_in_failed",
+                ("/app/v1/session", "DELETE") => status < 400 ? "account_sign_out_completed" : "account_sign_out_failed",
+                ("/app/v1/session", "GET") => "account_session_checked",
+                _ => "http_request"
+            };
             if (status >= 400 || !quiet)
                 logs.Write(status >= 500 ? "error" : status >= 400 ? "warning" : "info",
-                    "http_request", context.TraceIdentifier, route, Method(context), status,
+                    eventCode, context.TraceIdentifier, route, Method(context), status,
                     Math.Round(Stopwatch.GetElapsedTime(start).TotalMilliseconds, 1),
-                    Operation(context), Conversation(context), failure ?? context.Items["diagnosticCode"] as string);
+                    Operation(context), Conversation(context), failure ?? context.Items["diagnosticCode"] as string
+                        ?? (sessionCheck ? context.User.Identity?.IsAuthenticated == true ? "authenticated" : "anonymous" : null));
         }
     }
 

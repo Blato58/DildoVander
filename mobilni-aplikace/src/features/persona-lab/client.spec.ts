@@ -8,6 +8,12 @@ vi.mock('./platform', () => ({ labClientPlatform: platform }));
 beforeEach(() => { transport.mockReset(); platform.mockReset().mockReturnValue('web'); });
 
 describe('Persona Lab account requests', () => {
+  it('retains a server trace on a rejected turn for the tester support export', async () => {
+    const requestId = '01234567-89ab-4cde-8f01-23456789abcd';
+    transport.mockResolvedValue(Response.json({ code: 'lab_provider_no_reply', traceId: requestId }, { status: 504 }));
+    await expect(new PersonaLabClient(() => 'tester').text('test', 'Private text'))
+      .rejects.toMatchObject({ code: 'lab_provider_no_reply', requestId, status: 504 });
+  });
   it('cancels the native-compatible request and rejects a late account response', async () => {
     let identity = 'tester-a'; let complete!: (value: Response) => void;
     transport.mockImplementation(() => new Promise<Response>(resolve => { complete = resolve; }));

@@ -8,6 +8,25 @@ let request: ReturnType<typeof vi.fn>;
 beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.shareAccountDataFile.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { interfaceLanguagePreference.setScope(null); interfaceLanguagePreference.setLanguage('cs'); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+describe.each([false, true])('request diagnostic wiring (native=%s)', native => {
+  it('correlates account requests and application actions without retaining credentials or private bodies', async () => {
+    bridge.native = native;
+    const identity = await import('./session');
+    const { requestDiagnostics } = await import('../../application/requestDiagnostics');
+    const requestId = '01234567-89ab-4cde-8f01-23456789abcd';
+    const problem = { code: 'account_required', traceId: requestId, detail: 'PRIVATE SERVER DETAIL' };
+    bridge.request.mockResolvedValue({ status: 401, body: JSON.stringify(problem) });
+    request.mockResolvedValue(Response.json(problem, { status: 401, headers: { 'X-Request-Id': requestId } }));
+    await identity.accountRequest('/app/v1/session', 'GET').catch(() => {});
+    expect(requestDiagnostics.value[0]).toMatchObject({ action: '/app/v1/session', status: 401, requestId });
+    bridge.accountTransport.mockResolvedValue({ status: 503, headers: { 'X-Request-Id': requestId }, bodyBase64: btoa('{}') });
+    request.mockResolvedValue(new Response('{}', { status: 503, headers: { 'X-Request-Id': requestId } }));
+    await identity.accountTransport('/app/v1/testing-sessions/secret-id/character', { method: 'POST', body: 'PRIVATE INPUT' });
+    expect(requestDiagnostics.value[1]).toMatchObject({ action: '/app/v1/testing-sessions/:id/character', status: 503, requestId });
+    expect(JSON.stringify(requestDiagnostics.value)).not.toMatch(/PRIVATE|secret-id/);
+  });
+});
+
 describe.each([false, true])('invitation error detail (native=%s)', native => {
   it.each([
     [400, 'invalid_role', 'Server nepodporuje zvolenou roli'],

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import AccountArchiveList from './AccountArchiveList.vue';
 import AccountDeletion from './AccountDeletion.vue';
+import RequestDiagnostics from './RequestDiagnostics.vue';
 import EveningPanel from './EveningPanel.vue';
 import CustomerDataPanel from '../customer/CustomerDataPanel.vue';
 import AwButton from '../../components/AwButton.vue';
@@ -131,6 +132,7 @@ function trust(session: AccountSession) {
       <CustomerDataPanel v-if="showCustomerData" :account-id="account.id" :eligible="showCustomerData" />
     </template>
     <AccountDeletion />
+    <RequestDiagnostics />
   </section>
 </template>
 <style scoped>

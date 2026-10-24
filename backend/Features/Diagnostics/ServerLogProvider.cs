@@ -10,8 +10,10 @@ internal sealed class ServerLogProvider(ServerLogStore store) : ILoggerProvider
     private sealed class SafeLogger(ServerLogStore store, string category) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel level) => category == "Kufr.Backend.Features.Conversations.ConversationStore"
-            && level >= LogLevel.Warning;
+        public bool IsEnabled(LogLevel level) => level >= LogLevel.Warning && category is
+            "Kufr.Backend.Features.Conversations.ConversationStore" or
+            "Kufr.Backend.Features.TestingSessions.TestingCharacterEnrichmentWorker" or
+            "Kufr.Backend.Features.Customers.CharacterEnrichmentWorker";
         public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
@@ -23,6 +25,8 @@ internal sealed class ServerLogProvider(ServerLogStore store) : ILoggerProvider
                 "Could not record failure for operation {OperationId}." => "dialog_journal_failed",
                 "Voice provider failed for operation {OperationId}." => "voice_failed",
                 "Could not record voice failure for operation {OperationId}." => "voice_journal_failed",
+                "Testing character enrichment worker failed ({ErrorType})." => "testing_character_worker_failed",
+                "Character worker operation failed ({ErrorType})." => "character_worker_failed",
                 _ => null
             };
             if (code is null) return;

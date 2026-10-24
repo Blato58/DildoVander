@@ -31,7 +31,7 @@ internal static class TestingSessionsTests
             Check(queued.Profile.Status=="queued","AI enrichment is durably queued without holding the request open");
             Check(await resources.ProcessNextCharacterEnrichmentAsync(default),"isolated worker consumes the queued job");
             var failed=(await service.CharactersAsync("alice",default)).Single();
-            Check(failed.Profile.Status=="failed"&&failed.Profile.ErrorCode=="character_provider_error",
+            Check(failed.Profile.Status=="failed"&&failed.Profile.ErrorCode=="character_provider_invalid_response",
                 "provider failure is visible in profile status");
             var staleRunning=failed.Profile with {Status="running",ErrorCode=null};
             Check(service.StoreEnrichedCharacter("alice",failed.Id,staleRunning).Profile.Status=="failed",
@@ -99,7 +99,7 @@ internal static class TestingSessionsTests
             Check(partial.Profile.Status=="queued","optional enrichment request responds before provider completion");
             Check(await resources.ProcessNextCharacterEnrichmentAsync(default),"test worker processes an optional enrichment failure");
             partial=(await service.CharactersAsync("alice",default)).Single(c=>c.Id==partial.Id);
-            Check(partial.Profile.Status=="failed"&&partial.Profile.ErrorCode=="character_provider_error",
+            Check(partial.Profile.Status=="failed"&&partial.Profile.ErrorCode=="character_provider_invalid_response",
                 "provider failure is persisted while the name-and-world character remains usable");
             characterProvider.Fail=false;
             var active=await service.SelectCharacterAsync("alice",created.Id,new(first.Id,created.Revision),default);

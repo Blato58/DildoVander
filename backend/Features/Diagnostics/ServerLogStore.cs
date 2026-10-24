@@ -44,7 +44,8 @@ internal sealed class ServerLogStore
 
     public void Write(string level, string eventCode, string? traceId = null, string? route = null,
         string? method = null, int? status = null, double? durationMs = null,
-        string? operationId = null, string? conversationId = null, string? code = null)
+        string? operationId = null, string? conversationId = null, string? code = null,
+        int? attempt = null)
     {
         lock (gate)
         {
@@ -52,7 +53,7 @@ internal sealed class ServerLogStore
             {
                 var time = clock.GetUtcNow();
                 var entry = new ServerLogEntry(0, time.ToString("O", CultureInfo.InvariantCulture),
-                    level, eventCode, traceId, route, method, status, durationMs, operationId, conversationId, code);
+                    level, eventCode, traceId, route, method, status, durationMs, operationId, conversationId, code, attempt);
                 using var connection = Open();
                 using var transaction = connection.BeginTransaction();
                 using var command = connection.CreateCommand();
@@ -149,6 +150,6 @@ internal sealed class ServerLogStore
 
 internal sealed record ServerLogEntry(long Id, string Timestamp, string Level, string EventCode,
     string? TraceId, string? Route, string? Method, int? Status, double? DurationMs,
-    string? OperationId, string? ConversationId, string? Code);
+    string? OperationId, string? ConversationId, string? Code, int? Attempt = null);
 internal sealed record ServerLogPage(string StoreId, long OldestCursor, long LatestCursor,
     long NextCursor, bool HasMore, bool Truncated, long DroppedWrites, IReadOnlyList<ServerLogEntry> Entries);

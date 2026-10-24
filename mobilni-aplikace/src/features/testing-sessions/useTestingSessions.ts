@@ -5,6 +5,7 @@ import { PersonaLabClient } from '../persona-lab/client';
 import { LabVoice, type VoicePhase } from '../persona-lab/voice';
 import type { LabEngine, LabSession } from '../persona-lab/contracts';
 import { TestingSessionsClient } from './client';
+import { diagnosticRequestId } from '../../application/requestDiagnostics';
 import type { CharacterInput, InputMode, TestCharacter, TestSession, TestSessionDetail } from './contracts';
 
 export function useTestingSessions() {
@@ -14,13 +15,16 @@ export function useTestingSessions() {
   const sessions = shallowRef<TestSession[]>([]); const characters = shallowRef<TestCharacter[]>([]);
   const selected = shallowRef<TestSessionDetail | null>(null);
   const error = ref(''); const notice = ref(''); const busy = ref(false); const loading = ref(false); const stale = ref(false);
+  const errorRequestId = ref('');
+  let errorFromRefresh = false;
   const engine = ref<LabEngine>('gpt-live-1'); const inputMode = ref<InputMode>('text'); const consent = ref(false);
   const text = ref(''); const outputEnabled = ref(false); const captureEnabled = ref(false); const voicePhase = ref<VoicePhase>('idle');
   const partial = ref({ user: '', assistant: '' }); const spokenBusy = ref(false); const providerConfirmed = ref(false);
   const permitted = computed(() => account.value?.roles.includes('Tester') === true);
   const voiceActive = computed(() => ['connecting', 'waiting', 'listening', 'speaking'].includes(voicePhase.value));
   const open = computed(() => selected.value?.session.status === 'open');
-  let epoch = 0; let readEpoch = 0; let disposed = false; let refreshing = false;
+  let epoch = 0; let readEpoch = 0; let disposed = false;
+  let refreshPending: { epoch: number; request: number; promise: Promise<void> } | undefined;
   let operationId: string | null = null; let pendingSpokenText = ''; let retiringSessionId:string|null=null;
   let voice = makeVoice();
   function makeVoice(): LabVoice {
@@ -37,7 +41,7 @@ export function useTestingSessions() {
       session: value => { if (current()) { updateConversation(value); if(!captureEnabled.value)providerConfirmed.value=false; } },
       providerReady: () => { if (current()) providerConfirmed.value = true; },
       interrupted: () => { if (current()) partial.value = { ...partial.value, assistant: '' }; },
-      error: code => { if (current()) {error.value = code; spokenBusy.value = false; } },
+      error: code => { if (current()) { recordError({ code }); spokenBusy.value = false; } },
       closed: () => { if (current()) {spokenBusy.value = false; void refresh();} },
     });
   }
@@ -48,31 +52,64 @@ export function useTestingSessions() {
   function invalidate(): void {
     epoch++; readEpoch++; client.invalidate(); lab.invalidate(); stopVoice();
     selected.value = null; sessions.value = []; characters.value = []; error.value = ''; notice.value = '';
+    errorRequestId.value = ''; errorFromRefresh = false; stale.value = false;
     text.value = ''; busy.value = false; loading.value = false; operationId = null; retiringSessionId=null; consent.value = false;
   }
   function message(cause: unknown): string {
+    if (typeof cause === 'string') return cause;
     if (cause && typeof cause === 'object' && 'code' in cause && typeof cause.code === 'string') return cause.code;
     return cause instanceof Error ? cause.message : 'testing_request_failed';
   }
+  function recordError(cause: unknown, fromRefresh = false): void {
+    error.value = message(cause); errorFromRefresh = fromRefresh;
+    errorRequestId.value = cause && typeof cause === 'object' && 'requestId' in cause
+      ? diagnosticRequestId(cause.requestId) ?? '' : '';
+  }
+  function clearError(): void {
+    error.value = ''; errorRequestId.value = ''; errorFromRefresh = false;
+  }
   async function run(action: () => Promise<void>): Promise<void> {
     if (busy.value || !permitted.value) return;
-    const current = epoch; busy.value = true; error.value = ''; notice.value = '';
+    const current = epoch; ++readEpoch; busy.value = true; error.value = ''; notice.value = '';
+    errorRequestId.value = ''; errorFromRefresh = false;
     try { await action(); }
-    catch (cause) { if (current === epoch && !(cause instanceof DOMException && cause.name === 'AbortError')) error.value = message(cause); }
-    finally { if (current === epoch) busy.value = false; }
+    catch (cause) { if (current === epoch && !(cause instanceof DOMException && cause.name === 'AbortError')) recordError(cause); }
+    finally {
+      // Visibility/online observers can read while a command is in flight.
+      // Fence those snapshots as well as polls that preceded the command.
+      if (current === epoch) { ++readEpoch; busy.value = false; }
+    }
   }
-  async function refresh(): Promise<void> {
-    if (!permitted.value || disposed || refreshing) return;
+  function refresh(): Promise<void> {
+    // External observers cannot read a pre-command snapshot and later join the
+    // command's reconciliation. Commands request their own fresh reads below.
+    return busy.value ? Promise.resolve() : refreshState();
+  }
+  function refreshAfterCommand(): Promise<void> {
+    ++readEpoch;
+    return refreshState();
+  }
+  function refreshState(): Promise<void> {
+    if (!permitted.value || disposed) return Promise.resolve();
+    if (refreshPending?.epoch === epoch && refreshPending.request === readEpoch) return refreshPending.promise;
     const current = epoch; const request = ++readEpoch; const id = selected.value?.session.id;
-    refreshing = true;
-    try {
-      const [list, people, detail] = await Promise.all([client.sessions(), client.characters(), id ? client.session(id) : Promise.resolve(null)]);
+    const pending = { epoch: current, request, promise: Promise.resolve() };
+    pending.promise = (async () => {
+      const [list, people, detail] = await Promise.allSettled([client.sessions(), client.characters(), id ? client.session(id) : Promise.resolve(null)]);
       if (epoch !== current || request !== readEpoch) return;
-      sessions.value = list; characters.value = people; stale.value = false;
-      if (detail && selected.value?.session.id === id) selected.value = detail;
-    } catch (cause) {
-      if (epoch === current && request === readEpoch && !(cause instanceof DOMException && cause.name === 'AbortError')) { stale.value = true; error.value = message(cause); }
-    } finally { refreshing = false; }
+      if (list.status === 'fulfilled') sessions.value = list.value;
+      if (people.status === 'fulfilled') characters.value = people.value;
+      if (detail.status === 'fulfilled' && detail.value && selected.value?.session.id === id) selected.value = detail.value;
+      const failure = [detail, people, list].find(result => result.status === 'rejected');
+      stale.value = !!failure;
+      if (failure?.status === 'rejected') {
+        if (!(failure.reason instanceof DOMException && failure.reason.name === 'AbortError') && (!error.value || errorFromRefresh)) recordError(failure.reason, true);
+      } else if (errorFromRefresh) {
+        error.value = ''; errorRequestId.value = ''; errorFromRefresh = false;
+      }
+    })().finally(() => { if (refreshPending === pending) refreshPending = undefined; });
+    refreshPending = pending;
+    return pending.promise;
   }
   async function resume(id: string): Promise<void> {
     await run(async () => {
@@ -84,30 +121,35 @@ export function useTestingSessions() {
     });
   }
   async function start(): Promise<void> {
-    if (!consent.value) { error.value = 'Potvrďte souhlas se skutečným zpracováním OpenAI a uložením testu.'; return; }
+    if (!consent.value) { recordError('Potvrďte souhlas se skutečným zpracováním OpenAI a uložením testu.'); return; }
     await run(async () => {
       operationId ??= crypto.randomUUID();
       const session = await client.create(engine.value, inputMode.value, consent.value, operationId);
       operationId = null; stopVoice(); selected.value = await client.session(session.id);
       await router.replace({ path: '/testing-sessions', query: { session: session.id } });
-      await refresh();
+      await refreshAfterCommand();
     });
   }
-  async function saveCharacter(userInput: CharacterInput, character?: TestCharacter, longTermConsent = false): Promise<void> {
-    if (!consent.value) { error.value = 'Pro odeslání postavy OpenAI potvrďte souhlas.'; return; }
+  async function saveCharacter(userInput: CharacterInput, character?: TestCharacter, longTermConsent = false): Promise<boolean> {
+    if (!consent.value) { recordError('Pro odeslání postavy OpenAI potvrďte souhlas.'); return false; }
+    let savedSuccessfully = false;
     await run(async () => {
       const saved = character ? await client.editCharacter(character.id, userInput, character.profile.revision, true, longTermConsent)
         : await client.createCharacter(userInput, true, longTermConsent);
+      savedSuccessfully = true;
+      characters.value = [...characters.value.filter(item => item.id !== saved.id), saved];
       const started=(selected.value?.conversation.turns.length??0)>0;
+      notice.value = started ? 'Postava uložena. Probíhající rozhovor zachovává původní kontext; novou verzi použijte v novém testovacím sezení.' : 'Postava uložena. AI dohledání se zpracuje na pozadí.';
       if (selected.value && open.value && !started) selected.value = await client.select(selected.value.session.id, saved.id, selected.value.session.revision);
-      await refresh(); notice.value = started ? 'Postava uložena. Probíhající rozhovor zachovává původní kontext; novou verzi použijte v novém testovacím sezení.' : 'Postava uložena. AI dohledání se zpracuje na pozadí.';
+      await refreshAfterCommand();
     });
+    return savedSuccessfully;
   }
   async function selectCharacter(characterId: string): Promise<void> {
     if (!selected.value) return;
     await run(async () => {
       stopVoice(); selected.value = await client.select(selected.value!.session.id, characterId, selected.value!.session.revision);
-      await refresh();
+      await refreshAfterCommand();
     });
   }
   async function enrich(): Promise<void> {
@@ -117,7 +159,7 @@ export function useTestingSessions() {
       await client.enrich(characterId);
       if(selected.value!.conversation.turns.length===0){selected.value=await client.select(id,characterId,selected.value!.session.revision);}
       else notice.value='AI obohacení je uložené pro nové testovací sezení. Probíhající rozhovor zachovává původní kontext.';
-      await refresh();
+      await refreshAfterCommand();
     });
   }
   async function awaitRetired(id:string):Promise<void> {
@@ -134,13 +176,13 @@ export function useTestingSessions() {
   async function send(): Promise<void> {
     if (!selected.value || !text.value.trim() || !open.value || !consent.value || spokenBusy.value || busy.value || stale.value) return;
     if (!voiceActive.value && selected.value.conversationActive) {
-      error.value = 'Předchozí požadavek ještě probíhá. Vyčkejte a obnovte stav.';
+      recordError('Předchozí požadavek ještě probíhá. Vyčkejte a obnovte stav.');
       return;
     }
     const input = text.value.trim();
     if (outputEnabled.value) {
       if (voiceActive.value && !captureEnabled.value) {
-        if (voice.sendText(input)) {text.value = '';spokenBusy.value = true;} else error.value = 'Výstupní spojení zatím není připraveno.';
+        if (voice.sendText(input)) {text.value = '';spokenBusy.value = true;} else recordError('Výstupní spojení zatím není připraveno.');
       } else await startSpokenText(input);
       return;
     }
@@ -150,10 +192,10 @@ export function useTestingSessions() {
       if(wasConnected)await awaitRetired(selected.value!.session.id);
       const id = selected.value!.conversation.id;
       try {
-        updateConversation(await lab.text(id, input)); text.value = ''; await refresh();
+        updateConversation(await lab.text(id, input)); text.value = ''; await refreshAfterCommand();
       } catch (cause) {
         // A gateway/provider failure may follow a saved turn. Read server truth without replaying it.
-        await refresh();
+        await refreshAfterCommand();
         throw cause;
       }
     });
@@ -161,17 +203,17 @@ export function useTestingSessions() {
   async function startVoice(): Promise<void> {
     if (!selected.value || !open.value || !consent.value || inputMode.value === 'text' || busy.value) return;
     const hadConnection=voiceActive.value || retiringSessionId===selected.value.session.id;stopVoice();
-    if(hadConnection){try{await awaitRetired(selected.value.session.id);}catch(cause){error.value=message(cause);return;}}
-    captureEnabled.value = true; voice = makeVoice(); voice.setOutputEnabled(outputEnabled.value); error.value = '';
+    if(hadConnection){try{await awaitRetired(selected.value.session.id);}catch(cause){recordError(cause);return;}}
+    captureEnabled.value = true; voice = makeVoice(); voice.setOutputEnabled(outputEnabled.value); clearError();
     const id = selected.value.conversation.id;
     await voice.connect(() => lab.ticket(id, voicePhase.value === 'error'), id, accountOrigin.value || window.location.origin);
   }
   async function startSpokenText(input = ''): Promise<void> {
     if (!selected.value || !open.value || !consent.value || busy.value) return;
     const hadConnection=voiceActive.value || retiringSessionId===selected.value.session.id;stopVoice();
-    if(hadConnection){try{await awaitRetired(selected.value.session.id);}catch(cause){error.value=message(cause);return;}}
+    if(hadConnection){try{await awaitRetired(selected.value.session.id);}catch(cause){recordError(cause);return;}}
     pendingSpokenText = input; spokenBusy.value = input.length > 0; captureEnabled.value = false; voice = makeVoice();
-    voice.setOutputEnabled(true); error.value = '';
+    voice.setOutputEnabled(true); clearError();
     const id = selected.value.conversation.id;
     await voice.connect(() => lab.ticket(id,false,true), id, accountOrigin.value || window.location.origin, {capture:false});
   }
@@ -196,19 +238,19 @@ export function useTestingSessions() {
   async function end(): Promise<void> {
     if (!selected.value) return;
     const id = selected.value.session.id; stopVoice(); client.invalidate(); lab.invalidate();
-    await run(async () => { await client.end(id); selected.value = await client.session(id); await refresh(); });
+    await run(async () => { await client.end(id); selected.value = await client.session(id); await refreshAfterCommand(); });
   }
   async function cancel(): Promise<void> {
     if (!selected.value) return;
-    const id = selected.value.session.id; stopVoice(); lab.invalidate(); client.invalidate(); error.value = '';
-    try { await client.cancel(id); await refresh(); }
-    catch (cause) { if (!(cause instanceof DOMException && cause.name === 'AbortError')) error.value = message(cause); }
+    const id = selected.value.session.id; stopVoice(); lab.invalidate(); client.invalidate(); clearError();
+    try { await client.cancel(id); await refreshAfterCommand(); }
+    catch (cause) { if (!(cause instanceof DOMException && cause.name === 'AbortError')) recordError(cause); }
   }
   async function remove(): Promise<void> {
     if (!selected.value) return;
     const id = selected.value.session.id; stopVoice();
     await run(async () => {
-      await client.delete(id); selected.value = null; text.value = ''; await router.replace('/testing-sessions'); await refresh();
+      await client.delete(id); selected.value = null; text.value = ''; await router.replace('/testing-sessions'); await refreshAfterCommand();
     });
   }
   async function load(): Promise<void> {
@@ -224,7 +266,7 @@ export function useTestingSessions() {
   const online = () => void refresh();
   document.addEventListener('visibilitychange', hidden); window.addEventListener('online', online);
   onBeforeUnmount(() => { disposed = true; invalidate(); clearInterval(refreshTimer); document.removeEventListener('visibilitychange', hidden); window.removeEventListener('online', online); });
-  return { account, permitted, sessions, characters, selected, error, notice, busy, loading, stale, engine, inputMode, consent,
-    text, outputEnabled, captureEnabled, spokenBusy, providerConfirmed, voicePhase, voiceActive, partial, open, client, run, refresh, resume, start, saveCharacter, selectCharacter,
+  return { account, permitted, sessions, characters, selected, error, errorRequestId, notice, busy, loading, stale, engine, inputMode, consent,
+    text, outputEnabled, captureEnabled, spokenBusy, providerConfirmed, voicePhase, voiceActive, partial, open, client, run, refresh, refreshAfterCommand, resume, start, saveCharacter, selectCharacter,
     enrich, send, selectWand, generate, fault, startVoice, startSpokenText, stopVoice, changeMode, end, cancel, remove, interrupt: () => voice.interrupt() };
 }

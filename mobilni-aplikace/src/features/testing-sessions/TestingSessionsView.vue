@@ -13,9 +13,10 @@ import { useTestingSessions } from './useTestingSessions';
 import { technicalDiagnostics } from '../persona-lab/client';
 import { classifyLabFailure, describeLabFailure } from '../persona-lab/errors';
 import { prepareLabImage } from '../persona-lab/image';
+import { requestDiagnostics } from '../../application/requestDiagnostics';
 import type { CharacterInput, InputMode } from './contracts';
 const test = useTestingSessions();
-const { account, permitted, sessions, characters, selected, error, notice, busy, loading, stale, engine, inputMode, consent,
+const { account, permitted, sessions, characters, selected, error, errorRequestId, notice, busy, loading, stale, engine, inputMode, consent,
   text, outputEnabled, captureEnabled, spokenBusy, providerConfirmed, voicePhase, voiceActive, partial, open } = test;
 const characterDeleteConfirmed = ref(false);
 const longTermConsent = ref(false); const photoConsent = ref(false); const photoFile = ref<File | null>(null); const photoKeepsake = ref('');
@@ -34,6 +35,8 @@ const step = ref<TestStep>(1);
 const steps = ['Sezení', 'Postava', 'Rozhovor', 'Výsledek'];
 const characterPending = computed(() => ['queued', 'running'].includes(selectedCharacter.value?.profile.status ?? ''));
 const errorMessage = computed(() => {
+  if (error.value === 'account_required') return 'Přihlášení vypršelo. Přihlaste se znovu a obnovte stav testu.';
+  if (error.value === 'csrf_required') return 'Ověření stránky vypršelo. Obnovte stránku a zkontrolujte stav před opakováním akce.';
   if (/^lab_|^transport_error$/.test(error.value)) return describeLabFailure(classifyLabFailure(error.value, 0));
   if (/timeout|unavailable|testing_request_failed|Failed to fetch|NetworkError/i.test(error.value)) {
     return 'Požadavek se nepodařilo potvrdit. Obnovte stav a zkontrolujte, zda se operace dokončila.';
@@ -72,8 +75,8 @@ function beginCharacter(edit = false): void {
   showCharacterForm.value = true;
 }
 async function saveCharacter(): Promise<void> {
-  await test.saveCharacter({ ...draft }, editingCharacter.value ? selectedCharacter.value ?? undefined : undefined, longTermConsent.value);
-  if (!error.value) showCharacterForm.value = false;
+  const saved = await test.saveCharacter({ ...draft }, editingCharacter.value ? selectedCharacter.value ?? undefined : undefined, longTermConsent.value);
+  if (saved) showCharacterForm.value = false;
 }
 function switchMode(event: Event): void { test.changeMode((event.target as HTMLSelectElement).value as InputMode); }
 function selectCharacter(event: Event): void { const id = (event.target as HTMLSelectElement).value; if (id) void test.selectCharacter(id); }
@@ -88,14 +91,14 @@ async function portrait(): Promise<void> {
     const sessionId=selected.value!.session.id; const file=photoFile.value!; const keepsake=selected.value!.keepsakes.find(item=>item.id===photoKeepsake.value) ?? selected.value!.keepsakes[0];
     if(!keepsake?.editions[0])throw new Error('Nejprve dokončete skutečnou generaci příběhu.');
     const image=await prepareLabImage(file);
-    try{const uploaded=await test.client.photo(sessionId,keepsake.id,image.dataBase64);await test.client.portrait(sessionId,uploaded.id,keepsake.editions[0].id);await test.refresh();photoFile.value=null;}finally{URL.revokeObjectURL(image.previewUrl);}
+    try{const uploaded=await test.client.photo(sessionId,keepsake.id,image.dataBase64);await test.client.portrait(sessionId,uploaded.id,keepsake.editions[0].id);await test.refreshAfterCommand();photoFile.value=null;}finally{URL.revokeObjectURL(image.previewUrl);}
   });
 }
-async function deleteCharacter():Promise<void>{if(!selectedCharacter.value||!characterDeleteConfirmed.value)return;await test.run(async()=>{await test.client.deleteCharacter(selectedCharacter.value!.id);await test.refresh();characterDeleteConfirmed.value=false;});}
+async function deleteCharacter():Promise<void>{if(!selectedCharacter.value||!characterDeleteConfirmed.value)return;await test.run(async()=>{await test.client.deleteCharacter(selectedCharacter.value!.id);await test.refreshAfterCommand();characterDeleteConfirmed.value=false;});}
 function choosePhoto(event:Event):void{photoFile.value=(event.target as HTMLInputElement).files?.[0]??null;}
 function exportDiagnostics():void {
   if(!selected.value)return; if(diagnosticUrl.value)URL.revokeObjectURL(diagnosticUrl.value);
-  const payload={schemaVersion:1,testSessionId:selected.value.session.id,scope:'isolated_testing',provider:technicalDiagnostics(selected.value.conversation),virtualHardware:selected.value.hardware.events?.map(({type,code,createdAt,compartment})=>({type,code,createdAt,compartment,source:'simulation'}))};
+  const payload={schemaVersion:2,testSessionId:selected.value.session.id,scope:'isolated_testing',requests:requestDiagnostics.value,provider:technicalDiagnostics(selected.value.conversation),virtualHardware:selected.value.hardware.events?.map(({type,code,createdAt,compartment})=>({type,code,createdAt,compartment,source:'simulation'}))};
   diagnosticUrl.value=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));
 }
 onBeforeUnmount(()=>{if(diagnosticUrl.value)URL.revokeObjectURL(diagnosticUrl.value);});
@@ -117,7 +120,7 @@ function localTime(value: string): string { return new Date(value).toLocaleStrin
         </button>
       </nav>
       <h2 id="testing-step-title" tabindex="-1">{{ step }}. {{ steps[step - 1] }}</h2>
-      <AwNotice v-if="error && step !== 3" tone="danger" title="Operace nebyla potvrzena"><p>{{ errorMessage }}</p><small v-if="errorMessage !== error">{{ error }}</small> <AwButton :disabled="busy" @click="test.refresh">Obnovit stav</AwButton></AwNotice>
+      <AwNotice v-if="error && step !== 3" tone="danger" title="Operace nebyla potvrzena"><p>{{ errorMessage }}</p><small v-if="errorMessage !== error">{{ error }}</small><p v-if="errorRequestId" class="testing-code">ID požadavku: {{ errorRequestId }}</p> <AwButton :disabled="busy" @click="test.refresh">Obnovit stav</AwButton></AwNotice>
       <AwNotice v-if="notice" tone="info">{{ notice }}</AwNotice>
       <AwNotice v-if="stale" tone="warning">Stav je zastaralý. Obnovení spojení nevytváří nový rozhovor ani neopakuje příkazy.</AwNotice>
       <section v-show="step === 1" class="testing-setup" aria-labelledby="testing-start-title">
@@ -193,7 +196,7 @@ function localTime(value: string): string { return new Date(value).toLocaleStrin
           <section v-show="step === 3" class="testing-conversation" aria-labelledby="testing-conversation-title">
             <div class="testing-section-heading"><h2 id="testing-conversation-title">Rozhovor s DildoVanderem</h2><AwStatus>{{ inputMode }}</AwStatus></div>
             <p v-if="selectedCharacter" class="aw-muted">{{ selectedCharacter.profile.userInput.name }} · {{ selectedCharacter.profile.userInput.world }}</p>
-            <AwNotice v-if="error" tone="danger" title="Operace nebyla potvrzena"><p>{{ errorMessage }}</p><small v-if="errorMessage !== error">{{ error }}</small><p>Zpráva se sama znovu neodešle.</p><AwButton :disabled="busy" @click="test.refresh">Obnovit stav</AwButton></AwNotice>
+            <AwNotice v-if="error" tone="danger" title="Operace nebyla potvrzena"><p>{{ errorMessage }}</p><small v-if="errorMessage !== error">{{ error }}</small><p v-if="errorRequestId" class="testing-code">ID požadavku: {{ errorRequestId }}</p><p>Zpráva se sama znovu neodešle.</p><AwButton :disabled="busy" @click="test.refresh">Obnovit stav</AwButton></AwNotice>
             <p v-if="busy || spokenBusy || (selected.conversationActive && !voiceActive)" role="status">DildoVander připravuje odpověď…</p>
             <p v-if="!selected.conversation.turns.length" class="aw-muted">Napište první zprávu. Textový režim nikdy nevyžaduje mikrofon.</p>
             <ol class="testing-chat" aria-label="Uložený rozhovor"><li v-for="turn in selected.conversation.turns" :key="turn.id" :class="`testing-turn-${turn.role}`">

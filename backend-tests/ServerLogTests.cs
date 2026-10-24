@@ -103,6 +103,41 @@ internal static class ServerLogTests
                 Require(failedUpload.Status == 409 && failedUpload.Route!.EndsWith("/{streamId}/audio"),
                     "failed PCM uploads retain a readable normalized route");
             }
+            foreach (var (route, method, status, eventCode) in new[]
+            {
+                ("/app/v1/session", "GET", 200, "account_session_checked"),
+                ("/app/v1/session", "DELETE", 204, "account_sign_out_completed"),
+                ("/app/v1/passkeys/sign-in", "POST", 401, "account_sign_in_failed"),
+                ("/app/v1/passkeys/sign-in", "POST", 204, "account_sign_in_completed")
+            })
+            {
+                var before = logs.Read(null, 200, "info", null, null).NextCursor;
+                var request = new DefaultHttpContext();
+                request.Request.Method = method;
+                request.Request.Headers["X-Request-Id"] = "private-client-request-id";
+                request.Request.Headers.Authorization = "private-token";
+                request.SetEndpoint(new RouteEndpoint(_ => Task.CompletedTask, RoutePatternFactory.Parse(route),
+                    0, EndpointMetadataCollection.Empty, "account action"));
+                ServerLogEvents.RequestAsync(request, context =>
+                {
+                    context.Response.StatusCode = status;
+                    if (status == 401) { context.Items["diagnosticCode"] = "passkey_not_verified"; }
+                    return Task.CompletedTask;
+                }, logs).GetAwaiter().GetResult();
+                var entry = logs.Read(before, 200, "info", null, null).Entries.Single();
+                Require(entry.EventCode == eventCode && entry.Status == status
+                    && Guid.TryParse(entry.TraceId, out _) && request.Response.Headers["X-Request-Id"] == entry.TraceId,
+                    "account actions retain safe outcomes and server-owned correlation");
+                Require(entry.Code == (status == 401 ? "passkey_not_verified" : method == "GET" ? "anonymous" : null),
+                    "session and authentication failure reasons are explicit");
+                Require(!JsonSerializer.Serialize(entry).Contains("private", StringComparison.Ordinal), "request headers are excluded");
+            }
+            var workerLogger = new ServerLogProvider(logs).CreateLogger("Kufr.Backend.Features.TestingSessions.TestingCharacterEnrichmentWorker");
+            var workerCursor = logs.Read(null, 200, "info", null, null).NextCursor;
+            workerLogger.LogError("Testing character enrichment worker failed ({ErrorType}).", "private-exception-message");
+            var workerEntry = logs.Read(workerCursor, 200, "info", null, null).Entries.Single();
+            Require(workerEntry.EventCode == "testing_character_worker_failed" && !JsonSerializer.Serialize(workerEntry).Contains("private"),
+                "worker infrastructure failures survive safe logger projection without messages");
             clock.Advance(TimeSpan.FromHours(25));
             Require(logs.Read(null, 200, "info", null, null).Entries.Count == 0, "time retention on read without new writes");
             logs.Write("info", "server_started");

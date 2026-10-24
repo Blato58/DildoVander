@@ -1,11 +1,12 @@
 import type { Duel, DuelAction, DuelSide } from '../archive/showContracts';
 import { accountTransport } from '../identity/session';
 import { labClientPlatform } from '../persona-lab/platform';
+import { diagnosticRequestId } from '../../application/requestDiagnostics';
 import type { LabEngine } from '../persona-lab/contracts';
 import type { CharacterInput, InputMode, TestCharacter, TestingCatalog, TestSession, TestSessionDetail } from './contracts';
 
 export class TestingError extends Error {
-  constructor(readonly code: string, readonly status: number) { super(code); }
+  constructor(readonly code: string, readonly status: number, readonly requestId?: string) { super(code); }
 }
 
 /** Account transport supplies CSRF/native cancellation; no device credential is accepted. */
@@ -27,8 +28,9 @@ export class TestingSessionsClient {
     });
     current();
     const value = await response.json().catch(() => null); current();
-    if (!response.ok) throw new TestingError(typeof value?.code === 'string' ? value.code : 'testing_request_failed', response.status);
-    if (value === null && response.status !== 204) throw new TestingError('testing_invalid_response', 502);
+    const requestId = diagnosticRequestId(response.headers.get('X-Request-Id')) ?? diagnosticRequestId(value?.traceId);
+    if (!response.ok) throw new TestingError(typeof value?.code === 'string' ? value.code : 'testing_request_failed', response.status, requestId);
+    if (value === null && response.status !== 204) throw new TestingError('testing_invalid_response', 502, requestId);
     return value as T;
   }
   catalog() { return this.request<TestingCatalog>('/catalog'); }

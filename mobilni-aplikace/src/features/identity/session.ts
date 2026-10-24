@@ -4,6 +4,7 @@ import { isTwinAccountPath, isShowAccountPath, isChronicleAdminPath } from './ac
 import { throwIfAborted } from '../../application/cancellation.mjs';
 import { secureUuid } from '../../application/identifiers.mjs';
 import { customerCopy } from '../../application/customerCopy';
+import { beginRequestDiagnostic, clearRequestDiagnostics, diagnosticRequestId } from '../../application/requestDiagnostics';
 
 export interface Account { id: string; displayName: string; roles: string[] }
 export interface ResourceGrant { id: string; userId: string; resourceType: string; resourceId: string; permission: string }
@@ -123,6 +124,9 @@ export async function shareNativeAccountDataFile(
 }
 
 export const account = ref<Account | null>(null);
+watch(() => account.value?.id, (_current, previous) => {
+  if (previous) clearRequestDiagnostics();
+}, { flush: 'sync' });
 const deletionRequested = ref(false);
 export const accountDeletionRequested = readonly(deletionRequested);
 export const offlineSession = ref(false);
@@ -187,6 +191,18 @@ function requireCurrentAuthentication(generation: number) {
 }
 
 export async function accountTransport(path: string, init: RequestInit = {}): Promise<Response> {
+  const diagnostic = beginRequestDiagnostic(path, init.method ?? 'GET');
+  try {
+    const response = await sendAccountTransport(path, init);
+    diagnostic.complete(response.status, response.headers.get('X-Request-Id') ?? undefined);
+    return response;
+  } catch (cause) {
+    diagnostic.fail(cause);
+    throw cause;
+  }
+}
+
+async function sendAccountTransport(path: string, init: RequestInit): Promise<Response> {
   const generation = authGeneration;
   const eveningPath = path === '/v1/evenings' && ['GET', 'POST'].includes(init.method ?? 'GET')
     || /^\/v1\/evenings\/[0-9a-f-]{36}\/active$/i.test(path) && init.method === 'PUT';
@@ -241,22 +257,36 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
   if (path === '/app/v1/account' && method === 'DELETE' && (!deletingAccountId || deletingAccountId !== account.value?.id)) throw new AccountContextChangedError();
   let status: number;
   let text: string;
-  if (native) {
-    const response = await nativeAccountCall(signal, requestId => nativeIdentity.request({ requestId, path, method, body: serialized, confirmed }));
-    status = response.status;
-    text = response.body;
-  } else {
-    const response = await fetch(path, {
-      method, credentials: 'same-origin', cache: 'no-store', signal,
-      headers: { Accept: 'application/json', ...(serialized ? { 'Content-Type': 'application/json' } : {}),
-        ...(method !== 'GET' ? { 'X-DV-CSRF': csrfToken } : {}), ...(confirmed ? { 'X-DV-Confirm': 'yes' } : {}) }, body: serialized,
-    });
-    status = response.status;
-    text = await response.text();
+  let requestId: string | undefined;
+  const diagnostic = beginRequestDiagnostic(path, method);
+  try {
+    if (native) {
+      const response = await nativeAccountCall(signal, requestId => nativeIdentity.request({ requestId, path, method, body: serialized, confirmed }));
+      status = response.status;
+      text = response.body;
+    } else {
+      const response = await fetch(path, {
+        method, credentials: 'same-origin', cache: 'no-store', signal,
+        headers: { Accept: 'application/json', ...(serialized ? { 'Content-Type': 'application/json' } : {}),
+          ...(method !== 'GET' ? { 'X-DV-CSRF': csrfToken } : {}), ...(confirmed ? { 'X-DV-Confirm': 'yes' } : {}) }, body: serialized,
+      });
+      status = response.status;
+      text = await response.text();
+      requestId = diagnosticRequestId(response.headers.get('X-Request-Id'));
+    }
+    // Cancellation cannot undo a request the server already received. Ignore late
+    // results, including a 401 that belongs to a cancelled observer context.
+    throwIfAborted(signal);
+    // Native account ceremonies return the problem trace in the body rather than
+    // forwarding response headers. Read only that field, never log the body.
+    if (!requestId && status >= 400) {
+      try { requestId = diagnosticRequestId(JSON.parse(text)?.traceId); } catch { /* Non-JSON gateway response. */ }
+    }
+    diagnostic.complete(status, requestId);
+  } catch (cause) {
+    diagnostic.fail(cause);
+    throw cause;
   }
-  // Cancellation cannot undo a request the server already received. Ignore late
-  // results, including a 401 that belongs to a cancelled observer context.
-  throwIfAborted(signal);
   let value: unknown;
   try { value = text ? JSON.parse(text) : undefined; } catch { throw new Error('Server nevrátil odpověď účtu.'); }
   if (status < 200 || status >= 300) {
@@ -428,7 +458,14 @@ export function authenticatePasskey(mode: 'signin' | 'enroll' | 'customer-enroll
   const operation = (async () => {
     // Epochs protect Vue state; waiting also protects browser/native cookie ordering.
     if (logoutPending) await logoutPending.catch(() => {});
-    await performPasskeyAuthentication(mode, token, displayName);
+    const diagnostic = beginRequestDiagnostic('/app/v1/passkeys/' + (mode === 'signin' ? 'sign-in' : mode === 'reauth' ? 'reauthenticate' : 'complete'), 'POST');
+    try {
+      await performPasskeyAuthentication(mode, token, displayName);
+      diagnostic.complete(200);
+    } catch (cause) {
+      diagnostic.fail(cause);
+      throw cause;
+    }
   })();
   const pending = operation.finally(() => { if (authenticationPending === pending) authenticationPending = null; });
   authenticationPending = pending;
