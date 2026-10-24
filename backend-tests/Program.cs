@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
 if (args is ["--tester-identity"]) { await AccountIdentityTests.RunTesterIdentityAsync(); return; }
+if (args is ["--passkey-labels"]) { await AccountIdentityTests.RunPasskeyLabelsAsync(); return; }
 if (args is ["--testing-hardware"]) { await TestingHardwareTests.RunAsync(); return; }
 if (args is ["--testing-conversations"]) { await TestingConversationTests.RunAsync(); return; }
 if (args is ["--testing-resources"]) { await TestingResourcesTests.RunAsync(); return; }

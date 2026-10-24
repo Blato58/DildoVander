@@ -14,7 +14,8 @@ if (bootstrap.origin !== origin.origin || bootstrap.pathname !== '/signin' || !/
 let browser;
 const errors = [];
 try {
-  try { browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL }); }
+  try { browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL,
+    ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? {executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH} : {}) }); }
   catch (error) { if (process.platform !== 'win32' || process.env.PLAYWRIGHT_CHANNEL) throw error; browser = await chromium.launch({ channel: 'chrome' }); }
   async function participant() {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -43,6 +44,16 @@ try {
   const ownerSession = await owner.context.request.get(origin.origin + '/app/v1/session');
   assert.equal(ownerSession.status(), 200); assert((await ownerSession.json()).account.roles.includes('Owner'));
   await owner.page.goto(origin.origin + '/settings/admin');
+  // A newer app talking to an older backend can receive invalid_role. Exercise
+  // the real rejection and in-app diagnostic without inventing a successful invite.
+  await owner.page.getByLabel('Role nového účtu', { exact: true }).evaluate(select => select.add(new Option('Unsupported role', 'UnsupportedRole')));
+  await owner.page.getByLabel('Role nového účtu', { exact: true }).selectOption('UnsupportedRole');
+  const rejectedInvite = owner.page.waitForResponse(response => response.url() === origin.origin + '/app/v1/admin/invitations' && response.request().method() === 'POST');
+  await owner.page.getByRole('button', { name: 'Vytvořit pozvánku', exact: true }).click();
+  assert.equal((await rejectedInvite).status(), 400);
+  await owner.page.getByText('HTTP 400 · invalid_role', { exact: true }).waitFor();
+  await owner.page.getByText('Server nepodporuje zvolenou roli.', { exact: false }).waitFor();
+  assert.equal(await owner.page.getByLabel('Soukromý odkaz pro přijetí', { exact: true }).count(), 0);
   await owner.page.getByLabel('Role nového účtu', { exact: true }).selectOption('Viewer');
   await owner.page.getByRole('button', { name: 'Vytvořit pozvánku', exact: true }).click();
   if (await owner.page.locator('dialog[open]').count()) await owner.page.locator('dialog[open]').getByRole('button', { name: /Potvrdit|Vytvořit/, exact: false }).click();

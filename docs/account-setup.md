@@ -120,7 +120,7 @@ Vlastník otevře **Nastavení → Správa**, vytvoří pozvánku s požadovanou
 soukromě předá zobrazený odkaz nebo jednorázový kód. Pozvánka platí hodinu a
 spotřebuje se jediným úspěšným ověřením passkey. Nový účet se nikdy nestane
 vlastníkem jen proto, že přišel první. Role jsou `Owner`, `Administrator`,
-`Operator`, `Viewer`. Pouze vlastník vydává pozvánky, obnovu a mění role;
+`Operator`, `Viewer`, `Customer` a `Tester`. Pouze vlastník vydává pozvánky, obnovu a mění role;
 správce přiděluje prostředky a spravuje dostupné provozní funkce. Posledního
 aktivního vlastníka nelze zablokovat ani degradovat, včetně souběžných změn.
 
@@ -128,6 +128,11 @@ Správa vyžaduje passkey ověření z posledních deseti minut a výslovné pot
 změny. Odkaz **Znovu ověřit účet** otevře `/signin?return=/settings/admin`.
 Ověřuje se právě přihlášený účet; jiný klíč ho nesmí tiše zaměnit. Následně
 zopakujte zamýšlenou změnu. Klient nepřehrává citlivou mutaci automaticky.
+Při chybě správa přímo v aplikaci ukáže bezpečný kód a HTTP stav. Například
+`invalid_role` může znamenat, že starší backend nepodporuje roli nabízenou novou
+aplikací; ověřte skutečně aktivovanou verzi backendu. Úspěšně vrácená pozvánka
+zůstane zobrazená nezávisle na obnovování seznamu účtů. `Tester` je samostatný
+izolovaný přístup do [Testing Sessions](testing-sessions.md), nikoli produkční správa.
 
 V **Nastavení → Večery kufru** vyberte konkrétní povolené zařízení. Oprávnění
 `read` umožní jen přehled; `operate` spolu s rolí obsluhy umožní vytvoření a
@@ -139,6 +144,13 @@ obnovením přehledu. Starší večery zůstávají uložené, tato správa nesp
 
 Nastavení ukazuje klíče a přihlášené instalace. Přidejte druhý klíč, než odstraníte
 původní; poslední klíč odstranit nelze. Odstranění klíče odhlásí ostatní relace.
+Nové passkeys mají ve webovém i nativním výběru čitelný název, například
+`DildoVander Tester · Vojta`; interní účet a WebAuthn user handle zůstávají stejné.
+Nový záznam klíče v aplikaci obsahuje také skutečné datum vytvoření v UTC.
+V Nastavení lze použít vlastní označení, například „Osobní iPhone“; přihlášení
+ho nepřepisuje. Pojmenování v aplikaci nemění starší záznam v Apple Heslech nebo
+jiném správci passkeys. Jeho zobrazovaný název se upravuje u daného poskytovatele;
+existující klíče kvůli přejmenování nemažte.
 Relace mají pevnou platnost 12 hodin, lze je jednotlivě odvolat; označení
 „důvěryhodná“ je spravovaný záznam instalace a samo neprodlužuje přihlášení.
 Změna role či blokace účtu ukončí jeho dosavadní relace. Role, odvolání a granty
@@ -148,8 +160,10 @@ Test telefonu nabízí jen aktuální GPT Live a výslovnou alternativu GPT Real
 2.1. Hlasy, tempo, kamera a připravenost pocházejí z backendu; nepřístupný engine
 se sám nenahradí jiným. Běžné přihlášení používá účet i pro nativní audio
 WebSocket. Další audio vstup znovu ověřuje relaci, aktuální roli a grant.
-Textový rozhovor skutečného kufru byl vyřazen; text v označené simulaci je pouze
-deterministická fixture. Podrobnosti určuje [aktuální hlasový kontrakt](autonomous-live-memory.md).
+Textový rozhovor skutečného kufru byl vyřazen. Samostatný nativní simulátor má
+deterministickou TEXT fixture; [Testing Sessions](testing-sessions.md) naopak
+posílají psané zprávy přes skutečné provider adaptéry a virtualizují jen hardware.
+Podrobnosti určuje [aktuální hlasový kontrakt](autonomous-live-memory.md).
 
 Soukromá paměť rozhovoru má samostatné ověření identity a samostatné souhlasy
 s dlouhodobou pamětí a cloudovým exportem. Jméno, hlas ani fotografie hosta

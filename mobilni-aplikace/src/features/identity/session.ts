@@ -265,6 +265,11 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
     const explanations: Record<string, string> = {
       accounts_not_configured: 'Správce musí nejprve nakonfigurovat přihlašování serveru.',
       invitation_expired_or_used: 'Pozvánka už není platná. Vyžádejte si novou od vlastníka.',
+      invalid_role: 'Server nepodporuje zvolenou roli. Správce musí ověřit, že aplikace a backend mají kompatibilní verzi.',
+      invitation_limit: 'Je otevřeno příliš mnoho pozvánek. Počkejte na jejich využití nebo vypršení platnosti.',
+      recovery_unavailable: 'Vybraný účet nelze obnovit. Obnovte seznam účtů a zkontrolujte, že účet není zablokovaný.',
+      owner_required: 'Pozvánku nebo obnovu účtu může vytvořit pouze vlastník.',
+      account_required: 'Přihlášení vypršelo. Znovu se přihlaste a potom akci odešlete.',
       ceremony_expired_or_used: 'Ověření vypršelo. Spusťte ho znovu.',
       last_owner_required: 'Alespoň jeden aktivní vlastník musí zůstat zachován.',
       last_passkey_required: 'Nejprve přidejte druhý přístupový klíč. Poslední klíč nelze odebrat.',
@@ -290,7 +295,10 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
       customer_profile_revoked: 'Tento profil už není pro nový rozhovor platný. Obnovte profil postavy.',
       device_epoch_mismatch: 'Kufr se od připojení restartoval. Odpojte ho a připojte znovu.',
     };
-    throw new IdentityRequestError(explanations[code ?? ''] ?? (status === 403 ? 'K této akci nemáte oprávnění.' : 'Akci účtu se nepodařilo dokončit.'), status, code, rejectedGeneration);
+    const fallback = status === 429 ? 'Server nyní omezuje počet požadavků. Chvíli počkejte a potom akci znovu odešlete.'
+      : status >= 500 ? 'Server nemohl akci účtu dokončit. Správce musí ověřit technické logy serveru.'
+      : status === 403 ? 'K této akci nemáte oprávnění.' : 'Akci účtu se nepodařilo dokončit.';
+    throw new IdentityRequestError(explanations[code ?? ''] ?? fallback, status, code, rejectedGeneration);
   }
   if (path === '/app/v1/account' && method === 'DELETE') {
     if (status !== 202 || (value as { status?: string } | undefined)?.status !== 'deletion_requested') {

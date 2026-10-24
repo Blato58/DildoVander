@@ -59,6 +59,7 @@ internal static partial class AccountIdentityTests
         await AppleAppSiteAssociationAsync();
         await PersistentAccountAuthorizationAsync();
         await AdditionalPasskeyRecentAuthenticationAsync();
+        await RunPasskeyLabelsAsync();
         await ModelReleaseTests.RunAsync();
         await using var fixture = await Fixture.StartAsync();
         using var owner = fixture.Client();
@@ -392,7 +393,10 @@ internal static partial class AccountIdentityTests
         await CsrfAsync(recovery);
         var options = await recovery.PostAsJsonAsync("/app/v1/enrollment/options", new { token = recoveryToken, displayName = "" });
         Check(options.IsSuccessStatusCode, "recovery creation options");
-        Check((await JsonAsync(options)).GetProperty("user").GetProperty("displayName").GetString() == "Owner", "recovery uses existing server-bound account name without requesting a new identity");
+        var recoveryIdentity = (await JsonAsync(options)).GetProperty("user");
+        Check(recoveryIdentity.GetProperty("displayName").GetString() == "DildoVander Owner · Owner"
+            && Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(recoveryIdentity.GetProperty("id").GetString()!)) == ownerId,
+            "recovery uses the existing server-bound account name and stable user handle without requesting a new identity");
         Check((await recovery.PostAsJsonAsync("/app/v1/enrollment/complete", new { credential = new { } })).StatusCode == HttpStatusCode.BadRequest, "unverified recovery cannot remove original keys");
         using (var original = fixture.Client()) { await SignInAsync(original, ownerKey); }
         using var replacementKey = new VirtualPasskey();
