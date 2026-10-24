@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import { useRoute, useRouter } from 'vue-router';
 import AwButton from '../components/AwButton.vue';
 import AwNotice from '../components/AwNotice.vue';
-import { usePreferences } from './preferences';
 import { notifications, dismissNotice, notify } from './notifications';
 import { account, accountDeletionRequested, offlineSession, refreshIdentity } from '../features/identity/session';
 import { deviceSession } from '../features/suitcase/deviceSession';
@@ -13,13 +12,11 @@ import { directorStop, clearDirectorStop } from '../features/director/directorSt
 import { servoBench } from '../features/suitcase/servoBench';
 import { accessDenial, canEnterStaffArea, canOperateSuitcase, isCustomerAccount } from './access';
 import { accessRedirect } from './accessGuard';
-import InterfaceLanguageSelect from './InterfaceLanguageSelect.vue';
-import { interfaceLanguagePreference } from './interfaceLanguage';
+import ShellPreferences from './ShellPreferences.vue';
 import { customerCopy } from './customerCopy';
 
 const route = useRoute();
 const router = useRouter();
-const preferences = usePreferences();
 const browserMode = !Capacitor.isNativePlatform();
 const main = ref<HTMLElement>();
 const navigationElement = ref<HTMLElement>();
@@ -48,6 +45,16 @@ const navigation = computed(() => customerAccount.value ? [
   { to: '/signin', label: customerCopy.text('shell.nav-account'), symbol: '⚙' },
 ]);
 const identityKey = computed(() => account.value ? `${account.value.id}:${account.value.roles.join(',')}` : 'public');
+function revealActiveNavigation(): void {
+  const navigation = navigationElement.value;
+  const selected = navigation?.querySelector<HTMLElement>('a.selected');
+  if (!navigation || !selected || !window.matchMedia('(max-width: 720px)').matches) return;
+  navigation.scrollLeft = selected.offsetLeft - (navigation.clientWidth - selected.offsetWidth) / 2;
+}
+watch(() => [route.path, identityKey.value], async () => {
+  await nextTick();
+  revealActiveNavigation();
+});
 const routeAccessible = computed(() => accessDenial(route.meta, account.value, offlineSession.value) === null);
 const connected = computed(() => Boolean(deviceSession.snapshot.value && deviceSession.snapshot.value.phase !== 'disconnected'));
 const deviceCanStop = computed(() => connected.value && deviceSession.snapshot.value?.phase !== 'stopped');
@@ -101,6 +108,7 @@ onMounted(() => {
   if (typeof ResizeObserver !== 'undefined' && navigationElement.value) {
     navigationObserver = new ResizeObserver(() => {
       navigationHeight.value = `${navigationElement.value?.getBoundingClientRect().height ?? 0}px`;
+      revealActiveNavigation();
     });
     navigationObserver.observe(navigationElement.value);
   }
@@ -132,8 +140,7 @@ onBeforeUnmount(() => {
         <div v-if="canOperateSuitcase(account)" class="connection-context"><RouterLink to="/connections">{{ targetLabel }}</RouterLink><span v-if="servoBench.connected.value" class="context-detail">USB servo servis · Stop vypíná PWM, napájení není měřené</span><span v-else-if="phoneActive" class="context-detail">Aktivní telefonní zkouška · oddělená od hlasu kufru</span><span v-else-if="deviceSession.message.value" class="context-detail">{{ deviceSession.message.value }}</span></div>
         <p v-else class="connection-context">{{ customerAccount ? customerCopy.text('shell.customer-area') : customerCopy.text('shell.public') }}</p>
         <div class="header-actions">
-          <InterfaceLanguageSelect :preference="interfaceLanguagePreference" :account-id="account?.id" />
-          <label class="theme-control"><span class="sr-only">{{ customerCopy.text('shell.theme') }}</span><select v-model="preferences.theme" :aria-label="customerCopy.text('shell.theme')"><option v-for="theme in preferences.themes" :key="theme.id" :value="theme.id">{{ theme.id === 'lord-voldemort' ? customerCopy.text('settings.theme-voldemort') : theme.id === 'olivander' ? customerCopy.text('settings.theme-olivander') : theme.label }}</option></select></label>
+          <ShellPreferences :account-id="account?.id" />
           <RouterLink v-if="!account" class="account-link" to="/signin">{{ customerCopy.text('shell.sign-in') }}</RouterLink><RouterLink v-else class="account-link" :to="customerAccount ? '/me/account' : '/settings'">{{ account.displayName }}</RouterLink>
           <AwButton v-if="!customerAccount && (canEnterStaffArea(account) || deviceCanStop || phoneActive || directorCanStop || servoBench.connected.value)" variant="danger" :disabled="!deviceCanStop && !phoneActive && !directorCanStop && !servoBench.connected.value" :busy="stopBusy" @click="stop">Stop</AwButton>
         </div>

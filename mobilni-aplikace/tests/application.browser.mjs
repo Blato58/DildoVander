@@ -124,6 +124,12 @@ try {
     await route.continue();
   });
   const hasHeading = title => page.getByRole('heading', { name: title, exact: true }).waitFor();
+  const selectShellPreference = async (label, value) => {
+    const disclosure = page.locator('.shell-preferences');
+    if (!(await disclosure.evaluate(element => element.open))) await disclosure.locator('summary').click();
+    await page.getByLabel(label, { exact: true }).selectOption(value);
+    await disclosure.locator('summary').click();
+  };
   const fits = async () => {
     await page.evaluate(async () => {
       await document.fonts.ready;
@@ -157,7 +163,7 @@ try {
     await demo.getByRole('button', { name: 'Začít ukázku znovu', exact: true }).click();
     await hasHeading('Poznejte postavu');
     for (const theme of ['lord-voldemort', 'olivander']) {
-      await page.getByLabel('Vzhled aplikace').selectOption(theme);
+      await selectShellPreference('Vzhled aplikace', theme);
       await page.setViewportSize({ width: 320, height: 844 });
       await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
       await fits();
@@ -175,9 +181,9 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin); await hasHeading(homeHeading());
   await fits(); await page.screenshot({ path: path.join(screenshots, 'home-desktop.png'), fullPage: true });
-  await page.getByLabel('Vzhled aplikace').selectOption('olivander'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
+  await selectShellPreference('Vzhled aplikace', 'olivander'); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
   await page.reload(); await hasHeading(homeHeading()); assert.equal(await page.locator('html').getAttribute('data-theme'), 'olivander');
-  await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
+  await selectShellPreference('Vzhled aplikace', 'lord-voldemort');
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
     await fits();
@@ -223,7 +229,7 @@ try {
   assert(await lostAccess.getByRole('link', { name: 'kontaktujte podporu' }).isVisible());
   assert.match(await lostAccess.innerText(), /pouze vlastník služby/);
   for (const theme of ['lord-voldemort', 'olivander']) {
-    await page.getByLabel('Vzhled aplikace').selectOption(theme);
+    await selectShellPreference('Vzhled aplikace', theme);
     await page.setViewportSize({ width: 320, height: 900 });
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     assert(await lostAccess.getByRole('link', { name: 'kontaktujte podporu' }).isVisible());
@@ -232,7 +238,7 @@ try {
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
-  await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
+  await selectShellPreference('Vzhled aplikace', 'lord-voldemort');
   await page.goto(origin + '/signin');
   await page.getByRole('button', { name: 'Vytvořit zákaznický účet', exact: true }).click();
   assert.equal(await page.locator('.lost-access-help').count(), 0, 'enrollment keeps its own recovery guidance');
@@ -400,7 +406,7 @@ try {
   customerSessions = [];
   await page.goto(origin + '/me/account'); await hasHeading('Můj účet');
   await page.getByLabel('Jazyk rozhovoru', { exact: true }).waitFor();
-  await page.getByLabel('Jazyk rozhraní', { exact: true }).selectOption('en');
+  await selectShellPreference('Jazyk rozhraní', 'en');
   await page.getByRole('heading', { name: 'Your conversation preferences', exact: true }).waitFor();
   assert.equal(await page.getByLabel('Conversation language', { exact: true }).inputValue(), 'cs-CZ');
   assert.equal(preferenceWrites.length, 0, 'interface localization never mutates conversation preferences');
@@ -415,7 +421,7 @@ try {
   assert.equal(await page.getByLabel('Conversation language', { exact: true }).inputValue(), 'en-US');
   assert.equal(await page.getByLabel('Conversation style', { exact: true }).inputValue(), 'gentle');
   for (const theme of ['lord-voldemort', 'olivander']) {
-    await page.getByLabel('App appearance', { exact: true }).selectOption(theme);
+    await selectShellPreference('App appearance', theme);
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
       await fits();
@@ -427,8 +433,8 @@ try {
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize), '32px', 'enlarged preference text is actually 200%');
   await page.screenshot({ path: path.join(screenshots, 'customer-preferences-en-320-large-text.png'), fullPage: true });
   await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
-  await page.getByLabel('Interface language', { exact: true }).selectOption('cs');
-  await page.getByLabel('Vzhled aplikace', { exact: true }).selectOption('lord-voldemort');
+  await selectShellPreference('Interface language', 'cs');
+  await selectShellPreference('Vzhled aplikace', 'lord-voldemort');
   await page.getByRole('heading', { name: 'Přístupové klíče' }).waitFor();
   await page.getByRole('heading', { name: 'Přihlášená zařízení' }).waitFor();
   assert.equal(await page.getByLabel('Název přístupového klíče 1').count(), 1);
@@ -453,7 +459,7 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'olivander');
   assert.equal(await page.getByLabel('Vzhled aplikace').inputValue(), 'olivander', 'a second tab receives the stored preference');
   await preferenceTab.close();
-  await page.getByLabel('Vzhled aplikace').selectOption('lord-voldemort');
+  await selectShellPreference('Vzhled aplikace', 'lord-voldemort');
   const nav = page.getByRole('navigation', { name: 'Sekce aplikace' });
   for (const [label, heading] of [['Kufr', 'Kufr'], ['Dílna', 'Workshop'], ['Archiv', 'Najdi svoji hůlku.'], ['Správa', 'Uživatelé a oprávnění']]) {
     await nav.getByRole('link', { name: label, exact: true }).click(); await hasHeading(heading);
@@ -499,12 +505,45 @@ try {
 
   for (const theme of ['lord-voldemort', 'olivander']) {
     await page.goto(origin);
-    await page.getByLabel('Vzhled aplikace').selectOption(theme);
+    await selectShellPreference('Vzhled aplikace', theme);
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
       for (const route of ['/', '/connections', '/suitcase', '/suitcase/diagnostics', '/suitcase/director', '/workshop', '/archive', '/archive/duel', '/archive/chronicle', '/keepsake/', '/signin', '/settings', '/settings/admin', '/unavailable-page']) {
         await page.goto(origin + route); await page.getByRole('main').waitFor(); await page.waitForTimeout(100); await fits();
         assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+        if (width <= 720) {
+          assert(await page.locator('.application-header').evaluate(header => header.getBoundingClientRect().height < 150), 'collapsed mobile header leaves room for the current task');
+          assert(await page.locator('.primary-navigation a').evaluateAll(links => links.every(link => {
+            const rect = link.getBoundingClientRect();
+            return rect.width >= 44 && rect.height >= 44;
+          })), 'mobile navigation retains 44px targets in both dimensions');
+          const selected = page.locator('.primary-navigation a.selected');
+          if (await selected.count()) assert(await selected.evaluate(link => {
+            const rect = link.getBoundingClientRect();
+            const nav = link.closest('nav').getBoundingClientRect();
+            return rect.left >= nav.left - 1 && rect.right <= nav.right + 1;
+          }), 'deep-linked navigation stays visible in the scrolling bar');
+          if (route === '/') {
+            const disclosure = page.locator('.shell-preferences');
+            const summary = disclosure.locator('summary');
+            await summary.focus();
+            await page.keyboard.press('Enter');
+            assert(await page.getByLabel('Jazyk rozhraní', { exact: true }).isVisible());
+            assert(await page.locator('.shell-preferences-panel').evaluate(panel => {
+              const rect = panel.getBoundingClientRect();
+              const nav = document.querySelector('.primary-navigation').getBoundingClientRect();
+              return rect.left >= 0 && rect.right <= innerWidth && rect.bottom <= nav.top;
+            }), 'preferences fit above navigation without covering Stop');
+            await page.keyboard.press('Tab');
+            assert.equal(await page.locator(':focus').getAttribute('aria-describedby') !== null, true, 'language control follows the disclosure in keyboard order');
+            await page.keyboard.press('Escape');
+            assert.equal(await disclosure.evaluate(element => element.open), false);
+            assert(await summary.evaluate(element => document.activeElement === element), 'Escape returns focus to the disclosure');
+            await summary.click();
+            await page.locator('.connection-context').click();
+            assert.equal(await disclosure.evaluate(element => element.open), false, 'outside interaction dismisses preferences');
+          }
+        }
         const installer = page.getByRole('link', { name: 'Aplikace pro iPhone', exact: true });
         assert.equal(await installer.getAttribute('href'), '/ios/');
         assert(await installer.isVisible(), 'the iPhone distribution link remains visible');
@@ -570,17 +609,17 @@ try {
       await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
       await page.goto(origin + '/settings');
       await page.getByLabel('Název přístupového klíče 1', { exact: true }).waitFor();
-      await page.getByLabel('Vzhled aplikace').selectOption(theme);
+      await selectShellPreference('Vzhled aplikace', theme);
       await fits();
       await page.screenshot({ path: path.join(screenshots, `${theme}-synthetic-owner-settings-${width}.png`), fullPage: true });
       await page.goto(origin + '/settings/admin');
       const resource = page.getByLabel('Identifikátor prostředku', { exact: true });
       await resource.fill('synthetic-unsaved-grant');
       const original = await resource.elementHandle();
-      await page.getByLabel('Vzhled aplikace').selectOption(theme === 'olivander' ? 'lord-voldemort' : 'olivander');
+      await selectShellPreference('Vzhled aplikace', theme === 'olivander' ? 'lord-voldemort' : 'olivander');
       assert.equal(await resource.inputValue(), 'synthetic-unsaved-grant', 'theme switching preserves an unsaved management draft');
       assert(await resource.evaluate((element, previous) => element === previous, original), 'theme switching retains the management control');
-      await page.getByLabel('Vzhled aplikace').selectOption(theme);
+      await selectShellPreference('Vzhled aplikace', theme);
       await fits();
       await page.screenshot({ path: path.join(screenshots, `${theme}-synthetic-owner-admin-${width}.png`), fullPage: true });
     }
