@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Identity;
+using Kufr.Backend.Features.Keepsakes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.ClientModel;
@@ -47,7 +48,9 @@ internal static class CharacterEndpoints
             var profile = await store.ReadAsync(owner, http.RequestAborted);
             var wand = profile is null ? null : http.RequestServices.GetService<Kufr.Backend.Features.Wands.WandGenerationStore>()
                 ?.LatestBonded(owner, profile.ProfileId, profile.Revision);
-            return Results.Ok(new { profile, generatedWand = wand?.ToPublic() });
+            var artwork = wand is null ? null : http.RequestServices.GetService<KeepsakeStore>()
+                ?.FindOwnedWandArtwork(owner, wand.WandId);
+            return Results.Ok(new { profile, generatedWand = wand?.ToPublic(), artwork });
         });
         group.MapPut("", async (CharacterWriteRequest request, HttpContext http, CharacterProfileStore store) =>
             Results.Ok(new { profile = await store.SaveAsync(AccountId(http), request, http.RequestAborted) }));
