@@ -39,7 +39,8 @@ internal static partial class AccountEndpoints
         }
         var id = Guid.NewGuid().ToString("N");
         var name = request.DisplayName.Trim();
-        var options = await signIn.MakePasskeyCreationOptionsAsync(new() { Id = id, Name = id, DisplayName = name });
+        var label = PasskeyLabels.Account(name, [AccountRoles.Customer]);
+        var options = await signIn.MakePasskeyCreationOptionsAsync(new() { Id = id, Name = label, DisplayName = label });
         await SaveCeremonyAsync(context, db, "customer-enroll", id, name, null);
         return Results.Content(options, "application/json");
     }
@@ -78,6 +79,7 @@ internal static partial class AccountEndpoints
         {
             return Error(context, "account_not_created");
         }
+        PasskeyLabels.NameNew(attestation.Passkey, PasskeyLabels.Account(user.DisplayName, [AccountRoles.Customer]));
         if (!(await users.AddOrUpdatePasskeyAsync(user, attestation.Passkey)).Succeeded)
         {
             return Error(context, "passkey_not_saved");

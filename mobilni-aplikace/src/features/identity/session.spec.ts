@@ -8,6 +8,27 @@ let request: ReturnType<typeof vi.fn>;
 beforeEach(() => { vi.resetModules(); bridge.native = false; bridge.request.mockReset(); bridge.passkey.mockReset(); bridge.accountTransport.mockReset(); bridge.shareAccountDataFile.mockReset(); bridge.cancelAccountRequest.mockReset().mockResolvedValue({cancelled: true}); request = vi.fn(); vi.stubGlobal('fetch', request); });
 afterEach(() => { interfaceLanguagePreference.setScope(null); interfaceLanguagePreference.setLanguage('cs'); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+describe.each([false, true])('invitation error detail (native=%s)', native => {
+  it.each([
+    [400, 'invalid_role', 'Server nepodporuje zvolenou roli'],
+    [429, 'invitation_limit', 'příliš mnoho pozvánek'],
+    [400, 'recovery_unavailable', 'Vybraný účet nelze obnovit'],
+    [403, 'recent_passkey_required', 'znovu ověřte'],
+    [429, undefined, 'omezuje počet požadavků'],
+    [500, undefined, 'technické logy serveru'],
+  ])('explains HTTP %s/%s without rendering private response data', async (status, code, explanation) => {
+    bridge.native = native;
+    const body = JSON.stringify({code, privateDetail:'never-render-this-secret'});
+    bridge.request.mockResolvedValue({status, body});
+    request.mockResolvedValue(new Response(body,{status}));
+    vi.stubGlobal('confirm',vi.fn().mockReturnValue(true));
+    const identity = await import('./session');
+    const error = await identity.accountRequest('/app/v1/admin/invitations','POST',{role:'Tester',recoveryUserId:null}).catch(value=>value);
+    if (!(error instanceof Error)) throw new Error('Expected the rejected account request');
+    expect(error).toMatchObject({status,code});expect(error.message).toContain(explanation);expect(error.message).not.toContain('never-render');
+  });
+});
+
 describe('native account archive transport limits', () => {
   const archiveId = '123e4567-e89b-42d3-a456-426614174000';
   const uploadPath = `/app/v1/archive/owned/${archiveId}/portrait-uploads`;

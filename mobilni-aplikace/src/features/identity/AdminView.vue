@@ -1,42 +1,81 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import OperationsPanel from './OperationsPanel.vue';
 import ModelReleasesPanel from './ModelReleasesPanel.vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
-import { account, accountOrigin, accountRequest, refreshIdentity, hasRole, type Account, type ResourceGrant } from './session';
+import { account, accountOrigin, accountRequest, authenticatePasskey, refreshIdentity, hasRole, type Account, type ResourceGrant } from './session';
 interface ManagedAccount extends Account { disabled: boolean }
 const users = ref<ManagedAccount[]>([]); const grants = ref<ResourceGrant[]>([]);
 const error = ref(''); const busy = ref(false); const inviteRole = ref('Viewer'); const recoveryId = ref(''); const token = ref('');
+const message = ref(''); const failureCode = ref(''); const failureStatus = ref<number | null>(null);
+let epoch = 0;
+function showError(cause: unknown): void {
+  error.value = cause instanceof Error ? cause.message : 'Akci účtu se nepodařilo dokončit.';
+  const detail = cause as { code?: unknown; status?: unknown } | null;
+  failureCode.value = typeof detail?.code === 'string' && /^[a-z][a-z0-9_]{0,79}$/.test(detail.code) ? detail.code : '';
+  failureStatus.value = typeof detail?.status === 'number' && detail.status >= 400 && detail.status <= 599 ? detail.status : null;
+}
 const selectedUser = ref(''); const resourceType = ref('device'); const resourceId = ref(''); const permission = ref('read');
 const roles = ['Owner', 'Administrator', 'Operator', 'Viewer', 'Customer', 'Tester'];
 const invitationKind = ref('invite');
 const invitationLink = computed(() => token.value && accountOrigin.value ? `${accountOrigin.value}/signin#${invitationKind.value}=${encodeURIComponent(token.value)}` : '');
 async function load() {
+  const current = epoch;
   await refreshIdentity();
-  if (!hasRole('Administrator')) return;
+  if (current !== epoch || !hasRole('Administrator')) return;
   const data = await accountRequest<{ users: ManagedAccount[]; grants: ResourceGrant[] }>('/app/v1/admin/users');
+  if (current !== epoch) return;
   users.value = data.users; grants.value = data.grants;
 }
-onMounted(async () => { try { await load(); } catch (e) { error.value = (e as Error).message; } });
-async function action(work: () => Promise<unknown>) {
-  busy.value = true; error.value = '';
-  try { await work(); await load(); } catch (e) { error.value = (e as Error).message; }
-  finally { busy.value = false; }
+onMounted(async () => { const current = epoch; try { await load(); } catch (e) { if (current === epoch) showError(e); } });
+watch(() => `${account.value?.id}:${account.value?.roles.join(',')}`, () => {
+  epoch++; token.value = ''; users.value = []; grants.value = []; error.value = ''; message.value = '';
+  inviteRole.value = 'Viewer'; recoveryId.value = ''; selectedUser.value = ''; resourceId.value = '';
+  failureCode.value = ''; failureStatus.value = null; busy.value = false;
+}, { flush: 'sync' });
+onBeforeUnmount(() => { epoch++; token.value = ''; });
+async function action(work: () => Promise<unknown>, reload = true) {
+  if (busy.value) return;
+  const current = epoch;
+  busy.value = true; error.value = ''; message.value = ''; failureCode.value = ''; failureStatus.value = null;
+  try {
+    await work();
+    if (current !== epoch) return;
+    if (reload) {
+      try { await load(); }
+      catch { if (current === epoch) message.value = 'Změna byla potvrzena serverem, ale seznam se nepodařilo obnovit. Obnovte stránku; změnu neopakujte.'; }
+    }
+  } catch (e) { if (current === epoch) showError(e); }
+  finally { if (current === epoch) busy.value = false; }
 }
 async function invite() {
+  if (busy.value) return;
+  const current = epoch;
   token.value = '';
   await action(async () => {
     const result = await accountRequest<{ token: string; purpose: string }>('/app/v1/admin/invitations', 'POST', { role: inviteRole.value, recoveryUserId: recoveryId.value || null });
+    if (current !== epoch) return;
+    if (typeof result?.token !== 'string' || !/^[A-Za-z0-9_-]{20,256}$/.test(result.token)
+      || !['invite', 'recovery'].includes(result.purpose)) throw new Error('Server nevrátil platnou pozvánku. Vytvoření nebylo potvrzeno.');
     token.value = result.token;
     invitationKind.value = result.purpose === 'recovery' ? 'recovery' : 'invite';
-  });
+    message.value = 'Jednorázový odkaz byl vytvořen. Předejte ho soukromě účastníkovi.';
+  }, false);
+}
+async function reauthenticate() {
+  const current = epoch;
+  await action(async () => { await authenticatePasskey('reauth'); if (current === epoch) message.value = 'Totožnost byla ověřena. Původní akci nyní odešlete znovu.'; }, false);
 }
 </script>
 <template>
   <section class="page-stack" aria-labelledby="admin-title">
     <header><p class="eyebrow">Správa aplikace</p><h1 id="admin-title">Uživatelé a oprávnění</h1><p>Vlastník řídí účty a obnovu. Správci přidělují přístup ke konkrétním prostředkům.</p></header>
-    <AwNotice v-if="error" tone="danger" role="alert">{{ error }}</AwNotice>
+    <AwNotice v-if="error" tone="danger" role="alert">{{ error }}
+      <p v-if="failureStatus || failureCode">{{ failureStatus ? `HTTP ${failureStatus}` : '' }}{{ failureStatus && failureCode ? ' · ' : '' }}{{ failureCode }}</p>
+      <AwButton v-if="failureCode === 'recent_passkey_required'" :busy="busy" @click="reauthenticate">Ověřit totožnost přístupovým klíčem</AwButton>
+    </AwNotice>
+    <AwNotice v-if="message" tone="info" role="status">{{ message }}</AwNotice>
     <AwNotice v-if="!hasRole('Administrator')" tone="warning">Tato stránka vyžaduje oprávnění správce. <RouterLink to="/settings">Zpět na účet</RouterLink></AwNotice>
     <template v-else>
       <p><RouterLink :to="{path:'/signin',query:{return:'/settings/admin'}}">Znovu ověřit účet přístupovým klíčem</RouterLink></p>
