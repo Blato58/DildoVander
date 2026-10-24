@@ -7,7 +7,8 @@ namespace Kufr.Backend.Features.Show;
 
 internal sealed record DuelIdentitySnapshot(string IdentityId, string DisplayName, string WandId,
     int Strength, int Cunning, int Defense, string? WandName = null, WandSpell[]? Spells = null,
-    int? PhysicalSlot = null);
+    int? PhysicalSlot = null, string? CombatArchetype = null, string? CombatRulesVersion = null,
+    string? Temperament = null, string? Affinity = null, string? Weakness = null, string? ArtworkUrl = null, bool ArtworkSynthetic = false);
 internal sealed record DuelRound(int Number, string LeftAction, string RightAction, int LeftScore,
     int RightScore, bool LeftAutomatic, bool RightAutomatic, string Quip, string Mishap);
 internal sealed record DuelResult(double LeftPoints, double RightPoints, string Winner, string Ending, bool Exhibition);
@@ -19,7 +20,9 @@ internal static class DuelRules
 {
     public const string Version = "duel-sha256-counter-v1";
     public const string PersonalizedVersion = "duel-personalized-v2";
-    public static bool Supports(string version) => version is Version or PersonalizedVersion;
+    public const string CharacterVersion = "duel-personalized-v3";
+    public static bool IsPersonalized(string version) => version is PersonalizedVersion or CharacterVersion;
+    public static bool Supports(string version) => version is Version or PersonalizedVersion or CharacterVersion;
     public static readonly string[] Actions = ["strike", "trick", "shield"];
     private static readonly (int Strength, int Cunning, int Defense)[] Profiles =
         [(5, 3, 1), (5, 1, 3), (3, 5, 1), (1, 5, 3), (3, 1, 5), (1, 3, 5)];
@@ -68,15 +71,26 @@ internal static class DuelRules
         return new(id, alias, wandId, 3, 3, 3, name, spells.ToArray(), physicalSlot);
     }
 
+    public static DuelIdentitySnapshot CharacterSnapshot(string id, string alias, GeneratedWandPublicSnapshot wand)
+    {
+        var validated = PersonalizedSnapshot(id, alias, wand.WandId, wand.Name, wand.PhysicalSlot, wand.Spells);
+        if (!WandCombatProfiles.IsValid(wand.CombatArchetype) || wand.CombatRulesVersion != WandCombatProfiles.Version)
+            throw new DuelException(409, "wand_combat_profile_invalid");
+        var stats = WandCombatProfiles.Stats(wand.CombatArchetype);
+        return validated with { Strength = stats.Strength, Cunning = stats.Cunning, Defense = stats.Defense,
+            CombatArchetype = wand.CombatArchetype, CombatRulesVersion = wand.CombatRulesVersion,
+            Temperament = wand.Temperament, Affinity = wand.Affinity, Weakness = wand.Weakness };
+    }
+
     public static DuelCommitment Commit(string seed, int round, string rulesVersion = Version)
     {
         if (!Supports(rulesVersion) || round is < 1 or > 3) { throw new DuelException(409, "rules_version_unavailable"); }
         // V2 shares jitter between sides: identical actions always tie. The
         // original independent V1 jitter and hash prefix remain unchanged.
-        var leftJitter = (int)(Number(seed, $"{round}:left:jitter", rulesVersion) % 3) - 1;
+        var leftJitter = rulesVersion == CharacterVersion ? 0 : (int)(Number(seed, $"{round}:left:jitter", rulesVersion) % 3) - 1;
         return new(Actions[Number(seed, $"{round}:left:action", rulesVersion) % 3],
             Actions[Number(seed, $"{round}:right:action", rulesVersion) % 3], leftJitter,
-            rulesVersion == PersonalizedVersion ? leftJitter : (int)(Number(seed, $"{round}:right:jitter", rulesVersion) % 3) - 1);
+            IsPersonalized(rulesVersion) ? leftJitter : (int)(Number(seed, $"{round}:right:jitter", rulesVersion) % 3) - 1);
     }
 
     public static DuelRound Resolve(string seed, int round, DuelIdentitySnapshot left, DuelIdentitySnapshot right,
@@ -90,12 +104,17 @@ internal static class DuelRules
             throw new DuelException(400, "invalid_action");
         }
         var advantage = Advantage(leftAction, rightAction);
-        return new(round, leftAction, rightAction,
-            Stat(left, leftAction) + advantage + commitment.LeftJitter,
-            Stat(right, rightAction) - advantage + commitment.RightJitter,
+        // V3: the counter cycle always outweighs the entire stat spread. No
+        // seed variation participates in power; only timeout choices use it.
+        var v3 = rulesVersion == CharacterVersion;
+        var resolved = new DuelRound(round, leftAction, rightAction,
+            v3 ? 12 + Stat(left, leftAction) * 2 + advantage * 3 : Stat(left, leftAction) + advantage + commitment.LeftJitter,
+            v3 ? 12 + Stat(right, rightAction) * 2 - advantage * 3 : Stat(right, rightAction) - advantage + commitment.RightJitter,
             leftChoice is null, rightChoice is null,
             Quips[Number(seed, $"{round}:quip", rulesVersion) % Quips.Length],
             Mishaps[Number(seed, $"{round}:mishap", rulesVersion) % Mishaps.Length]);
+        return v3 ? resolved with { Quip = DuelPersonalizedNarration.Round(left, right, resolved),
+            Mishap = DuelPersonalizedNarration.Mishap(left, right, resolved) } : resolved;
     }
 
     public static DuelResult Result(IReadOnlyList<DuelRound> rounds, bool exhibition)

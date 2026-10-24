@@ -11,17 +11,18 @@ internal sealed record WandSpell(string Action, string Name, string Description)
 internal sealed record GeneratedWandSnapshot(string WandId, string SessionId, string ProfileId,
     long ProfileRevision, int PhysicalSlot, string Name, string Material, string Core,
     string Temperament, string Lore, string DesignDescription, string Affinity, string Weakness,
-    WandSpell[] Spells)
+    WandSpell[] Spells, string CombatArchetype = "balanced", string CombatRulesVersion = WandCombatProfiles.Version)
 {
     internal GeneratedWandPublicSnapshot ToPublic() => new(WandId, PhysicalSlot, Name, Material, Core,
-        Temperament, Lore, DesignDescription, Affinity, Weakness, Spells);
+        Temperament, Lore, DesignDescription, Affinity, Weakness, Spells, CombatArchetype, CombatRulesVersion);
 }
 internal sealed record GeneratedWandPublicSnapshot(string WandId, int PhysicalSlot, string Name,
     string Material, string Core, string Temperament, string Lore, string DesignDescription,
-    string Affinity, string Weakness, WandSpell[] Spells);
+    string Affinity, string Weakness, WandSpell[] Spells, string CombatArchetype = "balanced",
+    string CombatRulesVersion = WandCombatProfiles.Version);
 internal sealed record WandCandidateContent(string Name, string Material, string Core,
     string Temperament, string Lore, string DesignDescription, string Affinity, string Weakness,
-    WandSpell[] Spells);
+    WandSpell[] Spells, string CombatArchetype = "balanced");
 internal sealed record WandGenerationRequest(string AccountId, string OperationId,
     CharacterConversationSnapshot Profile, int ReadyMask, bool OpenAiConsent, string[] Evidence);
 internal sealed record WandGenerationSession(string SessionId, string OperationId, string ProfileId,
@@ -53,7 +54,7 @@ internal static class WandGenerationValidation
         var spells = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidates)
         {
-            if (candidate is null || !Text(candidate.Name, 100) || !names.Add(Normalize(candidate.Name))
+            if (candidate is null || !WandCombatProfiles.IsValid(candidate.CombatArchetype) || !Text(candidate.Name, 100) || !names.Add(Normalize(candidate.Name))
                 || string.IsNullOrWhiteSpace(SpokenIdentityKey(candidate.Name))
                 || !spokenNames.Add(SpokenIdentityKey(candidate.Name))
                 || LegacyNames.Contains(SpokenIdentityKey(candidate.Name))
@@ -87,4 +88,19 @@ internal static class WandGenerationValidation
         if (marker >= 0) plain = plain[(marker + " hulka ".Length)..];
         return string.Join(" ", Regex.Matches(plain, @"\p{L}+").Select(match => match.Value));
     }
+}
+
+// A versioned, server-owned power budget. AI chooses a fighting temperament only;
+// persisted prose and numeric provider output never grant additional power.
+internal static class WandCombatProfiles
+{
+    internal const string Version = "wand-archetypes-v1";
+    internal static readonly string[] Archetypes = ["offensive", "deceptive", "defensive", "balanced"];
+    internal static bool IsValid(string? archetype) => archetype is "offensive" or "deceptive" or "defensive" or "balanced";
+    internal static (int Strength, int Cunning, int Defense) Stats(string archetype) => archetype switch
+    {
+        "offensive" => (4, 2, 3), "deceptive" => (3, 4, 2),
+        "defensive" => (2, 3, 4), "balanced" => (3, 3, 3),
+        _ => throw new InvalidDataException("Unrecognized combat archetype.")
+    };
 }

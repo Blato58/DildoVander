@@ -27,42 +27,128 @@
 @media (max-width: 780px) { .archive-workspace, .archive-edition { grid-template-columns: minmax(0, 1fr); } .archive-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 390px) { .archive-index { grid-template-columns: minmax(0, 1fr); } }
 
-.archive-personal-wand { max-width: 70ch; }
-.archive-personal-wand-art {
-  width: min(100%, 25rem);
-  margin: var(--aw-space-4) 0;
-  padding: var(--aw-space-3);
-  border: 1px solid var(--aw-border);
-  border-radius: var(--aw-radius-card);
-  background: var(--aw-surface);
-  overflow: hidden;
-}
-.archive-personal-wand-art img {
-  display: block;
-  width: 100%;
-  max-height: 31rem;
-  aspect-ratio: 2 / 3;
-  object-fit: contain;
-}
-.archive-personal-wand-art figcaption { padding-top: var(--aw-space-2); }
-.archive-personal-wand-status { color: var(--aw-muted); }
-.archive-wand-facts { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 3fr); gap: var(--aw-space-2) var(--aw-space-4); }
+/* A wand is the artifact; the interface uses the shared chrome around it. */
+.archive-personal-wand { display: grid; gap: var(--aw-space-6); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); background: var(--aw-surface); min-width: 0; }
+.archive-personal-wand--illustrated { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; }
+.archive-personal-wand-art { margin: 0; min-width: 0; position: relative; background: var(--aw-void); border-radius: var(--aw-radius-card); overflow: hidden; }
+.archive-personal-wand-art img { display: block; width: 100%; aspect-ratio: 3 / 4; max-height: 42rem; object-fit: contain; }
+.archive-personal-wand-art figcaption { border-top: 1px solid var(--aw-border-subtle); padding: var(--aw-space-3) var(--aw-space-4); margin: 0; }
+.archive-art-state { aspect-ratio: 3 / 4; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: var(--aw-space-6); gap: var(--aw-space-3); color: var(--aw-muted); }
+.archive-art-state strong { color: var(--aw-ivory); font-size: var(--aw-text-subheading); }
+.archive-art-state p { margin: 0; max-width: 28ch; }
+.archive-art-state-mark { font-size: 4rem; color: var(--aw-accent); line-height: 1; margin-bottom: var(--aw-space-4); }
+.archive-wand-identity { min-width: 0; padding-block: var(--aw-space-3); }
+.archive-wand-kicker { font-size: var(--aw-text-caption); color: var(--aw-muted); margin: 0 0 var(--aw-space-3); font-weight: 600; }
+.archive-wand-name { font-size: clamp(1.75rem, 3.5vw, 3rem); line-height: 1.12; letter-spacing: -.035em; margin: 0 0 var(--aw-space-4); overflow-wrap: anywhere; }
+.archive-wand-material { font-size: var(--aw-text-subheading); font-weight: 500; }
+.archive-wand-material span { color: var(--aw-muted); margin-inline: .4em; }
+.archive-wand-specialty { font-size: var(--aw-text-caption); color: var(--aw-link, var(--aw-accent)); font-weight: 600; }
+.archive-wand-lore { font-size: var(--aw-text-body); line-height: 1.75; max-width: 66ch; margin-block: var(--aw-space-6); }
+.archive-wand-facts { display: grid; grid-template-columns: minmax(6rem, .8fr) minmax(0, 2fr); gap: var(--aw-space-3) var(--aw-space-4); font-size: var(--aw-text-label); }
+.archive-wand-facts dt { color: var(--aw-muted); }
 .archive-wand-facts dd { margin: 0; overflow-wrap: anywhere; }
+.archive-wand-design { border-top: 1px solid var(--aw-border-subtle); padding-top: var(--aw-space-4); margin-top: var(--aw-space-6); line-height: 1.6; }
+.archive-wand-links { margin-top: var(--aw-space-6); }
+.archive-wand-repertoire { grid-column: 1 / -1; }
+.archive-wand-repertoire h3 { font-size: var(--aw-text-subheading); margin: 0 0 var(--aw-space-4); }
 .archive-wand-spells { padding: 0; list-style: none; display: grid; gap: var(--aw-space-3); }
-.archive-wand-spells li { display: grid; gap: var(--aw-space-1); }
+.archive-wand-spells li { display: grid; gap: var(--aw-space-2); min-width: 0; overflow-wrap: anywhere; }
 .archive-wand-spells span { color: var(--aw-muted); }
-.archive-duel-wand { font-size: var(--aw-text-subheading); font-weight: 600; }
-.archive-duel-points, .archive-duel-countdown { font-variant-numeric: tabular-nums; }
-.archive-duel-countdown { padding-block: var(--aw-space-3); border-block: 1px solid var(--aw-border-subtle); font-size: var(--aw-text-subheading); }
+.archive-wand-spells--cards { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.archive-wand-spells--cards li { padding: var(--aw-space-6); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); background: var(--aw-void); align-content: start; }
+.archive-spell-glyph { display: block; width: 3rem; height: 3rem; flex: 0 0 auto; color: var(--aw-accent); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+[data-spell='trick'] .archive-spell-glyph { stroke-dasharray: 3 2; }
+[data-spell='shield'] .archive-spell-glyph { stroke-width: 2.1; }
+.archive-spell-kind { font-size: var(--aw-text-caption); font-weight: 600; }
+.archive-duel-arena { display: grid; grid-template-columns: minmax(0, 1fr) 5rem minmax(0, 1fr); gap: var(--aw-space-4); align-items: stretch; }
+.archive-duelist { min-width: 0; padding: clamp(.75rem, 2vw, 1.5rem); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); background: var(--aw-surface); display: flex; flex-direction: column; }
+.archive-duelist[data-side='left'] { grid-column: 1; grid-row: 1; }
+.archive-duelist[data-side='right'] { grid-column: 3; grid-row: 1; }
+.archive-duelist[data-winner='true'] { border-color: var(--aw-accent); }
+.archive-duelist-heading h2 { font-size: clamp(1.1rem, 2.6vw, 2rem); line-height: 1.2; margin: .4rem 0 1rem; }
+.archive-duelist-art { background: var(--aw-void); border-radius: var(--aw-radius-card); overflow: hidden; }
+.archive-duelist-art img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: contain; max-height: 30rem; }
+.archive-duelist-no-art { min-height: 12rem; aspect-ratio: 4 / 5; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 1rem; text-align: center; color: var(--aw-muted); font-size: var(--aw-text-caption); }
+.archive-duelist-no-art > span { font-size: 3rem; color: var(--aw-accent); }
+.archive-duel-wand { font-size: clamp(1rem, 2vw, 1.5rem); font-weight: 600; margin: var(--aw-space-6) 0 var(--aw-space-2); overflow-wrap: anywhere; }
+.archive-duelist .archive-wand-specialty { margin-top: 0; }
+.archive-duel-vs { grid-column: 2; grid-row: 1; align-self: center; text-align: center; color: var(--aw-muted); display: grid; gap: var(--aw-space-2); }
+.archive-duel-vs > span { font-size: 2rem; font-weight: 800; font-style: italic; letter-spacing: -.08em; color: var(--aw-ivory); }
+.archive-duel-vs small { font-size: var(--aw-text-caption); }
+.archive-combat-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--aw-space-3); margin-block: var(--aw-space-4); }
+.archive-combat-stats dt { color: var(--aw-muted); font-size: var(--aw-text-caption); }
+.archive-combat-stats dd { margin: .35rem 0 0; font-weight: 700; }
+.archive-combat-stats meter { display: block; width: 100%; height: .5rem; margin-top: .35rem; accent-color: var(--aw-accent); }
+.archive-duelist-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-top: auto; padding-top: var(--aw-space-6); font-size: var(--aw-text-caption); color: var(--aw-muted); }
+.archive-duel-points { color: var(--aw-ivory); font-size: 2rem; font-variant-numeric: tabular-nums; }
+.archive-duel-points span { font-size: var(--aw-text-label); font-weight: 500; }
+.archive-duel-choice { padding: clamp(1rem, 3vw, 2rem); background: var(--aw-surface); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); }
+.archive-duel-choice-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--aw-space-4); }
+.archive-duel-choice-heading h2 { margin: 0; }
+.archive-duel-countdown { font-variant-numeric: tabular-nums; display: grid; gap: var(--aw-space-1); text-align: center; font-size: var(--aw-text-caption); margin: 0; }
+.archive-duel-countdown .aw-mono { font-size: 2.5rem; color: var(--aw-ivory); line-height: 1; }
+.archive-duel-countdown small { font-size: var(--aw-text-label); }
+.archive-duel-readiness { display: flex; flex-wrap: wrap; gap: var(--aw-space-3); margin-block: var(--aw-space-6); font-size: var(--aw-text-caption); color: var(--aw-muted); }
+.archive-duel-readiness span { border: 1px solid var(--aw-border-subtle); padding: .5rem .75rem; border-radius: var(--aw-radius-control, 6px); }
+.archive-duel-readiness [data-ready='true'] { color: var(--aw-ivory); border-color: var(--aw-accent); background: var(--aw-accent-soft); }
 .archive-duel-actions { display: grid; gap: var(--aw-space-3); grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.archive-duel-actions button { display: grid; gap: var(--aw-space-1); white-space: normal; min-height: 4.5rem; }
-.archive-duel-actions button span { font-size: var(--aw-text-caption); font-weight: 400; }
-.archive-duel-reveal { animation: duel-reveal 250ms var(--aw-ease-out); padding-block: var(--aw-space-3); border-bottom: 1px solid var(--aw-border-subtle); }
-@keyframes duel-reveal { from { transform: translateY(.5rem); opacity: .35; } to { transform: translateY(0); opacity: 1; } }
-@media (max-width: 520px) { .archive-wand-facts, .archive-duel-actions { grid-template-columns: minmax(0, 1fr); } }
-@media (prefers-reduced-motion: reduce) { .archive-duel-reveal { animation: none; } }
-
-.archive-spell-effect { width: 11rem; height: 2rem; color: var(--aw-accent); display: block; }
-.archive-spell-effect path { stroke: currentColor; fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 300; animation: duel-trace 450ms var(--aw-ease-out); }
-@keyframes duel-trace { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
-@media (prefers-reduced-motion: reduce) { .archive-spell-effect path { animation: none; } }
+.archive-duel-actions .archive-spell-button { display: grid; gap: var(--aw-space-3); padding: var(--aw-space-6); min-width: 0; white-space: normal; align-content: start; justify-items: start; text-align: left; background: var(--aw-void); color: var(--aw-ivory); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-card); }
+.archive-spell-button strong { font-size: var(--aw-text-subheading); overflow-wrap: anywhere; }
+.archive-spell-button > span:not(.archive-spell-kind), .archive-spell-button small { font-size: var(--aw-text-caption); line-height: 1.6; font-weight: 400; color: var(--aw-muted); }
+.archive-spell-button small { border-top: 1px solid var(--aw-border-subtle); padding-top: var(--aw-space-3); }
+.archive-duel-actions .archive-spell-button:not(:disabled):hover { border-color: var(--aw-accent); background: var(--aw-accent-soft); }
+.archive-duel-actions .archive-spell-button:disabled { opacity: .6; }
+.archive-duel-result { padding: clamp(1.5rem, 5vw, 3rem); text-align: center; background: var(--aw-accent-soft); border: 1px solid var(--aw-accent); border-radius: var(--aw-radius-card); }
+.archive-duel-result[data-result='defeat'] { background: var(--aw-surface); border-color: var(--aw-border); }
+.archive-duel-result h2 { font-size: var(--aw-text-caption); font-weight: 500; color: var(--aw-muted); }
+.archive-duel-verdict { font-size: clamp(1.5rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -.035em; line-height: 1.2; margin: var(--aw-space-4) 0; }
+.archive-duel-final-score { font-size: clamp(3rem, 7vw, 5rem); line-height: 1; font-variant-numeric: tabular-nums; font-weight: 700; margin: var(--aw-space-6) 0; }
+.archive-duel-final-score span { color: var(--aw-muted); padding-inline: .2em; }
+.archive-duel-result .archive-wand-lore { margin-inline: auto; }
+.archive-duel-result .archive-actions { justify-content: center; }
+.archive-duel-rounds { display: grid; gap: var(--aw-space-4); padding: 0; list-style: none; margin: 0; }
+.archive-duel-reveal { animation: duel-reveal 450ms var(--aw-ease-out); padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--aw-border-subtle); border-radius: var(--aw-radius-card); background: var(--aw-surface); }
+.archive-round-heading { display: flex; flex-wrap: wrap; gap: var(--aw-space-3); align-items: center; justify-content: space-between; border-bottom: 1px solid var(--aw-border-subtle); padding-bottom: var(--aw-space-4); }
+.archive-round-heading h2 { font-size: var(--aw-text-subheading); margin: 0; }
+.archive-round-heading > strong { font-size: var(--aw-text-caption); color: var(--aw-link, var(--aw-accent)); }
+.archive-spell-clash { display: grid; grid-template-columns: minmax(0, 1fr) 2rem minmax(0, 1fr); gap: var(--aw-space-4); align-items: center; padding-block: var(--aw-space-6); }
+.archive-revealed-spell { display: grid; gap: var(--aw-space-2); align-content: center; text-align: center; justify-items: center; min-width: 0; overflow-wrap: anywhere; }
+.archive-revealed-spell:first-child { grid-column: 1; grid-row: 1; }
+.archive-revealed-spell:nth-child(2) { grid-column: 3; grid-row: 1; }
+.archive-revealed-spell strong { font-size: var(--aw-text-subheading); }
+.archive-clash-mark { grid-column: 2; grid-row: 1; font-size: 2rem; color: var(--aw-muted); text-align: center; }
+.archive-round-quip { font-size: var(--aw-text-body); line-height: 1.75; max-width: 70ch; }
+.archive-revealed-spell[data-spell='strike'] .archive-spell-glyph { animation: duel-strike 500ms var(--aw-ease-out); }
+.archive-revealed-spell[data-spell='trick'] .archive-spell-glyph { animation: duel-trick 650ms var(--aw-ease-out); }
+.archive-revealed-spell[data-spell='shield'] .archive-spell-glyph { animation: duel-shield 600ms var(--aw-ease-out); }
+@keyframes duel-reveal { from { transform: translateY(.75rem); opacity: .35; } to { transform: translateY(0); opacity: 1; } }
+@keyframes duel-strike { 0% { transform: translateX(-1.5rem) scale(.8); } 55% { transform: translateX(.5rem) scale(1.15); } 100% { transform: none; } }
+@keyframes duel-trick { 0% { transform: rotate(-25deg); opacity: .2; } 50% { transform: rotate(15deg); } 100% { transform: none; opacity: 1; } }
+@keyframes duel-shield { 0% { transform: scale(.5); } 65% { transform: scale(1.2); } 100% { transform: none; } }
+@media (max-width: 780px) { .archive-personal-wand--illustrated { grid-template-columns: minmax(0, 1fr); } .archive-personal-wand-art img { max-height: 34rem; } .archive-duel-arena { grid-template-columns: minmax(0, 1fr) 2rem minmax(0, 1fr); gap: .5rem; } .archive-duel-vs > span { font-size: 1.25rem; } .archive-duel-vs small { display: none; } }
+@media (max-width: 520px) { .archive-wand-spells--cards, .archive-duel-actions { grid-template-columns: minmax(0, 1fr); } .archive-wand-spells--cards li { grid-template-columns: 3rem minmax(0, 1fr); column-gap: var(--aw-space-4); } .archive-wand-spells--cards .archive-spell-glyph { grid-row: 1 / 4; } .archive-wand-spells--cards li > span:last-child { grid-column: 2; } .archive-duel-actions .archive-spell-button { grid-template-columns: 3rem minmax(0, 1fr); } .archive-spell-button .archive-spell-glyph { grid-row: 1 / 4; } .archive-spell-button small { grid-column: 1 / -1; } .archive-duelist { padding: .65rem; } .archive-duelist-no-art { min-height: 9rem; padding: .5rem; } .archive-duelist-heading h2 { font-size: 1rem; } .archive-combat-stats { gap: .35rem; } .archive-combat-stats dt { font-size: .7rem; } .archive-duelist details { font-size: var(--aw-text-caption); } .archive-duelist-footer { align-items: start; } .archive-duel-points { font-size: 1.5rem; } .archive-duel-arena .archive-wand-specialty { line-height: 1.5; } .archive-revealed-spell strong { font-size: var(--aw-text-label); } .archive-wand-facts { grid-template-columns: minmax(5rem, 1fr) minmax(0, 2fr); } }
+@media (prefers-reduced-motion: reduce) { .archive-duel-reveal, .archive-revealed-spell .archive-spell-glyph { animation: none !important; } }
+/* Once the server opens a timed choice, the spells take priority over the full arena. */
+.archive-duel-view[data-state='Running'] > * { order: 2; }
+.archive-duel-view[data-state='Running'] > .archive-duel-intro { order: 0; }
+.archive-duel-view[data-state='Running'] > .archive-duel-choice { order: 1; scroll-margin-top: 6rem; }
+.archive-duel-view[data-state='Running'] .archive-duel-intro h1 { margin: 0; font-size: var(--aw-text-subheading); }
+.archive-duel-view[data-state='Running'] .archive-duel-choice .archive-wand-kicker { display: none; }
+.archive-duel-view[data-state='Running'] .archive-duel-choice { padding: var(--aw-space-4); }
+.archive-duel-view[data-state='Running'] .archive-duel-choice-heading h2 { font-size: var(--aw-text-subheading); }
+.archive-duel-view[data-state='Running'] .archive-duel-readiness { margin-block: var(--aw-space-3); gap: var(--aw-space-2); }
+.archive-duel-view[data-state='Running'] .archive-duel-actions .archive-spell-button { padding: var(--aw-space-3); gap: var(--aw-space-2); }
+.archive-duel-view[data-state='Running'] .archive-spell-button strong { font-size: var(--aw-text-label); }
+.archive-duel-view[data-state='Running'] .archive-spell-button > span:not(.archive-spell-kind) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.archive-duel-view[data-state='Running'] .archive-spell-tactics { display: none; }
+@media (max-width: 520px) {
+  .archive-duel-view[data-state='Running'] { gap: var(--aw-space-3); }
+  .archive-duel-view[data-state='Running'] .archive-duel-choice-heading { gap: var(--aw-space-2); }
+  .archive-duel-view[data-state='Running'] .archive-duel-countdown .aw-mono { font-size: 2rem; }
+  .archive-duel-view[data-state='Running'] .archive-duel-readiness span { padding: .35rem .5rem; }
+  .archive-duel-view[data-state='Running'] .archive-duel-actions { gap: var(--aw-space-2); }
+  .archive-duel-view[data-state='Running'] .archive-duel-actions .archive-spell-button { grid-template-columns: 2rem minmax(0, 1fr); gap: var(--aw-space-1) var(--aw-space-3); min-height: 5.5rem; }
+  .archive-duel-view[data-state='Running'] .archive-spell-button .archive-spell-glyph { width: 2rem; height: 2rem; grid-row: 1 / 4; }
+  .archive-duel-view[data-state='Running'] .archive-spell-button > span:not(.archive-spell-kind) { grid-column: 2; }
+  .archive-duel-view[data-state='Running'] .archive-duel-choice > p[role='status'] { font-size: var(--aw-text-caption); margin-block: var(--aw-space-2); }
+}

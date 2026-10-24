@@ -9,6 +9,15 @@ internal static class CustomerSessionResultEndpoints
     internal sealed record WandPublicationRequest(bool Approved, string EditionId, int Revision);
     internal static void MapCustomerSessionResult(this RouteGroupBuilder accounts)
     {
+        accounts.MapPost("/keepsakes/{id:guid}/wand-artwork/retry", (string id, HttpContext http, KeepsakeStore keepsakes) =>
+        {
+            try
+            {
+                var key = http.Request.Headers["Idempotency-Key"].ToString();
+                return Results.Ok(keepsakes.RetryWandArtwork(id, AccountOwnedArchives.Actor(http), key));
+            }
+            catch (KeepsakeException error) { return ApiProblem.Create(http, error.Status, error.Code); }
+        });
         accounts.MapPost("/keepsakes/{id:guid}/wand-publication", (string id, WandPublicationRequest request, HttpContext http, KeepsakeStore keepsakes) =>
         {
             try
@@ -24,7 +33,7 @@ internal static class CustomerSessionResultEndpoints
             if (duels is null) return ApiProblem.Create(http, 503, "duels_unavailable");
             var actor = AccountOwnedArchives.Actor(http);
             var identities = keepsakes.OwnedBattleIdentities(actor);
-            return Results.Ok(new { items = duels.AccountHistory(identities) });
+            return Results.Ok(new { items = duels.AccountHistory(identities).Select(keepsakes.ProjectBattleArtwork) });
         });
         accounts.MapGet("/duels/{id:guid}", (string id, HttpContext http, KeepsakeStore keepsakes) =>
         {
@@ -33,7 +42,7 @@ internal static class CustomerSessionResultEndpoints
             var actor = AccountOwnedArchives.Actor(http);
             var identities = keepsakes.OwnedBattleIdentities(actor);
             var duel = duels.AccountHistory(identities, id).SingleOrDefault();
-            return duel is null ? ApiProblem.Create(http, 404, "duel_unavailable") : Results.Ok(duel);
+            return duel is null ? ApiProblem.Create(http, 404, "duel_unavailable") : Results.Ok(keepsakes.ProjectBattleArtwork(duel));
         });
         accounts.MapGet("/sessions/{id:guid}/result", (string id, HttpContext http,
             OperationJournal journal, KeepsakeStore keepsakes) =>

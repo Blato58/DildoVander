@@ -12,6 +12,7 @@ import ArchiveDialog from './ArchiveDialog.vue';
 import ArchiveDownload from './ArchiveDownload.vue';
 import WizardIdentity from './WizardIdentity.vue';
 import GeneratedWand from './GeneratedWand.vue';
+import { projectWandArtwork, useWandArtworkRetry } from './wandArtwork';
 import { projectGeneratedWand } from './generatedWand';
 import PrivateProphecy from './PrivateProphecy.vue';
 import { publicIdentity, ownerProphecy } from './showContracts';
@@ -25,6 +26,8 @@ const activeClient: ArchiveMediaClient = {
   blob: (path, allowed, publicRead) => accountRead.value ? accountClient.blob(path, allowed) : client.blob(path, allowed, publicRead),
 };
 const media = useArchiveMedia(activeClient);
+const artworkRetry = useWandArtworkRetry();
+const currentArtworkId = computed(() => record.value?.artwork ? record.value.artwork.assetId : edition.value?.artworkAssetId);
 const portraitMedia = useArchiveMedia(activeClient);
 const claim = ref(parseClaim(consumeGuestClaim()));
 const record = ref<Keepsake>();
@@ -67,8 +70,8 @@ const readinessNotice = computed(() => {
   return hasStory && hasArtwork ? customerCopy.text('keepsake.readiness-ready') : `${generationLabel(baseJob.value?.state ?? record.value?.state, customerCopy.language.value)} ${customerCopy.text('keepsake.generic-ready')}`;
 });
 const storyPlaceholder = computed(() => readinessPlaceholder('story'));
-const artworkPlaceholder = computed(() => readinessPlaceholder('artwork'));
-const canManuallyCheckReadiness = computed(() => readinessVisible.value && record.value?.readiness?.shouldPoll === true
+const artworkPlaceholder = computed(() => record.value?.artwork?.status === 'failed' ? generationLabel('failed', customerCopy.language.value) : ['queued', 'running'].includes(record.value?.artwork?.status ?? '') ? generationLabel('running', customerCopy.language.value) : readinessPlaceholder('artwork'));
+const canManuallyCheckReadiness = computed(() => readinessVisible.value && (record.value?.readiness?.shouldPoll === true || ['queued', 'running', 'missing'].includes(record.value?.artwork?.status ?? ''))
   && automaticRefreshes.value >= maxAutomaticRefreshes && !offlineSession.value && navigator.onLine);
 const edition = computed(() => record.value?.sharedEditionId ? record.value.editions.find(item => item.id === record.value?.sharedEditionId) : record.value?.editions.filter(item => item.publicationState !== 'private_history').at(-1));
 const portrait = computed(() => record.value?.portraits.filter(item => isUuid(item.assetId) && item.editionId === edition.value?.id && record.value?.assets.some(asset => asset.id === item.assetId && asset.kind === 'portrait_image')).at(-1));
@@ -145,7 +148,7 @@ function clearPhoto() {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value); previewUrl.value = '';
   if (photoInput.value) photoInput.value.value = '';
 }
-function clearPrivate() { publicationConsent.value = false; record.value = undefined; accountAccess.value = undefined; readinessInvalid.value = false; history.value = []; issuedLink.value = ''; clearPhoto(); includePortrait.value = false; media.clear(); portraitMedia.clear(); artworkOpen.value = false; sharePreview.value = false; associationOpen.value = false; unlinkOpen.value = false; unlinkConfirmation.value = ''; deleteScope.value = undefined; confirmation.value = ''; }
+function clearPrivate() { publicationConsent.value = false; record.value = undefined; artworkRetry.invalidate(); accountAccess.value = undefined; readinessInvalid.value = false; history.value = []; issuedLink.value = ''; clearPhoto(); includePortrait.value = false; media.clear(); portraitMedia.clear(); artworkOpen.value = false; sharePreview.value = false; associationOpen.value = false; unlinkOpen.value = false; unlinkConfirmation.value = ''; deleteScope.value = undefined; confirmation.value = ''; }
 function invalidate() { loadSequence++; actionGeneration++; client.invalidate(); accountClient.invalidate(); clearTimeout(timer); automaticRefreshes.value = 0; busy.value = false; clearPrivate(); }
 function suspendNetworkReads(clearPrivateView = false) {
   loadSequence++; readInFlight = undefined; actionGeneration++; clearTimeout(timer); automaticRefreshes.value = 0; busy.value = false;
@@ -163,7 +166,7 @@ function scheduleAutoRefresh(readiness: ArchiveReadiness | null, view: Keepsake,
     && view.jobs.some(job => job.kind === 'portrait' && pending(job.state));
   const lockedOwnerProphecy = readinessAllowed && owner.value
     && (view.prophecies ?? []).some(item => item.state === 'locked');
-  const shouldPoll = readinessAllowed && (readiness?.shouldPoll === true || activePortraitJob || lockedOwnerProphecy)
+  const shouldPoll = readinessAllowed && (readiness?.shouldPoll === true || activePortraitJob || lockedOwnerProphecy || ['queued', 'running'].includes(view.artwork?.status ?? '') || view.artwork?.status === 'missing' && view.artwork.canRetry)
     || (!readiness && !malformed && !accountRead.value && shareEdition.value === undefined
       && (view.jobs.some(job => pending(job.state)) || (view.prophecies ?? []).some(item => item.state === 'locked')));
   if (!shouldPoll || automaticRefreshes.value >= maxAutomaticRefreshes || document.hidden || offlineSession.value || !navigator.onLine) return;
@@ -194,9 +197,10 @@ async function load(automatic = false) {
       view.readiness = readiness;
       const access = accountRead.value ? validateAccountAccess(view) : null;
       if (accountRead.value && !access) { clearPrivate(); throw new GuestError(503); }
-      const oldArt = edition.value?.artworkAssetId;
+      const oldArt = currentArtworkId.value;
       const oldPortrait = portrait.value?.assetId;
       view.snapshot.generatedWand = projectGeneratedWand(view.snapshot.generatedWand);
+      view.artwork = projectWandArtwork(view.artwork);
       view.wandPublicationApproved = view.wandPublicationApproved === true;
       view.wizardIdentities = (view.wizardIdentities ?? []).map(publicIdentity).filter(item => item !== null);
       view.prophecies = (accountRead.value ? access?.canReadPrivate === true : shareEdition.value === undefined && view.readOnly !== true)
@@ -205,7 +209,7 @@ async function load(automatic = false) {
       readinessInvalid.value = malformedReadiness;
       record.value = view; publicationConsent.value = false;
       if (access?.accessKind === 'originalOwner') history.value = view.portraits;
-      if (oldArt !== edition.value?.artworkAssetId || !media.artworkUrl.value) await media.artwork(edition.value?.artworkAssetId ? assetPath(edition.value.artworkAssetId) : undefined);
+      if (oldArt !== currentArtworkId.value || !media.artworkUrl.value) await media.artwork(currentArtworkId.value ? assetPath(currentArtworkId.value) : undefined);
       check(); if (sequence !== loadSequence) return;
       if (oldPortrait !== portrait.value?.assetId || !portraitMedia.artworkUrl.value) await portraitMedia.artwork(portrait.value?.assetId ? assetPath(portrait.value.assetId) : undefined);
       check(); if (sequence !== loadSequence) return;
@@ -264,8 +268,9 @@ async function cancelJob(kind: 'portrait' | 'base') {
 }
 const exportNames: Record<string, string> = { art: 'wand-art.png', portrait: 'magical-portrait.png', story: 'story.txt', card: 'keepsake-card.png', zip: 'bundle.zip' };
 function canExport(format: string) {
-  if (!edition.value || busy.value) return false;
-  if (format === 'art') return !!edition.value.artworkAssetId;
+  if (busy.value) return false;
+  if (format === 'art') return !!currentArtworkId.value;
+  if (!edition.value) return false;
   if (format === 'portrait') return canReadPortrait.value && !!portrait.value;
   if (readOnly.value) return record.value?.assets.some(asset => asset.editionId === edition.value?.id && asset.kind === `export_${format}`);
   return format !== 'card' || !!edition.value.story && (!!edition.value.artworkAssetId || !!identity.value);
@@ -287,13 +292,13 @@ async function createIdentity() {
 }
 async function exportFile(format: string) {
   await action(async check => {
-    if (!edition.value) return;
+    if (!edition.value && format !== 'art') return;
     let id: string | undefined;
-    if (format === 'art') id = edition.value.artworkAssetId;
+    if (format === 'art') id = currentArtworkId.value ?? undefined;
     else if (format === 'portrait' && canReadPortrait.value) id = portrait.value?.assetId;
     else if (readOnly.value) id = record.value?.assets.find(asset => asset.editionId === edition.value?.id && asset.kind === `export_${format}`)?.id;
     else if (owner.value) {
-      const result = await mutateArchive<{ asset: { id: string } }>('/exports', check, { data: { editionId: edition.value.id, format, portraitId: format === 'zip' && includePortrait.value ? portrait.value?.id ?? null : null } }); check(); id = result.asset.id;
+      const result = await mutateArchive<{ asset: { id: string } }>('/exports', check, { data: { editionId: edition.value!.id, format, portraitId: format === 'zip' && includePortrait.value ? portrait.value?.id ?? null : null } }); check(); id = result.asset.id;
     }
     if (id) await media.download(assetPath(id), exportNames[format], format === 'zip' ? ['application/zip'] : format === 'story' ? ['text/plain'] : ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
   });
@@ -397,8 +402,8 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
     </section>
     <article v-if="record" aria-labelledby="keepsake-title">
       <p class="aw-badge">{{ accountOwner ? customerCopy.text('keepsake.private-owner') : accountCanUnlink ? customerCopy.text('keepsake.linked-readonly') : accountRead ? customerCopy.text('archive.unverified-access') : readOnly ? customerCopy.text('keepsake.shared-readonly') : customerCopy.text('keepsake.private-owner') }}</p>
-      <div class="archive-edition"><div><button class="archive-art-button" :disabled="!media.artworkUrl.value" :aria-label="customerCopy.text('keepsake.enlarged-art-alt')" @click="artworkOpen = true"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" :alt="customerCopy.text('keepsake.art-alt')" class="archive-art" @error="media.clearArtwork(); media.artworkError.value = true"><span v-else>{{ media.artworkError.value ? customerCopy.text('keepsake.art-error') : artworkPlaceholder }}</span></button><p class="archive-caption">{{ customerCopy.text('keepsake.art-caption') }}</p></div>
-        <div><h1 id="keepsake-title">{{ record.snapshot.generatedWand?.name ?? record.snapshot.officialName }}</h1><p>{{ customerCopy.text('keepsake.wand-slot', { slot: record.snapshot.slot }) }}</p><h2>{{ edition?.story?.title }}</h2><p>{{ paragraphs[0] }}</p>
+      <div class="archive-edition"><div><button class="archive-art-button" :disabled="!media.artworkUrl.value" :aria-label="customerCopy.text('keepsake.enlarged-art-alt')" @click="artworkOpen = true"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" :alt="customerCopy.text('keepsake.art-alt')" class="archive-art" @error="media.clearArtwork(); media.artworkError.value = true"><span v-else>{{ media.artworkError.value ? customerCopy.text('keepsake.art-error') : artworkPlaceholder }}</span></button><p class="archive-caption">{{ record.artwork?.synthetic ? (customerCopy.language.value === 'en' ? 'Synthetic test illustration · no paid generation' : 'Syntetická testovací ilustrace · bez placeného generování') : customerCopy.text('keepsake.art-caption') }}</p></div>
+        <div><h1 id="keepsake-title">{{ record.snapshot.generatedWand?.name ?? record.snapshot.officialName }}</h1><p v-if="!record.snapshot.generatedWand">{{ customerCopy.text('keepsake.wand-slot', { slot: record.snapshot.slot }) }}</p><h2>{{ edition?.story?.title }}</h2><p>{{ paragraphs[0] }}</p>
           <p class="aw-notice" role="status" aria-live="polite" :data-readiness-state="readinessInvalid ? 'invalid' : readinessVisible ? record.readiness?.state : undefined">{{ readinessNotice }}</p>
           <button v-if="canManuallyCheckReadiness" class="aw-button aw-button--secondary" :disabled="busy" @click="manualCheckReadiness">{{ customerCopy.text('keepsake.status-check') }}</button>
           <p v-if="edition?.synthetic" class="aw-notice">{{ customerCopy.text('keepsake.synthetic') }}</p>
@@ -406,7 +411,9 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
           <label v-if="owner"><input v-model="includePortrait" type="checkbox" :disabled="!portrait || busy">{{ customerCopy.text('keepsake.include-portrait') }}</label>
           <button v-if="owner && pending(baseJob?.state)" class="aw-button aw-button--secondary" :disabled="busy" @click="cancelJob('base')">{{ customerCopy.text('keepsake.stop-preparation') }}</button>
         </div></div>
-      <GeneratedWand v-if="record.snapshot.generatedWand && !identity?.generatedWand" :wand="record.snapshot.generatedWand" />
+      <GeneratedWand v-if="record.snapshot.generatedWand && !identity?.generatedWand" :wand="record.snapshot.generatedWand" :show-artwork="false" />
+      <button v-if="accountOwner && record.artwork?.canRetry" class="aw-button aw-button--secondary" :disabled="artworkRetry.busy.value" @click="artworkRetry.retry(record.artwork, () => load())">{{ customerCopy.language.value === 'en' ? 'Retry illustration' : 'Zkusit ilustraci znovu' }}</button>
+      <p v-if="artworkRetry.failed.value" role="alert">{{ customerCopy.language.value === 'en' ? 'The illustration retry could not be confirmed. Refresh its state.' : 'Opakování ilustrace se nepodařilo potvrdit. Obnov její stav.' }}</p>
       <WizardIdentity :identity="identity" />
       <button v-if="owner && !accountRead && edition && !identity" class="aw-button aw-button--secondary" :disabled="busy" @click="createIdentity">{{ customerCopy.text('keepsake.create-identity') }}</button>
       <p v-if="owner && !accountRead && edition && !identity" class="archive-caption">{{ customerCopy.text('keepsake.identity-help') }}</p>

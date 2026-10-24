@@ -1,4 +1,5 @@
 import { projectGeneratedWand, type GeneratedWand } from '../archive/generatedWand';
+import { projectWandArtwork, type WandArtwork } from '../archive/wandArtwork';
 import type { CustomerCopyKey } from '../../application/customerCopy';
 
 /** Safe projection of the account-owned customer-session result endpoint. */
@@ -29,6 +30,7 @@ export interface CustomerResultProjection {
   wandPublicationApproved?: boolean;
   /** Asset ID only; image bytes require a fresh owner-authorized request. */
   artworkAssetId?: string;
+  artwork?: WandArtwork;
   generatedWand?: GeneratedWand;
   wandGeneration?: { status: string; canRetry: boolean };
 }
@@ -106,6 +108,7 @@ export function projectCustomerResult(value: unknown, expectedSessionId: string)
     route,
     locator: route ? locator : null,
     ...(verifiedOwner && typeof value.wandPublicationApproved === 'boolean' ? { wandPublicationApproved: value.wandPublicationApproved } : {}),
+    ...(route && projectWandArtwork(value.artwork)?.locator === locator ? { artwork: projectWandArtwork(value.artwork)! } : {}),
     ...(route && readiness.hasArtwork === true && projectGeneratedWand(value.generatedWand)
       && typeof value.artworkAssetId === 'string' && safeUuidPattern.test(value.artworkAssetId)
       ? { artworkAssetId: value.artworkAssetId } : {}),

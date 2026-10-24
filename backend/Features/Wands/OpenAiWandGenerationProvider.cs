@@ -12,7 +12,7 @@ namespace Kufr.Backend.Features.Wands;
 
 internal sealed class OpenAiWandGenerationProvider : IWandGenerationProvider, IDisposable
 {
-    internal const string PromptVersion = "character-wand-candidates-v1";
+    internal const string PromptVersion = "character-wand-candidates-v2";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
     private readonly string? key;
@@ -73,8 +73,9 @@ internal sealed class OpenAiWandGenerationProvider : IWandGenerationProvider, ID
             properties = new { name = TextSchema(100), material = TextSchema(160), core = TextSchema(160),
                 temperament = TextSchema(300), lore = TextSchema(700), designDescription = TextSchema(700),
                 affinity = TextSchema(200), weakness = TextSchema(200),
+                combatArchetype = new { type = "string", @enum = WandCombatProfiles.Archetypes },
                 spells = new { type = "array", minItems = 3, maxItems = 3, items = spell } },
-            required = new[] { "name", "material", "core", "temperament", "lore", "designDescription", "affinity", "weakness", "spells" }
+            required = new[] { "name", "material", "core", "temperament", "lore", "designDescription", "affinity", "weakness", "combatArchetype", "spells" }
         };
         // Only the minimal permitted fictional context is sent; ownership/session
         // identifiers, account details and authorization proofs never leave here.
@@ -90,7 +91,8 @@ internal sealed class OpenAiWandGenerationProvider : IWandGenerationProvider, ID
                 + "one each for strike, trick and shield. All candidate names and all spell names must be distinct. "
                 + "Candidate names must remain distinct when spoken without numeric suffixes, punctuation, diacritics or a wood-plus-wand prefix. "
                 + "Materials and cores are fictional. Design is a digital fantasy interpretation only; it does not change the physical prop. "
-                + "Affinity and weakness are narrative only. No numerical powers, real hardware specifications, device commands, "
+                + "Choose combatArchetype from offensive, deceptive, defensive or balanced to match the wand personality. "
+                + "The server owns all numerical stats and balance. Affinity and weakness are narrative only. No numerical powers, real hardware specifications, device commands, "
                 + "claims of physical changes, or guaranteed researched facts. Never use legacy catalogue names. "
                 + "Keep every field within its schema length and exclude control characters. Do not include private conversation quotes in lore. "
                 + "Use the profile, verified fictional facts and permitted evidence as inspiration without disclosing private details.",

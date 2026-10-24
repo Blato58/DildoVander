@@ -47,6 +47,52 @@ not pending selections. Historical keepsakes retain the snapshot after ordinary
 profile edits. The canonical design is imposed on partial and completed story
 editions and the image prompt, preventing a second wand design.
 
+## Canonical illustration lifecycle
+
+Confirmed physical issuance transactionally queues a `wand_artwork` dependency in
+existing `dv10_jobs`. Text selection alone does not bond a wand or dispatch an
+image. The existing worker calls the existing OpenAI Images SDK once for the
+selected wand, using its complete validated identity, material, core, personality,
+lore and physical design. No candidate images are generated. The artwork job
+runs before the separate keepsake story and never blocks the conversation or
+ESP32. Queue/storage admission remains bounded; deferred jobs are admitted by the
+worker independently of read requests.
+
+A successful result saves a decoded, hash-verified PNG as an immutable version-1
+asset and stores wand ID, asset ID, synthetic flag, provider/model, prompt version
+and creation time. Private provider responses and prompts use the existing
+archive. The asset retains `base_image` compatibility and has no edition owner;
+all personalized editions reference that exact asset. Personalized base jobs use
+Responses for story only and never call Images. Legacy catalogue keepsakes keep
+their existing combined story/image behavior.
+
+Profile, session result and owner keepsake projections include an `artwork`
+reference with locator, asset ID, version, synthetic label, current status and
+explicit recovery availability. The reference grants no byte access: every
+existing owner/public asset route rechecks authorization and publication.
+Duel snapshots reference the same approved public artwork. Account-history
+presentation removes a withdrawn artwork reference on refresh while retaining
+the immutable combat snapshot in storage. Public withdrawal denies original and
+derivative image reads. Downloaded files cannot be recalled from a recipient.
+
+`POST /app/v1/customer/keepsakes/{id}/wand-artwork/retry` is an original-owner,
+CSRF-protected action with an `Idempotency-Key`. A running or completed attempt
+returns its existing job. An explicit retry after failure/uncertain dispatch
+fences the prior attempt before queuing a replacement; a late response cannot
+publish over it. Once canonical artwork exists, recovery cannot replace it.
+Restart requeues undispatched leases and marks dispatched work for reconciliation;
+it never silently repeats a paid image request. Technical error codes contain no
+provider payload or private prompt.
+
+Startup adoption handles pre-upgrade personalized records without provider calls.
+It preserves the valid currently published illustration, or the earliest valid
+edition if none is published, as canonical. Contradictory older editions/bytes
+remain private history; their share grants are withdrawn. Old queued stories wait
+for the artwork dependency without consuming its only queue slot. Text-only
+legacy records remain readable. GET never creates jobs, migrates assets or calls
+providers. Manual keepsake/account deletion fences in-flight jobs and removes
+canonical art and derived assets through the existing cleanup path.
+
 ## Private review and public fiction
 
 OpenAI processing consent does not authorize publishing private-derived text.
@@ -66,15 +112,46 @@ snapshots/grants/commentary, retaining technical revocation fences. Account and
 profile deletion fence in-flight generation. Local deletion does not claim
 provider or backup erasure.
 
-## Existing duel engine, version two
+## Versioned combat and narration
 
-Two approved completed assignments use `duel-personalized-v2`.
-Each has three named spells mapped to `strike`, `trick`, `shield`. Server-owned
-stats are 3/3/3; the existing cyclic advantage is ±2 and shared bounded jitter
-cannot favor a side. Identical actions tie. Fictional affinity, weakness, names
-and AI narration have no scoring authority. Version-one hash fixtures, stored
-commitments, rules and results remain unchanged. Mixed generated/legacy admission
-is rejected rather than assigning a generated wand a legacy profile.
+New approved personalized assignments fight under `duel-personalized-v3`.
+Each has three immutable named spells mapped to `strike`, `trick`, `shield`.
+The model proposes only an allowlisted archetype. `wand-archetypes-v1` assigns
+server-owned strength/cunning/defense with an equal nine-point budget:
+
+| Archetype | Strength | Cunning | Defense |
+| --- | --- | --- | --- |
+| offensive | 4 | 2 | 3 |
+| deceptive | 3 | 4 | 2 |
+| defensive | 2 | 3 | 4 |
+| balanced | 3 | 3 | 3 |
+
+Unknown archetypes, provider numeric fields and unsupported profile versions are
+rejected. Legacy generated records default to balanced. The duel freezes the
+archetype, profile version, stats, temperament, affinity, weakness and spells.
+V3 round power is `12 + 2 × action stat + 3 × cyclic advantage`, where advantage
+is +2 for the counter, -2 for the countered action, and zero for equal actions.
+Strike counters trick; trick counters shield; shield counters strike. Thus a
+counter always beats the full stat spread; same-action clashes reward specialty
+and punish weakness. No random jitter changes v3 scoring. Only missing-player
+timeout actions use the persisted deterministic seed commitments.
+
+Stored `duel-personalized-v2` retains its original 3/3/3 profiles, ±2 cyclic
+advantage and shared jitter; version-one hash fixtures and all stored results
+remain unchanged. Mixed generated/legacy admission remains rejected. The balance
+suite exhausts all 16 archetype pairs and nine action pairs, 1%-resolution mixed
+strategy minimax grids, and 11,664 three-round battles. Every pair has a fair
+minimax value within 0.011 of zero; every pure action has a reliable counter.
+
+V3 offline narration names the committed spells, validated winner and progression.
+The existing optional, deduplicated post-result OpenAI request composes three
+connected original theatrical flourishes and harmless mishaps from minimal public
+wand personalities and immutable combat events. Its echoed identities, actions,
+rounds, scores and result must match exactly; text is bounded and cannot supply
+commands. Server-rendered factual narration remains alongside the generated
+flavor. Existing request claims, usage audit, no automatic paid retries and
+restart-to-fallback behavior are preserved. Prose never enters the scorer or
+physical cue dispatch.
 
 The operator creates the existing same-evening duel and issues separate scoped
 grants. Both interactive participants must explicitly join/consent before start.
@@ -107,3 +184,34 @@ Live Responses/Live/Realtime individuality, actual iPhone/native transport, ESP
 acknowledgements, LED/audio behavior and physical calibration require separate
 provider/device verification. This implementation does not deploy, flash, invoke
 paid providers, or claim a measured physical effect.
+
+### Verified offline acceptance — 24 October 2026
+
+- Complete backend console suite and zero-warning backend/tests build; focused
+  `--generated-wands`, `--wand-artwork` and `--duel` suites.
+- SDK-bound fake HTTP fixtures prove one image-only request for the selected wand
+  and story-only subsequent requests, with actual decoded PNG bytes. SQLite tests
+  cover explicit retry, late response fencing, dispatched restart, capacity-one
+  deferred recovery, pre-upgrade queued stories and multiple legacy illustrations.
+- Canonical asset IDs match profile, result, keepsake editions and both duel sides;
+  original/linked/public access, account isolation, source withdrawal, derivative
+  denial, account deletion and late-result cleanup have regression coverage.
+- V3 checks cover 144 archetype/action cases, 16 minimax grids and 11,664 complete
+  three-round battles. Frozen v1/v2 result and persisted-reopen fixtures pass.
+- 150 Node and 816 Vue/component tests, production typecheck/build, shared
+  contracts, design/token integrity, 13 delivery, 16 proxy and 10 native
+  preparation checks pass. Firmware host harness passes all 54 checks, including
+  the simulated media/show soak; no hardware was actuated.
+- Browser checks use the compiled application with separately labelled,
+  decoded 600×800 synthetic wand fixtures. They exercise two-device consent,
+  hidden actions and simultaneous reveals; image reuse across profile/result/
+  keepsake/history; failure and explicit retry; publication withdrawal; and
+  privacy-safe text/1000×1400 PNG battle exports. Mobile/desktop screenshots are
+  inspected. These fixtures prove rendering and contracts, not OpenAI art quality.
+
+Live OpenAI image/narration quality and uniqueness, physical ESP32 audio/LED
+behavior, and use on an actual iPhone remain unverified. Linux cannot execute the
+Swift/Xcode Simulator checks or the ESP-IDF toolchain absent from this workspace;
+selected remote CI performs those builds. A successful unsigned Simulator build
+is not signed-device or physical acceptance. No paid inference, deployment,
+release, signing or hardware flashing is part of this verification.

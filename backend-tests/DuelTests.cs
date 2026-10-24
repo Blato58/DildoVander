@@ -22,6 +22,8 @@ internal static class DuelTests
     internal static async Task RunAsync()
     {
         RulesFixtures();
+        DuelBalanceTests.Run();
+        StoredV2Compatibility();
         await DuelCommentaryTests.RunAsync();
         using var fixture = new Fixture();
         PersistenceAndReplay(fixture);
@@ -72,8 +74,8 @@ internal static class DuelTests
         fixture.Source.Mixed = false;
         var request = fixture.CreateRequest("interactive");
         var duel = fixture.Store.Create("device-a", request);
-        Check(duel.RulesVersion == DuelRules.PersonalizedVersion && duel.RequiresParticipantConsent,
-            "generated wand duel pins the v2 rules and explicit consent flow");
+        Check(duel.RulesVersion == DuelRules.CharacterVersion && duel.RequiresParticipantConsent,
+            "generated wand duel pins the v3 rules and explicit consent flow");
         var grantLeft = fixture.Store.Grant("device-a", duel.Id, new("left", duel.Revision, "v2-left-grant"));
         var grantRight = fixture.Store.Grant("device-a", duel.Id, new("right", grantLeft.Duel.Revision, "v2-right-grant"));
         Check(grantRight.Duel.State == "AwaitingParticipants", "operator-issued grants alone do not imply participant consent");
@@ -197,6 +199,38 @@ internal static class DuelTests
         Check(duel.State == "Completed" && duel.Result?.Winner == "right" && duel.Rounds.All(round => !round.LeftAutomatic && !round.RightAutomatic),
             "two clients finish all three named-spell rounds with authoritative reproducible winner");
         await app.StopAsync();
+    }
+
+    private static void StoredV2Compatibility()
+    {
+        using var fixture = new Fixture();
+        fixture.Source.Personalized = true;
+        var left = DuelRules.PersonalizedSnapshot("left", "Archivář", "generated-left", "Hůlka levá", 1, PersonalizedSpells("left"));
+        var right = DuelRules.PersonalizedSnapshot("right", "Písař", "generated-right", "Hůlka pravá", 1, PersonalizedSpells("right"));
+        var seed = "fixture-seed";
+        var commitments = Enumerable.Range(1, 3).Select(round => DuelRules.Commit(seed, round, DuelRules.PersonalizedVersion)).ToArray();
+        Check(commitments.SequenceEqual([new("strike", "trick", -1, -1), new("trick", "shield", 0, 0), new("strike", "strike", -1, -1)]),
+            "frozen v2 SHA stream remains unchanged after v3 admission");
+        var rounds = Enumerable.Range(1, 3).Select(round => DuelRules.Resolve(seed, round,
+            left, right, commitments[round - 1], null, null, DuelRules.PersonalizedVersion)).ToList();
+        Check(rounds.Select(round => (round.LeftScore, round.RightScore)).SequenceEqual([(4, 0), (5, 1), (2, 2)]),
+            "frozen v2 power and shared jitter remain unchanged");
+        var duel = new DuelDocument { Id = Guid.NewGuid().ToString(), DeviceId = "device-a", EveningId = "evening-a",
+            Seed = seed, RulesVersion = DuelRules.PersonalizedVersion, Mode = "autoplay", State = "Completed",
+            Left = left, Right = right, Commitments = commitments, Rounds = rounds, Result = DuelRules.Result(rounds, false) };
+        using (var db = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=" + fixture.Configuration["Backend:DatabasePath"]))
+        {
+            db.Open(); using var insert = db.CreateCommand();
+            insert.CommandText = "INSERT INTO show_duels VALUES($id,$device,$evening,0,'Completed',$document)";
+            insert.Parameters.AddWithValue("$id", duel.Id); insert.Parameters.AddWithValue("$device", duel.DeviceId);
+            insert.Parameters.AddWithValue("$evening", duel.EveningId);
+            insert.Parameters.AddWithValue("$document", JsonSerializer.Serialize(duel, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            insert.ExecuteNonQuery();
+        }
+        var restored = fixture.Reopen().Read(duel.Id);
+        Check(restored.RulesVersion == DuelRules.PersonalizedVersion && restored.Rounds.SequenceEqual(rounds)
+            && restored.Result == duel.Result && restored.Left.Strength == 3,
+            "database reopen preserves old v2 snapshots and result without migration or recomputation");
     }
 
     private static void RulesFixtures()

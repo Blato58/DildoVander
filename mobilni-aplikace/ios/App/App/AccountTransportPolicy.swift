@@ -440,6 +440,9 @@ enum AccountTransportPolicy {
             "/app/v1/customer/admin/characters": ["GET"]]
         if exact[path]?.contains(method) == true { return true }
         let parts = path.split(separator: "/").map(String.init)
+        if parts.count == 7, Array(parts.prefix(4)) == ["app", "v1", "customer", "keepsakes"], parts[5] == "wand-artwork", parts[6] == "retry" {
+            return method == "POST" && UUID(uuidString: parts[4]) != nil && parts[4].count == 36 && path == "/app/v1/customer/keepsakes/\(parts[4])/wand-artwork/retry"
+        }
         if parts.count == 6, Array(parts.prefix(4)) == ["app", "v1", "customer", "keepsakes"], parts[5] == "wand-publication" {
             return method == "POST" && UUID(uuidString: parts[4]) != nil && parts[4].count == 36 && path == "/app/v1/customer/keepsakes/\(parts[4])/wand-publication"
         }

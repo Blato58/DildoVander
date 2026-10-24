@@ -27,7 +27,7 @@ internal sealed record KeepsakeView(string Id, KeepsakeIssueSnapshot Snapshot, s
     bool ReadOnly, string? SharedEditionId, int Revision = 0, bool PortraitConsent = false,
     int PortraitConsentVersion = 0, IReadOnlyList<WizardIdentityCard>? WizardIdentities = null,
     IReadOnlyList<ProphecyView>? Prophecies = null, KeepsakeReadiness? Readiness = null,
-    bool WandPublicationApproved = false);
+    bool WandPublicationApproved = false, OwnedWandArtworkReference? Artwork = null);
 internal sealed record KeepsakeAssetContent(KeepsakeAsset Asset, byte[] Bytes);
 internal sealed record KeepsakeDeletionReceipt(string Id, string Scope, string LocalState,
     string ProviderState, string BackupState, DateTimeOffset RequestedAt);
@@ -44,6 +44,8 @@ internal sealed record KeepsakeProviderRequest(string KeepsakeId, KeepsakeIssueS
     byte[]? NormalizedPhoto, KeepsakeStory? ExistingStory)
 {
     public Func<string, string, string, bool>? RecordStage { get; init; }
+    public string GenerationKind { get; init; } = "base";
+    public string? CanonicalArtworkAssetId { get; init; }
 }
 internal sealed record KeepsakeProviderOutput(KeepsakeStory? Story, byte[] ImageBytes, string MediaType,
     string Provider, string Model, string Prompt, string ContentResponse, bool Synthetic, WizardIdentityContent? Identity = null);

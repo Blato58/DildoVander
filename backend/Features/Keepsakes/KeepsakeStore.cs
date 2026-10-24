@@ -117,6 +117,7 @@ internal sealed partial class KeepsakeStore
             }
         }
         InitializeCompletionUpdates(connection);
+        AdoptLegacyWandArtwork(connection);
         RecoverCompletionUpdates(connection);
         ResumeDeletionCleanup();
     }
@@ -243,6 +244,8 @@ internal sealed partial class KeepsakeStore
     private sealed record Document(KeepsakeIssueSnapshot Snapshot)
     {
         public int Revision { get; set; }
+        public WandArtworkSnapshot? Artwork { get; set; }
+        public string? CurrentArtworkJob { get; set; }
         public string? WandPublicationEditionId { get; set; }
         public string? ProphecyUnlockReason { get; set; }
         public int ConsentVersion { get; set; }

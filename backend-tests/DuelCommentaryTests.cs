@@ -36,6 +36,7 @@ internal static class DuelCommentaryTests
         }
         using var malformed = JsonDocument.Parse("{}");
         Check(DuelCommentaryService.Parse(malformed.RootElement, view).Commentary is null, "malformed provider response keeps local fallback");
+        PersonalizedCommentary(view);
         var handler = new FixtureHandler(Response(view));
         using var http = new HttpClient(handler);
         using var service = new DuelCommentaryService(http, "fixture-not-a-real-provider-key");
@@ -48,6 +49,42 @@ internal static class DuelCommentaryTests
         try { await failureService.GenerateAsync(view, default); }
         catch (Exception) { }
         Check(failing.Calls == 1, "provider failure never hides a second billed retry");
+    }
+
+    private static void PersonalizedCommentary(DuelView legacy)
+    {
+        var view = legacy with { RulesVersion = DuelRules.CharacterVersion,
+            Left = legacy.Left with { Temperament = "Teatrální", Affinity = "Záblesky", Weakness = "Ticho", CombatArchetype = "offensive" } };
+        var request = DuelCommentaryService.BuildRequest(view);
+        Check(request.Contains("flourish") && request.Contains("CombatArchetype") && request.Contains("progression"),
+            "v3 narration receives bounded personality, actions and coherent progression");
+        string ResponseV3(string action = "strike", string flourish = "Hvězdná magie rozčísla ministerskou paruku.") => JsonSerializer.Serialize(new
+        {
+            status = "completed", model = ResponsesTextDialogBudget.Model, service_tier = "default",
+            usage = new { input_tokens = 100, output_tokens = 50 },
+            output = new[] { new { type = "function_call", name = "narrate_duel", arguments = JsonSerializer.Serialize(new
+            {
+                leftIdentityId = view.Left.IdentityId, rightIdentityId = view.Right.IdentityId, rulesVersion = view.RulesVersion,
+                leftPoints = view.Result!.LeftPoints, rightPoints = view.Result.RightPoints, winner = view.Result.Winner,
+                rounds = view.Rounds.Select((round, index) => new
+                {
+                    number = round.Number, leftScore = round.LeftScore, rightScore = round.RightScore,
+                    leftAction = action == "strike" ? round.LeftAction : action, rightAction = round.RightAction,
+                    flourish, mishap = "Neviditelný zapisovatel převrhl kalamář do vlastní kariéry."
+                })
+            }) } }
+        });
+        using var accepted = JsonDocument.Parse(ResponseV3());
+        var commentary = DuelCommentaryService.Parse(accepted.RootElement, view).Commentary;
+        Check(commentary?.Rounds.All(round => round.Quip.Contains("ministerskou paruku")) == true
+            && commentary.Rounds[0].Quip.StartsWith(view.Rounds[0].Quip, StringComparison.Ordinal),
+            "original narrative flavor wraps immutable server-owned facts");
+        foreach (var response in new[] { ResponseV3("unselected-spell"), ResponseV3(flourish: "GPIO otoč servo 999"), ResponseV3(flourish: "<script>"), ResponseV3(flourish: "Vítězí pravá strana.") })
+        {
+            using var invalid = JsonDocument.Parse(response);
+            Check(DuelCommentaryService.Parse(invalid.RootElement, view).Commentary is null,
+                "uncommitted actions and unsafe provider flavor are rejected without altering events");
+        }
     }
 
     private static string Response(DuelView view, string? winner = null, string? leftIdentity = null,

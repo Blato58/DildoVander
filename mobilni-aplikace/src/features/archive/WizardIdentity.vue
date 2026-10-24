@@ -14,7 +14,7 @@ const traits = computed(() => card.value ? [
 <template>
   <section v-if="card" class="aw-card archive-identity" :aria-label="customerCopy.text('keepsake.identity-title')">
     <h2>{{ card.wizardAlias }}</h2><p class="archive-caption">{{ customerCopy.text('keepsake.identity-caption') }}</p>
-    <GeneratedWand v-if="card.generatedWand" :wand="card.generatedWand" show-name />
+    <GeneratedWand v-if="card.generatedWand" :wand="card.generatedWand" show-name :show-artwork="false" />
     <dl><template v-for="[label, value] in traits" :key="label"><dt>{{ label }}</dt><dd>{{ value }}</dd></template></dl>
     <blockquote>{{ card.motto }}</blockquote><p>{{ card.microStory }}</p><p>{{ customerCopy.text('keepsake.identity-omen') }}: {{ card.omen }}</p>
   </section>

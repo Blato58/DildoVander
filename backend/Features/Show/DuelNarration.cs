@@ -21,7 +21,7 @@ internal sealed partial class DuelStore
         if (state == "failed" || duel.NarrationExpiresAt is null || clock.GetUtcNow() >= duel.NarrationExpiresAt
             || duel.NarrationStage is not ("intro_wait" or "round_wait" or "final_wait"))
         {
-            if (duel.RulesVersion == DuelRules.PersonalizedVersion)
+            if (DuelRules.IsPersonalized(duel.RulesVersion))
             {
                 ContinueWithoutDevice(connection, transaction, duel, released);
                 return true;
@@ -78,7 +78,7 @@ internal sealed partial class DuelStore
             }
             else
             {
-                if (duel.RulesVersion == DuelRules.PersonalizedVersion)
+                if (DuelRules.IsPersonalized(duel.RulesVersion))
                 {
                     var released = new List<(string Device, string Id)>();
                     ContinueWithoutDevice(connection, transaction, duel, released);
@@ -147,7 +147,7 @@ internal sealed partial class DuelStore
         // immutable physical slot through the existing trusted hardware mapping.
         var wandId = wand.PhysicalSlot is { } physicalSlot
             ? PartyWandCatalog.Available(63).Single(item => item.Compartment == physicalSlot).StableId : wand.WandId;
-        var line = stage switch
+        var line = duel.RulesVersion == DuelRules.CharacterVersion ? DuelPersonalizedNarration.PhysicalLine(duel, stage) : stage switch
         {
             "intro_dispatch" => $"{(duel.Mode == "exhibition" ? "Fiktivní exhibice. " : "")}{BoundAlias(duel.Left.DisplayName)}{WandIntroduction(duel.Left)} proti {BoundAlias(duel.Right.DisplayName)}{WandIntroduction(duel.Right)}. Digitální souboj začíná. Hůlky zůstávají v přihrádkách.",
             "final_dispatch" => $"{(duel.Mode == "exhibition" ? "Fiktivní exhibice se nezapočítává jako výhra hosta. " : "")}{duel.Result!.Ending} Body {duel.Result.LeftPoints} ku {duel.Result.RightPoints}.",

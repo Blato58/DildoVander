@@ -12,10 +12,11 @@ internal sealed class DuelIdentitySource(KeepsakeStore keepsakes, EveningMemoryS
     {
         var identity = keepsakes.GetPublicWizardIdentity(identityId, eveningId, deviceId);
         if (identity is null) { return null; }
-        return identity.GeneratedWand is { } wand
-            ? DuelRules.PersonalizedSnapshot(identity.IdentityId, identity.WizardAlias, wand.WandId,
-                wand.Name, wand.PhysicalSlot, wand.Spells)
+        var snapshot = identity.GeneratedWand is { } wand
+            ? DuelRules.CharacterSnapshot(identity.IdentityId, identity.WizardAlias, wand)
             : DuelRules.Snapshot(identity.IdentityId, identity.WizardAlias, identity.CatalogWandId);
+        var artwork = keepsakes.PublicWandArtworkUrl(identityId, eveningId, deviceId, out var synthetic);
+        return snapshot with { ArtworkUrl = artwork, ArtworkSynthetic = synthetic };
     }
 }
 
@@ -23,7 +24,7 @@ internal sealed class DuelShowSlot(ShowCoordinator coordinator, ShowDeviceCueBri
 {
     public bool TryOccupy(string deviceId, string eveningId, string duelId) => coordinator.TryOccupy(deviceId, eveningId, duelId);
     public bool IsCurrent(string deviceId, string duelId) => coordinator.IsOccupationCurrent(deviceId, duelId);
-    public void PublishRound(string deviceId, string duelId, int round, string quip) => coordinator.PublishDuelBeat(deviceId, duelId, round, quip);
+    public void PublishRound(string deviceId, string duelId, int round, string quip) => coordinator.PublishDuelBeat(deviceId, duelId, round, quip.Length <= 400 ? quip : quip[..399] + "…");
     public void Release(string deviceId, string duelId) => coordinator.Release(deviceId, duelId);
     public DuelNarrationBinding BindNarration(string deviceId)
     {

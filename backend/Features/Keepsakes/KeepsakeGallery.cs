@@ -81,9 +81,9 @@ internal sealed partial class KeepsakeStore
     }
 
     private static bool IsPublicBaseAsset(KeepsakeAsset asset, KeepsakeEdition edition) =>
-        asset.UploadId is null && asset.EditionId == edition.Id
+        asset.UploadId is null
         && (asset.Id == edition.ArtworkAssetId && asset.Kind == "base_image"
-            || asset.Kind is "export_story" or "export_card" or "export_zip");
+            || asset.EditionId == edition.Id && asset.Kind is "export_story" or "export_card" or "export_zip");
 
     private KeepsakeAsset RequireGalleryAsset(SqliteConnection connection, string deviceId, string eveningId,
         string id, string editionId, string assetId)

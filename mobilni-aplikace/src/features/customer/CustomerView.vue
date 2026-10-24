@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router';
 import GeneratedWand from '../archive/GeneratedWand.vue';
 import { AccountArchiveClient } from '../archive/accountArchive';
+import { projectWandArtwork, useWandArtworkRetry, type WandArtwork } from '../archive/wandArtwork';
 import { useArchiveMedia } from '../archive/useArchiveMedia';
 import { isUuid } from '../archive/client';
 import { projectGeneratedWand, type GeneratedWand as GeneratedWandSnapshot } from '../archive/generatedWand';
@@ -47,6 +48,8 @@ const profile = ref<CharacterProfile | null>(null);
 const selectedWand = ref<GeneratedWandSnapshot | null>(null);
 const profileArtworkClient = new AccountArchiveClient(() => account.value?.id ?? '');
 const profileArtwork = useArchiveMedia(profileArtworkClient);
+const artworkState = ref<WandArtwork | null>(null);
+const artworkRetry = useWandArtworkRetry();
 let profileArtworkPath = '';
 function clearProfileArtwork(): void {
   profileArtworkPath = '';
@@ -54,6 +57,7 @@ function clearProfileArtwork(): void {
   profileArtwork.clear();
 }
 function bindProfileArtwork(raw: unknown): void {
+  artworkState.value = projectWandArtwork(raw);
   const value = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
   const locator = value && isUuid(value.locator) ? value.locator : null;
   const assetId = value && isUuid(value.assetId) ? value.assetId : null;
@@ -154,6 +158,7 @@ const clarificationText = computed(() => {
 
 function resetPrivateState(): void {
   clearProfileArtwork();
+  artworkState.value = null; artworkRetry.invalidate();
   generation += 1;
   accountWorkController.abort(); accountWorkController = new AbortController();
   sessionRecovery.invalidate();
@@ -441,7 +446,7 @@ async function reconcileBle(epoch: number): Promise<void> {
 }
 function scheduleEnrichmentRefresh(epoch: number): void {
   if (enrichmentTimer) clearTimeout(enrichmentTimer);
-  if (profile.value && ['queued', 'running'].includes(profile.value.status)) {
+  if (profile.value && (['queued', 'running'].includes(profile.value.status) || (['queued', 'running'].includes(artworkState.value?.status ?? '') || artworkState.value?.status === 'missing' && artworkState.value.canRetry))) {
     enrichmentTimer = setTimeout(() => { void refreshEnrichment(epoch); }, 3000);
   }
 }
@@ -511,6 +516,13 @@ onBeforeUnmount(() => {
 
     <p v-if="pane === 'character' && profileLoading" role="status">{{ customerCopy.text('customer.profile-loading') }}</p>
     <section v-if="pane === 'character' && !profileLoading" class="page-stack">
+      <GeneratedWand v-if="profile && selectedWand" :wand="selectedWand" show-name
+        :image-url="profileArtwork.artworkUrl.value"
+        :image-pending="!!profileArtworkPath && !profileArtwork.artworkUrl.value && !profileArtwork.artworkError.value"
+        :image-error="profileArtwork.artworkError.value" :image-state="artworkState?.status" :synthetic="artworkState?.synthetic"
+        :can-retry="artworkState?.canRetry" :retry-busy="artworkRetry.busy.value" @retry="artworkRetry.retry(artworkState, () => refreshEnrichment())"
+        :keepsake-to="artworkState ? `/keepsake/?account=1&k=${artworkState.locator}` : undefined" history-to="/me/keepsakes" />
+      <p v-if="artworkRetry.failed.value" role="alert">{{ customerCopy.language.value === 'en' ? 'The retry could not be confirmed. Refresh the state before trying again.' : 'Opakování se nepodařilo potvrdit. Před dalším pokusem obnov stav.' }}</p>
       <section v-if="profile" class="aw-card page-stack" aria-labelledby="character-confirmation-title">
         <h2 id="character-confirmation-title">{{ profile.userInput.name }}</h2>
         <p>{{ profile.userInput.world }}<span v-if="profile.userInput.version"> · {{ profile.userInput.version }}</span></p>
@@ -521,10 +533,6 @@ onBeforeUnmount(() => {
         <p class="aw-muted">{{ customerCopy.text('customer.correction-guidance') }}</p>
         <AwButton type="button" variant="secondary" :disabled="busy" @click="beginNewCharacter">{{ customerCopy.text('customer.new-character') }}</AwButton>
       </section>
-      <GeneratedWand v-if="profile && selectedWand" :wand="selectedWand" show-name
-        :image-url="profileArtwork.artworkUrl.value"
-        :image-pending="!!profileArtworkPath && !profileArtwork.artworkUrl.value && !profileArtwork.artworkError.value"
-        :image-error="profileArtwork.artworkError.value" />
       <details :open="!profile || profile.status === 'needs_clarification'" class="aw-card">
         <summary>{{ customerCopy.text(profile ? 'customer.edit-character' : 'customer.create-first') }}</summary>
     <form class="customer-form" @submit.prevent="saveCharacter(false)">

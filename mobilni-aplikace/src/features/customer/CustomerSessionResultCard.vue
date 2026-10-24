@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router';
 import GeneratedWand from '../archive/GeneratedWand.vue';
 import { AccountArchiveClient } from '../archive/accountArchive';
+import { useWandArtworkRetry } from '../archive/wandArtwork';
 import { useArchiveMedia } from '../archive/useArchiveMedia';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
@@ -17,6 +18,7 @@ const props = defineProps<{ sessionId: string }>();
 const projection = ref<CustomerResultProjection | null>(null);
 const artworkClient = new AccountArchiveClient(() => account.value?.id ?? '');
 const artworkMedia = useArchiveMedia(artworkClient);
+const artworkRetry = useWandArtworkRetry();
 let boundArtworkPath = '';
 function clearArtwork(): void {
   boundArtworkPath = '';
@@ -26,8 +28,9 @@ function clearArtwork(): void {
 function bindArtwork(result: CustomerResultProjection): void {
   // Only verified original-owner results can name an asset; AccountArchiveClient
   // enforces the exact account-owned asset route and revokes stale in-flight blobs.
-  const path = result.valid && result.artworkAssetId && result.locator
-    ? `/app/v1/archive/owned/${result.locator}/assets/${result.artworkAssetId}` : '';
+  const assetId = result.artwork ? result.artwork.assetId : result.artworkAssetId;
+  const path = result.valid && assetId && result.locator
+    ? `/app/v1/archive/owned/${result.locator}/assets/${assetId}` : '';
   if (path === boundArtworkPath) return;
   clearArtwork();
   boundArtworkPath = path;
@@ -101,7 +104,7 @@ const recovery = new SessionRecoveryController<CustomerResultProjection>({
     }
     return projectCustomerResult(response, requestedSessionId);
   },
-  hasActiveSession: result => result.shouldPoll,
+  hasActiveSession: result => result.shouldPoll || ['queued', 'running'].includes(result.artwork?.status ?? '') || result.artwork?.status === 'missing' && result.artwork.canRetry,
   onValue: result => {
     projection.value = result;
     currentReadVerified.value = true;
@@ -118,7 +121,7 @@ function syncActivity(): void {
 }
 
 function contextChanged(): void {
-  clearArtwork();
+  clearArtwork(); artworkRetry.invalidate();
   projection.value = null;
   currentReadVerified.value = false;
   recovery.invalidate();
@@ -197,7 +200,11 @@ onBeforeUnmount(() => {
     <GeneratedWand v-if="isCurrentVerificationFresh && projection?.generatedWand" :wand="projection.generatedWand" show-name
       :image-url="artworkMedia.artworkUrl.value"
       :image-pending="(projection.shouldPoll && !projection.hasArtwork) || (!!projection.artworkAssetId && !artworkMedia.artworkUrl.value && !artworkMedia.artworkError.value)"
-      :image-error="artworkMedia.artworkError.value" />
+      :image-error="artworkMedia.artworkError.value" :image-state="projection.artwork?.status" :synthetic="projection.artwork?.synthetic"
+      :can-retry="projection.artwork?.canRetry" :retry-busy="artworkRetry.busy.value"
+      @retry="artworkRetry.retry(projection.artwork, async () => { refreshManually(); })"
+      :keepsake-to="projection.route ?? undefined" history-to="/me/keepsakes" />
+    <p v-if="artworkRetry.failed.value" role="alert">{{ customerCopy.language.value === 'en' ? 'The illustration retry could not be confirmed. Refresh its state.' : 'Opakování ilustrace se nepodařilo potvrdit. Obnov její stav.' }}</p>
     <p v-if="isCurrentVerificationFresh && projection?.generatedWand && projection.wandPublicationApproved === false">{{ customerCopy.language.value === 'en' ? 'Your wand stays private. Review the completed keepsake to approve its public fiction for the evening page and duels.' : 'Hůlka zůstává soukromá. V hotové památce zkontroluj fikci a schval její zveřejnění pro večer a souboje.' }}</p>
     <RouterLink v-if="isCurrentVerificationFresh && projection?.valid && projection.route" :to="projection.route">{{ customerCopy.text('result.open') }}</RouterLink>
     <AwButton :busy="recoveryState.refreshing" :disabled="!isOnline" @click="refreshManually">

@@ -59,7 +59,7 @@ export function parseArchiveReadiness(value: unknown): ArchiveReadiness | null {
     hasArtwork: source.hasArtwork,
   };
 }
-export interface Keepsake { schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; wandPublicationApproved?: boolean; accountLinked?: boolean; sharedEditionId?: string; readiness?: ArchiveReadiness | null; snapshot: { officialName: string; slot: number; generatedWand?: GeneratedWand | null }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[]; wizardIdentities?: WizardIdentity[]; prophecies?: Prophecy[] }
+export interface Keepsake { artwork?: import('./wandArtwork').WandArtwork | null; schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; wandPublicationApproved?: boolean; accountLinked?: boolean; sharedEditionId?: string; readiness?: ArchiveReadiness | null; snapshot: { officialName: string; slot: number; generatedWand?: GeneratedWand | null }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[]; wizardIdentities?: WizardIdentity[]; prophecies?: Prophecy[] }
 export interface DeletionReceipt { id: string; scope: string; localState: string; providerState: string; backupState: string }
 export class GuestError extends Error {
   readonly status: number;

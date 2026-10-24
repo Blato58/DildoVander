@@ -1,4 +1,4 @@
-import { projectSpells, type WandSpell } from './generatedWand';
+import { combatArchetypes, projectSpells, type CombatArchetype, type WandSpell } from './generatedWand';
 import { GuestError, isUuid } from './client';
 export { publicIdentity, type WizardIdentity } from './client';
 export interface Prophecy {
@@ -44,10 +44,10 @@ export const duelStates: Record<string, string> = {
   Running: 'Souboj právě probíhá.', Completed: 'Souboj dokončen.', Cancelled: 'Souboj zrušen. Vítěz nebyl vyhlášen.', Interrupted: 'Souboj přerušen. Vítěz nebyl vyhlášen.',
 };
 export const duelActions: Record<DuelAction, string> = { strike: 'Úder', trick: 'Lest', shield: 'Štít' };
-export interface DuelIdentity { displayName: string; wandId: string; strength: number; cunning: number; defense: number; wandName?: string; spells?: WandSpell[]; physicalSlot?: number }
+export interface DuelIdentity { displayName: string; wandId: string; strength: number; cunning: number; defense: number; wandName?: string; spells?: WandSpell[]; physicalSlot?: number; combatArchetype?: CombatArchetype; combatRulesVersion?: string; temperament?: string; affinity?: string; weakness?: string; artworkUrl?: string; artworkSynthetic?: boolean }
 export interface DuelRound { number: number; leftAction: string; rightAction: string; leftScore: number; rightScore: number; leftAutomatic: boolean; rightAutomatic: boolean; quip: string; mishap: string }
 export interface Duel {
-  id: string; revision: number; state: string; mode: string; round: number; deadline: string | null;
+  id: string; revision: number; rulesVersion?: string; state: string; mode: string; round: number; deadline: string | null;
   left: DuelIdentity; right: DuelIdentity; leftChoiceLocked: boolean; rightChoiceLocked: boolean;
   requiresParticipantConsent: boolean; leftJoined: boolean; rightJoined: boolean;
   rounds: DuelRound[]; narrationMode: string; narrationStatus: string;
@@ -60,13 +60,20 @@ export function projectDuel(raw: unknown, id: string): Duel {
     || !duelStates[String(source.state)] || !Array.isArray(source.rounds) || source.rounds.length > 3 || !source.left || !source.right) throw new GuestError(503);
   const identity = (raw: unknown): DuelIdentity => {
     const item = object(raw); const spells = projectSpells(item.spells);
+    const publicArt = new RegExp('^/guest/v1/evenings/[0-9a-f-]{36}/keepsakes/[0-9a-f-]{36}/editions/[0-9a-f-]{36}/assets/[0-9a-f-]{36}$', 'i');
     return { displayName: text(item.displayName, 240), wandId: text(item.wandId, 240),
       strength: number(item.strength), cunning: number(item.cunning), defense: number(item.defense),
+      ...(publicArt.test(text(item.artworkUrl, 512)) ? { artworkUrl: text(item.artworkUrl, 512), artworkSynthetic: item.artworkSynthetic === true } : {}),
+      ...(combatArchetypes.includes(item.combatArchetype as CombatArchetype) ? { combatArchetype: item.combatArchetype as CombatArchetype } : {}),
+      ...(text(item.combatRulesVersion, 80) ? { combatRulesVersion: text(item.combatRulesVersion, 80) } : {}),
+      ...(text(item.temperament) ? { temperament: text(item.temperament) } : {}),
+      ...(text(item.affinity) ? { affinity: text(item.affinity) } : {}),
+      ...(text(item.weakness) ? { weakness: text(item.weakness) } : {}),
       ...(spells && text(item.wandName, 240).trim() ? { wandName: text(item.wandName, 240), spells } : {}),
       ...(Number.isInteger(item.physicalSlot) && number(item.physicalSlot) >= 1 && number(item.physicalSlot) <= 6 ? { physicalSlot: Number(item.physicalSlot) } : {}) };
   };
   const result = object(source.result); const commentary = object(source.commentary);
-  return { id, revision: source.revision as number, state: String(source.state), mode: text(source.mode, 40), round: number(source.round),
+  return { id, revision: source.revision as number, rulesVersion: text(source.rulesVersion, 80), state: String(source.state), mode: text(source.mode, 40), round: number(source.round),
     deadline: typeof source.deadline === 'string' ? text(source.deadline, 80) : null, left: identity(source.left), right: identity(source.right),
     requiresParticipantConsent: source.requiresParticipantConsent === true, leftJoined: source.leftJoined === true, rightJoined: source.rightJoined === true,
     leftChoiceLocked: source.leftChoiceLocked === true, rightChoiceLocked: source.rightChoiceLocked === true,

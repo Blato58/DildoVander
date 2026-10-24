@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import DuelView from './DuelView.vue';
+import { createBattleSummary } from './battleSummary';
+vi.mock('./battleSummary', () => ({ createBattleSummary: vi.fn() }));
 import ChronicleView from './ChronicleView.vue';
 import KeepsakeView from './KeepsakeView.vue';
 import { account, offlineSession, accountTransport, accountRequest } from '../identity/session';
@@ -102,6 +104,31 @@ describe('generated wand privacy and presentation', () => {
     expect(post[1]).toMatchObject({ credentials: 'omit', headers: { Authorization: 'Bearer ' + 'x'.repeat(43) } });
     expect(wrapper.text()).not.toContain('Souhlasím s účastí');
   });
+  it('cannot republish an in-flight or prepared battle card after publication withdrawal', async () => {
+    const artworkUrl = `/guest/v1/evenings/${id}/keepsakes/${id}/editions/${id}/assets/${other}`;
+    let withdrawn = false; let revision = 1;
+    const finished = () => ({ ...duel(revision), state: 'Completed', deadline: null,
+      left: { ...duel().left, wandName: generatedWand.name, spells, ...(withdrawn ? {} : { artworkUrl }) },
+      result: { leftPoints: 2, rightPoints: 1, ending: 'Uzavřená fikce.', exhibition: false } });
+    vi.stubGlobal('fetch', vi.fn(async (path: RequestInfo | URL) => String(path).includes('/assets/') ? new Response('fixture', { headers: { 'Content-Type': 'image/png' } }) : Response.json(finished())));
+    let finish!: (blob: Blob) => void;
+    vi.mocked(createBattleSummary).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { wrapper } = await render(DuelView, `/archive/duel?duel=${id}`);
+    await wrapper.findAll('button').find(button => button.text() === 'Uložit kartu souboje PNG')!.trigger('click'); await flushPromises();
+    expect(createBattleSummary).toHaveBeenCalled(); withdrawn = true; revision++;
+    await wrapper.findAll('button').find(button => button.text() === 'Obnovit souboj')!.trigger('click'); await flushPromises();
+    finish(new Blob(['png'], { type: 'image/png' })); await flushPromises();
+    expect(wrapper.find('a[download="dildovander-souboj.png"]').exists()).toBe(false);
+    withdrawn = false; revision++;
+    await wrapper.findAll('button').find(button => button.text() === 'Obnovit souboj')!.trigger('click'); await flushPromises();
+    // A newer revision is required to restore an explicitly approved projection.
+    vi.mocked(createBattleSummary).mockResolvedValueOnce(new Blob(['png'], { type: 'image/png' }));
+    await wrapper.findAll('button').find(button => button.text() === 'Uložit kartu souboje PNG')!.trigger('click'); await flushPromises();
+    expect(wrapper.find('a[download="dildovander-souboj.png"]').exists()).toBe(true);
+    withdrawn = true; revision++;
+    await wrapper.findAll('button').find(button => button.text() === 'Obnovit souboj')!.trigger('click'); await flushPromises();
+    expect(wrapper.find('a[download="dildovander-souboj.png"]').exists()).toBe(false);
+  });
   it('shows countdown and named reveals, with a spectator unable to choose or join', async () => {
     const revealed = { ...duel(), left: { ...duel().left, wandName: generatedWand.name, spells }, right: { ...duel().right, wandName: 'Jiskra severu', spells },
       rounds: [{ number: 1, leftAction: 'strike', rightAction: 'shield', leftScore: 3, rightScore: 5, quip: 'Kolo potvrzeno.', mishap: 'Fikce.' }] };
@@ -145,14 +172,14 @@ describe('shared guest Show Pack screens', () => {
     const fetchMock = vi.fn(async () => Response.json(duel())); vi.stubGlobal('fetch', fetchMock);
     const { wrapper } = await render(DuelView, `/archive/duel?duel=${id}`);
     expect(wrapper.text()).toContain('Levý mág'); expect(wrapper.text()).toContain('Pouze webový průběh');
-    expect(wrapper.findAll('button').some(button => button.text() === 'Úder')).toBe(false);
+    expect(wrapper.findAll('button').some(button => button.attributes('aria-label') === 'Úder')).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith(`/guest/v1/duels/${id}`, expect.objectContaining({ credentials: 'omit' }));
   });
   it('sends only the side grant and exact revision once; server locks choices and older revisions cannot reopen them', async () => {
     captured.grant = { token: 'x'.repeat(43), side: 'left' };
     const fetchMock = vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) => Response.json(init?.method === 'POST' ? { ...duel(2), leftChoiceLocked: true } : duel())); vi.stubGlobal('fetch', fetchMock);
     const { wrapper } = await render(DuelView, `/archive/duel?duel=${id}`);
-    const button = wrapper.findAll('button').find(button => button.text() === 'Úder')!; await button.trigger('click'); await button.trigger('click'); await flushPromises();
+    const button = wrapper.findAll('button').find(button => button.attributes('aria-label') === 'Úder')!; await button.trigger('click'); await button.trigger('click'); await flushPromises();
     const post = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST'); expect(post).toHaveLength(1);
     expect(post[0][1]).toMatchObject({ credentials: 'omit', headers: { Authorization: 'Bearer ' + 'x'.repeat(43) } });
     expect(JSON.parse(post[0][1]!.body as string)).toMatchObject({ side: 'left', round: 1, revision: 1, action: 'strike' });
@@ -165,8 +192,8 @@ describe('shared guest Show Pack screens', () => {
     let reads = 0;
     vi.stubGlobal('fetch', vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) => init?.method === 'POST' ? new Response('', { status: 403 }) : ++reads === 1 ? Response.json(duel()) : new Response('', { status: 404 })));
     const { wrapper } = await render(DuelView, `/archive/duel?duel=${id}`);
-    await wrapper.findAll('button').find(button => button.text() === 'Úder')!.trigger('click'); await flushPromises();
-    expect(wrapper.text()).not.toContain('Levý mág'); expect(wrapper.findAll('button').some(button => button.text() === 'Úder')).toBe(false);
+    await wrapper.findAll('button').find(button => button.attributes('aria-label') === 'Úder')!.trigger('click'); await flushPromises();
+    expect(wrapper.text()).not.toContain('Levý mág'); expect(wrapper.findAll('button').some(button => button.attributes('aria-label') === 'Úder')).toBe(false);
     let complete!: (response: Response) => void;
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => complete = resolve)));
     const late = await render(DuelView, `/archive/duel?duel=${id}`); const initial = complete;
@@ -178,14 +205,14 @@ describe('shared guest Show Pack screens', () => {
     let finish!: (response: Response) => void;
     vi.stubGlobal('fetch', vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) => init?.method === 'POST' ? new Promise<Response>(resolve => finish = resolve) : Response.json(duel())));
     const { wrapper } = await render(DuelView, `/archive/duel?duel=${id}`);
-    await wrapper.findAll('button').find(button => button.text() === 'Úder')!.trigger('click');
+    await wrapper.findAll('button').find(button => button.attributes('aria-label') === 'Úder')!.trigger('click');
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(true); document.dispatchEvent(new Event('visibilitychange'));
     finish(Response.json({ ...duel(2), leftChoiceLocked: true })); await flushPromises();
     expect(wrapper.text()).not.toContain('Levý mág');
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false); document.dispatchEvent(new Event('visibilitychange')); await flushPromises();
-    expect(wrapper.findAll('button').some(button => button.text() === 'Úder')).toBe(true);
+    expect(wrapper.findAll('button').some(button => button.attributes('aria-label') === 'Úder')).toBe(true);
     window.dispatchEvent(new Event('pagehide')); window.dispatchEvent(new Event('pageshow')); await flushPromises();
-    expect(wrapper.findAll('button').some(button => button.text() === 'Úder')).toBe(false);
+    expect(wrapper.findAll('button').some(button => button.attributes('aria-label') === 'Úder')).toBe(false);
   });
   it('shows zero counts and ties, applies late-outcome revisions, and erases a withdrawn public chronicle before refresh', async () => {
     let response: unknown = chronicle();

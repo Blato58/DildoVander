@@ -180,6 +180,9 @@ internal static class WandGenerationTests
             "provider receives fictional context without authorization or ownership ids");
         var valid = Candidates(1);
         WandGenerationValidation.Validate(valid, 1);
+        Invalid(() => WandGenerationValidation.Validate([valid[0] with { CombatArchetype = "omnipotent" }], 1));
+        Check(body.Contains("combatArchetype") && body.Contains("offensive") && body.Contains("defensive"),
+            "provider proposes only allowlisted archetypes, never numeric power");
         Invalid(() => WandGenerationValidation.Validate(valid, 3));
         Invalid(() => WandGenerationValidation.Validate([valid[0] with { Name = new string('x', 101) }], 1));
         Invalid(() => WandGenerationValidation.Validate([valid[0] with { Lore = "control\u0001text" }], 1));
@@ -196,10 +199,18 @@ internal static class WandGenerationTests
         var response = Response(valid);
         using var parsed = JsonDocument.Parse(response);
         Check(OpenAiWandGenerationProvider.Parse(parsed.RootElement, 1)[0].Name == valid[0].Name, "structured result semantic parse");
+        var offensive = valid[0] with { CombatArchetype = "offensive" };
+        using var typed = JsonDocument.Parse(Response([offensive]));
+        Check(OpenAiWandGenerationProvider.Parse(typed.RootElement, 1)[0].CombatArchetype == "offensive", "allowlisted personality survives provider parsing");
         var injectedText = JsonSerializer.Serialize(new { candidates = valid }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
             .Replace("\"name\":\"Wand Amber\"", "\"name\":\"Wand Amber\",\"hardwareCommand\":\"open\"");
         using var injected = JsonDocument.Parse(ResponseText(injectedText));
         try { OpenAiWandGenerationProvider.Parse(injected.RootElement, 1); throw new Exception("Unexpected provider field accepted"); }
+        catch (JsonException) { }
+        var injectedPower = JsonSerializer.Serialize(new { candidates = valid }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            .Replace("\"combatArchetype\":\"balanced\"", "\"combatArchetype\":\"balanced\",\"strength\":999999");
+        using var unlimited = JsonDocument.Parse(ResponseText(injectedPower));
+        try { OpenAiWandGenerationProvider.Parse(unlimited.RootElement, 1); throw new Exception("Provider numeric power accepted"); }
         catch (JsonException) { }
     }
 

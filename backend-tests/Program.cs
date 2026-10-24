@@ -7,7 +7,8 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Paid provider diagnostic is explicit and never part of normal offline CI.
-if (args is ["--generated-wands"]) { await WandGenerationTests.RunAsync(); await GeneratedWandFlowTests.RunAsync(); return; }
+if (args is ["--wand-artwork"]) { await WandArtworkTests.RunAsync(); return; }
+if (args is ["--generated-wands"]) { await WandGenerationTests.RunAsync(); await GeneratedWandFlowTests.RunAsync(); await WandArtworkTests.RunAsync(); return; }
 if (args is ["--customer-data-browser-fixture"]) { await AccountIdentityTests.RunCustomerDataBrowserFixtureAsync(); return; }
 if (args is ["--customer-waiting-http"]) { await AccountIdentityTests.RunCustomerWaitingHttpAsync(); return; }
 if (args is ["--customer-preferences"]) { await AccountIdentityTests.RunCustomerConversationPreferenceHttpAsync(); return; }
@@ -159,6 +160,7 @@ OfflineOutcomeTests.Run();
 await DuelTests.RunAsync();
 await WandGenerationTests.RunAsync();
 await GeneratedWandFlowTests.RunAsync();
+await WandArtworkTests.RunAsync();
 await KeepsakeCoreTests.RunAsync();
 await KeepsakeOwnerAuthorizationTests.RunAsync();
 await AccountIdentityTests.RunKeepsakeOwnerHttpAsync();

@@ -18,7 +18,15 @@ internal sealed partial class KeepsakeStore
         {
             throw new KeepsakeException("personalization_consent_required");
         }
-        return Enqueue(id, session, "base", new(brief), key);
+        lock (gate)
+        {
+            using var connection = Open();
+            RequireAccess(connection, null, id, session, KeepsakeScope.Write);
+            var document = Load(connection, null, id);
+            if (document.Snapshot.GeneratedWand is not null && CanonicalGeneratedArtworkId(document) is null)
+                throw new KeepsakeException("wand_artwork_not_ready", 409);
+            return Enqueue(id, session, "base", new(brief), key);
+        }
     }
 
     public KeepsakeJob EnqueuePortrait(string id, KeepsakeActor session, string uploadId, string editionId,
@@ -106,6 +114,8 @@ internal sealed partial class KeepsakeStore
 
     private bool TryAdmitAutomaticBase(SqliteConnection connection, SqliteTransaction transaction, string id, Document document)
     {
+        if (document.Snapshot.GeneratedWand is not null && CanonicalGeneratedArtworkId(document) is null)
+        { return TryAdmitWandArtwork(connection, transaction, id, document); }
         if (!document.NeedsBaseGeneration || document.CurrentBaseJob is not null) { return false; }
         if (!MayDispatch("base") || !HasQueueCapacity(connection, transaction)) { return false; }
         if (!CanReserveGenerationStorage()) { return false; }
@@ -120,9 +130,24 @@ internal sealed partial class KeepsakeStore
     private void AdmitOneDeferredBase(SqliteConnection connection, SqliteTransaction transaction)
     {
         if (!HasQueueCapacity(connection, transaction)) { return; }
+        // Upgrade path: an older deployment may have already queued a base
+        // story. Admit its missing artwork independently, before leasing the base.
+        using (var artworkCandidate = Command(connection, transaction,
+            "SELECT id FROM dv10_keepsakes WHERE deleted=0 "
+            + "AND json_extract(document,'$.snapshot.generatedWand') IS NOT NULL "
+            + "AND json_extract(document,'$.currentArtworkJob') IS NULL "
+            + "AND json_extract(document,'$.artwork.assetId') IS NULL "
+            + "ORDER BY id LIMIT 1"))
+        {
+            if (artworkCandidate.ExecuteScalar() is string missing)
+                if (TryAdmitWandArtwork(connection, transaction, missing, Load(connection, transaction, missing))) return;
+        }
         using var candidate = Command(connection, transaction,
             "SELECT id FROM dv10_keepsakes WHERE deleted=0 AND json_extract(document,'$.currentBaseJob') IS NULL "
-            + "AND coalesce(json_extract(document,'$.needsBaseGeneration'),1)=1 ORDER BY id LIMIT 1");
+            + "AND coalesce(json_extract(document,'$.needsBaseGeneration'),1)=1 "
+            + "AND (json_extract(document,'$.snapshot.generatedWand') IS NULL "
+            + "OR json_extract(document,'$.currentArtworkJob') IS NULL "
+            + "OR json_extract(document,'$.artwork.assetId') IS NOT NULL) ORDER BY id LIMIT 1");
         var id = candidate.ExecuteScalar() as string;
         if (id is null) { return; }
         TryAdmitAutomaticBase(connection, transaction, id, Load(connection, transaction, id));
@@ -138,7 +163,7 @@ internal sealed partial class KeepsakeStore
             AdmitOneDeferredBase(connection, transaction);
             using var command = Command(connection, transaction,
                 "SELECT id,keepsake_id,kind,fence,epoch,photo_epoch,request_json FROM dv10_jobs "
-                + "WHERE state='queued' AND (kind='base' OR (kind='portrait' AND $portrait=1)) ORDER BY created,id LIMIT 1",
+                + "WHERE state='queued' AND (kind='wand_artwork' OR (kind='base' AND EXISTS(SELECT 1 FROM dv10_keepsakes k WHERE k.id=keepsake_id AND (json_extract(k.document,'$.snapshot.generatedWand') IS NULL OR json_extract(k.document,'$.artwork.assetId') IS NOT NULL))) OR (kind='portrait' AND $portrait=1)) ORDER BY CASE kind WHEN 'wand_artwork' THEN 0 ELSE 1 END,created,id LIMIT 1",
                 ("$portrait", MayDispatch("portrait") ? 1 : 0));
             using var reader = command.ExecuteReader();
             if (!reader.Read()) { reader.Close(); transaction.Commit(); return null; }
@@ -187,6 +212,8 @@ internal sealed partial class KeepsakeStore
             return new KeepsakeProviderRequest(job.KeepsakeId, document.Snapshot, request.Brief, job.Id, request.EditionId,
                 request.UploadId, request.Variant, photo, story)
             {
+                GenerationKind = job.Kind,
+                CanonicalArtworkAssetId = CanonicalGeneratedArtworkId(document),
                 RecordStage = (stage, phase, content) => RecordProviderStage(job, stage, phase, content)
             };
         }
@@ -293,7 +320,8 @@ internal sealed partial class KeepsakeStore
 
     internal bool Complete(LeasedJob job, KeepsakeProviderOutput output)
     {
-        ValidateGeneratedImage(output);
+        // Personalized story jobs reuse bytes already validated by the artwork job.
+        if (job.Kind != "base" || output.ImageBytes.Length != 0) ValidateGeneratedImage(output);
         lock (gate)
         {
             using var connection = Open();
@@ -311,10 +339,16 @@ internal sealed partial class KeepsakeStore
             if (state is not ("dispatched" or "cancelled" or "awaiting_reconciliation")) { return false; }
             // Cancel preserves a legitimately returned result in private history only.
             var publish = state == "dispatched" && Eligible(connection, transaction, job, document, request) && (job.Kind == "base"
-                ? document.CurrentBaseJob == job.Id : document.CurrentPortraitJob == job.Id);
+                ? document.CurrentBaseJob == job.Id : job.Kind == "wand_artwork"
+                ? document.CurrentArtworkJob == job.Id : document.CurrentPortraitJob == job.Id);
+            if (job.Kind == "wand_artwork") return CompleteWandArtwork(connection, transaction, job, document, output, publish);
             var editionId = request.EditionId!;
-            var asset = StoreAsset(job.KeepsakeId, document, publish ? job.Kind + "_image" : job.Kind + "_history_image",
-                output.MediaType, output.ImageBytes, editionId, request.UploadId);
+            var canonical = job.Kind == "base" ? CanonicalGeneratedArtworkId(document) : null;
+            var asset = canonical is not null ? document.Assets.Single(item => item.Id == canonical)
+                : document.Snapshot.GeneratedWand is not null && job.Kind == "base"
+                    ? throw new KeepsakeException("wand_artwork_not_ready", 409)
+                    : StoreAsset(job.KeepsakeId, document, publish ? job.Kind + "_image" : job.Kind + "_history_image",
+                        output.MediaType, output.ImageBytes, editionId, request.UploadId);
             StoreAsset(job.KeepsakeId, document, "provider_response", "application/json",
                 System.Text.Encoding.UTF8.GetBytes(output.ContentResponse), editionId, request.UploadId);
             StoreAsset(job.KeepsakeId, document, "prompt", "text/plain; charset=utf-8",
@@ -393,7 +427,7 @@ internal sealed partial class KeepsakeStore
 
     private bool MayDispatch(string kind) => configuration.GetValue<bool>("Keepsake:Enabled")
         && configuration.GetValue<bool>("Keepsake:GenerationEnabled")
-        && (kind == "base" || configuration.GetValue<bool>("Keepsake:PortraitEnabled"));
+        && (kind is "base" or "wand_artwork" || configuration.GetValue<bool>("Keepsake:PortraitEnabled"));
 
     private void CheckAdmissionCapacity()
     {

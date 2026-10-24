@@ -87,13 +87,13 @@ internal sealed partial class DuelStore
             if (replay is not null) { return Load(connection, transaction, replay.Value.Id).View(); }
             var seed = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             var rulesVersion = left.WandName is not null && right.WandName is not null
-                ? DuelRules.PersonalizedVersion : DuelRules.Version;
+                ? DuelRules.CharacterVersion : DuelRules.Version;
             var duel = new DuelDocument
             {
                 Id = Guid.NewGuid().ToString(), DeviceId = deviceId, EveningId = request.EveningId,
                 Mode = request.Mode, Seed = seed, Left = left, Right = right,
                 RulesVersion = rulesVersion,
-                RequiresParticipantConsent = rulesVersion == DuelRules.PersonalizedVersion && request.Mode == "interactive",
+                RequiresParticipantConsent = DuelRules.IsPersonalized(rulesVersion) && request.Mode == "interactive",
                 State = request.Mode == "interactive" ? "AwaitingParticipants" : "Ready",
                 Commitments = Enumerable.Range(1, 3).Select(round => DuelRules.Commit(seed, round, rulesVersion)).ToArray()
             };
@@ -295,7 +295,7 @@ internal sealed partial class DuelStore
             // A second phone may submit from the same round snapshot as the
             // first. Its action is independent; only the round's opening revision
             // matters. Older rounds and future revisions remain rejected.
-            if (duel.RulesVersion == DuelRules.PersonalizedVersion && duel.ChoiceRevision is { } floor)
+            if (DuelRules.IsPersonalized(duel.RulesVersion) && duel.ChoiceRevision is { } floor)
             {
                 if (request.Revision < floor || request.Revision > duel.Revision)
                 { throw new DuelException(409, "stale_revision"); }

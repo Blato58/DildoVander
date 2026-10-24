@@ -23,6 +23,11 @@ internal sealed partial class KeepsakeStore
             || snapshot.OfficialName != wand.Name
             || JsonSerializer.Serialize(selected.ToPublic(), Json) != JsonSerializer.Serialize(wand, Json))
             throw new KeepsakeException("personal_wand_unavailable", 409);
+        using var bonded = Command(connection, transaction,
+            "SELECT 1 FROM dv10_keepsakes WHERE json_extract(document,'$.snapshot.generatedWand.wandId')=$wand LIMIT 1",
+            ("$wand", wand.WandId));
+        if (bonded.ExecuteScalar() is not null) throw new KeepsakeException("wand_already_bonded", 409);
+
     }
 
     private static bool WandPublicationApproved(Document document, string? editionId) =>

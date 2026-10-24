@@ -72,7 +72,8 @@ try {
   await page.goto(`${origin}/keepsake/duel.html?duel=${id}#grant=${grant}&side=left`);
   await page.getByRole('button', { name: 'Úder', exact: true }).waitFor();
   assert.equal(new URL(page.url()).hash, ''); assert.equal(await page.locator('meta[name=robots]').count(), 1); assert.match(await page.locator('meta[name=robots]').getAttribute('content'), /noindex/);
-  await page.getByRole('button', { name: 'Úder', exact: true }).focus(); assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Úder');
+  const strike = page.getByRole('button', { name: 'Úder', exact: true });
+  await strike.focus(); assert.equal(await strike.evaluate(button => document.activeElement === button), true, 'the named spell button receives keyboard focus');
   await fits(); await page.screenshot({ path: path.join(output, 'duel-desktop.png'), fullPage: true });
   await page.getByRole('button', { name: 'Úder', exact: true }).click(); await page.getByText('Tah přijat a uzamčen.', { exact: false }).waitFor();
   const moves = requests.filter(request => request.path.endsWith('/choices')); assert.equal(moves.length, 1);

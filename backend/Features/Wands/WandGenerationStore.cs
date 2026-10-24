@@ -122,7 +122,7 @@ internal sealed class WandGenerationStore
             if (Convert.ToInt32(tables.ExecuteScalar()) != 2) return null;
         using var command = Command(connection, null, """
             SELECT s.selected_json FROM wand_generation_sessions s
-                WHERE s.account_id=$account AND s.profile_id=$profile AND s.profile_revision=$revision
+                WHERE s.account_id=$account AND s.profile_id=$profile AND s.profile_revision<=$revision
                 AND s.state='selected' AND s.selected_json IS NOT NULL
                 AND NOT EXISTS(SELECT 1 FROM wand_generation_revocations r
                     WHERE r.account_id=s.account_id AND r.profile_id IN ('*',s.profile_id))
@@ -193,7 +193,7 @@ internal sealed class WandGenerationStore
             Guid.NewGuid().ToString("N"), job.SessionId, job.Request.Profile.ProfileId,
             job.Request.Profile.Revision, slots[index], content.Name, content.Material, content.Core,
             content.Temperament, content.Lore, content.DesignDescription, content.Affinity,
-            content.Weakness, content.Spells)).ToArray();
+            content.Weakness, content.Spells, content.CombatArchetype)).ToArray();
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
         RequireNotRevoked(connection, transaction, job.Request.AccountId, job.Request.Profile.ProfileId);

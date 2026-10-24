@@ -68,9 +68,20 @@ internal static class GeneratedWandFlowTests
                 Check(wands.LatestBonded(account, profile.ProfileId, profile.Revision)?.WandId == wand.WandId
                     && wands.LatestBonded("foreign-account", profile.ProfileId, profile.Revision) is null,
                     "only an issued completed outcome owned by the account exposes its character wand bond");
+                Check(wands.LatestBonded(account, profile.ProfileId, profile.Revision + 1)?.WandId == wand.WandId,
+                    "normal profile edits preserve the issued bond until another valid selection");
                 keepsakes.Claim(keepsakes.IssueClaim(issuedKeepsake.Id, "device").Token, keeper.Token, "claim-" + account);
-                var job = keepsakes.LeaseNext() ?? throw new InvalidOperationException("Missing generated keepsake job.");
+                var artworkJob = keepsakes.LeaseNext() ?? throw new InvalidOperationException("Missing selected-wand artwork job.");
+                Check(artworkJob.Kind == "wand_artwork", "selected-wand illustration is dispatched before keepsake story");
+                var artworkRequest = keepsakes.Dispatch(artworkJob)!;
+                Check(keepsakes.Complete(artworkJob, await new FakeKeepsakeProvider().GenerateAsync(artworkRequest, default)),
+                    "canonical image publishes independently of later keepsake story");
+                var earlyArtwork = keepsakes.FindOwnedWandArtwork(account, wand.WandId);
+                Check(earlyArtwork?.AssetId is not null && keepsakes.Read(issuedKeepsake.Id, keeper.Token).Editions.Count == 0,
+                    "character image is available before a keepsake edition exists");
+                var job = keepsakes.LeaseNext() ?? throw new InvalidOperationException("Missing generated keepsake story job.");
                 var request = keepsakes.Dispatch(job)!;
+                Check(request.CanonicalArtworkAssetId == earlyArtwork!.AssetId, "keepsake references canonical selected-wand image");
                 Check(request.Snapshot.GeneratedWand?.WandId == wand.WandId
                     && request.Snapshot.OfficialName == wand.Name, "keepsake dispatch consumes canonical selected identity");
                 var output = await new FakeKeepsakeProvider().GenerateAsync(request, default);
@@ -121,9 +132,14 @@ internal static class GeneratedWandFlowTests
             var requestDuel = new DuelCreateRequest(evening, issued[0].Card.IdentityId, issued[1].Card.IdentityId,
                 "interactive", true, "generated-flow-duel");
             var duel = duels.Create("device", requestDuel);
-            Check(duel.RulesVersion == DuelRules.PersonalizedVersion && duel.Left.WandName == issued[0].Wand.Name
+            Check(duel.RulesVersion == DuelRules.CharacterVersion && duel.Left.WandName == issued[0].Wand.Name
                 && duel.Right.WandName == issued[1].Wand.Name && duel.Left.Spells!.Length == 3,
-                "existing duel identity source resolves real published generated assignments under v2 rules");
+                "existing duel identity source resolves real published generated assignments under versioned character rules");
+            var leftArtworkId = keepsakes.FindOwnedWandArtwork("alice", issued[0].Wand.WandId)!.AssetId!;
+            var rightArtworkId = keepsakes.FindOwnedWandArtwork("bob", issued[1].Wand.WandId)!.AssetId!;
+            Check(duel.Left.ArtworkUrl?.EndsWith("/" + leftArtworkId) == true
+                && duel.Right.ArtworkUrl?.EndsWith("/" + rightArtworkId) == true && leftArtworkId != rightArtworkId,
+                "duel faces two exact independently saved canonical illustrations");
             var left = duels.Grant("device", duel.Id, new("left", duel.Revision, "flow-grant-left"));
             var right = duels.Grant("device", duel.Id, new("right", left.Duel.Revision, "flow-grant-right"));
             duel = duels.Join(duel.Id, left.Token, new("left", true, "flow-join-left"));
@@ -161,6 +177,11 @@ internal static class GeneratedWandFlowTests
             Check(keepsakes.GetPublicWizardIdentity(issued[0].Card.IdentityId, evening, "device") is null
                 && keepsakes.ReadEveningGallery("device", evening).Items.All(item => item.Locator != issued[0].Keepsake),
                 "withdrawing edition publication hides both public identity and gallery fiction");
+            var storedBattle = duels.AccountHistory(keepsakes.OwnedBattleIdentities(aliceActor)).Single();
+            var withdrawnBattle = keepsakes.ProjectBattleArtwork(storedBattle);
+            Check(withdrawnBattle.Left.ArtworkUrl is null && withdrawnBattle.Right.ArtworkUrl is not null
+                && storedBattle.Left.ArtworkUrl is not null && withdrawnBattle.Result == storedBattle.Result,
+                "history projection removes withdrawn artwork while preserving immutable stored combat snapshots");
             keepsakes.SetWandPublication(issued[0].Keepsake, aliceActor, true, approvedEdition, aliceView.Revision);
             var oldName = issued[0].Wand.Name;
             await characters.SaveAsync("alice", new(issued[0].Profile.Revision,

@@ -2,7 +2,10 @@ using Microsoft.Data.Sqlite;
 
 namespace Kufr.Backend.Features.Keepsakes;
 
-internal sealed record OwnedWandArtworkReference(string Locator, string AssetId);
+internal sealed record OwnedWandArtworkReference(string Locator, string? AssetId, string Status = "ready",
+    bool CanRetry = false, string? ErrorCode = null, int Version = 1, bool Synthetic = false);
+internal sealed record WandArtworkSnapshot(string WandId, string AssetId, int Version, bool Synthetic,
+    string Provider, string Model, string PromptVersion, DateTimeOffset CreatedAt);
 
 internal sealed partial class KeepsakeStore
 {
@@ -26,15 +29,15 @@ internal sealed partial class KeepsakeStore
             if (lookup.ExecuteScalar() is not string locator) return null;
             var document = Load(connection, null, locator);
             var assetId = CanonicalGeneratedArtworkId(document);
-            return assetId is null ? null : new(locator, assetId);
+            return ArtworkReference(connection, null, locator, document);
         }
     }
 
     private static string? CanonicalGeneratedArtworkId(Document document) =>
-        document.Snapshot.GeneratedWand is null ? null : document.Editions
-            .Where(edition => edition.PublicationState != "private_history")
-            .LastOrDefault(edition => document.Assets.Any(asset => asset.Id == edition.ArtworkAssetId
-                && asset.Kind == "base_image" && asset.UploadId is null))?.ArtworkAssetId;
+        document.Snapshot.GeneratedWand is null ? null : document.Artwork?.AssetId
+            ?? document.Editions.Where(edition => edition.PublicationState != "private_history")
+                .OrderBy(edition => edition.CreatedAt).FirstOrDefault(edition => document.Assets.Any(asset =>
+                    asset.Id == edition.ArtworkAssetId && asset.Kind == "base_image" && asset.UploadId is null))?.ArtworkAssetId;
 
     internal void ValidateSession(KeepsakeActor actor)
     {
@@ -103,7 +106,8 @@ internal sealed partial class KeepsakeStore
             var artwork = CanonicalGeneratedArtworkId(document);
             transaction.Commit();
             return new(1, sessionId, locator, readiness, "originalOwner", true, true, false,
-                document.Snapshot.GeneratedWand, WandPublicationApproved: approved, ArtworkAssetId: artwork);
+                document.Snapshot.GeneratedWand, WandPublicationApproved: approved, ArtworkAssetId: artwork,
+                Artwork: ArtworkReference(connection, null, locator, document));
         }
     }
 

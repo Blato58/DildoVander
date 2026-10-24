@@ -1248,3 +1248,9 @@ Task { @MainActor in
     catch { fatalError("Native account scheduling regression failed: \(error)") }
 }
 dispatchMain()
+
+let wandArtworkRetry = "/app/v1/customer/keepsakes/" + id + "/wand-artwork/retry"
+require(AccountTransportPolicy.customer(path: wandArtworkRetry, method: "POST"), "owner wand artwork recovery unavailable")
+require(!AccountTransportPolicy.customer(path: wandArtworkRetry, method: "GET"), "artwork recovery became a read")
+require(!AccountTransportPolicy.guest(path: wandArtworkRetry, method: "POST"), "artwork recovery crossed guest boundary")
+require(!AccountTransportPolicy.customer(path: wandArtworkRetry + "/extra", method: "POST"), "artwork recovery admitted an arbitrary path")

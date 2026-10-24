@@ -240,7 +240,7 @@ internal sealed partial class KeepsakeStore
                 document.WizardIdentities.Where(identity => document.Editions.Any(edition => edition.Id == identity.EditionId
                     && edition.PublicationState != "private_history")).Select(ToCard).ToArray(),
                 document.Prophecies.Where(prophecy => document.Editions.Any(edition => edition.Id == prophecy.EditionId
-                    && edition.PublicationState != "private_history")).Select(OwnerProphecy).ToArray(), readiness, WandPublicationApproved(connection, id, document));
+                    && edition.PublicationState != "private_history")).Select(OwnerProphecy).ToArray(), readiness, WandPublicationApproved(connection, id, document), ArtworkReference(connection, null, id, document));
         }
     }
 
