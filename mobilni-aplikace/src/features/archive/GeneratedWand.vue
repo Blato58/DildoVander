@@ -3,13 +3,19 @@ import { computed } from 'vue';
 import './archive.css';
 import { projectGeneratedWand } from './generatedWand';
 import { customerCopy } from '../../application/customerCopy';
-const props = defineProps<{ wand?: unknown; showName?: boolean }>();
+const props = defineProps<{ wand?: unknown; showName?: boolean; imageUrl?: string; imagePending?: boolean; imageError?: boolean }>();
 const wand = computed(() => projectGeneratedWand(props.wand));
 const en = computed(() => customerCopy.language.value === 'en');
 </script>
 <template>
   <section v-if="wand" class="archive-personal-wand" :aria-label="en ? 'Your personal wand' : 'Tvoje osobní hůlka'">
     <h2 v-if="showName">{{ wand.name }}</h2>
+    <figure v-if="imageUrl" class="archive-personal-wand-art">
+      <img :src="imageUrl" :alt="en ? `Digital illustration of the wand ${wand.name}` : `Digitální ilustrace hůlky ${wand.name}`" loading="lazy" decoding="async" />
+      <figcaption class="archive-caption">{{ en ? 'Original fictional digital illustration' : 'Originální fiktivní digitální ilustrace' }}</figcaption>
+    </figure>
+    <p v-else-if="imagePending" role="status" class="archive-personal-wand-status">{{ en ? 'Your wand illustration is being prepared.' : 'Ilustrace tvé hůlky se připravuje.' }}</p>
+    <p v-else-if="imageError" role="status" class="archive-personal-wand-status">{{ en ? 'The illustration could not be loaded. Open the keepsake to try again.' : 'Ilustraci se nepodařilo načíst. Zkus otevřít památku.' }}</p>
     <p class="archive-caption">{{ en ? 'Personal digital wand. Its fictional appearance does not change the physical prop.' : 'Osobní digitální hůlka. Její fiktivní podoba nemění fyzickou rekvizitu.' }}</p>
     <p>{{ wand.lore }}</p>
     <dl class="archive-wand-facts"><dt>{{ en ? 'Material and core' : 'Materiál a jádro' }}</dt><dd>{{ wand.material }} · {{ wand.core }}</dd><dt>{{ en ? 'Temperament' : 'Povaha' }}</dt><dd>{{ wand.temperament }}</dd><dt>{{ en ? 'Affinity' : 'Magické zaměření' }}</dt><dd>{{ wand.affinity }}</dd><dt>{{ en ? 'Weakness' : 'Slabina' }}</dt><dd>{{ wand.weakness }}</dd><dt>{{ en ? 'Digital design' : 'Digitální podoba' }}</dt><dd>{{ wand.designDescription }}</dd></dl>
