@@ -48,10 +48,16 @@ managed Testing conversations, preventing orphaned test resources.
 
 ## Journey and modalities
 
-Sign in as Tester → accept the explicit OpenAI/content-persistence consent →
-Start New Test Session → create/select a character → Talk. Session creation does
-not claim an OpenAI handshake. Saved sessions can be selected after refresh or
-application restart; the URL retains the session identity.
+The guided screen has four steps: **Sezení → Postava → Rozhovor → Výsledek**.
+Sign in as Tester, accept the explicit OpenAI/content-persistence consent and
+create a session. Enter a character's name and world; version and custom context
+are optional. Saving with consent automatically queues the same character lookup
+used by the customer journey. The background worker persists its result separately
+from the HTTP request, and the screen refreshes its status. Before the first turn,
+continuing from Postava selects the latest profile as the conversation snapshot.
+Failed enrichment can be retried explicitly or the saved input can be used alone.
+Session creation does not claim an OpenAI handshake. Saved sessions can be selected
+in Sezení after refresh or application restart; the URL retains the session identity.
 
 Text is the default. It calls the real backend/Live or Realtime provider adapter
 without creating an AudioContext, opening capture, or requesting microphone
@@ -73,8 +79,9 @@ A separate consented uploaded image can replace the camera for private portrait
 generation. Uploads are prepared/bounded, never represented as new AI outputs.
 
 A character may have multiple saved revisions; an active session retains the
-selected snapshot. Enrichment and wand/media generation are explicit provider
-operations. Six positions are physical slots: generated identities/lore/art and
+selected snapshot. Enrichment is authorized by saving with OpenAI consent; retries
+and wand/media generation are explicit provider operations. Six positions are
+physical slots: generated identities/lore/art and
 combat abilities come from the existing per-character generation contracts.
 
 ## Feature coverage matrix

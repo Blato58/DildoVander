@@ -38,12 +38,13 @@ internal static class TestingResourcesTests
                 var saved = await a.SaveAsync("alice", new(0, new("Marta", "Library", Description:"Repairs clocks"), OpenAiConsent:true));
                 Check(await b.ReadAsync("alice") is null && await other.ReadAsync("bob") is null,
                     "multiple characters and account identities have independent production profile stores");
-                var enriched = await resources.EnrichAsync("alice", "character-one", CancellationToken.None);
-                Check(doubleProvider.Calls == 1 && enriched.Status == "ready" && enriched.Enrichment?.InputRevision == saved.Revision,
-                    "explicit real pipeline enrichment persists actual adapter result with revision binding");
+                Check(await resources.ProcessNextCharacterEnrichmentAsync(CancellationToken.None), "isolated worker claims authorized queued work");
+                var enriched = await a.ReadAsync("alice");
+                Check(doubleProvider.Calls == 1 && enriched?.Status == "ready" && enriched.Enrichment?.InputRevision == saved.Revision,
+                    "queued worker persists actual adapter result with revision binding");
                 await b.SaveAsync("alice", new(0, new("Without consent", "Library")));
-                await resources.EnrichAsync("alice", "character-two", CancellationToken.None);
-                Check(doubleProvider.Calls == 1, "saving without consent never dispatches provider work");
+                Check(!await resources.ProcessNextCharacterEnrichmentAsync(CancellationToken.None) && doubleProvider.Calls == 1,
+                    "saving without consent never dispatches provider work");
                 try
                 {
                     await resources.GenerateKeepsakeAsync(Guid.NewGuid().ToString("D"), CancellationToken.None);
@@ -58,9 +59,10 @@ internal static class TestingResourcesTests
                 Check((await resumed.Profiles("alice", "character-one").ReadAsync("alice"))?.Status == "ready", "profile and enrichment persist after resource restart");
                 var profile = resumed.Profiles("alice", "failure-case");
                 await profile.SaveAsync("alice", new(0, new("No key", "Library"), OpenAiConsent:true));
-                try { await resumed.EnrichAsync("alice", "failure-case", CancellationToken.None); throw new Exception("Missing provider key faked enrichment."); }
-                catch (CharacterException error) { Check(error.Code == "character_provider_unavailable", "real adapter missing key remains visible failure"); }
-                Check((await profile.ReadAsync("alice"))?.Status == "failed", "failed provider never produces successful enriched character");
+                Check(await resumed.ProcessNextCharacterEnrichmentAsync(CancellationToken.None), "worker records real provider configuration failure");
+                var failed = await profile.ReadAsync("alice");
+                Check(failed?.Status == "failed" && failed.ErrorCode == "character_provider_unavailable",
+                    "failed provider remains visible without creating enriched output");
             }
             using (var generated = new TestingResources(configuration, TimeProvider.System, null, new FakeKeepsakeProvider(), null, null))
             {

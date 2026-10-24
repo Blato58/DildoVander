@@ -100,7 +100,7 @@ export function useTestingSessions() {
         : await client.createCharacter(userInput, true, longTermConsent);
       const started=(selected.value?.conversation.turns.length??0)>0;
       if (selected.value && open.value && !started) selected.value = await client.select(selected.value.session.id, saved.id, selected.value.session.revision);
-      await refresh(); notice.value = started ? 'Postava uložena. Probíhající rozhovor zachovává původní kontext; novou verzi použijte v novém testovacím sezení.' : 'Postava uložena. Stav obohacení vychází z backendu.';
+      await refresh(); notice.value = started ? 'Postava uložena. Probíhající rozhovor zachovává původní kontext; novou verzi použijte v novém testovacím sezení.' : 'Postava uložena. AI dohledání se zpracuje na pozadí.';
     });
   }
   async function selectCharacter(characterId: string): Promise<void> {
@@ -132,7 +132,11 @@ export function useTestingSessions() {
     }
   }
   async function send(): Promise<void> {
-    if (!selected.value || !text.value.trim() || !open.value || !consent.value || spokenBusy.value) return;
+    if (!selected.value || !text.value.trim() || !open.value || !consent.value || spokenBusy.value || busy.value || stale.value) return;
+    if (!voiceActive.value && selected.value.conversationActive) {
+      error.value = 'Předchozí požadavek ještě probíhá. Vyčkejte a obnovte stav.';
+      return;
+    }
     const input = text.value.trim();
     if (outputEnabled.value) {
       if (voiceActive.value && !captureEnabled.value) {
@@ -145,7 +149,13 @@ export function useTestingSessions() {
     await run(async () => {
       if(wasConnected)await awaitRetired(selected.value!.session.id);
       const id = selected.value!.conversation.id;
-      updateConversation(await lab.text(id, input)); text.value = ''; await refresh();
+      try {
+        updateConversation(await lab.text(id, input)); text.value = ''; await refresh();
+      } catch (cause) {
+        // A gateway/provider failure may follow a saved turn. Read server truth without replaying it.
+        await refresh();
+        throw cause;
+      }
     });
   }
   async function startVoice(): Promise<void> {

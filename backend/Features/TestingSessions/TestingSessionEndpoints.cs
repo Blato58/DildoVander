@@ -17,6 +17,7 @@ internal static class TestingSessionEndpoints
     internal static IServiceCollection AddTestingSessions(this IServiceCollection services)
     {
         services.AddSingleton<TestingResources>();
+        services.AddHostedService<TestingCharacterEnrichmentWorker>();
         services.AddSingleton<TestingHardwareAdapter>();
         services.AddSingleton<TestingSessionService>();
         services.AddSingleton<ITestingConversationBridge,TestingConversationBridge>();
@@ -50,7 +51,7 @@ internal static class TestingSessionEndpoints
         }));
         group.MapGet("",(HttpContext h,TestingSessionService s)=>Results.Json(s.Sessions(Owner(h))));
         group.MapPost("",(HttpContext h,TestingSessionRequest r,TestingSessionService s)=>Results.Json(s.Create(Owner(h),r)));
-        group.MapGet("/characters",(HttpContext h,TestingSessionService s)=>Results.Json(s.Characters(Owner(h))));
+        group.MapGet("/characters",async(HttpContext h,TestingSessionService s)=>Results.Json(await s.CharactersAsync(Owner(h),h.RequestAborted)));
         group.MapPost("/characters",async (HttpContext h,TestingCharacterRequest r,TestingSessionService s)=>Results.Json(await s.SaveCharacterAsync(Owner(h),null,r,h.RequestAborted)));
         group.MapPut("/characters/{id}",async (HttpContext h,string id,TestingCharacterRequest r,TestingSessionService s)=>Results.Json(await s.SaveCharacterAsync(Owner(h),id,r,h.RequestAborted)));
         group.MapDelete("/characters/{id}",async(HttpContext h,string id,TestingSessionService s)=>{await s.DeleteCharacterAsync(Owner(h),id,h.RequestAborted);return Results.NoContent();});
