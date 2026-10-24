@@ -49,6 +49,10 @@ internal sealed partial class DuelStore
                 duel_id TEXT PRIMARY KEY, document TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS show_duel_commentary (
                 duel_id TEXT PRIMARY KEY, state TEXT NOT NULL, result TEXT, audit TEXT);
+            CREATE TABLE IF NOT EXISTS show_duel_identity_tombstones (
+                identity_id TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS show_duel_deleted_releases (
+                duel_id TEXT PRIMARY KEY, device_id TEXT NOT NULL);
             """);
     }
 
@@ -69,17 +73,29 @@ internal sealed partial class DuelStore
                 ?? throw new DuelException(409, "identity_unavailable");
             var right = identities.Read(request.RightIdentityId, request.EveningId, deviceId)
                 ?? throw new DuelException(409, "identity_unavailable");
+            if ((left.WandName is null) != (right.WandName is null))
+                throw new DuelException(409, "incompatible_wand_models");
             using var connection = Open();
             using var transaction = connection.BeginTransaction();
+            using (var revoked = Command(connection, transaction,
+                "SELECT COUNT(*) FROM show_duel_identity_tombstones WHERE identity_id=$left OR identity_id=$right",
+                ("$left", left.IdentityId), ("$right", right.IdentityId)))
+            {
+                if (Convert.ToInt32(revoked.ExecuteScalar()) != 0) { throw new DuelException(409, "identity_unavailable"); }
+            }
             var replay = Replay(connection, transaction, $"{deviceId}:create", request.OperationKey, request);
             if (replay is not null) { return Load(connection, transaction, replay.Value.Id).View(); }
             var seed = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+            var rulesVersion = left.WandName is not null && right.WandName is not null
+                ? DuelRules.PersonalizedVersion : DuelRules.Version;
             var duel = new DuelDocument
             {
                 Id = Guid.NewGuid().ToString(), DeviceId = deviceId, EveningId = request.EveningId,
                 Mode = request.Mode, Seed = seed, Left = left, Right = right,
+                RulesVersion = rulesVersion,
+                RequiresParticipantConsent = rulesVersion == DuelRules.PersonalizedVersion && request.Mode == "interactive",
                 State = request.Mode == "interactive" ? "AwaitingParticipants" : "Ready",
-                Commitments = Enumerable.Range(1, 3).Select(round => DuelRules.Commit(seed, round)).ToArray()
+                Commitments = Enumerable.Range(1, 3).Select(round => DuelRules.Commit(seed, round, rulesVersion)).ToArray()
             };
             Execute(connection, transaction,
                 "INSERT INTO show_duels VALUES($id,$device,$evening,$revision,$state,$document)",
@@ -129,7 +145,7 @@ internal sealed partial class DuelStore
             {
                 throw new DuelException(409, "duel_not_ready");
             }
-            if (current.RulesVersion != DuelRules.Version) { throw new DuelException(409, "rules_version_unavailable"); }
+            if (!DuelRules.Supports(current.RulesVersion)) { throw new DuelException(409, "rules_version_unavailable"); }
             RequireEvening(deviceId, current.EveningId);
             _ = Read(id, deviceId, publicView: true);
             var narration = slot.BindNarration(deviceId);
@@ -146,8 +162,14 @@ internal sealed partial class DuelStore
                     duel.NarrationMode = narration.Mode;
                     duel.NarrationUnavailableReason = narration.UnavailableReason;
                     duel.NarrationStage = narration.Mode == "physical_device" ? "intro_dispatch" : "choice";
+                    duel.ChoiceRevision = duel.Revision + 1;
                     duel.Deadline = narration.Mode == "physical_device" ? null
                         : clock.GetUtcNow().AddSeconds(duel.Mode == "interactive" ? 15 : 3);
+                }, before: (connection, transaction, duel) =>
+                {
+                    if (duel.RequiresParticipantConsent && (!duel.LeftJoined || !duel.RightJoined
+                        || ActiveGrantCount(connection, transaction, id) != 2))
+                    { throw new DuelException(409, "participants_not_joined"); }
                 });
             }
             catch
@@ -202,7 +224,10 @@ internal sealed partial class DuelStore
                 ("$id", id), ("$side", request.Side));
             Execute(connection, transaction, "INSERT INTO show_duel_grants(secret_hash,duel_id,side,expires) VALUES($hash,$id,$side,$expires)",
                 ("$hash", Hash(secret)), ("$id", id), ("$side", request.Side), ("$expires", expires.ToUnixTimeSeconds()));
-            if (duel.State == "AwaitingParticipants" && ActiveGrantCount(connection, transaction, id) == 2) { duel.State = "Ready"; }
+            if (request.Side == "left") { duel.LeftJoined = false; } else { duel.RightJoined = false; }
+            if (duel.RequiresParticipantConsent && duel.State == "Ready") { duel.State = "AwaitingParticipants"; }
+            if (!duel.RequiresParticipantConsent && duel.State == "AwaitingParticipants"
+                && ActiveGrantCount(connection, transaction, id) == 2) { duel.State = "Ready"; }
             Save(connection, transaction, duel);
             Remember(connection, transaction, $"{id}:grant", request.OperationKey, request, id, protector.Protect(secret));
             transaction.Commit();
@@ -220,8 +245,29 @@ internal sealed partial class DuelStore
         {
             Execute(connection, transaction, "UPDATE show_duel_grants SET revoked=1 WHERE duel_id=$id AND side=$side",
                 ("$id", id), ("$side", request.Side));
+            if (request.Side == "left") { duel.LeftJoined = false; } else { duel.RightJoined = false; }
             if (duel.State == "Ready" && duel.Mode == "interactive") { duel.State = "AwaitingParticipants"; }
         });
+    }
+
+    public DuelView Join(string id, string token, DuelJoinRequest request)
+    {
+        ValidateSide(request.Side);
+        if (!request.ConsentConfirmed) { throw new DuelException(400, "participant_consent_required"); }
+        var current = Read(id, publicView: true);
+        RequireEvening(current.DeviceId, current.EveningId);
+        // Include the grant generation in the replay scope. Reissuing a side's
+        // invitation requires fresh consent, even for an identical request key.
+        return Mutate(null, id, "join:" + Hash(token), request.OperationKey, request, duel =>
+        {
+            if (duel.Mode != "interactive" || duel.State is not ("AwaitingParticipants" or "Ready" or "Running"))
+            { throw new DuelException(409, "duel_not_interactive"); }
+            if (request.Side == "left") { duel.LeftJoined = true; } else { duel.RightJoined = true; }
+        }, (connection, transaction, duel) =>
+        {
+            if (duel.State == "AwaitingParticipants" && duel.LeftJoined && duel.RightJoined
+                && ActiveGrantCount(connection, transaction, id) == 2) { duel.State = "Ready"; }
+        }, before: (connection, transaction, duel) => GrantExpiry(connection, transaction, id, request.Side, token));
     }
 
     public DuelView Choose(string id, string token, DuelChoiceRequest request)
@@ -244,7 +290,17 @@ internal sealed partial class DuelStore
                 if (existing != request.Action) { throw new DuelException(409, "choice_locked"); }
                 return;
             }
-            Revision(duel, request.Revision);
+            if (duel.RequiresParticipantConsent && !(request.Side == "left" ? duel.LeftJoined : duel.RightJoined))
+            { throw new DuelException(403, "participant_consent_required"); }
+            // A second phone may submit from the same round snapshot as the
+            // first. Its action is independent; only the round's opening revision
+            // matters. Older rounds and future revisions remain rejected.
+            if (duel.RulesVersion == DuelRules.PersonalizedVersion && duel.ChoiceRevision is { } floor)
+            {
+                if (request.Revision < floor || request.Revision > duel.Revision)
+                { throw new DuelException(409, "stale_revision"); }
+            }
+            else { Revision(duel, request.Revision); }
             if (request.Side == "left") { duel.LeftChoice = request.Action; }
             else { duel.RightChoice = request.Action; }
         }, before: (connection, transaction, duel) => GrantExpiry(connection, transaction, id, request.Side, token));
@@ -252,6 +308,7 @@ internal sealed partial class DuelStore
 
     public void Tick()
     {
+        ReleaseDeletedDuels();
         var released = new List<(string Device, string Id)>();
         var beats = new List<(string Device, string Id, int Round, string Quip)>();
         var narration = new List<DuelNarrationDispatch>();
@@ -269,7 +326,7 @@ internal sealed partial class DuelStore
             using var transaction = connection.BeginTransaction();
             foreach (var duel in running)
             {
-                if (duel.RulesVersion != DuelRules.Version || !slot.IsCurrent(duel.DeviceId, duel.Id)
+                if (!DuelRules.Supports(duel.RulesVersion) || !slot.IsCurrent(duel.DeviceId, duel.Id)
                     || !activeEvenings[(duel.DeviceId, duel.EveningId)])
                 {
                     Interrupt(duel);
@@ -280,7 +337,7 @@ internal sealed partial class DuelStore
                 if (ProcessNarrationState(connection, transaction, duel, narration, released)) { continue; }
                 if (duel.Deadline > clock.GetUtcNow() && (duel.LeftChoice is null || duel.RightChoice is null)) { continue; }
                 duel.Rounds.Add(DuelRules.Resolve(duel.Seed, duel.Rounds.Count + 1, duel.Left, duel.Right,
-                    duel.Commitments[duel.Rounds.Count], duel.LeftChoice, duel.RightChoice));
+                    duel.Commitments[duel.Rounds.Count], duel.LeftChoice, duel.RightChoice, duel.RulesVersion));
                 beats.Add((duel.DeviceId, duel.Id, duel.Rounds.Count, duel.Rounds[^1].Quip));
                 duel.LeftChoice = duel.RightChoice = null;
                 if (duel.Rounds.Count == 3)
@@ -301,6 +358,7 @@ internal sealed partial class DuelStore
                 }
                 else
                 {
+                    duel.ChoiceRevision = duel.Revision + 1;
                     duel.Deadline = clock.GetUtcNow().AddSeconds(duel.Mode == "interactive" ? 15 : 3);
                     Save(connection, transaction, duel);
                 }
@@ -326,6 +384,67 @@ internal sealed partial class DuelStore
     {
         using var connection = Open();
         Execute(connection, null, "UPDATE show_duel_events SET delivered=1 WHERE duel_id=$id", ("$id", id));
+    }
+
+    // Called by keepsake deletion for every withdrawn immutable wizard identity.
+    // The tombstone fences a Create that captured its source before deletion.
+    public void PurgeIdentity(string identityId)
+    {
+        lock (gate)
+        {
+            using var connection = Open();
+            using var transaction = connection.BeginTransaction();
+            PurgeIdentity(connection, transaction, identityId);
+            transaction.Commit();
+        }
+        ReleaseDeletedDuels();
+    }
+
+    internal static void PurgeIdentity(SqliteConnection connection, SqliteTransaction transaction, string identityId)
+    {
+        // May run before the optional duel feature was instantiated in a legacy
+        // host. Keep the revocation fence even when no duel tables exist yet.
+        Execute(connection, transaction, "CREATE TABLE IF NOT EXISTS show_duel_identity_tombstones (identity_id TEXT PRIMARY KEY)");
+        Execute(connection, transaction, "INSERT OR IGNORE INTO show_duel_identity_tombstones VALUES($identity)", ("$identity", identityId));
+        using (var exists = Command(connection, transaction, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='show_duels'"))
+        {
+            if (Convert.ToInt32(exists.ExecuteScalar()) == 0) { return; }
+        }
+        Execute(connection, transaction, "CREATE TABLE IF NOT EXISTS show_duel_deleted_releases (duel_id TEXT PRIMARY KEY, device_id TEXT NOT NULL)");
+        var released = new List<(string Device, string Id)>();
+        using (var command = Command(connection, transaction,
+            "SELECT device_id,id FROM show_duels WHERE json_extract(document,'$.left.identityId')=$identity OR json_extract(document,'$.right.identityId')=$identity",
+            ("$identity", identityId)))
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read()) { released.Add((reader.GetString(0), reader.GetString(1))); }
+        }
+        foreach (var (device, id) in released)
+        {
+            Execute(connection, transaction, "INSERT OR IGNORE INTO show_duel_deleted_releases VALUES($id,$device)", ("$id", id), ("$device", device));
+            Execute(connection, transaction, "DELETE FROM show_duel_grants WHERE duel_id=$id", ("$id", id));
+            Execute(connection, transaction, "DELETE FROM show_duel_operations WHERE duel_id=$id", ("$id", id));
+            Execute(connection, transaction, "DELETE FROM show_duel_events WHERE duel_id=$id", ("$id", id));
+            Execute(connection, transaction, "DELETE FROM show_duel_commentary WHERE duel_id=$id", ("$id", id));
+            Execute(connection, transaction, "DELETE FROM show_duels WHERE id=$id", ("$id", id));
+        }
+    }
+
+    private void ReleaseDeletedDuels()
+    {
+        var released = new List<(string Device, string Id)>();
+        using (var connection = Open())
+        using (var command = Command(connection, null, "SELECT device_id,duel_id FROM show_duel_deleted_releases LIMIT 100"))
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read()) { released.Add((reader.GetString(0), reader.GetString(1))); }
+        }
+        foreach (var (device, id) in released)
+        {
+            slot.Release(device, id);
+            using var connection = Open();
+            Execute(connection, null, "DELETE FROM show_duel_deleted_releases WHERE duel_id=$id", ("$id", id));
+        }
     }
 
     private DuelView Mutate(string? deviceId, string id, string operation, string key, object body,

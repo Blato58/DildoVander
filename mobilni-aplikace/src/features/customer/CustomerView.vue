@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import GeneratedWand from '../archive/GeneratedWand.vue';
+import { projectGeneratedWand, type GeneratedWand as GeneratedWandSnapshot } from '../archive/generatedWand';
 import AwButton from '../../components/AwButton.vue';
 import AwField from '../../components/AwField.vue';
 import AwNotice from '../../components/AwNotice.vue';
@@ -11,6 +13,7 @@ import SettingsView from '../identity/SettingsView.vue';
 import NewCharacterDialog, { type NewCharacterDraft } from './NewCharacterDialog.vue';
 import CustomerSessionResultCard from './CustomerSessionResultCard.vue';
 import CustomerWaiting from './CustomerWaiting.vue';
+import CustomerDuelHistory from './CustomerDuelHistory.vue';
 import CustomerCompletionUpdates from './CustomerCompletionUpdates.vue';
 import ConversationPreferences from './ConversationPreferences.vue';
 import { interfaceLanguagePreference } from '../../application/interfaceLanguage';
@@ -38,11 +41,12 @@ const interfaceLanguage = interfaceLanguagePreference.language;
 watch(() => account.value?.id, id => interfaceLanguagePreference.setScope(id), { immediate: true, flush: 'sync' });
 const pane = computed(() => route.path.split('/').at(-1) ?? 'character');
 const profile = ref<CharacterProfile | null>(null);
+const selectedWand = ref<GeneratedWandSnapshot | null>(null);
 const sessions = ref<CustomerSession[]>([]);
 const resultSessionId = ref<string | null>(null);
-const completedSessions = computed(() => sessions.value.filter(session => session.state === 'completed'));
-const resultSession = computed(() => completedSessions.value.find(session => session.id === resultSessionId.value)
-  ?? completedSessions.value[0] ?? null);
+const resultSessions = computed(() => sessions.value.filter(session => ['completed', 'failed'].includes(session.state)));
+const resultSession = computed(() => resultSessions.value.find(session => session.id === resultSessionId.value)
+  ?? resultSessions.value[0] ?? null);
 const busy = ref(false);
 const profileLoading = ref(false);
 const errorFeedback = ref<CustomerSessionFeedback | null>(null);
@@ -131,7 +135,7 @@ function resetPrivateState(): void {
   accountWorkController.abort(); accountWorkController = new AbortController();
   sessionRecovery.invalidate();
   if (enrichmentTimer) clearTimeout(enrichmentTimer); enrichmentTimer = undefined;
-  profile.value = null; sessions.value = []; devices.value = []; connected.value = null; profileLoading.value = Boolean(account.value);
+  profile.value = null; selectedWand.value = null; sessions.value = []; devices.value = []; connected.value = null; profileLoading.value = Boolean(account.value);
   busy.value = false;
   newCharacterOpen.value = false; newCharacterError.value = null;
   resultSessionId.value = null;
@@ -145,9 +149,10 @@ async function loadProfile(epoch = generation): Promise<void> {
   if (!account.value) return;
   profileLoading.value = true;
   try {
-    const result = await accountRequest<{ profile: CharacterProfile | null }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
+    const result = await accountRequest<{ profile: CharacterProfile | null; generatedWand?: unknown }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
     if (epoch !== generation) return;
     profile.value = result.profile;
+    selectedWand.value = result.profile ? projectGeneratedWand(result.generatedWand) : null;
     form.value = {
       name: result.profile?.userInput.name ?? '', world: result.profile?.userInput.world ?? '',
       version: result.profile?.userInput.version ?? '', description: result.profile?.userInput.description ?? '',
@@ -206,6 +211,7 @@ async function saveCharacter(newCharacter = false, draft?: NewCharacterDraft): P
     }, accountWorkController.signal);
     if (epoch !== generation) return;
     profile.value = result.profile;
+    selectedWand.value = null;
     if (newCharacter) {
       form.value = {
         name: result.profile.userInput.name, world: result.profile.userInput.world,
@@ -253,7 +259,7 @@ async function deleteCharacter(): Promise<void> {
   errorFeedback.value = null; busy.value = true; const epoch = generation;
   try {
     await accountRequest('/app/v1/customer/character?expectedRevision=' + profile.value.revision + '&expectedProfileId=' + encodeURIComponent(profile.value.profileId), 'DELETE', undefined, accountWorkController.signal);
-    if (epoch === generation) { profile.value = null; form.value = { name: '', world: '', version: '', description: '', language: '' }; noticeCopyKey.value = 'customer.profile-deleted'; }
+    if (epoch === generation) { profile.value = null; selectedWand.value = null; form.value = { name: '', world: '', version: '', description: '', language: '' }; noticeCopyKey.value = 'customer.profile-deleted'; }
   } catch (cause) { if (epoch === generation) showProjectedError(cause); }
   finally { if (epoch === generation) busy.value = false; }
 }
@@ -416,8 +422,9 @@ function scheduleEnrichmentRefresh(epoch: number): void {
 }
 async function refreshEnrichment(epoch = generation): Promise<void> {
   try {
-    const result = await accountRequest<{ profile: CharacterProfile | null }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
+    const result = await accountRequest<{ profile: CharacterProfile | null; generatedWand?: unknown }>('/app/v1/customer/character', 'GET', undefined, accountWorkController.signal);
     if (epoch !== generation || !result.profile || result.profile.profileId !== profile.value?.profileId || result.profile.revision !== profile.value.revision) return;
+    selectedWand.value = projectGeneratedWand(result.generatedWand);
     // Refresh server-derived enrichment only; never replace the visitor's in-progress form edits.
     profile.value = { ...profile.value, status: result.profile.status, enrichment: result.profile.enrichment, errorCode: result.profile.errorCode, updatedAt: result.profile.updatedAt };
     scheduleEnrichmentRefresh(epoch);
@@ -488,6 +495,7 @@ onBeforeUnmount(() => {
         <p class="aw-muted">{{ customerCopy.text('customer.correction-guidance') }}</p>
         <AwButton type="button" variant="secondary" :disabled="busy" @click="beginNewCharacter">{{ customerCopy.text('customer.new-character') }}</AwButton>
       </section>
+      <GeneratedWand v-if="profile && selectedWand" :wand="selectedWand" show-name />
       <details :open="!profile || profile.status === 'needs_clarification'" class="aw-card">
         <summary>{{ customerCopy.text(profile ? 'customer.edit-character' : 'customer.create-first') }}</summary>
     <form class="customer-form" @submit.prevent="saveCharacter(false)">
@@ -538,10 +546,10 @@ onBeforeUnmount(() => {
       </div>
       <div v-for="session in sessions" :key="session.id" class="aw-card"><h2>{{ session.characterName || profile?.userInput.name || customerCopy.text('customer.conversation') }}</h2><p>{{ customerCopy.text('customer.status-label', { status: customerCopy.text(sessionStatusKeys[session.state] ?? 'customer.status-unknown') }) }}</p><p>{{ customerCopy.text('customer.started-at', { date: new Date(session.createdAt * 1000).toLocaleString(interfaceLanguage === 'en' ? 'en-US' : 'cs-CZ') }) }}</p><AwButton v-if="['running', 'starting', 'context_ready', 'recovering'].includes(session.state)" variant="secondary" :disabled="busy || session.endRequested" @click="endConversation(session)">{{ customerCopy.text(session.endRequested ? 'customer.end-requested' : 'customer.end-conversation') }}</AwButton></div>
       <section v-if="resultSession" class="page-stack">
-        <AwField v-if="completedSessions.length > 1" id="result-session" :label="customerCopy.text('customer.completed-conversation')">
+        <AwField v-if="resultSessions.length > 1" id="result-session" :label="customerCopy.language.value === 'en' ? 'Conversation result' : 'Výsledek rozhovoru'">
           <select id="result-session" v-model="resultSessionId" class="aw-input">
-            <option :value="null">{{ customerCopy.text('customer.latest-completed') }}</option>
-            <option v-for="session in completedSessions" :key="session.id" :value="session.id">{{ session.characterName || customerCopy.text('customer.conversation') }} · {{ new Date(session.createdAt * 1000).toLocaleString(interfaceLanguage === 'en' ? 'en-US' : 'cs-CZ') }}</option>
+            <option :value="null">{{ customerCopy.language.value === 'en' ? 'Latest result' : 'Nejnovější výsledek' }}</option>
+            <option v-for="session in resultSessions" :key="session.id" :value="session.id">{{ session.characterName || customerCopy.text('customer.conversation') }} · {{ new Date(session.createdAt * 1000).toLocaleString(interfaceLanguage === 'en' ? 'en-US' : 'cs-CZ') }}</option>
           </select>
         </AwField>
         <CustomerSessionResultCard :key="resultSession.id" :session-id="resultSession.id" />
@@ -551,6 +559,7 @@ onBeforeUnmount(() => {
     <section v-else-if="pane === 'keepsakes'" class="page-stack">
       <CustomerCompletionUpdates :locale="interfaceLanguage" />
       <AccountArchiveList :locale="interfaceLanguage" />
+      <CustomerDuelHistory />
     </section>
     <section v-else-if="pane === 'account'" class="page-stack">
       <ConversationPreferences v-if="profile" :profile-id="profile.profileId" :profile-revision="profile.revision" />

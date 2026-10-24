@@ -1,3 +1,4 @@
+import { projectSpells, type WandSpell } from './generatedWand';
 import { GuestError, isUuid } from './client';
 export { publicIdentity, type WizardIdentity } from './client';
 export interface Prophecy {
@@ -5,6 +6,7 @@ export interface Prophecy {
 }
 const object = (raw: unknown): Record<string, unknown> => raw !== null && typeof raw === 'object' ? raw as Record<string, unknown> : {};
 const text = (raw: unknown, max = 2000) => typeof raw === 'string' && raw.length <= max ? raw : '';
+const score = (raw: unknown) => typeof raw === 'number' && Number.isFinite(raw) && Math.abs(raw) <= 100 ? raw : 0;
 const number = (raw: unknown) => typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : 0;
 
 export function ownerProphecy(raw: unknown): Prophecy | null {
@@ -42,11 +44,12 @@ export const duelStates: Record<string, string> = {
   Running: 'Souboj právě probíhá.', Completed: 'Souboj dokončen.', Cancelled: 'Souboj zrušen. Vítěz nebyl vyhlášen.', Interrupted: 'Souboj přerušen. Vítěz nebyl vyhlášen.',
 };
 export const duelActions: Record<DuelAction, string> = { strike: 'Úder', trick: 'Lest', shield: 'Štít' };
-interface DuelIdentity { displayName: string; wandId: string; strength: number; cunning: number; defense: number }
+export interface DuelIdentity { displayName: string; wandId: string; strength: number; cunning: number; defense: number; wandName?: string; spells?: WandSpell[]; physicalSlot?: number }
 export interface DuelRound { number: number; leftAction: string; rightAction: string; leftScore: number; rightScore: number; leftAutomatic: boolean; rightAutomatic: boolean; quip: string; mishap: string }
 export interface Duel {
   id: string; revision: number; state: string; mode: string; round: number; deadline: string | null;
   left: DuelIdentity; right: DuelIdentity; leftChoiceLocked: boolean; rightChoiceLocked: boolean;
+  requiresParticipantConsent: boolean; leftJoined: boolean; rightJoined: boolean;
   rounds: DuelRound[]; narrationMode: string; narrationStatus: string;
   result: { ending: string; leftPoints: number; rightPoints: number; exhibition: boolean } | null;
   commentary: { provider: string; rounds: { round: number; quip: string; mishap: string }[] } | null;
@@ -55,13 +58,20 @@ export function projectDuel(raw: unknown, id: string): Duel {
   const source = object(raw);
   if (source.id !== id || !isUuid(id) || !Number.isInteger(source.revision) || number(source.revision) !== source.revision
     || !duelStates[String(source.state)] || !Array.isArray(source.rounds) || source.rounds.length > 3 || !source.left || !source.right) throw new GuestError(503);
-  const identity = (raw: unknown): DuelIdentity => { const item = object(raw); return { displayName: text(item.displayName, 240), wandId: text(item.wandId, 240), strength: number(item.strength), cunning: number(item.cunning), defense: number(item.defense) }; };
+  const identity = (raw: unknown): DuelIdentity => {
+    const item = object(raw); const spells = projectSpells(item.spells);
+    return { displayName: text(item.displayName, 240), wandId: text(item.wandId, 240),
+      strength: number(item.strength), cunning: number(item.cunning), defense: number(item.defense),
+      ...(spells && text(item.wandName, 240).trim() ? { wandName: text(item.wandName, 240), spells } : {}),
+      ...(Number.isInteger(item.physicalSlot) && number(item.physicalSlot) >= 1 && number(item.physicalSlot) <= 6 ? { physicalSlot: Number(item.physicalSlot) } : {}) };
+  };
   const result = object(source.result); const commentary = object(source.commentary);
   return { id, revision: source.revision as number, state: String(source.state), mode: text(source.mode, 40), round: number(source.round),
     deadline: typeof source.deadline === 'string' ? text(source.deadline, 80) : null, left: identity(source.left), right: identity(source.right),
+    requiresParticipantConsent: source.requiresParticipantConsent === true, leftJoined: source.leftJoined === true, rightJoined: source.rightJoined === true,
     leftChoiceLocked: source.leftChoiceLocked === true, rightChoiceLocked: source.rightChoiceLocked === true,
     narrationMode: text(source.narrationMode, 80), narrationStatus: text(source.narrationStatus, 100),
-    rounds: source.rounds.map(raw => { const item = object(raw); return { number: number(item.number), leftAction: text(item.leftAction, 20), rightAction: text(item.rightAction, 20), leftScore: number(item.leftScore), rightScore: number(item.rightScore), leftAutomatic: item.leftAutomatic === true, rightAutomatic: item.rightAutomatic === true, quip: text(item.quip), mishap: text(item.mishap) }; }),
+    rounds: source.rounds.map(raw => { const item = object(raw); return { number: number(item.number), leftAction: text(item.leftAction, 20), rightAction: text(item.rightAction, 20), leftScore: score(item.leftScore), rightScore: score(item.rightScore), leftAutomatic: item.leftAutomatic === true, rightAutomatic: item.rightAutomatic === true, quip: text(item.quip), mishap: text(item.mishap) }; }),
     result: source.state === 'Completed' && source.result ? { ending: text(result.ending), leftPoints: number(result.leftPoints), rightPoints: number(result.rightPoints), exhibition: result.exhibition === true } : null,
     commentary: source.commentary && Array.isArray(commentary.rounds) ? { provider: text(commentary.provider, 80), rounds: commentary.rounds.slice(0, 3).map(raw => { const item = object(raw); return { round: number(item.round), quip: text(item.quip), mishap: text(item.mishap) }; }) } : null };
 }
@@ -72,4 +82,11 @@ export function duelNarration(view: Duel) {
   if (view.narrationStatus === 'playback_confirmed') return 'Zařízení potvrdilo přehrání úvodu, komentářů kol i závěru.';
   if (['interrupted', 'cancelled'].includes(view.narrationStatus)) return 'Další přehrávání bylo přerušeno nebo odvoláno.';
   return 'Čekáme na potvrzené přehrání ze zařízení.';
+}
+
+export function duelSpell(identity: DuelIdentity, action: string): string {
+  return identity.spells?.find(spell => spell.action === action)?.name ?? duelActions[action as DuelAction] ?? 'Tah';
+}
+export function duelWandName(identity: DuelIdentity): string {
+  return identity.wandName || 'Archivní hůlka';
 }

@@ -11,7 +11,11 @@ internal sealed class DuelIdentitySource(KeepsakeStore keepsakes, EveningMemoryS
     public DuelIdentitySnapshot? Read(string identityId, string eveningId, string deviceId)
     {
         var identity = keepsakes.GetPublicWizardIdentity(identityId, eveningId, deviceId);
-        return identity is null ? null : DuelRules.Snapshot(identity.IdentityId, identity.WizardAlias, identity.CatalogWandId);
+        if (identity is null) { return null; }
+        return identity.GeneratedWand is { } wand
+            ? DuelRules.PersonalizedSnapshot(identity.IdentityId, identity.WizardAlias, wand.WandId,
+                wand.Name, wand.PhysicalSlot, wand.Spells)
+            : DuelRules.Snapshot(identity.IdentityId, identity.WizardAlias, identity.CatalogWandId);
     }
 }
 

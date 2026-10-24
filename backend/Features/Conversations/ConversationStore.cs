@@ -25,7 +25,8 @@ internal sealed partial class ConversationStore(
     IConfiguration? configuration = null,
     CostumeVisionService? vision = null,
     ShowCoordinator? show = null,
-    PersonaLabStore? personaLab = null)
+    PersonaLabStore? personaLab = null,
+    Kufr.Backend.Features.Wands.WandGenerationStore? wands = null)
 {
     private readonly Lock gate = new();
     private CharacterPolicy characterPolicy = liveOptions?.Character ?? new();

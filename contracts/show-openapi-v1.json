@@ -1552,6 +1552,66 @@
           }
         }
       }
+    },
+    "/guest/v1/duels/{id}/join": {
+      "post": {
+        "operationId": "post_guest_v1_duels__id__join",
+        "x-source": "Features/Show/DuelEndpoints.cs",
+        "security": [
+          {
+            "DuelSideGrant": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored authoritative result; never a physical actuator acknowledgement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuelView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Required credential absent or invalid"
+          },
+          "404": {
+            "description": "Resource unavailable in scope"
+          },
+          "409": {
+            "description": "Revision, scope or lifecycle conflict"
+          },
+          "403": {
+            "description": "Invalid, expired, revoked or opposing participant grant"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuelJoin"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1785,7 +1845,8 @@
           "revision": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "description": "V1 requires the current revision. V2 accepts revisions at or after the opening of the same round, allowing both phones to commit from a shared observed snapshot."
           },
           "action": {
             "enum": [
@@ -2026,7 +2087,10 @@
             "type": "string"
           },
           "rulesVersion": {
-            "type": "string"
+            "enum": [
+              "duel-sha256-counter-v1",
+              "duel-personalized-v2"
+            ]
           },
           "mode": {
             "type": "string"
@@ -2039,10 +2103,10 @@
             "type": "string"
           },
           "left": {
-            "type": "object"
+            "$ref": "#/components/schemas/DuelIdentitySnapshot"
           },
           "right": {
-            "type": "object"
+            "$ref": "#/components/schemas/DuelIdentitySnapshot"
           },
           "round": {
             "type": "integer",
@@ -2053,6 +2117,44 @@
             "items": {
               "type": "object"
             }
+          },
+          "requiresParticipantConsent": {
+            "type": "boolean"
+          },
+          "leftJoined": {
+            "type": "boolean"
+          },
+          "rightJoined": {
+            "type": "boolean"
+          },
+          "leftChoiceLocked": {
+            "type": "boolean"
+          },
+          "rightChoiceLocked": {
+            "type": "boolean"
+          },
+          "deadline": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "narrationMode": {
+            "enum": [
+              "unbound",
+              "physical_device",
+              "web_only"
+            ]
+          },
+          "narrationStatus": {
+            "type": "string"
+          },
+          "narrationUnavailableReason": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -2471,6 +2573,124 @@
           },
           "operationEpoch": {
             "$ref": "#/components/schemas/OperationEpoch"
+          }
+        }
+      },
+      "DuelJoin": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "side",
+          "consentConfirmed",
+          "operationKey"
+        ],
+        "properties": {
+          "side": {
+            "enum": [
+              "left",
+              "right"
+            ]
+          },
+          "consentConfirmed": {
+            "const": true
+          },
+          "operationKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        }
+      },
+      "DuelSpell": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "action": {
+            "enum": [
+              "strike",
+              "trick",
+              "shield"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          }
+        }
+      },
+      "DuelIdentitySnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "identityId",
+          "displayName",
+          "wandId",
+          "strength",
+          "cunning",
+          "defense"
+        ],
+        "description": "Approved fictional participant projection. No account, character profile, selection-session identifiers or private context. V1 records omit personalized fields. V2 numerical characteristics are fixed by the server.",
+        "properties": {
+          "identityId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "wandId": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "cunning": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "defense": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "wandName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "spells": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/DuelSpell"
+            }
+          },
+          "physicalSlot": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 6
           }
         }
       }

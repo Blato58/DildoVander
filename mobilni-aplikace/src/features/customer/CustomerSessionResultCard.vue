@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
+import GeneratedWand from '../archive/GeneratedWand.vue';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { customerCopy } from '../../application/customerCopy';
@@ -34,6 +35,7 @@ const isCurrentVerificationFresh = computed(() => currentReadVerified.value
   && isOnline.value
   && !recoveryState.refreshing
   && !recoveryState.stale);
+const generationUnavailable = computed(() => projection.value?.wandGeneration && ['failed', 'unavailable', 'cancelled', 'stale'].includes(projection.value.wandGeneration.status));
 const localizedProjectionGuidance = computed(() => projection.value
   ? customerCopy.text(projection.value.guidanceKey)
   : '');
@@ -162,6 +164,12 @@ onBeforeUnmount(() => {
       <span v-if="projection.hasStory">{{ customerCopy.text('result.story-available') }}</span>
       <span v-if="projection.hasArtwork">{{ customerCopy.text('result.artwork-available') }}</span>
     </p>
+    <AwNotice v-if="isCurrentVerificationFresh && projection?.valid && generationUnavailable" tone="warning">
+      {{ customerCopy.language.value === 'en' ? 'Your personal wand could not be created. No replacement wand has been assigned.' : 'Osobní hůlku se nepodařilo vytvořit. Náhradní hůlka nebyla přiřazena.' }}
+      <template v-if="projection.wandGeneration?.canRetry"><br>{{ customerCopy.language.value === 'en' ? 'When the suitcase is idle, start a new conversation to try again.' : 'Až bude kufr volný, můžeš zahájit nový rozhovor a zkusit to znovu.' }} <RouterLink to="/me/conversation">{{ customerCopy.language.value === 'en' ? 'Open conversation' : 'Přejít k rozhovoru' }}</RouterLink></template>
+    </AwNotice>
+    <GeneratedWand v-if="isCurrentVerificationFresh && projection?.generatedWand" :wand="projection.generatedWand" show-name />
+    <p v-if="isCurrentVerificationFresh && projection?.generatedWand && projection.wandPublicationApproved === false">{{ customerCopy.language.value === 'en' ? 'Your wand stays private. Review the completed keepsake to approve its public fiction for the evening page and duels.' : 'Hůlka zůstává soukromá. V hotové památce zkontroluj fikci a schval její zveřejnění pro večer a souboje.' }}</p>
     <RouterLink v-if="isCurrentVerificationFresh && projection?.valid && projection.route" :to="projection.route">{{ customerCopy.text('result.open') }}</RouterLink>
     <AwButton :busy="recoveryState.refreshing" :disabled="!isOnline" @click="refreshManually">
       {{ customerCopy.text('result.refresh') }}

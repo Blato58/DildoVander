@@ -137,16 +137,25 @@ internal static partial class KeepsakeOutcomeEndpoints
             var customer = journal.CustomerConversation(device, proposal.ConversationId);
             if (customer is { Snapshot.Length: 0 })
             { return Results.Json(new { errorCode = "customer_data_revoked" }, statusCode: 410); }
+            var wandStore = c.RequestServices.GetService<Kufr.Backend.Features.Wands.WandGenerationStore>();
+            var generation = customer is null ? null : wandStore?.Read(customer.OwnerId, customer.OperationId);
+            var selected = generation?.SelectedWand;
+            var generatedOperation = customer is not null && wandStore?.HasOperation(customer.OwnerId, customer.OperationId) == true;
+            // A revoked new operation is never mistaken for a legacy catalogue record.
+            if (generatedOperation && (selected is null || selected.PhysicalSlot != proposal.Compartment
+                || selected.ProfileId != customer!.ProfileId || selected.ProfileRevision != customer.ProfileRevision))
+                return Results.Json(new { errorCode = "personal_wand_unavailable" }, statusCode: 409);
             var result = store.Issue(new KeepsakeIssueSnapshot(outcome, device, proposal.Compartment,
-                wand.StableId, wand.DisplayName, wand.Description, request.PresentationEvidence,
-                proposal.CatalogVersion, capturedEvening, proposal.ConversationId),
+                selected?.WandId ?? wand.StableId, selected?.Name ?? wand.DisplayName,
+                selected is null ? wand.Description : selected.Lore + " " + selected.Temperament, request.PresentationEvidence,
+                proposal.CatalogVersion, capturedEvening, proposal.ConversationId, selected?.ToPublic()),
                 customer is null ? null : new(customer.OwnerId, customer.Id));
             if (capturedEvening is { } evening
                 && journal.ReadSelectionMemoryEpoch(device, operationId) is { } deletionEpoch)
             {
                 var permission = memoryStore.GuestPermission(device, proposal.ConversationId);
                 memory.RecordConfirmedOutcome(new(device, evening, proposal.ConversationId,
-                    journal.ReadSelectionPersonality(device, operationId), permission), operationId, outcome, wand.DisplayName,
+                    journal.ReadSelectionPersonality(device, operationId), permission), operationId, outcome, selected?.Name ?? wand.DisplayName,
                     request.PresentationEvidence, deletionEpoch);
             }
             return Results.Json(new OutcomeAcknowledgement(1, result.Id, outcome, proposal.Generation,

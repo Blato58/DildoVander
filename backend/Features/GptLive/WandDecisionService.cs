@@ -14,7 +14,7 @@ internal sealed record DecisionEvidence(string Reference, string Text);
 internal sealed record DecisionReason(string EvidenceReference, string Quote, string Fact);
 internal sealed record WandDecisionInput(long Revision, int ReadyMask, int AvailabilityRevision,
     IReadOnlyList<DecisionEvidence> Evidence, LiveConversationPolicy Policy, int AnswerCandidates,
-    bool DirectSelection, int? ExcludeCompartment = null, string MemoryContext = "", string CostumeContext = "");
+    bool DirectSelection, int? ExcludeCompartment = null, string MemoryContext = "", string CostumeContext = "", IReadOnlyList<Kufr.Backend.Features.Wands.GeneratedWandSnapshot>? GeneratedWands = null);
 internal sealed record WandDecisionResult(WandDecisionStatus Status, int? Compartment,
     IReadOnlyList<DecisionReason> Reasons, string MissingInformation, long DecisionRevision,
     int AvailabilityRevision, long CostMicroUsd = 0, string OperationState = "proposal_only");
@@ -35,6 +35,13 @@ internal sealed class WandDecisionService : IDisposable
         key = configuration["OPENAI_API_KEY"];
         if (!string.IsNullOrWhiteSpace(key)) http = new(new HttpClientHandler { AllowAutoRedirect = false });
     }
+    internal static IReadOnlyList<PartyWandCatalog.WandEntry> Candidates(WandDecisionInput input) =>
+        (input.GeneratedWands is null ? PartyWandCatalog.Available(input.ReadyMask)
+            : input.GeneratedWands.Where(w => (input.ReadyMask & (1 << (w.PhysicalSlot - 1))) != 0)
+                .Select(w => new PartyWandCatalog.WandEntry(w.PhysicalSlot, w.Name, w.Lore,
+                    [w.Temperament, w.Affinity, w.Weakness], w.WandId)).ToArray())
+        .Where(w => w.Compartment != input.ExcludeCompartment).ToArray();
+
     internal bool Available => fixture is not null || http is not null;
     internal long Reservation(WandDecisionInput input) => WandDecisionBudget.Reservation(input, Model);
 
@@ -42,7 +49,7 @@ internal sealed class WandDecisionService : IDisposable
     {
         if (compartment is < 1 or > 6 || input.Revision < 0 || input.AvailabilityRevision < 0
             || (input.ReadyMask & (1 << (compartment - 1))) == 0
-            || input.ExcludeCompartment == compartment)
+            || input.ExcludeCompartment == compartment || !Candidates(input).Any(w => w.Compartment == compartment))
         { return new(WandDecisionStatus.Stale, null, [], "Zvolená hůlka není dostupná.", input.Revision, input.AvailabilityRevision); }
         // Explicit operator provenance does not invent a host quote or AI decision.
         return new(WandDecisionStatus.ValidProposal, compartment, [], "Výběr obsluhy; zařízení musí znovu ověřit snapshot.",
@@ -53,7 +60,7 @@ internal sealed class WandDecisionService : IDisposable
     {
         if (input.ReadyMask is < 0 or > 63 || input.Evidence.Count > 64 || input.AvailabilityRevision < 0)
             throw new ArgumentException("Invalid decision input.");
-        var candidates = PartyWandCatalog.Available(input.ReadyMask).Where(w => w.Compartment != input.ExcludeCompartment).ToArray();
+        var candidates = Candidates(input).ToArray();
         if (candidates.Length == 0)
             return new(WandDecisionStatus.NoAvailableWand, null, [], "", input.Revision, input.AvailabilityRevision);
         if (input.Evidence.Count == 0)
@@ -131,8 +138,14 @@ internal sealed class WandDecisionService : IDisposable
                 nikdy na souhlas s herním výběrem. Po dosažení maxima nevyžaduj další diagnostickou otázku.
                 Žádné servo příkazy, ceny, vymyšlené katalogové vlastnosti ani tvrzení o dokončené fyzické akci.
                 """,
-            input = JsonSerializer.Serialize(new { request = input, candidates = PartyWandCatalog.Available(input.ReadyMask)
-                .Where(w => w.Compartment != input.ExcludeCompartment) }, Realtime.RealtimeProtocol.JsonOptions),
+            input = JsonSerializer.Serialize(new { request = new { input.Revision, input.ReadyMask, input.AvailabilityRevision,
+                input.Evidence, input.Policy, input.AnswerCandidates, input.DirectSelection, input.ExcludeCompartment,
+                input.MemoryContext, input.CostumeContext }, candidates = Candidates(input).Select(w => new
+                {
+                    w.Compartment, w.DisplayName,
+                    description = LiveTextBudget.Bound(w.Description, 140),
+                    traits = w.Traits.Take(3).Select(trait => LiveTextBudget.Bound(trait, 100))
+                }) }, Realtime.RealtimeProtocol.JsonOptions),
             tools = new[] { new
             {
                 type = "function", name = "decide_wand", description = "Faktický návrh nebo chybějící informace.", strict = true,
@@ -194,6 +207,7 @@ internal sealed class WandDecisionService : IDisposable
             || result.MissingInformation.Length > 200 || result.Reasons.Count > 2
             || result.Status == WandDecisionStatus.ValidProposal && (result.Compartment is null or < 1 or > 6
                 || (input.ReadyMask & (1 << (result.Compartment.Value - 1))) == 0
+                || !Candidates(input).Any(w => w.Compartment == result.Compartment)
                 || result.Compartment == input.ExcludeCompartment || result.Reasons.Count == 0 || result.MissingInformation.Length != 0
                 || !input.Policy.AllowEarlySelection && input.AnswerCandidates < input.Policy.UsualAnswers)
             || result.Status != WandDecisionStatus.ValidProposal && result.Compartment is not null

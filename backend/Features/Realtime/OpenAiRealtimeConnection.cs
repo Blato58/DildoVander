@@ -566,7 +566,7 @@ internal sealed class OpenAiRealtimeConnection : IAsyncDisposable, IStreamingAud
                             accepted = true,
                             decision,
                             compartment,
-                            availableWands = PartyWandCatalog.AvailableForPrompt(turn.Request.ReadyMask),
+                            availableWands = CustomerWandSelection.AvailableForPrompt(turn),
                             instruction = "Řekni krátký závěr s jednou pointou. Toto je návrh, pohyb zatím neproběhl."
                         }, RealtimeProtocol.JsonOptions);
                         await session.AddItemAsync(

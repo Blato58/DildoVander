@@ -2,10 +2,11 @@ export interface ArchiveAsset { id: string; kind: string; mediaType: string; len
 export interface Story { title: string; text: string }
 import { secureUuid } from '../../application/identifiers.mjs';
 import type { Prophecy } from './showContracts';
+import { projectGeneratedWand, type GeneratedWand } from './generatedWand';
 export interface WizardIdentity {
   editionId: string; visibility: 'public_fiction'; wizardAlias: string; houseOrGuild: string;
   dubiousSpecialization: string; signatureAbility: string; weakness: string; ministryAssessment: string;
-  wandBond: string; motto: string; microStory: string; omen: string;
+  wandBond: string; motto: string; microStory: string; omen: string; generatedWand?: GeneratedWand;
 }
 const identityLimits = { wizardAlias: 60, houseOrGuild: 160, dubiousSpecialization: 160,
   signatureAbility: 160, weakness: 160, ministryAssessment: 160, wandBond: 160,
@@ -20,9 +21,10 @@ export function publicIdentity(raw: unknown): WizardIdentity | null {
     if (typeof source[field] !== 'string' || (source[field] as string).length > maximum) return null;
     result[field] = source[field] as string;
   }
-  return result as unknown as WizardIdentity;
+  const generatedWand = projectGeneratedWand(source.generatedWand);
+  return { ...result, ...(generatedWand ? { generatedWand } : {}) } as unknown as WizardIdentity;
 }
-export interface GalleryItem { locator: string; editionId: string; officialName: string; catalogId: string; slot: number | null; synthetic: boolean; story: Story; assets: ArchiveAsset[]; wizardIdentity?: WizardIdentity | null }
+export interface GalleryItem { locator: string; editionId: string; officialName: string; catalogId: string; slot: number | null; synthetic: boolean; story: Story; assets: ArchiveAsset[]; wizardIdentity?: WizardIdentity | null; generatedWand?: GeneratedWand | null }
 export interface GalleryPage { schemaVersion: number; evening: { id: string; label: string } | null; latest: GalleryItem | null; items: GalleryItem[]; nextCursor?: string }
 export interface Edition { id: string; story?: Story; artworkAssetId?: string; synthetic: boolean; publicationState: string }
 export interface Portrait { id: string; editionId: string; assetId: string; synthetic: boolean; createdAt: string }
@@ -57,7 +59,7 @@ export function parseArchiveReadiness(value: unknown): ArchiveReadiness | null {
     hasArtwork: source.hasArtwork,
   };
 }
-export interface Keepsake { schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; accountLinked?: boolean; sharedEditionId?: string; readiness?: ArchiveReadiness | null; snapshot: { officialName: string; slot: number }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[]; wizardIdentities?: WizardIdentity[]; prophecies?: Prophecy[] }
+export interface Keepsake { schemaVersion: number; locator: string; revision: number; state: string; readOnly: boolean; wandPublicationApproved?: boolean; accountLinked?: boolean; sharedEditionId?: string; readiness?: ArchiveReadiness | null; snapshot: { officialName: string; slot: number; generatedWand?: GeneratedWand | null }; editions: Edition[]; portraits: Portrait[]; jobs: Job[]; assets: ArchiveAsset[]; wizardIdentities?: WizardIdentity[]; prophecies?: Prophecy[] }
 export interface DeletionReceipt { id: string; scope: string; localState: string; providerState: string; backupState: string }
 export class GuestError extends Error {
   readonly status: number;
@@ -97,7 +99,7 @@ export function projectGalleryItem(raw: any): GalleryItem | null {
   if (!raw || !isUuid(raw.locator) || !isUuid(raw.editionId)) return null;
   const identity = publicIdentity(raw.wizardIdentity);
   return {
-    locator: raw.locator, editionId: raw.editionId, officialName: text(raw.officialName, 240), catalogId: text(raw.catalogId, 120),
+    locator: raw.locator, editionId: raw.editionId, generatedWand: projectGeneratedWand(raw.generatedWand), officialName: text(raw.officialName, 240), catalogId: text(raw.catalogId, 120),
     slot: Number.isInteger(raw.slot) && raw.slot >= 1 && raw.slot <= 6 ? raw.slot : null, synthetic: raw.synthetic === true,
     story: { title: text(raw.story?.title, 240), text: text(raw.story?.text, 32000) }, wizardIdentity: identity?.editionId === raw.editionId ? identity : null,
     assets: (Array.isArray(raw.assets) ? raw.assets : []).filter((asset: any) => asset && isUuid(asset.id)

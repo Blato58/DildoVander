@@ -33,6 +33,8 @@ internal static class ChronicleTests
                 var empty = memory.ReadChronicle("device-a", evening)!;
                 Check(empty.CompletedVisits == 0 && empty.ConfirmedPresentations == 0 && empty.CompletedDuels == 0
                     && empty.MostPopularSlots.Count == 0 && empty.Narrative.Contains("nulu"), "zero state has factual authorial narrative without a winner");
+                Check(empty.Wands.All(wand => wand.OfficialName.StartsWith("Přihrádka ")),
+                    "new chronicles aggregate physical slots without inventing catalogue identities for generated assignments");
                 Check(memory.ReadChronicle("device-b", evening) is null, "evening cannot be read through a different device");
                 Check(memory.CaptureShowVisit("device-a", "alice") == evening, "visit captures original evening");
                 Check(memory.CaptureShowVisit("device-a", "bob") == evening, "second visit starts independently");

@@ -35,6 +35,18 @@ const router = async (path = '/me/conversation') => {
 afterEach(() => { vi.clearAllMocks(); api.disconnect.mockResolvedValue(undefined); api.supported = true; api.setAccount({ id: 'customer-1', displayName: 'Guest', roles: ['Customer'] }); interfaceLanguagePreference.setLanguage('cs'); vi.useRealTimers(); });
 
 describe('customer conversation', () => {
+  it('shows only the current server-assigned wand on the profile and clears it when the account changes', async () => {
+    const wand = { wandId: 'wand-1', physicalSlot: 2, name: 'Měsíční ozvěna', material: 'Tis', core: 'Vlákno', temperament: 'Klidná', lore: 'Příběh.', designDescription: 'Digitální kresba.', affinity: 'Světlo', weakness: 'Hluk',
+      spells: ['strike', 'trick', 'shield'].map((action, index) => ({ action, name: `Kouzlo ${index}`, description: 'Popis kouzla.' })) };
+    api.request.mockImplementation(async (path: string) => path.endsWith('/character') ? { profile, generatedWand: { ...wand, profileId: 'private', accountId: 'private' } } : { items: [] });
+    const wrapper = mount(CustomerView, { global: { plugins: [await router('/me/character')] } }); await flushPromises();
+    expect(wrapper.text()).toContain('Měsíční ozvěna'); expect(wrapper.text()).toContain('nemění fyzickou rekvizitu'); expect(wrapper.text()).not.toContain('private');
+    const pending = deferred<{ profile: typeof profile }>(); api.request.mockImplementation(() => pending.promise);
+    api.setAccount({ id: 'another-customer', displayName: 'Other', roles: ['Customer'] });
+    await flushPromises(); expect(wrapper.text()).not.toContain('Měsíční ozvěna');
+    wrapper.unmount(); pending.resolve({ profile });
+  });
+
   it.each([false, true])('retires only a definitive rejected claim before a new explicit start (uncertain=%s)', async uncertain => {
     let attempts = 0;
     api.request.mockImplementation(async (path: string, _method?: string, body?: Record<string, unknown>) => {

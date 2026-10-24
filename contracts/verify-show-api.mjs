@@ -21,6 +21,7 @@ for (const [method, rawPath, source] of deployment.routes.filter(row => row[2].s
 }
 assert.deepEqual(document.paths['/guest/v1/chronicle'].get.security, []);
 assert.deepEqual(document.paths['/guest/v1/duels/{id}/choices'].post.security, [{ DuelSideGrant: [] }]);
+assert.deepEqual(document.paths['/guest/v1/duels/{id}/join'].post.security, [{ DuelSideGrant: [] }]);
 const validate = (name, value, expected) => {
   const check = ajv.getSchema(`urn:show:${name}`);
   assert.equal(check(value), expected, `${name}: ${JSON.stringify(check.errors)}`);
@@ -53,6 +54,18 @@ validate('DuelCreate', duel, true);
 validate('DuelCreate', { ...duel, consentConfirmed: false }, false);
 validate('DuelChoice', { side: 'left', round: 1, revision: 2, action: 'shield', operationKey: 'move-1' }, true);
 validate('DuelChoice', { side: 'left', round: 4, revision: 2, action: 'shield', operationKey: 'move-1' }, false);
+validate('DuelJoin', { side: 'left', consentConfirmed: true, operationKey: 'join-1' }, true);
+validate('DuelJoin', { side: 'left', consentConfirmed: false, operationKey: 'join-1' }, false);
+validate('DuelJoin', { side: 'right', consentConfirmed: true, operationKey: 'join-1', accountId: 'foreign' }, false);
+const personalized = { identityId: 'approved-identity', displayName: 'Fictional alias', wandId: 'generated-id',
+  strength: 3, cunning: 3, defense: 3, wandName: 'Starlight Echo', physicalSlot: 1,
+  spells: ['strike', 'trick', 'shield'].map(action => ({ action, name: `Spell ${action}`, description: 'Fictional magic.' })) };
+validate('DuelIdentitySnapshot', personalized, true);
+validate('DuelIdentitySnapshot', { ...personalized, profileId: 'private-profile' }, false);
+validate('DuelIdentitySnapshot', { ...personalized, strength: 999 }, false);
+validate('DuelIdentitySnapshot', { ...personalized, physicalSlot: 7 }, false);
+validate('DuelIdentitySnapshot', { ...personalized, spells: personalized.spells.slice(1) }, false);
+validate('DuelIdentitySnapshot', { identityId: 'legacy', displayName: 'Legacy alias', wandId: 'wand-1', strength: 1, cunning: 5, defense: 3 }, true);
 const outcome = { operationId: '11111111-1111-4111-8111-111111111111', deviceId: 'device-a',
   bootId: '22222222-2222-4222-8222-222222222222', generation: 1,
   localEveningId: '33333333-3333-4333-8333-333333333333', eveningId: null,

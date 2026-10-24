@@ -76,8 +76,10 @@ internal sealed class DuelCommentaryService : IDisposable
                 """,
             input = JsonSerializer.Serialize(new
             {
-                left = new { duel.Left.IdentityId, alias = Bound(duel.Left.DisplayName), wand = Bound(duel.Left.WandId) },
-                right = new { duel.Right.IdentityId, alias = Bound(duel.Right.DisplayName), wand = Bound(duel.Right.WandId) },
+                left = new { duel.Left.IdentityId, alias = Bound(duel.Left.DisplayName), wand = Bound(duel.Left.WandName ?? duel.Left.WandId),
+                    spells = duel.Left.Spells?.Select(spell => new { spell.Action, name = Bound(spell.Name) }) },
+                right = new { duel.Right.IdentityId, alias = Bound(duel.Right.DisplayName), wand = Bound(duel.Right.WandName ?? duel.Right.WandId),
+                    spells = duel.Right.Spells?.Select(spell => new { spell.Action, name = Bound(spell.Name) }) },
                 duel.RulesVersion,
                 rounds = duel.Rounds.Select(round => new { round.Number, round.LeftAction, round.RightAction, round.LeftScore, round.RightScore }),
                 duel.Result.LeftPoints, duel.Result.RightPoints, duel.Result.Winner, duel.Result.Exhibition,

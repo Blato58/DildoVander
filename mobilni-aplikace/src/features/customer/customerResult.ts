@@ -1,3 +1,4 @@
+import { projectGeneratedWand, type GeneratedWand } from '../archive/generatedWand';
 import type { CustomerCopyKey } from '../../application/customerCopy';
 
 /** Safe projection of the account-owned customer-session result endpoint. */
@@ -25,6 +26,9 @@ export interface CustomerResultProjection {
   /** A display route only; the endpoint still enforces authorization on every request. */
   route: string | null;
   locator: string | null;
+  wandPublicationApproved?: boolean;
+  generatedWand?: GeneratedWand;
+  wandGeneration?: { status: string; canRetry: boolean };
 }
 
 const states = new Set<CustomerResultState>([
@@ -99,6 +103,10 @@ export function projectCustomerResult(value: unknown, expectedSessionId: string)
     hasArtwork: readiness.hasArtwork === true,
     route,
     locator: route ? locator : null,
+    ...(verifiedOwner && typeof value.wandPublicationApproved === 'boolean' ? { wandPublicationApproved: value.wandPublicationApproved } : {}),
+    ...(isRecord(value.wandGeneration) && ['queued', 'running', 'ready', 'selected', 'failed', 'unavailable', 'cancelled', 'stale'].includes(String(value.wandGeneration.status))
+      ? { wandGeneration: { status: String(value.wandGeneration.status), canRetry: value.wandGeneration.canRetry === true } } : {}),
+    ...(verifiedOwner && state !== 'unavailable' && projectGeneratedWand(value.generatedWand) ? { generatedWand: projectGeneratedWand(value.generatedWand)! } : {}),
   };
 }
 

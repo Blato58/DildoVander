@@ -64,8 +64,9 @@ internal sealed partial class KeepsakeStore
             RequireAccess(connection, transaction, locator, actor, KeepsakeScope.Read);
             var document = Load(connection, transaction, locator);
             var readiness = Readiness(connection, locator, document, transaction);
+            var approved = WandPublicationApproved(connection, locator, document, transaction);
             transaction.Commit();
-            return new(1, sessionId, locator, readiness, "originalOwner", true, true, false);
+            return new(1, sessionId, locator, readiness, "originalOwner", true, true, false, document.Snapshot.GeneratedWand, WandPublicationApproved: approved);
         }
     }
 

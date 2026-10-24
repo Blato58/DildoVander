@@ -17,7 +17,7 @@ or hardware acceptance. Czech text and diacritics must remain readable.
 
 ## Invariants
 
-Preserve safety/Stop and lease boundaries, protocol contracts, catalog identity,
+Preserve safety/Stop and lease boundaries, protocol contracts, legacy catalogue records,
 consent and manual deletion. Unknown, simulated and measured state are distinct.
 CAD geometry, scale and physical materials are engineering truth. No paid model
 calls, deployment or hardware actuation follows from visual implementation.

@@ -7,6 +7,7 @@ using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Show;
+using Kufr.Backend.Features.Wands;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -28,9 +29,174 @@ internal static class DuelTests
         CancellationAndRecovery(fixture);
         CommentaryClaims();
         NarrationBackpressure();
+        PersonalizedRulesAndFlow();
+        PersonalizedNarrationFallback();
+        await PersonalizedHttpFlowAsync();
         await HttpAuthorizationAsync(fixture);
         await ClosedEveningVisibilityAsync();
         Console.WriteLine("Duel deterministic rules, SQLite, replay, grants, timeout, cancellation and HTTP authorization tests passed.");
+    }
+
+    private static WandSpell[] PersonalizedSpells(string suffix) =>
+        [new("strike", "Úder " + suffix, "Fiktivní záblesk hvězd."),
+         new("trick", "Klam " + suffix, "Fiktivní ozvěna odvádí pozornost."),
+         new("shield", "Štít " + suffix, "Fiktivní závoj zachytí kouzlo.")];
+
+    private static void PersonalizedRulesAndFlow()
+    {
+        var left = DuelRules.PersonalizedSnapshot("left", "Postava A", "generated-a", "Hvězdný proutek", 1, PersonalizedSpells("A"));
+        var right = DuelRules.PersonalizedSnapshot("right", "Postava B", "generated-b", "Měsíční ozvěna", 1, PersonalizedSpells("B"));
+        Check(left.WandId != right.WandId && left.PhysicalSlot == right.PhysicalSlot,
+            "personalized identities are independent of the physical slot");
+        foreach (var action in DuelRules.Actions)
+        foreach (var opponent in DuelRules.Actions)
+        {
+            var commitment = DuelRules.Commit("fairness", 1, DuelRules.PersonalizedVersion);
+            var first = DuelRules.Resolve("fairness", 1, left, right, commitment, action, opponent, DuelRules.PersonalizedVersion);
+            var mirrored = DuelRules.Resolve("fairness", 1, right, left, commitment, opponent, action, DuelRules.PersonalizedVersion);
+            Check(first.LeftScore == mirrored.RightScore && first.RightScore == mirrored.LeftScore,
+                "v2 scores are symmetric for all nine action pairs regardless of identity/name");
+            if (action == opponent) { Check(first.LeftScore == first.RightScore, "same action always ties under v2"); }
+        }
+        Reject(409, () => DuelRules.PersonalizedSnapshot("id", "alias", "wand", "Name", 7, PersonalizedSpells("x")),
+            "invalid physical slot cannot enter a generated duel");
+        Reject(409, () => DuelRules.PersonalizedSnapshot("id", "alias", "wand", "Name", 1,
+            [new("strike", "same", "desc"), new("strike", "other", "desc"), new("shield", "last", "desc")]),
+            "each action has exactly one named spell");
+
+        using var fixture = new Fixture();
+        fixture.Source.Personalized = true;
+        fixture.Source.Mixed = true;
+        Reject(409, () => fixture.Store.Create("device-a", fixture.CreateRequest("interactive")),
+            "mixed legacy/generated assignments cannot silently use legacy scoring");
+        fixture.Source.Mixed = false;
+        var request = fixture.CreateRequest("interactive");
+        var duel = fixture.Store.Create("device-a", request);
+        Check(duel.RulesVersion == DuelRules.PersonalizedVersion && duel.RequiresParticipantConsent,
+            "generated wand duel pins the v2 rules and explicit consent flow");
+        var grantLeft = fixture.Store.Grant("device-a", duel.Id, new("left", duel.Revision, "v2-left-grant"));
+        var grantRight = fixture.Store.Grant("device-a", duel.Id, new("right", grantLeft.Duel.Revision, "v2-right-grant"));
+        Check(grantRight.Duel.State == "AwaitingParticipants", "operator-issued grants alone do not imply participant consent");
+        Reject(409, () => fixture.Store.Start("device-a", duel.Id, new(grantRight.Duel.Revision, "v2-premature")), "cannot start before visitors join");
+        Reject(400, () => fixture.Store.Join(duel.Id, grantLeft.Token, new("left", false, "decline")), "visitor consent must be affirmative");
+        Reject(403, () => fixture.Store.Join(duel.Id, grantRight.Token, new("left", true, "impersonate")), "join is side-grant scoped");
+        var joinLeft = new DuelJoinRequest("left", true, "v2-left-join");
+        duel = fixture.Store.Join(duel.Id, grantLeft.Token, joinLeft);
+        Check(duel.LeftJoined && !duel.RightJoined && duel.State == "AwaitingParticipants", "first visitor waits for opponent");
+        Check(fixture.Store.Join(duel.Id, grantLeft.Token, joinLeft).Revision == duel.Revision, "join retry is replay safe");
+        duel = fixture.Store.Join(duel.Id, grantRight.Token, new("right", true, "v2-right-join"));
+        Check(duel.State == "Ready" && duel.RightJoined, "two consented independent grants prepare duel");
+        var rotated = fixture.Store.Grant("device-a", duel.Id, new("left", duel.Revision, "v2-left-rotated"));
+        Check(rotated.Duel.State == "AwaitingParticipants" && !rotated.Duel.LeftJoined,
+            "rotating a grant withdraws that participant's consent");
+        Reject(403, () => fixture.Store.Join(duel.Id, grantLeft.Token, joinLeft), "stale grant cannot replay prior join");
+        duel = fixture.Store.Join(duel.Id, rotated.Token, joinLeft);
+        duel = fixture.Store.Start("device-a", duel.Id, new(duel.Revision, "v2-start"));
+        Check(duel.NarrationMode == "web_only" && duel.Left.Strength == 3 && duel.Right.Defense == 3,
+            "device-free start is explicitly web only with equal bounded server stats");
+        var opening = duel.Revision;
+        var firstChoice = new DuelChoiceRequest("left", 1, opening, "strike", "v2-choice-left");
+        duel = fixture.Store.Choose(duel.Id, rotated.Token, firstChoice);
+        var unrevealed = JsonSerializer.Serialize(duel);
+        Check(duel.LeftChoiceLocked && duel.Rounds.Count == 0 && !unrevealed.Contains("\"LeftChoice\":")
+            && !unrevealed.Contains("\"Commitments\":") && duel.Seed is null,
+            "public view exposes locked state without chosen actions, seed or commitments");
+        duel = fixture.Store.Choose(duel.Id, grantRight.Token, new("right", 1, opening, "trick", "v2-choice-right"));
+        Check(duel.RightChoiceLocked, "both phones may submit from one observed round revision");
+        fixture.Store.Tick();
+        duel = fixture.Store.Read(duel.Id);
+        Check(duel.Rounds[0] is { LeftAction: "strike", RightAction: "trick", LeftAutomatic: false, RightAutomatic: false },
+            "both committed actions reveal only on authoritative resolution");
+        Reject(409, () => fixture.Store.Choose(duel.Id, rotated.Token, new("left", 1, opening, "shield", "v2-old-round")),
+            "old round cannot accept new actions");
+        duel = fixture.Store.Choose(duel.Id, rotated.Token, new("left", 2, duel.Revision, "shield", "v2-round2"));
+        fixture.Clock.Advance(TimeSpan.FromSeconds(15));
+        fixture.Reopen().Tick();
+        duel = fixture.Store.Read(duel.Id);
+        Check(duel.Rounds[1].RightAutomatic && !duel.Rounds[1].LeftAutomatic, "restart preserves a committed move and deterministic timeout");
+        fixture.Clock.Advance(TimeSpan.FromSeconds(15));
+        fixture.Store.Tick();
+        duel = fixture.Store.Read(duel.Id);
+        Check(duel.State == "Completed" && duel.Seed is not null, "personalized duel completes exactly three rounds");
+        var replay = duel.Rounds.Select(round => DuelRules.Resolve(duel.Seed!, round.Number, duel.Left, duel.Right,
+            DuelRules.Commit(duel.Seed!, round.Number, duel.RulesVersion), round.LeftAutomatic ? null : round.LeftAction,
+            round.RightAutomatic ? null : round.RightAction, duel.RulesVersion)).ToArray();
+        Check(replay.SequenceEqual(duel.Rounds) && DuelRules.Result(replay, false) == duel.Result,
+            "immutable v2 seed, snapshots and rules reproduce every score and final result");
+        fixture.Store.PurgeIdentity("left");
+        Reject(404, () => fixture.Reopen().Read(duel.Id), "identity deletion erases personalized duel snapshots");
+        Check(fixture.Store.PendingEvents().All(item => item.Id != duel.Id), "deletion erases duel completion outbox");
+        Reject(409, () => fixture.Store.Create("device-a", request), "deletion tombstone fences stale source capture and create replay");
+    }
+
+    private static void PersonalizedNarrationFallback()
+    {
+        var narrator = new NarratedSlot();
+        using var fixture = new Fixture(slot: narrator);
+        fixture.Source.Personalized = true;
+        var duel = fixture.Store.Create("device-a", fixture.CreateRequest("autoplay"));
+        duel = fixture.Store.Start("device-a", duel.Id, new(duel.Revision, "v2-narrated-start"));
+        fixture.Store.Tick();
+        Check(narrator.Enqueued[0].Text.Contains("Hůlka left") && narrator.Enqueued[0].WandId == PartyWandCatalog.Available(63)[0].StableId,
+            "personalized narration names wand but routes effects through trusted physical slot mapping");
+        narrator.Status = "failed";
+        fixture.Store.Tick();
+        duel = fixture.Store.Read(duel.Id);
+        Check(duel.State == "Running" && duel.NarrationMode == "web_only"
+            && duel.NarrationUnavailableReason == "device_playback_unconfirmed"
+            && duel.NarrationStatus == "web_only_no_spoken_confirmation", "missing device acknowledgement continues honestly on web");
+        for (var i = 0; i < 3; i++) { fixture.Clock.Advance(TimeSpan.FromSeconds(3)); fixture.Store.Tick(); }
+        Check(fixture.Store.Read(duel.Id).State == "Completed", "device loss does not block web-only three-round result");
+    }
+
+    private static async Task PersonalizedHttpFlowAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.Source.Personalized = true;
+        var duel = fixture.Store.Create("device-a", fixture.CreateRequest("interactive"));
+        var leftGrant = fixture.Store.Grant("device-a", duel.Id, new("left", duel.Revision, "http-left-grant"));
+        var rightGrant = fixture.Store.Grant("device-a", duel.Id, new("right", leftGrant.Duel.Revision, "http-right-grant"));
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Configuration.AddConfiguration(fixture.Configuration);
+        builder.Services.AddSingleton(fixture.Store);
+        builder.Services.AddRateLimiter(options => options.AddConcurrencyLimiter("keepsake-public", limiter =>
+        { limiter.PermitLimit = 10; limiter.QueueLimit = 0; }));
+        await using var app = builder.Build();
+        app.Use((context, next) => { context.Request.Scheme = "https"; return next(context); });
+        app.UseRateLimiter();
+        app.MapDuels();
+        await app.StartAsync();
+        var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+        using var leftClient = new HttpClient { BaseAddress = new Uri(address) };
+        using var rightClient = new HttpClient { BaseAddress = new Uri(address) };
+        leftClient.DefaultRequestHeaders.Host = rightClient.DefaultRequestHeaders.Host = "duel.test";
+        leftClient.DefaultRequestHeaders.Authorization = new("Bearer", leftGrant.Token);
+        rightClient.DefaultRequestHeaders.Authorization = new("Bearer", rightGrant.Token);
+        var path = $"/guest/v1/duels/{duel.Id}";
+        var wrong = await leftClient.PostAsJsonAsync(path + "/join", new DuelJoinRequest("right", true, "wrong-side"));
+        Check(wrong.StatusCode == HttpStatusCode.Forbidden, "HTTP join refuses opposite participant grant");
+        var joins = await Task.WhenAll(
+            leftClient.PostAsJsonAsync(path + "/join", new DuelJoinRequest("left", true, "http-left-join")),
+            rightClient.PostAsJsonAsync(path + "/join", new DuelJoinRequest("right", true, "http-right-join")));
+        Check(joins.All(response => response.IsSuccessStatusCode), "two separate HTTP clients can independently join and consent");
+        duel = fixture.Store.Read(duel.Id);
+        duel = fixture.Store.Start("device-a", duel.Id, new(duel.Revision, "http-start"));
+        for (var round = 1; round <= 3; round++)
+        {
+            var choices = await Task.WhenAll(
+                leftClient.PostAsJsonAsync(path + "/choices", new DuelChoiceRequest("left", round, duel.Revision, "strike", "http-left-" + round)),
+                rightClient.PostAsJsonAsync(path + "/choices", new DuelChoiceRequest("right", round, duel.Revision, "shield", "http-right-" + round)));
+            Check(choices.All(response => response.IsSuccessStatusCode), "both HTTP phones commit from same snapshot without revision starvation");
+            var hidden = await leftClient.GetFromJsonAsync<DuelView>(path);
+            Check(hidden!.Rounds.Count == round - 1 && hidden.LeftChoiceLocked && hidden.RightChoiceLocked,
+                "both-client projection remains hidden until backend round transition");
+            fixture.Store.Tick();
+            duel = (await rightClient.GetFromJsonAsync<DuelView>(path))!;
+        }
+        Check(duel.State == "Completed" && duel.Result?.Winner == "right" && duel.Rounds.All(round => !round.LeftAutomatic && !round.RightAutomatic),
+            "two clients finish all three named-spell rounds with authoritative reproducible winner");
+        await app.StopAsync();
     }
 
     private static void RulesFixtures()
@@ -478,11 +644,14 @@ internal static class DuelTests
     {
         internal string Alias = "Archivář";
         internal bool Visible = true;
+        internal bool Personalized;
+        internal bool Mixed;
         public bool IsActiveEvening(string deviceId, string eveningId) => deviceId == "device-a" && eveningId == "evening-a";
         public bool IsOpenEvening(string deviceId, string eveningId) => IsActiveEvening(deviceId, eveningId);
         public DuelIdentitySnapshot? Read(string id, string eveningId, string deviceId) =>
             Visible && IsActiveEvening(deviceId, eveningId) && id is "left" or "right"
-                ? DuelRules.Snapshot(id, Alias, "wand-1") : null;
+                ? Personalized && (!Mixed || id == "left") ? DuelRules.PersonalizedSnapshot(id, Alias, "generated-" + id,
+                    "Hůlka " + id, 1, PersonalizedSpells(id)) : DuelRules.Snapshot(id, Alias, "wand-1") : null;
     }
     private class FakeSlot : IDuelShowSlot
     {
@@ -505,12 +674,12 @@ internal static class DuelTests
     {
         internal bool Recent = true;
         internal string Status = "idle";
-        internal readonly List<(int Round, string Scene, string Text)> Enqueued = [];
+        internal readonly List<(int Round, string Scene, string Text, string WandId)> Enqueued = [];
         public override DuelNarrationBinding BindNarration(string deviceId) => Recent ? new("physical_device", null) : new("web_only", "device_unavailable");
         public override bool EnqueueNarration(string deviceId, string duelId, int round, string scene, string wandId, string text)
         {
             if (!IsCurrent(deviceId, duelId)) { return false; }
-            Enqueued.Add((round, scene, text));
+            Enqueued.Add((round, scene, text, wandId));
             Status = "pending";
             return true;
         }

@@ -301,7 +301,7 @@ enum AccountTransportPolicy {
         let key = name.lowercased()
         if !guestUsesCookies(path: path) {
             if ["accept", "content-type"].contains(key) { return true }
-            return key == "authorization" && method == "POST" && path.hasSuffix("/choices")
+            return key == "authorization" && method == "POST" && (path.hasSuffix("/choices") || path.hasSuffix("/join"))
                 && guest(path: path, method: method) && value.hasPrefix("Bearer ") && value.count == 50
                 && value.dropFirst(7).allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
         }
@@ -361,7 +361,7 @@ enum AccountTransportPolicy {
         let duel = route.split(separator: "/").map(String.init)
         if duel.count >= 4, Array(duel.prefix(3)) == ["guest", "v1", "duels"] {
             return components.query == nil && UUID(uuidString: duel[3]) != nil
-                && ((duel.count == 4 && method == "GET") || (duel.count == 5 && duel[4] == "choices" && method == "POST"))
+                && ((duel.count == 4 && method == "GET") || (duel.count == 5 && ["choices", "join"].contains(duel[4]) && method == "POST"))
         }
         if method == "POST", ["/guest/v1/bootstrap", "/guest/v1/claim", "/guest/v1/recover", "/guest/v1/share-claim"].contains(route) { return components.query == nil }
         if route == "/guest/v1/evening" {
@@ -434,11 +434,18 @@ enum AccountTransportPolicy {
             "/app/v1/customer/conversation-preferences": ["GET", "PUT"],
             "/app/v1/customer/character/correction": ["POST"],
             "/app/v1/customer/sessions": ["GET"],
+            "/app/v1/customer/duels": ["GET"],
             "/app/v1/customer/start-tickets": ["POST"],
             "/app/v1/customer/admin/sessions": ["GET"],
             "/app/v1/customer/admin/characters": ["GET"]]
         if exact[path]?.contains(method) == true { return true }
         let parts = path.split(separator: "/").map(String.init)
+        if parts.count == 6, Array(parts.prefix(4)) == ["app", "v1", "customer", "keepsakes"], parts[5] == "wand-publication" {
+            return method == "POST" && UUID(uuidString: parts[4]) != nil && parts[4].count == 36 && path == "/app/v1/customer/keepsakes/\(parts[4])/wand-publication"
+        }
+        if parts.count == 5, Array(parts.prefix(4)) == ["app", "v1", "customer", "duels"] {
+            return method == "GET" && UUID(uuidString: parts[4]) != nil && parts[4].count == 36 && path == "/app/v1/customer/duels/\(parts[4])"
+        }
         if parts.count >= 5, Array(parts.prefix(4)) == ["app", "v1", "customer", "sessions"],
            UUID(uuidString: parts[4]) != nil {
             if parts.count == 6, parts[5] == "result" {

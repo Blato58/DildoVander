@@ -39,7 +39,7 @@ internal sealed partial class ShowCoordinator
     // This is called only by the existing completion owner, with the exact
     // SelectionProposal that it has durably accepted, never an operator DTO.
     internal FinaleBindingResult BindFinaleProposal(string deviceId, string operationId, SelectionProposal proposal,
-        string? generation, long selectionRevision, string personaVersion, FinaleProfile? profile, string? eveningId)
+        string? generation, long selectionRevision, string personaVersion, FinaleProfile? profile, string? eveningId, string? generatedWandId = null)
     {
         lock (gate)
         {
@@ -75,7 +75,7 @@ internal sealed partial class ShowCoordinator
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(deviceId + "\n" + operationId + "\n" + proposal.ProposalId)));
             var wand = PartyWandCatalog.Available(63).Single(w => w.Compartment == proposal.Compartment);
             var plan = new FinalePlan(1, "finale-" + hash, deviceId, eveningId, proposal.ProposalId, operationId,
-                proposal.ConversationId, generation, proposal.Compartment, wand.StableId, proposal.CatalogVersion,
+                proposal.ConversationId, generation, proposal.Compartment, generatedWandId ?? wand.StableId, proposal.CatalogVersion,
                 proposal.DeviceRevision, proposal.BootId, proposal.Generation, proposal.TurnId,
                 selectionRevision, ShowSceneLibrary.Version, personaVersion,
                 profile?.ToString().ToLowerInvariant() ?? "existing-provider", archetype,

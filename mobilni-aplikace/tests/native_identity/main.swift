@@ -608,6 +608,25 @@ require(!AccountTransportPolicy.guestHeader(path: choice, method: "POST", name: 
 require(!AccountTransportPolicy.guestHeader(path: "/guest/v1/keepsakes/" + id, method: "GET", name: "Authorization", value: "Bearer " + String(repeating: "a", count: 43)), "duel grant crossed owner boundary")
 require(!AccountTransportPolicy.guestHeader(path: choice, method: "POST", name: "Authorization", value: "Bearer short"), "unbounded-purpose bearer accepted")
 require(AccountTransportPolicy.guest(path: "/guest/v1/keepsakes/" + id + "/wizard-identity", method: "POST"), "owner legacy identity unavailable")
+
+let duelJoin = "/guest/v1/duels/" + id + "/join"
+require(AccountTransportPolicy.guest(path: duelJoin, method: "POST"), "scoped guest join unavailable")
+require(!AccountTransportPolicy.guest(path: duelJoin, method: "GET"), "join read was accepted")
+require(!AccountTransportPolicy.guestUsesCookies(path: duelJoin), "join accepted owner cookies")
+require(AccountTransportPolicy.guestHeader(path: duelJoin, method: "POST", name: "Authorization", value: "Bearer " + String(repeating: "a", count: 43)), "scoped join grant unavailable")
+require(!AccountTransportPolicy.guestHeader(path: duelJoin, method: "POST", name: "X-DV10-CSRF", value: "owner"), "join accepted owner csrf")
+
+let battleHistory = "/app/v1/customer/duels"
+let battleDetail = battleHistory + "/" + id
+require(AccountTransportPolicy.customer(path: battleHistory, method: "GET"), "account duel history unavailable")
+require(AccountTransportPolicy.customer(path: battleDetail, method: "GET"), "account duel detail unavailable")
+require(!AccountTransportPolicy.customer(path: battleDetail, method: "POST"), "account battle history gained moves")
+require(!AccountTransportPolicy.guest(path: battleDetail, method: "GET"), "private history entered guest transport")
+let wandPublication = "/app/v1/customer/keepsakes/" + id + "/wand-publication"
+require(AccountTransportPolicy.customer(path: wandPublication, method: "POST"), "owner wand publication unavailable")
+require(!AccountTransportPolicy.customer(path: wandPublication, method: "GET"), "wand publication read admitted")
+require(!AccountTransportPolicy.guest(path: wandPublication, method: "POST"), "publication entered guest transport")
+
 print("PASS Show native policy and isolated guest duel grants (source/macOS execution required)")
 
 require(AccountTransportPolicy.account(path: show + "/duels?eveningId=Legacy%20evening", method: "GET"), "opaque legacy Show evening rejected")

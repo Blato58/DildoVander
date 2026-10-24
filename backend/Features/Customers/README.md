@@ -66,3 +66,6 @@ profile. First ticket acceptance freezes those preferences independently of the
 phone's interface language. Provider retries retain the conversation's current
 opt-outs. See [guest preferences](../../../docs/customer-preferences.md) for
 revision checks, export behavior, native route bounds and focused validation.
+
+Personalized candidate generation, immutable bonds, private edition approval and
+account battle history are documented in [personalized wands](../../../docs/personalized-wands.md).

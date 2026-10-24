@@ -7,19 +7,22 @@ import KeepsakeView from './KeepsakeView.vue';
 import { account, offlineSession, accountTransport, accountRequest } from '../identity/session';
 import { DuelClient } from './showClient';
 import { projectGalleryItem } from './client';
+import { projectGeneratedWand } from './generatedWand';
 import { publicIdentity, ownerProphecy, projectChronicle, projectDuel } from './showContracts';
 const captured = vi.hoisted(() => ({ grant: null as { token: string; side: 'left' | 'right' } | null }));
 vi.mock('../../application/guestClaim', () => ({ consumeGuestClaim: () => null, consumeDuelGrant: () => { const value = captured.grant; captured.grant = null; return value; } }));
 vi.mock('../identity/session', async () => {
   const { ref } = await import('vue'); const account = ref<{ id: string; displayName: string; roles: string[] } | null>(null); const offlineSession = ref(false);
-  return { account, offlineSession, accountRequest: vi.fn(), accountTransport: vi.fn(), hasRole: (role: string) => account.value?.roles.includes(role) ?? false };
+  return { account, offlineSession, accountDeletionRequested: ref(false), accountRequest: vi.fn(), accountTransport: vi.fn(), hasRole: (role: string) => account.value?.roles.includes(role) ?? false };
 });
 const id = '11111111-1111-4111-8111-111111111111'; const other = '22222222-2222-4222-8222-222222222222';
 const identity = { editionId: id, visibility: 'public_fiction', wizardAlias: '<script>mág</script>', houseOrGuild: 'Cech', dubiousSpecialization: 'Lest', signatureAbility: 'Schopnost', weakness: 'Slabina', ministryAssessment: 'Fikce', wandBond: 'Pouto', motto: 'Motto', microStory: 'Příběh', omen: 'Indicie' };
-const duel = (revision = 1) => ({ id, revision, state: 'Running', mode: 'interactive', round: 1, deadline: '2026-10-19T19:15:00Z', narrationMode: 'web_only', narrationStatus: 'web_only_no_spoken_confirmation',
+const duel = (revision = 1) => ({ id, revision, state: 'Running', mode: 'interactive', round: 1, deadline: new Date(Date.now() + 15000).toISOString(), narrationMode: 'web_only', narrationStatus: 'web_only_no_spoken_confirmation',
   left: { displayName: 'Levý mág', wandId: 'wand1', strength: 2, cunning: 3, defense: 4 }, right: { displayName: 'Pravý mág', wandId: 'wand1', strength: 3, cunning: 2, defense: 1 }, leftChoiceLocked: false, rightChoiceLocked: false, rounds: [] });
 const chronicle = (revision = 1) => ({ schemaVersion: 1, eveningId: id, revision, provisional: true, createdAt: '2026-10-19T19:00:00Z', completedVisits: 0, confirmedPresentations: 0, completedDuels: 0, interruptedVisits: 1, unresolvedVisits: 2,
   wands: [{ slot: 1, officialName: 'Hůlka A', confirmedPresentations: 0 }, { slot: 2, officialName: 'Hůlka B', confirmedPresentations: 0 }], mostPopularSlots: [], narrative: 'Večer teprve začíná.' });
+const spells = [{ action: 'strike', name: 'Lunární úder', description: 'Světelný oblouk.' }, { action: 'trick', name: 'Odlesk mlhy', description: 'Klamná ozvěna.' }, { action: 'shield', name: 'Tichý kruh', description: 'Kruh světla.' }];
+const generatedWand = { wandId: id, name: 'Měsíční ozvěna', physicalSlot: 1, material: 'Měsíční tis', core: 'Světelná nit', temperament: 'Trpělivá', lore: 'Pamatuje sny.', designDescription: 'Stříbrná kresba.', affinity: 'Světlo', weakness: 'Hluk', spells };
 const keepsake = { schemaVersion: 1, locator: id, revision: 1, state: 'ready', readOnly: false, snapshot: { officialName: 'Katalogová hůlka', slot: 1 }, editions: [{ id, publicationState: 'published', story: { title: 'Edice', text: 'Příběh edice' }, synthetic: true }], jobs: [], portraits: [], assets: [] };
 const deviceDetails = { devices: [{ deviceId: 'test-device', canOperate: true }], associations: [{ deviceId: 'test-device', alias: 'Kufr v salonu' }], grants: [], sessions: [], passkeys: [], passkeyCount: 1 };
 const eveningList = { activeEveningId: id, evenings: [{ eveningId: id, name: 'Večer v salonu', createdAt: '2026-10-19T19:00:00Z' }] };
@@ -48,6 +51,10 @@ describe('Show Pack closed projections', () => {
     const view = projectDuel({ ...duel(), token: 'private', leftChoice: 'trick', seed: 'future', result: { ending: 'future' } }, id);
     expect(view).not.toHaveProperty('token'); expect(view).not.toHaveProperty('seed'); expect(view.result).toBeNull();
   });
+  it('preserves historical negative v1 round scores instead of changing their displayed result', () => {
+    const view = projectDuel({ ...duel(), rounds: [{ number: 1, leftAction: 'strike', rightAction: 'shield', leftScore: -2, rightScore: 1 }] }, id);
+    expect(view.rounds[0].leftScore).toBe(-2);
+  });
   it('keeps the same operation key after uncertain move delivery and fences nonabortable transport/body completion', async () => {
     const requests: RequestInit[] = [];
     const transport = vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) => { requests.push(init!); return requests.length === 1 ? new Response('', { status: 503 }) : Response.json(duel(2)); });
@@ -69,7 +76,70 @@ describe('Show Pack closed projections', () => {
     expect(JSON.parse(transport.mock.calls[0][1]!.body as string).operationKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });
+describe('generated wand privacy and presentation', () => {
+  it('projects public wand fiction without profile/session context and rejects malformed spells', () => {
+    const projected = projectGeneratedWand({ ...generatedWand, profileId: 'private', sessionId: 'private', evidence: 'private' });
+    expect(projected).toEqual(generatedWand);
+    expect(projectGeneratedWand({ ...generatedWand, spells: [spells[0], spells[0], spells[2]] })).toBeNull();
+    expect(projectGeneratedWand({ ...generatedWand, physicalSlot: 7 })).toBeNull();
+    expect(publicIdentity({ ...identity, generatedWand: { ...generatedWand, accountId: 'private' } })?.generatedWand).toEqual(generatedWand);
+  });
+  it('requires explicit participant consent and sends only the protected side grant', async () => {
+    captured.grant = { token: 'x'.repeat(43), side: 'left' };
+    const waiting = { ...duel(), state: 'AwaitingParticipants', requiresParticipantConsent: true, leftJoined: false, rightJoined: false,
+      left: { ...duel().left, wandName: generatedWand.name, spells }, right: { ...duel().right, wandName: 'Jiskra severu', spells } };
+    let joined = false;
+    const fetchMock = vi.fn(async (path: RequestInfo | URL, init?: RequestInit) => {
+      if (String(path).endsWith('/join')) { joined = true; expect(JSON.parse(init!.body as string)).toMatchObject({ side: 'left', consentConfirmed: true }); }
+      return Response.json({ ...waiting, revision: joined ? 2 : 1, leftJoined: joined });
+    }); vi.stubGlobal('fetch', fetchMock);
+    const { wrapper } = await render(DuelView, `/archive/duel?duel=${id}`);
+    expect(wrapper.text()).toContain('Měsíční ozvěna'); expect(wrapper.text()).toContain('Lunární úder');
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+    const join = wrapper.findAll('button').find(button => button.text() === 'Potvrdit účast')!;
+    expect(join.attributes('disabled')).toBeDefined(); await wrapper.find('input[type=checkbox]').setValue(true); await join.trigger('click'); await flushPromises();
+    const post = fetchMock.mock.calls.find(([path]) => String(path).endsWith('/join'))!;
+    expect(post[1]).toMatchObject({ credentials: 'omit', headers: { Authorization: 'Bearer ' + 'x'.repeat(43) } });
+    expect(wrapper.text()).not.toContain('Souhlasím s účastí');
+  });
+  it('shows countdown and named reveals, with a spectator unable to choose or join', async () => {
+    const revealed = { ...duel(), left: { ...duel().left, wandName: generatedWand.name, spells }, right: { ...duel().right, wandName: 'Jiskra severu', spells },
+      rounds: [{ number: 1, leftAction: 'strike', rightAction: 'shield', leftScore: 3, rightScore: 5, quip: 'Kolo potvrzeno.', mishap: 'Fikce.' }] };
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(revealed)));
+    const { wrapper } = await render(DuelView, `/archive/duel?duel=${id}`);
+    expect(wrapper.find('[role=timer]').text()).toContain('s'); expect(wrapper.find('.archive-duel-rounds').text()).toContain('Lunární úder'); expect(wrapper.find('.archive-duel-rounds').text()).toContain('Tichý kruh');
+    expect(wrapper.find('.archive-duel-actions').exists()).toBe(false); expect(wrapper.find('input[type=checkbox]').exists()).toBe(false);
+  });
+});
 describe('shared guest Show Pack screens', () => {
+  it('account battle history never falls back to public reads or retains a participant grant', async () => {
+    account.value = { id: other, displayName: 'Host', roles: ['Customer'] };
+    captured.grant = { token: 'x'.repeat(43), side: 'left' };
+    const browser = vi.fn(async () => { throw new Error('No guest fallback'); }); vi.stubGlobal('fetch', browser);
+    vi.mocked(accountTransport).mockResolvedValue(Response.json(duel()));
+    const { wrapper } = await render(DuelView, `/archive/duel?account=1&duel=${id}`);
+    expect(wrapper.text()).toContain('Levý mág'); expect(wrapper.find('.archive-duel-actions').exists()).toBe(false);
+    expect(vi.mocked(accountTransport)).toHaveBeenCalledWith(`/app/v1/customer/duels/${id}`, expect.objectContaining({ credentials: 'omit' }));
+    expect(browser).not.toHaveBeenCalled();
+    account.value = null; await flushPromises(); expect(wrapper.text()).not.toContain('Levý mág');
+  });
+  it('publishes only the reviewed edition after explicit original-owner consent and supports withdrawal', async () => {
+    account.value = { id: other, displayName: 'Host', roles: ['Customer'] };
+    let approved = false;
+    vi.mocked(accountTransport).mockImplementation(async () => Response.json({ ...keepsake, snapshot: { ...keepsake.snapshot, generatedWand }, wandPublicationApproved: approved,
+      accessKind: 'originalOwner', canManage: true, canReadPrivate: true, canUnlink: false }));
+    vi.mocked(accountRequest).mockImplementation(async (path, method, body) => { expect(path).toBe(`/app/v1/customer/keepsakes/${id}/wand-publication`); expect(method).toBe('POST'); approved = (body as {approved:boolean}).approved; return {}; });
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('No guest fallback'); }));
+    const { wrapper } = await render(KeepsakeView, `/keepsake/?account=1&k=${id}`);
+    const publish = wrapper.findAll('button').find(button => button.text() === 'Schválit tuto edici')!;
+    expect(publish.attributes('disabled')).toBeDefined(); expect(wrapper.text()).toContain('Příběh edice'); expect(wrapper.text()).toContain('Měsíční ozvěna');
+    const checkbox = wrapper.findAll('input[type=checkbox]').find(input => input.element.parentElement!.textContent!.includes('Zkontroloval jsem'))!;
+    await checkbox.setValue(true); await publish.trigger('click'); await flushPromises();
+    expect(vi.mocked(accountRequest)).toHaveBeenCalledWith(`/app/v1/customer/keepsakes/${id}/wand-publication`, 'POST', { approved: true, editionId: id, revision: 1 });
+    await wrapper.findAll('button').find(button => button.text() === 'Odvolat souhlas se zveřejněním')!.trigger('click'); await flushPromises();
+    expect(approved).toBe(false); expect(wrapper.findAll('button').find(button => button.text() === 'Schválit tuto edici')!.attributes('disabled')).toBeDefined();
+  });
+
   it('a signed-in account cannot submit moves without a scoped side grant', async () => {
     account.value = { id: other, displayName: 'Správce', roles: ['Administrator'] };
     const fetchMock = vi.fn(async () => Response.json(duel())); vi.stubGlobal('fetch', fetchMock);

@@ -26,3 +26,25 @@
 @media (max-width: 520px) { .archive-duel-sides, .archive-counts, .archive-identity dl { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 780px) { .archive-workspace, .archive-edition { grid-template-columns: minmax(0, 1fr); } .archive-index { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 390px) { .archive-index { grid-template-columns: minmax(0, 1fr); } }
+
+.archive-personal-wand { max-width: 70ch; }
+.archive-wand-facts { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 3fr); gap: var(--aw-space-2) var(--aw-space-4); }
+.archive-wand-facts dd { margin: 0; overflow-wrap: anywhere; }
+.archive-wand-spells { padding: 0; list-style: none; display: grid; gap: var(--aw-space-3); }
+.archive-wand-spells li { display: grid; gap: var(--aw-space-1); }
+.archive-wand-spells span { color: var(--aw-muted); }
+.archive-duel-wand { font-size: var(--aw-text-subheading); font-weight: 600; }
+.archive-duel-points, .archive-duel-countdown { font-variant-numeric: tabular-nums; }
+.archive-duel-countdown { padding-block: var(--aw-space-3); border-block: 1px solid var(--aw-border-subtle); font-size: var(--aw-text-subheading); }
+.archive-duel-actions { display: grid; gap: var(--aw-space-3); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.archive-duel-actions button { display: grid; gap: var(--aw-space-1); white-space: normal; min-height: 4.5rem; }
+.archive-duel-actions button span { font-size: var(--aw-text-caption); font-weight: 400; }
+.archive-duel-reveal { animation: duel-reveal 250ms var(--aw-ease-out); padding-block: var(--aw-space-3); border-bottom: 1px solid var(--aw-border-subtle); }
+@keyframes duel-reveal { from { transform: translateY(.5rem); opacity: .35; } to { transform: translateY(0); opacity: 1; } }
+@media (max-width: 520px) { .archive-wand-facts, .archive-duel-actions { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .archive-duel-reveal { animation: none; } }
+
+.archive-spell-effect { width: 11rem; height: 2rem; color: var(--aw-accent); display: block; }
+.archive-spell-effect path { stroke: currentColor; fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 300; animation: duel-trace 450ms var(--aw-ease-out); }
+@keyframes duel-trace { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .archive-spell-effect path { animation: none; } }

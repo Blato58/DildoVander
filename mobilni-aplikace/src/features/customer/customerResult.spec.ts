@@ -28,6 +28,13 @@ function response(overrides: Record<string, unknown> = {}) {
 }
 
 describe('customer session result projection', () => {
+  it('retains only bounded generation status and keeps retry as an explicit new visitor flow', () => {
+    const projected = projectCustomerResult(response({ wandGeneration: { status: 'failed', canRetry: true, errorCode: 'private-internal', prompt: 'private-context' } }), sessionId);
+    expect(projected.wandGeneration).toEqual({ status: 'failed', canRetry: true });
+    expect(JSON.stringify(projected)).not.toContain('private');
+    expect(projectCustomerResult(response({ wandGeneration: { status: 'unknown_secret', canRetry: true } }), sessionId).wandGeneration).toBeUndefined();
+  });
+
   it('accepts the matching schema and gates a direct route on verified server owner fields', () => {
     expect(projectCustomerResult(response(), sessionId)).toMatchObject({
       valid: true,

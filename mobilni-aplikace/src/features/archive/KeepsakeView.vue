@@ -11,6 +11,8 @@ import { AccountArchiveClient } from './accountArchive';
 import ArchiveDialog from './ArchiveDialog.vue';
 import ArchiveDownload from './ArchiveDownload.vue';
 import WizardIdentity from './WizardIdentity.vue';
+import GeneratedWand from './GeneratedWand.vue';
+import { projectGeneratedWand } from './generatedWand';
 import PrivateProphecy from './PrivateProphecy.vue';
 import { publicIdentity, ownerProphecy } from './showContracts';
 import { customerCopy, type CustomerCopyKey } from '../../application/customerCopy';
@@ -29,6 +31,7 @@ const record = ref<Keepsake>();
 type AccountAccess = { accessKind: 'originalOwner' | 'linkedViewer'; canManage: boolean; canReadPrivate: boolean; canUnlink: boolean };
 const accountAccess = ref<AccountAccess>();
 const history = ref<Portrait[]>([]);
+const publicationConsent = ref(false);
 const busy = ref(false);
 const message = ref<CustomerCopyKey | null>(null);
 const readinessInvalid = ref(false);
@@ -142,7 +145,7 @@ function clearPhoto() {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value); previewUrl.value = '';
   if (photoInput.value) photoInput.value.value = '';
 }
-function clearPrivate() { record.value = undefined; accountAccess.value = undefined; readinessInvalid.value = false; history.value = []; issuedLink.value = ''; clearPhoto(); includePortrait.value = false; media.clear(); portraitMedia.clear(); artworkOpen.value = false; sharePreview.value = false; associationOpen.value = false; unlinkOpen.value = false; unlinkConfirmation.value = ''; deleteScope.value = undefined; confirmation.value = ''; }
+function clearPrivate() { publicationConsent.value = false; record.value = undefined; accountAccess.value = undefined; readinessInvalid.value = false; history.value = []; issuedLink.value = ''; clearPhoto(); includePortrait.value = false; media.clear(); portraitMedia.clear(); artworkOpen.value = false; sharePreview.value = false; associationOpen.value = false; unlinkOpen.value = false; unlinkConfirmation.value = ''; deleteScope.value = undefined; confirmation.value = ''; }
 function invalidate() { loadSequence++; actionGeneration++; client.invalidate(); accountClient.invalidate(); clearTimeout(timer); automaticRefreshes.value = 0; busy.value = false; clearPrivate(); }
 function suspendNetworkReads(clearPrivateView = false) {
   loadSequence++; readInFlight = undefined; actionGeneration++; clearTimeout(timer); automaticRefreshes.value = 0; busy.value = false;
@@ -193,12 +196,14 @@ async function load(automatic = false) {
       if (accountRead.value && !access) { clearPrivate(); throw new GuestError(503); }
       const oldArt = edition.value?.artworkAssetId;
       const oldPortrait = portrait.value?.assetId;
+      view.snapshot.generatedWand = projectGeneratedWand(view.snapshot.generatedWand);
+      view.wandPublicationApproved = view.wandPublicationApproved === true;
       view.wizardIdentities = (view.wizardIdentities ?? []).map(publicIdentity).filter(item => item !== null);
       view.prophecies = (accountRead.value ? access?.canReadPrivate === true : shareEdition.value === undefined && view.readOnly !== true)
         ? (view.prophecies ?? []).map(ownerProphecy).filter(item => item !== null) : [];
       accountAccess.value = access ?? undefined;
       readinessInvalid.value = malformedReadiness;
-      record.value = view;
+      record.value = view; publicationConsent.value = false;
       if (access?.accessKind === 'originalOwner') history.value = view.portraits;
       if (oldArt !== edition.value?.artworkAssetId || !media.artworkUrl.value) await media.artwork(edition.value?.artworkAssetId ? assetPath(edition.value.artworkAssetId) : undefined);
       check(); if (sequence !== loadSequence) return;
@@ -264,6 +269,14 @@ function canExport(format: string) {
   if (format === 'portrait') return canReadPortrait.value && !!portrait.value;
   if (readOnly.value) return record.value?.assets.some(asset => asset.editionId === edition.value?.id && asset.kind === `export_${format}`);
   return format !== 'card' || !!edition.value.story && (!!edition.value.artworkAssetId || !!identity.value);
+}
+async function setWandPublication(approved: boolean) {
+  await action(async check => {
+    if (!accountOwner.value || !record.value?.snapshot.generatedWand || !edition.value || approved && (!publicationConsent.value || !edition.value.story)) return;
+    await accountRequest(`/app/v1/customer/keepsakes/${locator.value}/wand-publication`, 'POST', {
+      approved, editionId: edition.value.id, revision: record.value.revision,
+    }); check(); publicationConsent.value = false; await load(); check();
+  });
 }
 async function createIdentity() {
   await action(async check => {
@@ -385,7 +398,7 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
     <article v-if="record" aria-labelledby="keepsake-title">
       <p class="aw-badge">{{ accountOwner ? customerCopy.text('keepsake.private-owner') : accountCanUnlink ? customerCopy.text('keepsake.linked-readonly') : accountRead ? customerCopy.text('archive.unverified-access') : readOnly ? customerCopy.text('keepsake.shared-readonly') : customerCopy.text('keepsake.private-owner') }}</p>
       <div class="archive-edition"><div><button class="archive-art-button" :disabled="!media.artworkUrl.value" :aria-label="customerCopy.text('keepsake.enlarged-art-alt')" @click="artworkOpen = true"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" :alt="customerCopy.text('keepsake.art-alt')" class="archive-art" @error="media.clearArtwork(); media.artworkError.value = true"><span v-else>{{ media.artworkError.value ? customerCopy.text('keepsake.art-error') : artworkPlaceholder }}</span></button><p class="archive-caption">{{ customerCopy.text('keepsake.art-caption') }}</p></div>
-        <div><h1 id="keepsake-title">{{ record.snapshot.officialName }}</h1><p>{{ customerCopy.text('keepsake.wand-slot', { slot: record.snapshot.slot }) }}</p><h2>{{ edition?.story?.title }}</h2><p>{{ paragraphs[0] }}</p>
+        <div><h1 id="keepsake-title">{{ record.snapshot.generatedWand?.name ?? record.snapshot.officialName }}</h1><p>{{ customerCopy.text('keepsake.wand-slot', { slot: record.snapshot.slot }) }}</p><h2>{{ edition?.story?.title }}</h2><p>{{ paragraphs[0] }}</p>
           <p class="aw-notice" role="status" aria-live="polite" :data-readiness-state="readinessInvalid ? 'invalid' : readinessVisible ? record.readiness?.state : undefined">{{ readinessNotice }}</p>
           <button v-if="canManuallyCheckReadiness" class="aw-button aw-button--secondary" :disabled="busy" @click="manualCheckReadiness">{{ customerCopy.text('keepsake.status-check') }}</button>
           <p v-if="edition?.synthetic" class="aw-notice">{{ customerCopy.text('keepsake.synthetic') }}</p>
@@ -393,6 +406,7 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
           <label v-if="owner"><input v-model="includePortrait" type="checkbox" :disabled="!portrait || busy">{{ customerCopy.text('keepsake.include-portrait') }}</label>
           <button v-if="owner && pending(baseJob?.state)" class="aw-button aw-button--secondary" :disabled="busy" @click="cancelJob('base')">{{ customerCopy.text('keepsake.stop-preparation') }}</button>
         </div></div>
+      <GeneratedWand v-if="record.snapshot.generatedWand && !identity?.generatedWand" :wand="record.snapshot.generatedWand" />
       <WizardIdentity :identity="identity" />
       <button v-if="owner && !accountRead && edition && !identity" class="aw-button aw-button--secondary" :disabled="busy" @click="createIdentity">{{ customerCopy.text('keepsake.create-identity') }}</button>
       <p v-if="owner && !accountRead && edition && !identity" class="archive-caption">{{ customerCopy.text('keepsake.identity-help') }}</p>
@@ -400,6 +414,13 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
       <PrivateProphecy v-if="owner" :prophecy="prophecy" />
       <p v-if="accountRead && !accountOwner" class="archive-muted">{{ customerCopy.text('keepsake.linked-privacy') }}</p>
       <section class="archive-story"><h2>{{ customerCopy.text('keepsake.story-heading') }}</h2><p class="archive-caption">{{ customerCopy.text('keepsake.story-caption') }}</p><p v-for="(paragraph, index) in paragraphs" :key="index">{{ paragraph }}</p><p v-if="!paragraphs.length">{{ storyPlaceholder }}</p></section>
+      <section v-if="accountOwner && record.snapshot.generatedWand && edition" class="aw-card" aria-labelledby="wand-publication-title">
+        <h2 id="wand-publication-title">{{ customerCopy.language.value === 'en' ? 'Public evening and duels' : 'Veřejný večer a souboje' }}</h2>
+        <p>{{ record.wandPublicationApproved ? (customerCopy.language.value === 'en' ? 'You approved this edition for the public evening page and duels.' : 'Tuto edici jsi schválil pro veřejný přehled večera a souboje.') : (customerCopy.language.value === 'en' ? 'Your personal wand and story stay private until you review and approve this edition.' : 'Osobní hůlka a příběh zůstávají soukromé, dokud tuto edici nezkontroluješ a neschválíš.') }}</p>
+        <template v-if="!record.wandPublicationApproved"><label><input v-model="publicationConsent" type="checkbox" :disabled="busy || !edition.story">{{ customerCopy.language.value === 'en' ? 'I reviewed this wand, spells, story and character card and approve them for the public evening page and duels.' : 'Zkontroloval jsem hůlku, kouzla, příběh a kartu postavy a schvaluji je pro veřejný přehled večera a souboje.' }}</label><button class="aw-button" :disabled="busy || !publicationConsent || !edition.story" @click="setWandPublication(true)">{{ customerCopy.language.value === 'en' ? 'Approve this edition' : 'Schválit tuto edici' }}</button></template>
+        <button v-else class="aw-button aw-button--secondary" :disabled="busy" @click="setWandPublication(false)">{{ customerCopy.language.value === 'en' ? 'Withdraw publication approval' : 'Odvolat souhlas se zveřejněním' }}</button>
+        <p class="archive-caption">{{ customerCopy.language.value === 'en' ? 'Portraits and private conversation context stay private. A new edition needs new approval.' : 'Portréty a soukromý kontext rozhovoru zůstávají soukromé. Nová edice vyžaduje nový souhlas.' }}</p>
+      </section>
       <section v-if="accountRead && canReadPortrait && portrait" class="aw-card"><h2>{{ customerCopy.text('keepsake.private-portrait') }}</h2><p>{{ customerCopy.text('keepsake.linked-portrait-copy') }}</p><img v-if="portraitMedia.artworkUrl.value" :src="portraitMedia.artworkUrl.value" class="archive-private-preview" :alt="customerCopy.text('keepsake.private-portrait')"><p v-if="portrait.synthetic">{{ customerCopy.text('keepsake.synthetic-portrait') }}</p><button class="aw-button aw-button--secondary" :disabled="!canExport('portrait')" @click="exportFile('portrait')">{{ customerCopy.text('keepsake.save-portrait') }}</button></section>
       <section v-if="owner" class="aw-card" aria-labelledby="portrait-title"><h2 id="portrait-title">{{ customerCopy.text('keepsake.private-portrait') }}</h2><p>{{ customerCopy.text('keepsake.upload-description') }}</p>
         <label for="archive-photo">{{ customerCopy.text('keepsake.upload-label') }}</label><input id="archive-photo" ref="photoInput" type="file" accept="image/jpeg,image/png,image/webp" :disabled="busy" @change="choosePhoto">
@@ -424,7 +445,7 @@ onBeforeUnmount(() => { suspend(); if (ownsRobots) robots?.remove(); document.re
     <div class="archive-actions"><button v-if="locator && !claim && !deletion" class="aw-button aw-button--secondary" :disabled="busy" @click="manualCheckReadiness">{{ customerCopy.text('keepsake.refresh') }}</button><button class="aw-button aw-button--ghost" @click="privacy = true">{{ customerCopy.text('keepsake.privacy-open') }}</button></div>
     <ArchiveDialog :open="privacy" :title="customerCopy.text('keepsake.privacy-heading')" @close="privacy = false"><p>{{ customerCopy.text('keepsake.privacy-copy') }}</p><p>{{ customerCopy.text('keepsake.privacy-upload') }}</p></ArchiveDialog>
     <ArchiveDialog :open="artworkOpen" :title="customerCopy.text('keepsake.artwork-title')" @close="artworkOpen = false"><img v-if="media.artworkUrl.value" :src="media.artworkUrl.value" :alt="customerCopy.text('keepsake.artwork-enlarged-alt')"></ArchiveDialog>
-    <ArchiveDialog :open="sharePreview" :title="customerCopy.text('keepsake.share-preview-title')" @close="sharePreview = false"><p>{{ record?.snapshot.officialName }} · {{ edition?.story?.title }}</p><p>{{ customerCopy.text('keepsake.share-preview-copy') }}</p><button class="aw-button" :disabled="busy" @click="issueLink('share')">{{ customerCopy.text('keepsake.share-create') }}</button></ArchiveDialog>
+    <ArchiveDialog :open="sharePreview" :title="customerCopy.text('keepsake.share-preview-title')" @close="sharePreview = false"><p>{{ record?.snapshot.generatedWand?.name ?? record?.snapshot.officialName }} · {{ edition?.story?.title }}</p><p>{{ customerCopy.text('keepsake.share-preview-copy') }}</p><button class="aw-button" :disabled="busy" @click="issueLink('share')">{{ customerCopy.text('keepsake.share-create') }}</button></ArchiveDialog>
     <AwDialog :open="associationOpen" :title="customerCopy.text('keepsake.association-title')" @close="associationOpen = false"><p>{{ customerCopy.text('keepsake.association-copy', { name: account?.displayName ?? '' }) }}</p><button class="aw-button" :disabled="busy || !account || !owner" @click="associateAccount">{{ customerCopy.text('keepsake.association-confirm') }}</button></AwDialog>
     <ArchiveDialog :open="unlinkOpen" :title="customerCopy.text('keepsake.unlink-title')" @close="unlinkOpen = false"><p>{{ customerCopy.text('keepsake.unlink-help') }}</p><label for="archive-unlink-confirm">{{ customerCopy.text('keepsake.unlink-confirm-help') }}</label><input id="archive-unlink-confirm" v-model="unlinkConfirmation" class="aw-input" autocomplete="off"><button class="aw-button aw-button--secondary" :disabled="busy || unlinkConfirmation !== 'ODPOJIT'" @click="unlinkAccount">{{ customerCopy.text('keepsake.unlink-confirm') }}</button></ArchiveDialog>
     <ArchiveDialog :open="!!deleteScope" :title="customerCopy.text(deleteScope === 'all' ? 'keepsake.delete-all-title' : 'keepsake.delete-media-title')" @close="deleteScope = undefined"><p>{{ customerCopy.text('keepsake.delete-help') }}</p><label for="archive-delete-confirm">{{ customerCopy.text('keepsake.delete-confirm-help') }}</label><input id="archive-delete-confirm" v-model="confirmation" class="aw-input" autocomplete="off"><button class="aw-button aw-button--danger" :disabled="busy || confirmation !== 'SMAZAT'" @click="deleteContent">{{ customerCopy.text('keepsake.delete-confirm') }}</button></ArchiveDialog>

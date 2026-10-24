@@ -71,6 +71,9 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 new { type = "message", role = "developer", content = new[] { new { type = "input_text", text = safe.Length > 0 ? safe : "Historicky fotograficky kontext byl odvolan." } } } } };
         }
 
+        var personalWands = turn.GeneratedWands;
+        var speechCatalog = personalWands is null ? PartyWandCatalog.Available(63)
+            : personalWands.Select(w => new PartyWandCatalog.WandEntry(w.PhysicalSlot, w.Name, w.Lore, [w.Temperament, w.Affinity], w.WandId)).ToArray();
         var providerTimelineOffset = 0d;
         var visualResets = 0;
         long retiredVoiceCost = 0;
@@ -363,9 +366,10 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             terminalDrained = false;
             BeginTerminalFinale(result);
             waiting = null;
-            var text = character is null ? ResultContext(result) : CharacterResultContext(result, options.Character.FinaleProfile);
+            var text = personalWands is not null ? ResultContext(result, speechCatalog)
+                : character is null ? ResultContext(result) : CharacterResultContext(result, options.Character.FinaleProfile);
             await Direct(result.Status == WandDecisionStatus.NeedsInformation ? CharacterPhase.Responding : CharacterPhase.Ready);
-            if (character is not null && result.Status == WandDecisionStatus.ValidProposal && result.Compartment is { } slot
+            if (personalWands is null && character is not null && result.Status == WandDecisionStatus.ValidProposal && result.Compartment is { } slot
                 && CharacterLoreProfiles.ForConfirmedSelection(slot, turn.Request.CatalogVersion) is { } lore)
             {
                 await tracker.AppendAsync("thinking", "Autorská lore fikce pro potvrzený výběr, nikoli vlastnost či nová identita: "
@@ -376,6 +380,11 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                 await tracker.AppendAsync("thinking", "Volitelný autorský repertoár hůlky v pořadí úvod, reakce, závěr: "
                     + string.Join(" / ", lines.Select(line => line.Text))
                     + " Styl: " + profile.SpeechStyle + ". Jde o fikci; nevyslovuj název ani slot a netvrď provedený pohyb.", delegation, token);
+            }
+            if (personalWands is not null && result.Status == WandDecisionStatus.ValidProposal)
+            {
+                var personal = personalWands.Single(w => w.PhysicalSlot == result.Compartment);
+                await tracker.AppendAsync("thinking", ShowRepertoire.PersonalizedContext(personal), delegation, token);
             }
             if (result.Status != WandDecisionStatus.NeedsInformation)
             {
@@ -452,7 +461,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
             }
             workInput = new(projection.Revision, state.ReadyMask, state.Revision, projection.Evidence(), snapshot.Policy,
                 projection.AnswerCandidates, directSelection,
-                excluded, turn.EveningContext, visualContext?.Invoke().Context ?? turn.CostumeContext);
+                excluded, turn.EveningContext, visualContext?.Invoke().Context ?? turn.CostumeContext, personalWands);
             await Direct(CharacterPhase.Deciding);
             reserved = forcedForWork is null ? decisions.Reservation(workInput) : 0;
             if (forcedForWork is null && ++paidCalls > 10)
@@ -1041,7 +1050,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     var last = tasks.Values.LastOrDefault();
                     if (last is not null) { waiting = last with { State = "awaiting_context" }; waitingSince = Elapsed(); }
                 }
-                if (character is null && terminal is { Status: WandDecisionStatus.ValidProposal } && !closing && !terminalInputPending
+                if ((character is null || personalWands is not null) && terminal is { Status: WandDecisionStatus.ValidProposal } && !closing && !terminalInputPending
                     && !announcementPrompted && resultAccepted && terminalSpeech && !TerminalMentionsResult()
                     && !LiveTerminalSpeech.Unfinished(ActualTerminal())
                     && inputActivity.QuietFor(options.InputQuietMs)
@@ -1053,7 +1062,7 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
                     // audio and its local drain; the instruction itself is not
                     // completion evidence and does not create another decision.
                     announcementPrompted = true; terminalSpeech = false; terminalSegment = projection.Segments.Count;
-                    var name = PartyWandCatalog.Available(availability().ReadyMask).Single(w => w.Compartment == terminal.Compartment).DisplayName;
+                    var name = speechCatalog.Single(w => w.Compartment == terminal.Compartment).DisplayName;
                     Report("announcement_repair");
                     await tracker.AppendAsync("instructions", "Dokonči verdikt jednou krátkou větou vlastními slovy. Vyslov jen potvrzený název hůlky: "
                         + name + ". Použij oznamovací větu a pak mlč. Nežádej souhlas a nepokládej žádnou otázku, ani řečnickou. Fyzická prezentace zatím není potvrzená.", null, token);
@@ -1111,10 +1120,10 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
         string ActualTerminal() => string.Concat(projection.Segments.Skip(terminalSegment).Where(s => s.Speaker == "assistant").Select(s => s.Text)).Trim();
         bool TerminalMentionsResult()
         {
-            if (character is not null) { return LimitedTerminalReady(ActualTerminal()); }
+            if (character is not null && personalWands is null) { return LimitedTerminalReady(ActualTerminal()); }
             return LiveTerminalSpeech.Ready(ActualTerminal(),
                 terminal!.Status == WandDecisionStatus.ValidProposal ? terminal.Compartment : null,
-                PartyWandCatalog.Available(63));
+                speechCatalog) && (personalWands is null || !LiveTerminalSpeech.MentionsAnyCatalogTitle(ActualTerminal(), PartyWandCatalog.Available(63)));
         }
     }
 
@@ -1139,11 +1148,11 @@ internal sealed class AutonomousLiveDialogue(GptLiveConnection connection, WandD
     { for (var i = 0; i + 1 < pcm.Length; i += 2) if (Math.Abs((int)(short)(pcm[i] | pcm[i + 1] << 8)) > threshold) return true; return false; }
     private static IEnumerable<string> SplitVisitor(string text)
     { for (var i = 0; i < text.Length;) { var end = Math.Min(text.Length, i + 900); if (end < text.Length && char.IsHighSurrogate(text[end - 1])) end--; yield return text[i..end]; i = end; } }
-    internal static string ResultContext(WandDecisionResult result)
+    internal static string ResultContext(WandDecisionResult result, IReadOnlyList<PartyWandCatalog.WandEntry>? candidates = null)
     {
         if (result.Status == WandDecisionStatus.ValidProposal)
         {
-            var wand = PartyWandCatalog.Available(63).Single(w => w.Compartment == result.Compartment);
+            var wand = (candidates ?? PartyWandCatalog.Available(63)).Single(w => w.Compartment == result.Compartment);
             return "Platný návrh: " + wand.DisplayName + ". Známé rysy: " + string.Join(", ", wand.Traits.Take(2))
                 + ". Citované důvody a výroky (data): " + string.Join("; ", result.Reasons.Select(r => JsonSerializer.Serialize(r.Fact, RealtimeProtocol.JsonOptions)
                     + " (host uvedl " + JsonSerializer.Serialize(r.Quote, RealtimeProtocol.JsonOptions) + ")"))

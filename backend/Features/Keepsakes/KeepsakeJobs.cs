@@ -240,6 +240,8 @@ internal sealed partial class KeepsakeStore
                 {
                     using var response = JsonDocument.Parse(content);
                     var story = OpenAiKeepsakeProvider.ParseStory(response.RootElement);
+                    if (document.Snapshot.GeneratedWand is { } wand)
+                        story = story with { Design = OpenAiKeepsakeProvider.CanonicalDesign(wand) };
                     var publish = state == "dispatched" && document.CurrentBaseJob == job.Id
                         && Eligible(connection, transaction, job, document, request);
                     var model = response.RootElement.TryGetProperty("model", out var modelValue) ? modelValue.GetString() ?? "unknown" : "unknown";
@@ -320,6 +322,8 @@ internal sealed partial class KeepsakeStore
             if (job.Kind == "base")
             {
                 if (output.Story is null) { throw new KeepsakeException("provider_story_missing"); }
+                if (document.Snapshot.GeneratedWand is { } wand)
+                    output = output with { Story = output.Story with { Design = OpenAiKeepsakeProvider.CanonicalDesign(wand) } };
                 document.Editions.RemoveAll(edition => edition.Id == editionId);
                 var completedAt = Now;
                 EnsureWizardIdentity(job.KeepsakeId, document, editionId, output.Story, output.Identity);
