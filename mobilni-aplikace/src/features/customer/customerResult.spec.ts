@@ -28,6 +28,39 @@ function response(overrides: Record<string, unknown> = {}) {
 }
 
 describe('customer session result projection', () => {
+  it('exposes only a valid original-owner generated-wand artwork reference', () => {
+    const assetId = 'c5734ad2-dc2f-43be-b5e2-8a7c5034c7b3';
+    const generatedWand = {
+      wandId: 'synthetic-wand-1', physicalSlot: 1, name: 'Noční kometa',
+      material: 'Tis', core: 'Fiktivní hvězdný prach', temperament: 'Rozmarná',
+      lore: 'Příběh noční hůlky', designDescription: 'Zdobená stříbrná rukojeť',
+      affinity: 'Světlo', weakness: 'Hlasitá hudba',
+      spells: ['strike', 'trick', 'shield'].map(action => ({
+        action, name: 'Kouzlo ' + action, description: 'Fiktivní účinek',
+      })),
+    };
+    const ready = response({
+      readiness: { state: 'ready', shouldPoll: false, hasArtwork: true, hasStory: true },
+      generatedWand, artworkAssetId: assetId,
+    });
+    expect(projectCustomerResult(ready, sessionId).artworkAssetId).toBe(assetId);
+    expect(projectCustomerResult(response({
+      ...ready, accessKind: 'linkedViewer', canReadPrivate: false,
+    }), sessionId).artworkAssetId).toBeUndefined();
+    expect(projectCustomerResult(response({
+      ...ready, readiness: { state: 'processing', shouldPoll: true, hasStory: false, hasArtwork: false },
+    }), sessionId).artworkAssetId).toBeUndefined();
+    expect(projectCustomerResult(response({
+      ...ready, generatedWand: null,
+    }), sessionId).artworkAssetId).toBeUndefined();
+    expect(projectCustomerResult(response({
+      ...ready, artworkAssetId: 'javascript:alert(1)',
+    }), sessionId).artworkAssetId).toBeUndefined();
+    expect(projectCustomerResult(response({
+      ...ready, resultLocator: 'not-a-uuid',
+    }), sessionId).artworkAssetId).toBeUndefined();
+  });
+
   it('retains only bounded generation status and keeps retry as an explicit new visitor flow', () => {
     const projected = projectCustomerResult(response({ wandGeneration: { status: 'failed', canRetry: true, errorCode: 'private-internal', prompt: 'private-context' } }), sessionId);
     expect(projected.wandGeneration).toEqual({ status: 'failed', canRetry: true });
