@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import GeneratedWand from '../archive/GeneratedWand.vue';
+import { AccountArchiveClient } from '../archive/accountArchive';
+import { useArchiveMedia } from '../archive/useArchiveMedia';
 import AwButton from '../../components/AwButton.vue';
 import AwNotice from '../../components/AwNotice.vue';
 import { customerCopy } from '../../application/customerCopy';
@@ -13,6 +15,24 @@ import { SessionRecoveryController, type SessionRecoveryState } from './sessionR
 const props = defineProps<{ sessionId: string }>();
 
 const projection = ref<CustomerResultProjection | null>(null);
+const artworkClient = new AccountArchiveClient(() => account.value?.id ?? '');
+const artworkMedia = useArchiveMedia(artworkClient);
+let boundArtworkPath = '';
+function clearArtwork(): void {
+  boundArtworkPath = '';
+  artworkClient.invalidate();
+  artworkMedia.clear();
+}
+function bindArtwork(result: CustomerResultProjection): void {
+  // Only verified original-owner results can name an asset; AccountArchiveClient
+  // enforces the exact account-owned asset route and revokes stale in-flight blobs.
+  const path = result.valid && result.artworkAssetId && result.locator
+    ? `/app/v1/archive/owned/${result.locator}/assets/${result.artworkAssetId}` : '';
+  if (path === boundArtworkPath) return;
+  clearArtwork();
+  boundArtworkPath = path;
+  if (path) void artworkMedia.artwork(path);
+}
 const currentReadVerified = ref(false);
 const recoveryState = reactive<SessionRecoveryState>({
   refreshing: false,
@@ -85,6 +105,7 @@ const recovery = new SessionRecoveryController<CustomerResultProjection>({
   onValue: result => {
     projection.value = result;
     currentReadVerified.value = true;
+    bindArtwork(result);
   },
   state: recoveryState,
   pollIntervalMs: 2500,
@@ -97,6 +118,7 @@ function syncActivity(): void {
 }
 
 function contextChanged(): void {
+  clearArtwork();
   projection.value = null;
   currentReadVerified.value = false;
   recovery.invalidate();
@@ -105,6 +127,7 @@ function contextChanged(): void {
 
 function onVisibilityChange(): void {
   isVisible.value = document.visibilityState !== 'hidden';
+  if (!isVisible.value) clearArtwork();
   currentReadVerified.value = false;
   syncActivity();
 }
@@ -116,12 +139,14 @@ function onOnline(): void {
 
 function onOffline(): void {
   isOnline.value = false;
+  clearArtwork();
   currentReadVerified.value = false;
   syncActivity();
 }
 
 function refreshManually(): void {
   if (!canRequest.value || !isVisible.value || !isOnline.value) return;
+  if (artworkMedia.artworkError.value) clearArtwork();
   currentReadVerified.value = false;
   // Activating first also enables bounded transport retries for a manual refresh
   // made after a terminal result stopped automatic polling.
@@ -143,6 +168,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearArtwork();
   document.removeEventListener('visibilitychange', onVisibilityChange);
   window.removeEventListener('online', onOnline);
   window.removeEventListener('offline', onOffline);
@@ -168,7 +194,10 @@ onBeforeUnmount(() => {
       {{ customerCopy.language.value === 'en' ? 'Your personal wand could not be created. No replacement wand has been assigned.' : 'Osobní hůlku se nepodařilo vytvořit. Náhradní hůlka nebyla přiřazena.' }}
       <template v-if="projection.wandGeneration?.canRetry"><br>{{ customerCopy.language.value === 'en' ? 'When the suitcase is idle, start a new conversation to try again.' : 'Až bude kufr volný, můžeš zahájit nový rozhovor a zkusit to znovu.' }} <RouterLink to="/me/conversation">{{ customerCopy.language.value === 'en' ? 'Open conversation' : 'Přejít k rozhovoru' }}</RouterLink></template>
     </AwNotice>
-    <GeneratedWand v-if="isCurrentVerificationFresh && projection?.generatedWand" :wand="projection.generatedWand" show-name />
+    <GeneratedWand v-if="isCurrentVerificationFresh && projection?.generatedWand" :wand="projection.generatedWand" show-name
+      :image-url="artworkMedia.artworkUrl.value"
+      :image-pending="(projection.shouldPoll && !projection.hasArtwork) || (!!projection.artworkAssetId && !artworkMedia.artworkUrl.value && !artworkMedia.artworkError.value)"
+      :image-error="artworkMedia.artworkError.value" />
     <p v-if="isCurrentVerificationFresh && projection?.generatedWand && projection.wandPublicationApproved === false">{{ customerCopy.language.value === 'en' ? 'Your wand stays private. Review the completed keepsake to approve its public fiction for the evening page and duels.' : 'Hůlka zůstává soukromá. V hotové památce zkontroluj fikci a schval její zveřejnění pro večer a souboje.' }}</p>
     <RouterLink v-if="isCurrentVerificationFresh && projection?.valid && projection.route" :to="projection.route">{{ customerCopy.text('result.open') }}</RouterLink>
     <AwButton :busy="recoveryState.refreshing" :disabled="!isOnline" @click="refreshManually">
