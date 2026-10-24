@@ -21,6 +21,8 @@ const server = createServer(async (request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const id = '11111111-1111-4111-8111-111111111111';
+const imageAssetId = '22222222-2222-4222-8222-222222222222';
+const imageBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1sAAAAASUVORK5CYII=', 'base64');
 const spells = side => ['strike', 'trick', 'shield'].map((action, index) => ({ action, name: `${side === 'left' ? 'Lunární' : 'Sluneční'} ${['zásah', 'klam', 'štít'][index]}`, description: 'Fiktivní kouzlo pro syntetickou zkoušku.' }));
 const tokens = { left: 'a'.repeat(43), right: 'b'.repeat(43) };
 const view = {
@@ -116,7 +118,8 @@ try {
     if (url.origin !== origin) return route.abort();
     const json = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
     if (url.pathname === '/app/v1/session') return json({ enabled: true, account: { id: 'fixture-owner', displayName: 'Luna', roles: ['Customer'] }, csrfToken: 'fixture-csrf' });
-    if (url.pathname === '/app/v1/customer/character') return json({ profile: { profileId: 'fixture-profile', revision: 1, status: 'ready', userInput: { name: 'Luna', world: 'Syntetický svět' } }, generatedWand: ownedWand });
+    if (url.pathname === '/app/v1/customer/character') return json({ profile: { profileId: 'fixture-profile', revision: 1, status: 'ready', userInput: { name: 'Luna', world: 'Syntetický svět' } }, generatedWand: ownedWand, artwork: { locator: id, assetId: imageAssetId } });
+    if (url.pathname === `/app/v1/archive/owned/${id}/assets/${imageAssetId}`) return route.fulfill({ status: 200, contentType: 'image/png', body: imageBytes });
     if (url.pathname === '/app/v1/customer/sessions') return json({ items: [] });
     if (url.pathname === '/app/v1/customer/completion-updates') return json({ schemaVersion: 1, items: [], nextCursor: null });
     if (url.pathname === '/app/v1/archive/associations') return json({ items: [] });
@@ -132,6 +135,16 @@ try {
     return route.continue();
   });
   const owned = await ownedContext.newPage(); owned.on('pageerror', error => errors.push(error.message));
+  await owned.goto(`${origin}/me/character`);
+  const originalArtwork = owned.locator('.archive-personal-wand-art img');
+  await originalArtwork.waitFor();
+  await originalArtwork.evaluate(img => new Promise((resolve, reject) => {
+    if (img.complete) return img.naturalWidth > 0 ? resolve() : reject(new Error('Generated artwork did not load'));
+    img.addEventListener('load', () => resolve(), { once: true });
+    img.addEventListener('error', () => reject(new Error('Generated artwork failed to load')), { once: true });
+  }));
+  assert.match(await originalArtwork.getAttribute('alt'), /Měsíční ozvěna/);
+  await owned.screenshot({ path: path.join(screenshots, 'mobile-character-artwork.png'), fullPage: true });
   await owned.goto(`${origin}/me/keepsakes`);
   await owned.getByRole('link', { name: 'Otevřít uložený souboj', exact: true }).click();
   await owned.getByRole('heading', { name: 'Výsledek', exact: true }).waitFor();
