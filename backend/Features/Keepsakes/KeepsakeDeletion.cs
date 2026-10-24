@@ -100,6 +100,21 @@ internal sealed partial class KeepsakeStore
         }
         if (all)
         {
+            // Scrub derived battle documents and candidate-session data in this same
+            // transaction so deleting a source cannot leave a public replay or hidden copy.
+            foreach (var identity in document.WizardIdentities)
+                Kufr.Backend.Features.Show.DuelStore.PurgeIdentity(connection, transaction, identity.IdentityId);
+            if (document.Snapshot.GeneratedWand is { } wand)
+            {
+                using var tables = Command(connection, transaction,
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='wand_generation_sessions'");
+                if (tables.ExecuteScalar() is not null)
+                    Execute(connection, transaction, """
+                        UPDATE wand_generation_sessions SET state='revoked',request_json=NULL,candidates_json=NULL,
+                            selected_json=NULL,lease_token=NULL,lease_until=0,error_code=NULL
+                        WHERE json_extract(selected_json,'$.wandId')=$wand
+                        """, ("$wand", wand.WandId));
+            }
             // Retain only technical tombstone identity; no catalog or visitor content.
             Execute(connection, transaction,
                 "UPDATE dv10_keepsakes SET deleted=1,document=NULL,device_id='',epoch=epoch+1,photo_epoch=photo_epoch+1 WHERE id=$id", ("$id", id));

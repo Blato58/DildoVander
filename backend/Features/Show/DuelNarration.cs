@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Kufr.Backend.Features.Conversations;
 
 namespace Kufr.Backend.Features.Show;
 
@@ -20,6 +21,11 @@ internal sealed partial class DuelStore
         if (state == "failed" || duel.NarrationExpiresAt is null || clock.GetUtcNow() >= duel.NarrationExpiresAt
             || duel.NarrationStage is not ("intro_wait" or "round_wait" or "final_wait"))
         {
+            if (DuelRules.IsPersonalized(duel.RulesVersion))
+            {
+                ContinueWithoutDevice(connection, transaction, duel, released);
+                return true;
+            }
             Interrupt(duel);
             Save(connection, transaction, duel);
             released.Add((duel.DeviceId, duel.Id));
@@ -42,6 +48,7 @@ internal sealed partial class DuelStore
         else
         {
             duel.NarrationStage = "choice";
+            duel.ChoiceRevision = duel.Revision + 1;
             // Phone timeouts begin after the preceding narration has actually
             // drained. A slow speaker never consumes the guest's choice window.
             duel.Deadline = clock.GetUtcNow().AddSeconds(duel.Mode == "interactive" ? 15 : 3);
@@ -63,6 +70,7 @@ internal sealed partial class DuelStore
             using var transaction = connection.BeginTransaction();
             var duel = Load(connection, transaction, dispatch.DuelId);
             if (duel.State != "Running" || duel.Revision != dispatch.Revision || duel.NarrationStage != dispatch.Stage) { return; }
+            var saved = false;
             if (accepted)
             {
                 duel.NarrationStage = dispatch.Stage.Replace("_dispatch", "_wait", StringComparison.Ordinal);
@@ -70,13 +78,39 @@ internal sealed partial class DuelStore
             }
             else
             {
-                Interrupt(duel);
-                release = true;
+                if (DuelRules.IsPersonalized(duel.RulesVersion))
+                {
+                    var released = new List<(string Device, string Id)>();
+                    ContinueWithoutDevice(connection, transaction, duel, released);
+                    release = released.Count > 0;
+                    saved = true;
+                }
+                else { Interrupt(duel); release = true; }
             }
-            Save(connection, transaction, duel);
+            if (!saved) { Save(connection, transaction, duel); }
             transaction.Commit();
         }
         if (release) { slot.Release(dispatch.DeviceId, dispatch.DuelId); }
+    }
+
+    private void ContinueWithoutDevice(SqliteConnection connection, SqliteTransaction transaction, DuelDocument duel,
+        List<(string Device, string Id)> released)
+    {
+        duel.NarrationMode = "web_only";
+        duel.NarrationUnavailableReason = "device_playback_unconfirmed";
+        duel.NarrationStage = "choice";
+        duel.NarrationExpiresAt = null;
+        if (duel.Rounds.Count == 3)
+        {
+            CompleteDuel(connection, transaction, duel);
+            released.Add((duel.DeviceId, duel.Id));
+        }
+        else
+        {
+            duel.ChoiceRevision = duel.Revision + 1;
+            duel.Deadline = clock.GetUtcNow().AddSeconds(duel.Mode == "interactive" ? 15 : 3);
+            Save(connection, transaction, duel);
+        }
     }
 
     private void CompleteDuel(SqliteConnection connection, SqliteTransaction transaction, DuelDocument duel)
@@ -108,15 +142,23 @@ internal sealed partial class DuelStore
         var stage = duel.NarrationStage;
         var round = stage == "intro_dispatch" ? 0 : duel.Rounds.Count;
         var scene = stage switch { "intro_dispatch" => "wake", "final_dispatch" => "farewell", _ => "consider" };
-        var wandId = stage == "round_dispatch" && round % 2 == 0 ? duel.Right.WandId : duel.Left.WandId;
-        var line = stage switch
+        var wand = stage == "round_dispatch" && round % 2 == 0 ? duel.Right : duel.Left;
+        // Generated identity never controls a hardware command. Resolve the
+        // immutable physical slot through the existing trusted hardware mapping.
+        var wandId = wand.PhysicalSlot is { } physicalSlot
+            ? PartyWandCatalog.Available(63).Single(item => item.Compartment == physicalSlot).StableId : wand.WandId;
+        var line = duel.RulesVersion == DuelRules.CharacterVersion ? DuelPersonalizedNarration.PhysicalLine(duel, stage) : stage switch
         {
-            "intro_dispatch" => $"{(duel.Mode == "exhibition" ? "Fiktivní exhibice. " : "")}{BoundAlias(duel.Left.DisplayName)} proti {BoundAlias(duel.Right.DisplayName)}. Digitální souboj začíná. Hůlky zůstávají v přihrádkách.",
+            "intro_dispatch" => $"{(duel.Mode == "exhibition" ? "Fiktivní exhibice. " : "")}{BoundAlias(duel.Left.DisplayName)}{WandIntroduction(duel.Left)} proti {BoundAlias(duel.Right.DisplayName)}{WandIntroduction(duel.Right)}. Digitální souboj začíná. Hůlky zůstávají v přihrádkách.",
             "final_dispatch" => $"{(duel.Mode == "exhibition" ? "Fiktivní exhibice se nezapočítává jako výhra hosta. " : "")}{duel.Result!.Ending} Body {duel.Result.LeftPoints} ku {duel.Result.RightPoints}.",
-            _ => $"Kolo {round}. {duel.Rounds[^1].Quip} Skóre kola {duel.Rounds[^1].LeftScore} ku {duel.Rounds[^1].RightScore}. {duel.Rounds[^1].Mishap}"
+            _ => $"Kolo {round}. {SpellIntroduction(duel.Left, duel.Rounds[^1].LeftAction)} {SpellIntroduction(duel.Right, duel.Rounds[^1].RightAction)} {duel.Rounds[^1].Quip} Skóre kola {duel.Rounds[^1].LeftScore} ku {duel.Rounds[^1].RightScore}. {duel.Rounds[^1].Mishap}"
         };
         return new(duel.DeviceId, duel.Id, duel.Revision, stage, round, scene, wandId, line);
     }
 
     private static string BoundAlias(string alias) => new(alias.Where(character => !char.IsControl(character)).Take(100).ToArray());
+    private static string WandIntroduction(DuelIdentitySnapshot identity) => identity.WandName is { } name ? $" s hůlkou {BoundAlias(name)}" : "";
+    private static string SpellIntroduction(DuelIdentitySnapshot identity, string action) =>
+        identity.Spells?.SingleOrDefault(spell => spell.Action == action) is { } spell
+            ? $"{BoundAlias(identity.DisplayName)} sesílá {BoundAlias(spell.Name)}." : "";
 }

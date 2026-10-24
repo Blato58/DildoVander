@@ -26,7 +26,7 @@ export function validateGuestRequest(path: string, method: string) {
   if (parsed.origin !== 'https://guest.invalid' || parsed.hash || parsed.pathname !== path.split('?')[0]) throw new GuestError(400);
   if (parsed.pathname === '/guest/v1/chronicle' || new RegExp(`^/guest/v1/duels/${uuidPattern}$`).test(parsed.pathname)) {
     if (method !== 'GET' || parsed.search) throw new GuestError(400);
-  } else if (new RegExp(`^/guest/v1/duels/${uuidPattern}/choices$`).test(parsed.pathname)) {
+  } else if (new RegExp(`^/guest/v1/duels/${uuidPattern}/(?:choices|join)$`).test(parsed.pathname)) {
     if (method !== 'POST' || parsed.search) throw new GuestError(400);
   } else if (parsed.pathname === '/guest/v1/evening') {
     if (method !== 'GET' || [...parsed.searchParams.keys()].some(key => !['cursor', 'limit'].includes(key))) throw new GuestError(400);
@@ -65,7 +65,7 @@ export function createNativeGuestTransport(native: NativeGuestBridge): typeof fe
     const check = () => { if (init.signal?.aborted) throw new DOMException('Route changed', 'AbortError'); };
     check();
     const headers: Record<string, string> = {};
-    const duelChoice = new RegExp(`^/guest/v1/duels/${uuidPattern}/choices$`).test(path) && init.method === 'POST';
+    const duelChoice = new RegExp(`^/guest/v1/duels/${uuidPattern}/(?:choices|join)$`).test(path) && init.method === 'POST';
     new Headers(init.headers).forEach((value, key) => {
       const name = key.toLowerCase();
       if (name === 'authorization') {

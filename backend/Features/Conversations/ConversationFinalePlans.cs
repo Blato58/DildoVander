@@ -10,8 +10,10 @@ internal sealed partial class ConversationStore
         if (show is null || value is not SelectionProposal proposal) { return; }
         try
         {
+            var customer = journal.CustomerConversation(deviceId, proposal.ConversationId);
+            var wandId = customer is null ? null : wands?.Read(customer.OwnerId, customer.OperationId)?.SelectedWand?.WandId;
             var result = show.BindFinaleProposal(deviceId, operationId, proposal, generation,
-                selectionRevision, personaVersion, profile, eveningId);
+                selectionRevision, personaVersion, profile, eveningId, wandId);
             if (result.Status is not ("bound" or "replayed"))
             { throw new InvalidOperationException("Finale snapshot was not bound: " + result.Code); }
         }

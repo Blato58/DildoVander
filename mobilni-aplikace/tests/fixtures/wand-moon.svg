@@ -1,0 +1,19 @@
+<!-- Synthetic test artwork, authored for offline browser verification. No production/provider claim. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
+  <defs>
+    <radialGradient id="back"><stop stop-color="#26354c"/><stop offset="1" stop-color="#101725"/></radialGradient>
+    <linearGradient id="wood" x2="1" y2="0"><stop stop-color="#283446"/><stop offset=".35" stop-color="#8b93b5"/><stop offset=".65" stop-color="#414d68"/><stop offset="1" stop-color="#181e31"/></linearGradient>
+    <linearGradient id="silver"><stop stop-color="#6d7b9c"/><stop offset=".5" stop-color="#e0e8ff"/><stop offset="1" stop-color="#6c7b9f"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="7"/></filter>
+  </defs>
+  <rect width="600" height="800" fill="url(#back)"/>
+  <ellipse cx="300" cy="710" rx="135" ry="15" fill="#080f1b" opacity=".8"/>
+  <g fill="none" stroke="#8fa6d6" opacity=".24"><circle cx="300" cy="360" r="208"/><circle cx="300" cy="360" r="218"/><path d="M55 360h32m426 0h32M300 115v28m0 434v28"/></g>
+  <path d="M290 114 C252 196 335 228 287 309 C261 354 317 422 290 493 L270 658 Q269 681 300 690 Q330 682 327 656 L309 495 C332 419 280 359 310 312 C363 228 277 195 305 114 Z" fill="url(#wood)" stroke="#98a9c9" stroke-width="2"/>
+  <path d="M297 133 C272 204 345 235 298 314 C277 357 324 421 300 490" fill="none" stroke="#c2d5ed" stroke-width="4"/>
+  <g fill="url(#silver)" stroke="#29354e" stroke-width="2"><path d="M284 497q16-10 33 0l3 20q-20 10-38 0Z"/><path d="M280 546q20-10 42 0l2 20q-24 9-46 0Z"/><path d="M275 599q26-10 50 0l2 20q-27 11-54 0Z"/><path d="M270 652q30-10 57 0l-1 14q-27 15-54 0Z"/></g>
+  <path d="M311 73a31 31 0 1 0 10 51 25 25 0 0 1-10-51Z" fill="#e2eaff"/>
+  <path d="M311 73a31 31 0 1 0 10 51 25 25 0 0 1-10-51Z" fill="#b8c0ff" filter="url(#glow)"/>
+  <g fill="#c2d2ff"><circle cx="235" cy="183" r="3"/><circle cx="353" cy="146" r="2"/><circle cx="358" cy="314" r="3"/><circle cx="249" cy="402" r="2"/><circle cx="336" cy="464" r="2"/></g>
+  <path d="M230 382q-59-137 18-215m114 144q67-95-6-148" fill="none" stroke="#9faed8" stroke-width="2" opacity=".6"/>
+</svg>

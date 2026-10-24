@@ -26,12 +26,14 @@ internal sealed record DuelCreateRequest(string EveningId, string LeftIdentityId
 internal sealed record DuelCommand(int Revision, string OperationKey);
 internal sealed record DuelGrantRequest(string Side, int Revision, string OperationKey);
 internal sealed record DuelChoiceRequest(string Side, int Round, int Revision, string Action, string OperationKey);
+internal sealed record DuelJoinRequest(string Side, bool ConsentConfirmed, string OperationKey);
 internal sealed record DuelGrant(string Token, string Side, DateTimeOffset ExpiresAt, DuelView Duel);
 internal sealed record DuelView(string Id, string DeviceId, string EveningId, string RulesVersion, string Mode,
     int Revision, string State, DuelIdentitySnapshot Left, DuelIdentitySnapshot Right,
     int Round, DateTimeOffset? Deadline, bool LeftChoiceLocked, bool RightChoiceLocked,
     IReadOnlyList<DuelRound> Rounds, DuelResult? Result, string? Seed, DuelCommentary? Commentary = null,
-    string NarrationMode = "unbound", string NarrationStatus = "not_started", string? NarrationUnavailableReason = null);
+    string NarrationMode = "unbound", string NarrationStatus = "not_started", string? NarrationUnavailableReason = null,
+    bool RequiresParticipantConsent = false, bool LeftJoined = false, bool RightJoined = false);
 internal sealed record DuelRoundCommentary(int Round, string Quip, string Mishap);
 internal sealed record DuelCommentary(string Provider, string Model, IReadOnlyList<DuelRoundCommentary> Rounds);
 internal sealed record DuelCompletionEvent(string Id, string DeviceId, string EveningId,
@@ -53,6 +55,10 @@ internal sealed class DuelDocument
     public List<DuelRound> Rounds { get; init; } = [];
     public string? LeftChoice { get; set; }
     public string? RightChoice { get; set; }
+    public int? ChoiceRevision { get; set; }
+    public bool RequiresParticipantConsent { get; init; }
+    public bool LeftJoined { get; set; }
+    public bool RightJoined { get; set; }
     public DateTimeOffset? Deadline { get; set; }
     public DuelResult? Result { get; set; }
     public string NarrationMode { get; set; } = "unbound";
@@ -66,5 +72,6 @@ internal sealed class DuelDocument
         State == "Completed" ? Seed : null, NarrationMode: NarrationMode,
         NarrationStatus: NarrationMode == "physical_device" ? NarrationStage
             : NarrationMode == "web_only" ? "web_only_no_spoken_confirmation" : "not_started",
-        NarrationUnavailableReason: NarrationUnavailableReason);
+        NarrationUnavailableReason: NarrationUnavailableReason, RequiresParticipantConsent: RequiresParticipantConsent,
+        LeftJoined: LeftJoined, RightJoined: RightJoined);
 }

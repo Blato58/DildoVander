@@ -57,6 +57,7 @@ internal sealed partial class KeepsakeStore
         using var command = Command(connection, null,
             "SELECT id,document,published_edition_id,published_at_ticks FROM dv10_keepsakes "
             + "WHERE device_id=$device AND evening_id=$evening AND deleted=0 AND published_at_ticks IS NOT NULL "
+            + "AND (json_extract(document,'$.snapshot.generatedWand') IS NULL OR json_extract(document,'$.wandPublicationEditionId')=published_edition_id) "
             + "AND ($cursor=0 OR published_at_ticks<$time OR (published_at_ticks=$time AND id<$id)) "
             + "ORDER BY published_at_ticks DESC,id DESC LIMIT $limit",
             ("$device", deviceId), ("$evening", eveningId), ("$cursor", position is null ? 0 : 1),
@@ -80,9 +81,9 @@ internal sealed partial class KeepsakeStore
     }
 
     private static bool IsPublicBaseAsset(KeepsakeAsset asset, KeepsakeEdition edition) =>
-        asset.UploadId is null && asset.EditionId == edition.Id
+        asset.UploadId is null
         && (asset.Id == edition.ArtworkAssetId && asset.Kind == "base_image"
-            || asset.Kind is "export_story" or "export_card" or "export_zip");
+            || asset.EditionId == edition.Id && asset.Kind is "export_story" or "export_card" or "export_zip");
 
     private KeepsakeAsset RequireGalleryAsset(SqliteConnection connection, string deviceId, string eveningId,
         string id, string editionId, string assetId)
@@ -93,6 +94,7 @@ internal sealed partial class KeepsakeStore
             ("$id", id), ("$device", deviceId), ("$evening", eveningId), ("$edition", editionId));
         if (lookup.ExecuteScalar() is null) { throw new KeepsakeException("asset_not_found", 404); }
         var document = Load(connection, null, id);
+        if (!WandPublicationApproved(document, editionId)) { throw new KeepsakeException("asset_not_found", 404); }
         if (document.Snapshot.DeviceId != deviceId || document.Snapshot.EveningId != eveningId)
         { throw new KeepsakeException("asset_not_found", 404); }
         var edition = document.Editions.SingleOrDefault(item => item.Id == editionId && item.PublicationState == "ready");

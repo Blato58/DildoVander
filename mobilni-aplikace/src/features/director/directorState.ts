@@ -1,12 +1,13 @@
 import type { ShowState } from './DirectorClient';
-export interface Identity { identityId: string; displayName: string; wandId: string }
+export interface Identity { identityId: string; displayName: string; wandId: string; wandName?: string; spells?: { action: string; name: string; description: string }[] }
 export interface Prophecy { outcomeId: string; omen: string; unlockAt: string; state: string }
 export interface Duel {
   id: string; deviceId: string; eveningId: string; revision: number; state: string; round: number;
   mode: 'autoplay' | 'interactive' | 'exhibition';
   narrationMode?: 'unbound' | 'web_only' | 'physical_device';
   narrationStatus?: string; narrationUnavailableReason?: string | null; deadline?: string | null;
-  left: { displayName: string }; right: { displayName: string };
+  requiresParticipantConsent?: boolean; leftJoined?: boolean; rightJoined?: boolean;
+  left: { displayName: string; wandName?: string }; right: { displayName: string; wandName?: string };
   result?: { winner: string; ending: string } | null;
 }
 

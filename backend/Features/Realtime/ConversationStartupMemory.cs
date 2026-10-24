@@ -36,6 +36,8 @@ internal static class ConversationStartupMemory
             }
         }
         var access = conversations.LiveMemoryAccess(call);
+        if (requestServices is not null)
+            call = await CustomerWandSelection.PrepareAsync(call, conversations, requestServices, token);
         var customer = conversations.CustomerStartupContext(call);
         if (access is null && customer.Length == 0) { return call; }
         var startup = access is null ? null : await memory.StartupContextAsync(access, token);

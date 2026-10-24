@@ -98,6 +98,14 @@ afterEach(() => {
 });
 
 describe('customer session result card', () => {
+  it('shows unavailable personal generation without inventing a wand and routes an explicit retry through conversation', async () => {
+    api.request.mockResolvedValue({ ...result('unavailable', { owner: false, locator: null, readiness: { reason: 'result_unavailable' } }), wandGeneration: { status: 'failed', canRetry: true } });
+    const wrapper = await render(); await flushPromises();
+    expect(wrapper.text()).toContain('Osobní hůlku se nepodařilo vytvořit');
+    expect(wrapper.get('a[href="/me/conversation"]').text()).toBe('Přejít k rozhovoru');
+    expect(api.request.mock.calls.filter(call => call[1] !== 'GET')).toHaveLength(0);
+  });
+
   it('loads the nested endpoint response and links only a verified server locator', async () => {
     api.request.mockResolvedValue(result('ready'));
     const wrapper = await render();

@@ -59,6 +59,7 @@ internal static class AutonomousLiveTests
         await VerifyDeletionBeforeQuietAsync(options);
         await VerifyCharacterCancellation(options);
         await VerifySplitVoiceControl(options);
+        await VerifyConversation(options, correction: false, personalized: true);
         await VerifyPcmCancellationFence(options);
         foreach (var control in new[] { "To řekl kamarád.", "To není pravda.", "To byl vtip." })
         { await VerifyCharacterEvidenceWithdrawal(options, control); }
@@ -892,6 +893,21 @@ internal static class AutonomousLiveTests
         Check(System.Text.Encoding.UTF8.GetByteCount(escaped) <= ResponsesTextDialogBudget.MaxRequestBytes,
             "long Czech/escaped evidence fits actual serialized request budget, retaining every answer reference");
         Check(Enumerable.Range(0, 8).All(i => escaped.Contains("answer-" + i)), "budgeting does not discard old answers as a two-exchange shortcut");
+        var richCandidates = Enumerable.Range(1, 6).Select(slot => new Kufr.Backend.Features.Wands.GeneratedWandSnapshot(
+            "private-wand-" + slot, "private-generation-id", "private-character-id", 55, slot,
+            "Hvězda " + new string((char)('a' + slot), 70), new string('ž', 160), new string('ř', 160),
+            new string('š', 300), new string('ě', 700), new string('č', 700), new string('ů', 200), new string('ť', 200),
+            [new("strike", "Úder", new string('ž', 300)), new("trick", "Klam", new string('ž', 300)), new("shield", "Štít", new string('ž', 300))])).ToArray();
+        var compactDecision = WandDecisionService.BuildRequest(input with { ReadyMask = 63, GeneratedWands = richCandidates });
+        Check(System.Text.Encoding.UTF8.GetByteCount(compactDecision) <= ResponsesTextDialogBudget.MaxRequestBytes
+            && !compactDecision.Contains("private-generation-id") && !compactDecision.Contains("private-character-id"),
+            "six maximal Czech wand snapshots fit the real decision budget without duplicated private bindings");
+        using var personalizedLifetime = new CancellationTokenSource();
+        var maximalCall = Call(options, personalizedLifetime);
+        maximalCall = maximalCall with { Context = maximalCall.Context with { GeneratedWands = richCandidates } };
+        using var boundedStart = JsonDocument.Parse(JsonSerializer.Serialize(GptLiveProtocol.AutonomousStart(maximalCall.Context, "bounded-start")));
+        Check(LiveTextBudget.UpperBound(boundedStart.RootElement.GetProperty("session").GetProperty("instructions").GetString()!) <= 16_384,
+            "six maximal Czech generated candidates fit the final Live instructions ceiling");
         using var invalid = new WandDecisionService((i, _) => Task.FromResult(new WandDecisionResult(WandDecisionStatus.ValidProposal, 6,
             [new("a", "made up", "fact")], "", i.Revision, i.AvailabilityRevision)));
         try { await invalid.DecideAsync(input with { ReadyMask = 1 }, CancellationToken.None); throw new Exception("Invalid proposal accepted"); }
@@ -903,6 +919,7 @@ internal static class AutonomousLiveTests
             try { await tooManyQuestions.DecideAsync(i, CancellationToken.None); throw new Exception("Endless diagnostic question"); }
             catch (InvalidDataException) { }
         }
+        await VerifyConversation(options, correction: false, personalized: true);
         await VerifyPcmCancellationFence(options);
         await VerifyConversation(options, correction: false, fractionalTimeline: true);
         await VerifyConversation(options, correction: false, revokeAtPublication: true);
@@ -1067,7 +1084,7 @@ internal static class AutonomousLiveTests
 
     private static async Task VerifyConversation(GptLiveOptions options, bool correction, bool interrupt = false,
         bool naturalVerdict = false, bool visitorStillSpeaking = false, bool acknowledge = false,
-        bool resumeDuringDecision = false, bool repairVerdict = false, bool fractionalTimeline = false, bool withMemory = false, bool revokeAtPublication = false)
+        bool resumeDuringDecision = false, bool repairVerdict = false, bool fractionalTimeline = false, bool withMemory = false, bool revokeAtPublication = false, bool personalized = false)
     {
         using var clock = new ManualClock();
         using var socket = new SocketFixture();
@@ -1101,6 +1118,14 @@ internal static class AutonomousLiveTests
         });
         using var integrated = withMemory ? new MemoryConversationFixture(options) : null;
         var call = integrated?.Admit(lifetime.Token) ?? Call(options, lifetime);
+        if (personalized)
+        {
+            var candidate = new Kufr.Backend.Features.Wands.GeneratedWandSnapshot("wand-new", "session-new", "character-new", 7,
+                1, "Hvězdná ozvěna", "Měsíční dřevo", "Jiskra", "Zvědavá", "Fiktivní hvězdná historie.",
+                "Digitální souhvězdí", "Hvězdy", "Netrpělivost", [new("strike", "Pád komety", "Fiktivní úder"),
+                new("trick", "Ozvěna mlhoviny", "Fiktivní klam"), new("shield", "Noční závoj", "Fiktivní štít")]);
+            call = call with { Context = call.Context with { GeneratedWands = [candidate] } };
+        }
         if (withMemory) { call = call with { Context = call.Context with { EveningContext = "bound memory: opravuji fialove hodiny", CostumeContext = "stale admission image" } }; }
         var playerRequests = Channel.CreateUnbounded<LivePlaybackRequest>();
         var playerDone = new TaskCompletionSource<LivePlaybackConfirmation>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1187,6 +1212,11 @@ internal static class AutonomousLiveTests
         Check(calls == (correction ? 2 : 1) && !result.Contains("ZASTARALÝ"), "duplicate/late stale work is not published or replayed");
         var name = PartyWandCatalog.Available(63).Single(w => w.Compartment == (correction ? 2 : 1)).DisplayName;
         if (options.Character.Enabled) { name = "Výběr mám"; }
+        if (personalized)
+        {
+            name = call.Context.GeneratedWands!.Single().Name;
+            Check(result.Contains(name) && !result.Contains("Poslední slovo"), "actual backend delegation delivers personalized identity without legacy title");
+        }
         if (naturalVerdict) name = "Poslední slovo";
         socket.Transcript(false, name + " —", 3000, 4000);
         socket.Audio();

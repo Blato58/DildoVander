@@ -9,14 +9,16 @@ namespace Kufr.Backend.Features.Keepsakes;
 // Storage provenance is intentionally separate from the explicitly public projection.
 internal sealed record WizardIdentity(string IdentityId, string KeepsakeId, string EditionId,
     string SourcePresentationId, string CatalogWandId, WizardIdentityContent Content,
-    string[] SourceRefs, string ContentVersion, string Visibility, DateTimeOffset CreatedAt);
+    string[] SourceRefs, string ContentVersion, string Visibility, DateTimeOffset CreatedAt,
+    Kufr.Backend.Features.Wands.GeneratedWandPublicSnapshot? GeneratedWand = null);
 internal sealed record WizardIdentityContent(string WizardAlias, string HouseOrGuild,
     string DubiousSpecialization, string SignatureAbility, string Weakness, string MinistryAssessment,
     string WandBond, string Motto, string MicroStory);
 internal sealed record WizardIdentityCard(string IdentityId, string KeepsakeId, string EditionId,
     string CatalogWandId, string WizardAlias, string HouseOrGuild, string DubiousSpecialization,
     string SignatureAbility, string Weakness, string MinistryAssessment, string WandBond,
-    string Motto, string MicroStory, string Omen, string ContentVersion, string Visibility);
+    string Motto, string MicroStory, string Omen, string ContentVersion, string Visibility,
+    Kufr.Backend.Features.Wands.GeneratedWandPublicSnapshot? GeneratedWand = null);
 internal sealed record StoredProphecy(string IdentityId, string EditionId, string Omen, string Revelation,
     string? Afterword, DateTimeOffset CreatedAt, DateTimeOffset UnlockAt, string? UnlockReason = null,
     string ContentVersion = "dv10-prophecy-v1", string Visibility = "owner_only");
@@ -44,7 +46,9 @@ internal sealed partial class KeepsakeStore
             "Promění trapné ticho v řádnou přestávku na občerstvení.",
             "Kouzlo selhává při otázce: kdo to potom uklidí?",
             "Fiktivní ministerstvo: podmíněně způsobilý. Razítko vydáno během oběda.",
-            $"Katalogová hůlka z přihrádky {snapshot.Slot} přijala společné mlčení jako závaznou smlouvu.",
+            snapshot.GeneratedWand is { } personal
+                ? $"{personal.Name} přijímá tuto čistě fiktivní kouzelnickou smlouvu."
+                : $"Katalogová hůlka z přihrádky {snapshot.Slot} přijala společné mlčení jako závaznou smlouvu.",
             "Když nevíš, zakouzli přestávku.",
             "U přepážky nebyla fronta. To bylo první podezřelé znamení. Hůlka se přesto přihlásila do služby, "
             + "převzala formulář pro mimořádné okolnosti a místo podpisu nakreslila malou židli. "
@@ -71,7 +75,7 @@ internal sealed partial class KeepsakeStore
         document.WizardIdentities.Add(new(identityId, id, editionId, document.Snapshot.OutcomeId,
             document.Snapshot.CatalogId, content,
             ["confirmed_outcome", "catalog:" + document.Snapshot.CatalogVersion, (generated ? "provider_validated:" : "authorial_fallback:") + IdentityVersion],
-            IdentityVersion, PublicIdentityVisibility, created));
+            IdentityVersion, PublicIdentityVisibility, created, document.Snapshot.GeneratedWand));
         document.Prophecies.Add(new(identityId, editionId, "Dnes ještě zazní slavné poslední slovo: jenom jedno.",
             "Ještě dnes ti někdo vysvětlí, že už opravdu odchází. Potkáš ho u baru dvakrát.",
             "Ministerstvo předvídání si pro jistotu objednalo také.", created, created.AddMinutes(15), document.ProphecyUnlockReason));
@@ -82,7 +86,7 @@ internal sealed partial class KeepsakeStore
         identity.Content.HouseOrGuild, identity.Content.DubiousSpecialization, identity.Content.SignatureAbility,
         identity.Content.Weakness, identity.Content.MinistryAssessment, identity.Content.WandBond,
         identity.Content.Motto, identity.Content.MicroStory, "Dnes ještě zazní slavné poslední slovo: jenom jedno.",
-        identity.ContentVersion, identity.Visibility);
+        identity.ContentVersion, identity.Visibility, identity.GeneratedWand);
 
     private ProphecyView OwnerProphecy(StoredProphecy prophecy)
     {
@@ -106,6 +110,7 @@ internal sealed partial class KeepsakeStore
             {
                 var document = JsonSerializer.Deserialize<Document>(reader.GetString(0), Json)!;
                 var editionId = reader.GetString(1);
+                if (!WandPublicationApproved(document, editionId)) { continue; }
                 if (!document.Editions.Any(edition => edition.Id == editionId && edition.PublicationState == "ready")) { continue; }
                 results.AddRange(document.WizardIdentities.Where(identity => identity.EditionId == editionId
                     && identity.Visibility == PublicIdentityVisibility).Select(ToCard));
@@ -128,6 +133,7 @@ internal sealed partial class KeepsakeStore
             if (!reader.Read()) { return null; }
             var document = JsonSerializer.Deserialize<Document>(reader.GetString(0), Json)!;
             var editionId = reader.GetString(1);
+            if (!WandPublicationApproved(document, editionId)) { return null; }
             if (!document.Editions.Any(edition => edition.Id == editionId && edition.PublicationState == "ready")) { return null; }
             var identity = document.WizardIdentities.SingleOrDefault(item => item.IdentityId == identityId
                 && item.EditionId == editionId && item.Visibility == PublicIdentityVisibility);

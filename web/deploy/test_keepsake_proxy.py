@@ -70,6 +70,13 @@ class ProxyTests(unittest.TestCase):
         self.assertFalse(proxy.allowed("DELETE", asset))
         self.assertFalse(proxy.allowed("POST", asset + "/claim"))
 
+    def test_duel_join_is_scoped_post_only(self):
+        path = f"/guest/v1/duels/{ID}/join"
+        self.assertTrue(proxy.allowed("POST", path))
+        self.assertFalse(proxy.allowed("GET", path))
+        self.assertFalse(proxy.allowed("DELETE", path))
+        self.assertFalse(proxy.allowed("POST", path + "/extra"))
+
     def test_account_association_keeps_exact_guest_post_capability_boundary(self):
         path = f"/guest/v1/keepsakes/{ID}/account-associations"
         self.assertTrue(proxy.allowed("POST", path))

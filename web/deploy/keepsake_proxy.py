@@ -14,6 +14,7 @@ ROUTES = [
     ("/guest/v1/chronicle", {"GET"}),
     ("/guest/v1/duels/" + GUID, {"GET"}),
     ("/guest/v1/duels/" + GUID + "/choices", {"POST"}),
+    ("/guest/v1/duels/" + GUID + "/join", {"POST"}),
     ("/guest/v1/evening", {"GET"}),
     ("/guest/v1/evenings/" + GUID + "/keepsakes/" + GUID + "/editions/" + GUID + "/assets/" + GUID, {"GET"}),
     ("/guest/v1/(?:bootstrap|claim|recover|share-claim)", {"POST"}),

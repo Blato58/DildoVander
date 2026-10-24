@@ -241,6 +241,7 @@ internal sealed partial class ConversationStore
                     return null;
                 }
             }
+            if (proposal is not null && !PinCustomerWand(call, proposal.Compartment)) { return null; }
             // A memory write failure must leave the operation fail-able rather
             // than publish a completed journal entry without its result.
             if (!journal.MarkSelectionCompleted(call.OperationId, proposal,

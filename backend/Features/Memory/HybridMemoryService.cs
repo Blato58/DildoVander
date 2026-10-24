@@ -335,6 +335,14 @@ internal sealed class HybridMemoryService(EveningMemoryStore store, OpenAiVector
         return new(BuildContext(access, records, delivered, literalOnly: true), delivered.ToArray());
     }
 
+    internal IReadOnlyList<string> PermittedWandEvidence(MemoryAccess access)
+    {
+        if (!options.Enabled || access.Guest is not { IdentityVerified: true, LongTermAllowed: true }) return [];
+        return store.LocalMemory(access, MemoryScope.Personal)
+            .Where(record => record.Kind == MemoryKind.UserReportedFact).Take(3)
+            .Select(record => Kufr.Backend.Features.GptLive.LiveTextBudget.Bound(record.Text, 600)).ToArray();
+    }
+
     internal Task<LiveMemoryContext> StartupContextAsync(MemoryAccess access, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();

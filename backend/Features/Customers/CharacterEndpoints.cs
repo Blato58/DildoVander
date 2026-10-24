@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Identity;
+using Kufr.Backend.Features.Keepsakes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.ClientModel;
@@ -42,7 +43,15 @@ internal static class CharacterEndpoints
             catch (CharacterException error) { return ApiProblem.Create(http, error.Status, error.Code); }
         });
         group.MapGet("", async (HttpContext http, CharacterProfileStore store) =>
-            Results.Ok(new { profile = await store.ReadAsync(AccountId(http), http.RequestAborted) }));
+        {
+            var owner = AccountId(http);
+            var profile = await store.ReadAsync(owner, http.RequestAborted);
+            var wand = profile is null ? null : http.RequestServices.GetService<Kufr.Backend.Features.Wands.WandGenerationStore>()
+                ?.LatestBonded(owner, profile.ProfileId, profile.Revision);
+            var artwork = wand is null ? null : http.RequestServices.GetService<KeepsakeStore>()
+                ?.FindOwnedWandArtwork(owner, wand.WandId);
+            return Results.Ok(new { profile, generatedWand = wand?.ToPublic(), artwork });
+        });
         group.MapPut("", async (CharacterWriteRequest request, HttpContext http, CharacterProfileStore store) =>
             Results.Ok(new { profile = await store.SaveAsync(AccountId(http), request, http.RequestAborted) }));
         group.MapPost("/correction", async (CharacterCorrectionRequest request, HttpContext http, CharacterProfileStore store) =>
@@ -64,6 +73,9 @@ internal static class CharacterEndpoints
         var conversations = services.GetRequiredService<ConversationStore>();
         return store.ReplayDeletionsAsync((accountId, profileId) =>
         {
+            var wands = services.GetService<Kufr.Backend.Features.Wands.WandGenerationStore>();
+            if (profileId is null) { wands?.DeleteAccount(accountId); }
+            else { wands?.DeleteProfile(accountId, profileId); }
             journal.RevokeCustomerProfile(accountId, profileId);
             foreach (var session in journal.CustomerSessions(accountId).Where(session =>
                 (profileId is null || session.ProfileId == profileId) && session.ConversationId is not null))

@@ -26,7 +26,7 @@ internal static class ShowArchiveEndpoints
         routes.MapGet("/identities", (string deviceId, string eveningId, KeepsakeStore store) =>
             Results.Json(store.ListPublicWizardIdentities(deviceId, eveningId).Select(identity => new
             {
-                identity.IdentityId, displayName = identity.WizardAlias, wandId = identity.CatalogWandId
+                identity.IdentityId, displayName = identity.WizardAlias, wandId = identity.CatalogWandId, wandName = identity.GeneratedWand?.Name
             })));
         routes.MapGet("/prophecies", (string deviceId, string eveningId, KeepsakeStore store) =>
             Results.Json(store.ListOperatorProphecies(deviceId, eveningId)));

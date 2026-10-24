@@ -30,6 +30,7 @@ internal sealed record RealtimeTurnContext(
     bool LiveAudio = false,
     int OutputTokenLimit = RealtimeProtocol.MaxOutputTokens)
 {
+    internal IReadOnlyList<Kufr.Backend.Features.Wands.GeneratedWandSnapshot>? GeneratedWands { get; init; }
     internal string CostumeContext { get; init; } = "";
     internal string PersonalityId { get; init; } = PersonalityCatalog.DefaultId;
     internal GptLive.LivePromptSnapshot? LivePrompt { get; init; }
@@ -148,14 +149,14 @@ internal static class RealtimeProtocol
         {
             Instructions = Instructions(turn) + "\n" + turn.CostumeContext + "\nServerová pravidla tohoto tahu: "
                 + $"opening={turn.Request.Opening}; requireQuestion={turn.RequireQuestion}; "
-                + $"Dostupné hůlky: {PartyWandCatalog.AvailableForPrompt(turn.Request.ReadyMask)}. "
+                + $"Dostupné hůlky: {CustomerWandSelection.AvailableForPrompt(turn)}. "
                 + (turn.Request.ReadyMask == 0
                     ? "Žádná hůlka není dostupná; zavolej end_conversation."
                     : turn.RequireQuestion
                         ? "Polož jednu otázku. Výběr není povolený."
                         : "Jakmile máš podklady, rovnou vyber přes propose_wand. Nežádej souhlas s hůlkou; další otázka jen pro chybějící podklad.")
                 + (turn.Request.Opening ? " " + PersonalityCatalog.OpeningInstructions(turn.PersonalityId, turn.OpeningVariation) : "")
-                + TrustedPolicySuffix(turn),
+                + TrustedPolicySuffix(turn) + CustomerWandSelection.ActorInstructions(turn),
             MaxOutputTokenCount = turn.OutputTokenLimit,
             Truncation = RealtimeDefaultTruncation.Disabled,
             AudioOptions = new RealtimeConversationSessionAudioOptions

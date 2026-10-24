@@ -117,6 +117,7 @@ internal sealed partial class KeepsakeStore
             }
         }
         InitializeCompletionUpdates(connection);
+        AdoptLegacyWandArtwork(connection);
         RecoverCompletionUpdates(connection);
         ResumeDeletionCleanup();
     }
@@ -216,7 +217,8 @@ internal sealed partial class KeepsakeStore
                 var existingId = reader.GetString(0);
                 if (reader.GetInt32(2) != 0) { throw new KeepsakeException("outcome_deleted", 410); }
                 var document = JsonSerializer.Deserialize<Document>(reader.GetString(1), Json)!;
-                if ((document.Snapshot with { SourceConversationId = snapshot.SourceConversationId }) != snapshot
+                if (JsonSerializer.Serialize(document.Snapshot with { SourceConversationId = snapshot.SourceConversationId }, Json)
+                    != JsonSerializer.Serialize(snapshot, Json)
                     || (document.Snapshot.SourceConversationId is not null && document.Snapshot.SourceConversationId != snapshot.SourceConversationId)) { throw new KeepsakeException("outcome_snapshot_conflict", 409); }
                 reader.Close();
                 BindCustomerOwner(connection, transaction, existingId, customerOwner);
@@ -224,6 +226,7 @@ internal sealed partial class KeepsakeStore
                 return new(existingId);
             }
             reader.Close();
+            ValidateGeneratedAssignment(connection, transaction, snapshot, customerOwner);
             var id = NewId();
             Execute(connection, transaction,
                 "INSERT INTO dv10_keepsakes(id,outcome_key,device_id,document,evening_id) VALUES($id,$o,$d,$j,$evening)",
@@ -241,6 +244,9 @@ internal sealed partial class KeepsakeStore
     private sealed record Document(KeepsakeIssueSnapshot Snapshot)
     {
         public int Revision { get; set; }
+        public WandArtworkSnapshot? Artwork { get; set; }
+        public string? CurrentArtworkJob { get; set; }
+        public string? WandPublicationEditionId { get; set; }
         public string? ProphecyUnlockReason { get; set; }
         public int ConsentVersion { get; set; }
         public bool PortraitConsent { get; set; }

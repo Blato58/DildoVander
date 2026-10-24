@@ -24,9 +24,10 @@ const server = createServer(async (request, response) => {
     if (!file.startsWith(dist)) { response.writeHead(403).end(); return; }
     try { if (!(await stat(file)).isFile()) file = path.join(dist, 'index.html'); }
     catch { file = path.join(dist, 'index.html'); }
+    const bytes = await readFile(file);
     response.writeHead(200, { 'Content-Type': mime[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
-    response.end(await readFile(file));
-  } catch { response.writeHead(500).end(); }
+    response.end(bytes);
+  } catch { if (!response.headersSent) response.writeHead(500).end(); else response.destroy(); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;

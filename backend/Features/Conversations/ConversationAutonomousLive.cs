@@ -99,6 +99,7 @@ internal sealed partial class ConversationStore
         if (!IsRealtimeTurnCurrent(call)) { return null; }
         var capturedEvening = call.LabHardware is null
             ? eveningMemory?.ReadCapturedShowEvening(correlation.DeviceId, correlation.ConversationId) ?? call.EveningId : null;
+        if (proposal is not null && !PinCustomerWand(call, proposal.Compartment)) { return null; }
         bool CommitProposal() => journal.MarkSelectionCompleted(call.OperationId, proposal, capturedEvening,
             call.MemoryDeletionEpoch, call.Context.PersonalityId);
         var published = call.LabHardware is null && call.Context.LivePrompt is { Version: "dv01-adult-v1" } && show is not null

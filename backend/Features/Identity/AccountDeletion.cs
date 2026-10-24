@@ -80,6 +80,7 @@ internal sealed class AccountDeletionService(AccountDatabase db, IServiceProvide
                 request.Attempts++;
                 await db.SaveChangesAsync(token);
                 var stores = Stores();
+                services.GetService<Kufr.Backend.Features.Wands.WandGenerationStore>()?.DeleteAccount(request.UserId);
                 await stores.Character.FenceAccountDeletionAsync(request.UserId, token);
                 stores.Journal.RevokeCustomerProfile(request.UserId);
                 stores.Keepsakes.FenceAccountDeletion(request.UserId);

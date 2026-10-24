@@ -1,5 +1,9 @@
 # DildoVander Show Pack
 
+Generated character assignments and the additive duel v2 rules follow
+[personalized wands](personalized-wands.md). Their owner-approved digital names
+are independent of the six physical slots; legacy contracts below remain valid.
+
 Zadání `dildovander-show-pack` 2026.10.19.1 rozšiřuje DV01, DV02 a DV10.
 Aktuální akceptaci vede [privátní evidence](development-coordination.md);
 [mapa požadavků](show-pack-requirements.json) váže jednotlivá ID na zdroj a testy.

@@ -28,10 +28,13 @@ internal static class GptLiveProtocol
         if (snapshot.Options.Mode != LiveActorMode.AutonomousActor || LiveTextBudget.UpperBound(snapshot.Instructions) > 16_384
             || turn.LiveInput.Count > 128 || LiveTextBudget.UpperBound(JsonSerializer.Serialize(turn.LiveInput)) > 8_192)
             throw new InvalidOperationException("Live startup context exceeds its verified contract.");
+        var instructions = snapshot.Instructions + "\n" + turn.CostumeContext
+            + RealtimeProtocol.TrustedPolicySuffix(turn) + CustomerWandSelection.ActorInstructions(turn);
+        if (turn.GeneratedWands is not null && LiveTextBudget.UpperBound(instructions) > 16_384)
+            throw new InvalidOperationException("Personalized Live instructions exceed their verified ceiling.");
         return new { type = "session.start", event_id = eventId, session = new
         {
-            model = Model, store = false, input = turn.LiveInput, instructions = snapshot.Instructions
-                + "\n" + turn.CostumeContext + RealtimeProtocol.TrustedPolicySuffix(turn),
+            model = Model, store = false, input = turn.LiveInput, instructions,
             audio = new { format = new { type = "audio/pcm", rate = 24000 }, output = new { voice = turn.Request.Voice } },
             delegation = new { type = "client" }
         } };

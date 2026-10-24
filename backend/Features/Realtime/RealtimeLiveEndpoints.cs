@@ -223,7 +223,7 @@ internal static partial class RealtimeLiveEndpoints
                     await WriteAsync(new { type = "failed", code = admission.Code }, lifetime.Token);
                     return;
                 }
-                call = admission.Call;
+                call = admission.Call with { Context = admission.Call.Context with { GeneratedWands = current.Context.GeneratedWands } };
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)

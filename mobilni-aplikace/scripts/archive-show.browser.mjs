@@ -72,14 +72,15 @@ try {
   await page.goto(`${origin}/keepsake/duel.html?duel=${id}#grant=${grant}&side=left`);
   await page.getByRole('button', { name: 'Úder', exact: true }).waitFor();
   assert.equal(new URL(page.url()).hash, ''); assert.equal(await page.locator('meta[name=robots]').count(), 1); assert.match(await page.locator('meta[name=robots]').getAttribute('content'), /noindex/);
-  await page.getByRole('button', { name: 'Úder', exact: true }).focus(); assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Úder');
+  const strike = page.getByRole('button', { name: 'Úder', exact: true });
+  await strike.focus(); assert.equal(await strike.evaluate(button => document.activeElement === button), true, 'the named spell button receives keyboard focus');
   await fits(); await page.screenshot({ path: path.join(output, 'duel-desktop.png'), fullPage: true });
   await page.getByRole('button', { name: 'Úder', exact: true }).click(); await page.getByText('Tah přijat a uzamčen.', { exact: false }).waitFor();
   const moves = requests.filter(request => request.path.endsWith('/choices')); assert.equal(moves.length, 1);
   assert.deepEqual(Object.keys(JSON.parse(moves[0].body)).sort(), ['action', 'operationKey', 'revision', 'round', 'side']);
   assert.equal(JSON.parse(moves[0].body).revision, 1);
   await page.setViewportSize({ width: 390, height: 844 }); await fits(); await page.screenshot({ path: path.join(output, 'duel-mobile.png'), fullPage: true });
-  await page.goto(`${origin}/archive/duel?duel=${id}`); await page.getByRole('heading', { name: 'Souboj kouzelnických identit' }).waitFor();
+  await page.goto(`${origin}/archive/duel?duel=${id}`); await page.getByRole('heading', { name: 'Souboj postav', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Úder', exact: true }).count(), 0);
   await page.goto(`${origin}/archive`); await page.getByRole('heading', { name: identity.wizardAlias }).waitFor(); await fits();
   assert(!(await page.locator('main').innerText()).includes('PRIVATE_PUBLIC_EXTRA')); await page.screenshot({ path: path.join(output, 'identity-mobile.png'), fullPage: true });

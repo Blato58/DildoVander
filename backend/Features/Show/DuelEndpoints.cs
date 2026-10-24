@@ -64,6 +64,19 @@ internal static class DuelEndpoints
                 return store.Choose(id, authorization[7..], request);
             });
         });
+        guests.MapPost("/{id:guid}/join", (HttpContext context, string id, DuelJoinRequest request,
+            IConfiguration config, DuelStore store) =>
+        {
+            var device = PublicDevice(context, config);
+            if (device is null) { return Error(404, "duel_unavailable"); }
+            var authorization = context.Request.Headers.Authorization.ToString();
+            if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) { return Error(403, "grant_unavailable"); }
+            return Respond(context, () =>
+            {
+                _ = store.Read(id, device, publicView: true);
+                return store.Join(id, authorization[7..], request);
+            });
+        });
         return endpoints;
     }
 

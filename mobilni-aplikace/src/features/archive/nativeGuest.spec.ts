@@ -51,7 +51,10 @@ describe('native guest transport shares real SFC contracts without account crede
     await expect(transport('/guest/v1/chronicle', { headers: { Authorization: 'Bearer ' + 'x'.repeat(43) } })).rejects.toThrow();
     await expect(transport(`/guest/v1/duels/${id}/choices`, { method: 'POST', headers: { Authorization: 'Bearer account-token' } })).rejects.toThrow();
     await expect(transport(`/guest/v1/duels/${id}/choices`, { method: 'POST', headers: { 'X-DV10-CSRF': 'owner-session' } })).rejects.toThrow();
-    expect(nativeBridge.guestRequest).toHaveBeenCalledTimes(3);
+    await transport(`/guest/v1/duels/${id}/join`, { method: 'POST', credentials: 'omit', headers: { Authorization: 'Bearer ' + 'x'.repeat(43) }, body: JSON.stringify({ side: 'left', consentConfirmed: true, operationKey: id }) });
+    expect(() => validateGuestRequest(`/guest/v1/duels/${id}/join`, 'GET')).toThrow();
+    await expect(transport(`/guest/v1/duels/${id}/join`, { method: 'POST', headers: { 'X-DV10-CSRF': 'owner-session' } })).rejects.toThrow();
+    expect(nativeBridge.guestRequest).toHaveBeenCalledTimes(4);
   });
   it('rejects late native binary responses after route invalidation', async () => {
     let complete!: (value: object) => void;

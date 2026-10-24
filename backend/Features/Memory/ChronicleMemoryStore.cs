@@ -564,8 +564,10 @@ internal sealed partial class EveningMemoryStore
                 }
             }
         }
-        var wands = PartyWandCatalog.Available(63).Select(w => new ChronicleWand(w.Compartment,
-            w.StableId, w.DisplayName, presentations.GetValueOrDefault(w.Compartment))).ToArray();
+        // Presentations count physical locations, not a fixed fictional identity.
+        // Persisted older chronicles keep their captured names unchanged.
+        var wands = Enumerable.Range(1, 6).Select(slot => new ChronicleWand(slot,
+            "physical-slot-" + slot, "Přihrádka " + slot, presentations.GetValueOrDefault(slot))).ToArray();
         var maximum = presentations.Values.DefaultIfEmpty().Max();
         var leaders = maximum == 0 ? [] : wands.Where(w => w.ConfirmedPresentations == maximum).Select(w => w.Slot).ToArray();
         var visits = counts.GetValueOrDefault(ShowMemoryEventKind.VisitCompleted);
