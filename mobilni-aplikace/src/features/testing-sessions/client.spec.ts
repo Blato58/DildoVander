@@ -4,6 +4,14 @@ vi.mock('../identity/session',()=>({accountTransport:transport}));
 import { TestingSessionsClient } from './client';
 afterEach(()=>vi.clearAllMocks());
 describe('testing account transport boundaries',()=>{
+  it('retains the server trace for JSON and non-JSON failures without exposing the response body', async () => {
+    const requestId = '01234567-89ab-4cde-8f01-23456789abcd';
+    const client = new TestingSessionsClient(() => 'owner');
+    transport.mockResolvedValueOnce(new Response('<html>gateway detail</html>', { status: 502, headers: { 'X-Request-Id': requestId } }));
+    await expect(client.characters()).rejects.toMatchObject({ code: 'testing_request_failed', status: 502, requestId });
+    transport.mockResolvedValueOnce(Response.json({ code: 'account_required', traceId: requestId }, { status: 401 }));
+    await expect(client.characters()).rejects.toMatchObject({ code: 'account_required', status: 401, requestId });
+  });
   it('fences a response that arrives after account replacement even when transport ignores cancellation',async()=>{
     let owner='first';let complete!:(response:Response)=>void;
     transport.mockImplementation(()=>new Promise<Response>(resolve=>{complete=resolve;}));

@@ -310,6 +310,17 @@ internal sealed partial class CharacterProfileStore
             ? new(current.ProfileId, current.Revision, current.UserInput, current.Enrichment, Now()) : null;
     }
 
+    internal string? JobIdForRevision(string accountId, string profileId, long revision)
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id FROM character_jobs WHERE account_id=$account AND profile_id=$profile AND revision=$revision";
+        command.Parameters.AddWithValue("$account", accountId);
+        command.Parameters.AddWithValue("$profile", profileId);
+        command.Parameters.AddWithValue("$revision", revision);
+        return command.ExecuteScalar() as string;
+    }
+
     internal Task<CharacterJob?> ClaimAsync(CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();

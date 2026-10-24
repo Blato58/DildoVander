@@ -481,6 +481,27 @@ ruční výběr přihrádky; Stop zůstává dostupný. Telefonní audio zůstá
 
 ## Současný lokální webový vývoj
 
+### Diagnostika přihlášení a aplikačních akcí
+
+Sdílený transport účtu zaznamenává na webu i iOS posledních 200 dokončených
+požadavků v paměti tohoto spuštění: čas, anonymizovanou cestu, HTTP metodu,
+výsledek, délku a serverové `X-Request-Id`. Bez těla požadavku/odpovědi,
+parametrů URL, identifikátorů účtu nebo zdrojů, hesel a tokenů. Odhlášení nebo
+změna účtu přehled vymaže; opožděné výsledky jej znovu nenaplní.
+Průběh passkey ověření se zaznamená i při lokálním přerušení před HTTP odpovědí.
+
+V Nastavení → Diagnostika připojení lze připravit JSON pro podporu nebo přehled
+vymazat. Soubor se nikam automaticky neodesílá. Tester Flow přidává tento přehled
+do svého technického exportu a u HTTP chyby ukazuje ID požadavku. Serverové
+logy podle stejného ID dohledají konkrétní akci; jejich čtení vyžaduje stávající
+oprávnění správce. Běžný uživatel tím nezíská přístup k serverovým logům.
+
+Obnovení testu zachovává dostupné části stavu i při chybě jiného čtení. Úspěšné
+obnovení odstraní chybu předchozího čtení; nepotvrzená změna nebo zpráva zůstane
+označená a sama se znovu neodešle.
+
+### Spuštění a kontroly
+
 Ve složce `mobilni-aplikace` použijte Node.js 24.21.0 z `.nvmrc`:
 
 ```text

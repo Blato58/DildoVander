@@ -5,7 +5,29 @@ credentialů a syrových HTTP/provider odpovědí. Čtení nevolá AI. Každý H
 požadavek dostane serverem vytvořené `X-Request-Id`; stejné ID je v problému
 `traceId`, logu i iOS Debug. Operace mají vlastní `operationId`. Realtime
 zapisuje started/completed/listening/speech_stopped/failed/closed i uvnitř
-HTTP 200 streamu. Úspěšné GET/poll a PCM uploady se nezapisují.
+HTTP 200 streamu. Úspěšné GET/poll kromě kontroly účtu a PCM uploady se nezapisují.
+
+Přihlášení a odhlášení mají události `account_sign_in_completed/failed` a
+`account_sign_out_completed/failed`; kontrola `/app/v1/session` zapisuje
+`account_session_checked` s technickým stavem `authenticated` nebo `anonymous`.
+Ostatní aplikační změny zachovávají `http_request` s šablonou cesty, HTTP stavem,
+dobou a bezpečným kódem chyby. Nepoužívají se uživatelská jména ani identifikátory
+účtů, credentialy, těla požadavků či query parametry.
+
+Testing Flow propojuje odpověď uložení/doplnění postavy s trvalou provider úlohou:
+`testing_character_job_requested` obsahuje stejné `traceId` jako HTTP odpověď a
+`operationId` úlohy. Tímto `operationId` lze dohledat `started`, `completed`,
+`retry_scheduled`, `discarded` a `failed`, včetně čísla pokusu `attempt`, bezpečného
+kódu a případného upstream HTTP stavu. Události workeru po restartu zachovají ID
+trvalé úlohy; log samotného požadavku podléhá běžné retenci. Uživatelské postavy
+mimo Testing Flow mají odpovídající události `character_job_*`.
+
+Chyby `character_provider_output_limit`, `character_provider_incomplete`,
+`character_provider_refused`, `character_provider_invalid_response`,
+`character_provider_transport_error` a `character_provider_timeout` rozlišují
+technickou příčinu bez ukládání provider odpovědi. `openai_http_N` zachovává pouze
+HTTP stav. Tyto kódy ani úspěšná lokální simulace samy nepotvrzují konkrétní
+produkční incident; porovnej je s logem a verzí nasazení.
 
 ## Lokální SSH a cloudové prostředí
 

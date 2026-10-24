@@ -32,7 +32,16 @@ internal static class TestingSessionEndpoints
             var http=invocation.HttpContext;
             if(!http.User.IsInRole(AccountRoles.Tester))return ApiProblem.Create(http,403,"tester_role_required");
             if(http.User.FindFirstValue(ClaimTypes.NameIdentifier) is not {Length:>0})return ApiProblem.Create(http,401,"account_required");
-            try{return await next(invocation);}
+            try
+            {
+                var result = await next(invocation);
+                if (result is IValueHttpResult { Value: TestingCharacter character })
+                {
+                    http.Items["diagnosticOperationId"] = http.RequestServices.GetRequiredService<TestingResources>()
+                        .TraceCharacterRequest(Owner(http), character, http.TraceIdentifier);
+                }
+                return result;
+            }
             catch(TestingException e){return ApiProblem.Create(http,e.Status,e.Code);}
             catch(CharacterException e){return ApiProblem.Create(http,e.Status,e.Code);}
             catch(WandGenerationException e){return ApiProblem.Create(http,e.Status,e.Code);}
@@ -41,7 +50,9 @@ internal static class TestingSessionEndpoints
             catch(DuelException e){return ApiProblem.Create(http,e.Status,e.Code);}
             catch(JsonException){return ApiProblem.Create(http,400,"invalid_test_request");}
             catch(FormatException){return ApiProblem.Create(http,400,"invalid_test_request");}
-            catch(OperationCanceledException){return ApiProblem.Create(http,408,"test_operation_cancelled");}
+            catch(OperationCanceledException) when (!http.RequestAborted.IsCancellationRequested){return ApiProblem.Create(http,408,"test_operation_cancelled");}
+            catch(HttpRequestException){return ApiProblem.Create(http,502,"test_provider_transport_error");}
+            catch(InvalidDataException){return ApiProblem.Create(http,502,"test_provider_invalid_response");}
         });
         group.MapGet("/catalog",(PersonaLabRuntime runtime)=>Results.Json(new
         {

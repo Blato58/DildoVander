@@ -1,11 +1,11 @@
 using System.Security.Claims;
 using Kufr.Backend.Features.Access;
 using Kufr.Backend.Features.Conversations;
+using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.Identity;
 using Kufr.Backend.Features.Keepsakes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using System.ClientModel;
 
 namespace Kufr.Backend.Features.Customers;
 
@@ -95,6 +95,7 @@ internal sealed class CharacterEnrichmentWorker(IServiceScopeFactory scopes, Cha
             try
             {
                 using var reconciliationScope = scopes.CreateScope();
+                var logs = reconciliationScope.ServiceProvider.GetService<ServerLogStore>();
                 await CharacterEndpoints.ReconcileDeletionsAsync(reconciliationScope.ServiceProvider, store, stoppingToken);
                 var job = await store.ClaimAsync(stoppingToken);
                 if (job is null)
@@ -102,6 +103,7 @@ internal sealed class CharacterEnrichmentWorker(IServiceScopeFactory scopes, Cha
                     await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
                     continue;
                 }
+                logs?.Write("info", "character_job_started", operationId: Guid.Parse(job.Id).ToString(), attempt: job.Attempt);
                 using var scope = scopes.CreateScope();
                 var accounts = scope.ServiceProvider.GetRequiredService<AccountDatabase>();
                 var disabled = await accounts.Users.AsNoTracking().Where(user => user.Id == job.AccountId)
@@ -140,21 +142,25 @@ internal sealed class CharacterEnrichmentWorker(IServiceScopeFactory scopes, Cha
                         await store.CompleteAsync(job, null, "account_unavailable", stoppingToken);
                         continue;
                     }
-                    await store.CompleteAsync(job, enrichment, null, stoppingToken);
+                    var completed = await store.CompleteAsync(job, enrichment, null, stoppingToken);
+                    logs?.Write("info", completed ? "character_job_completed" : "character_job_discarded",
+                        operationId: Guid.Parse(job.Id).ToString(), attempt: job.Attempt);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 catch (Exception error)
                 {
                     logger.LogWarning("Character enrichment failed for job {JobId} ({ErrorType}).", job.Id, error.GetType().Name);
-                    var transient = error is HttpRequestException or OperationCanceledException
-                        || error is ClientResultException response && (response.Status is 408 or 429 || response.Status >= 500);
-                    if (transient && job.Attempt < 3)
+                    var code = CharacterProviderFailure.Code(error);
+                    if (CharacterProviderFailure.IsTransient(error) && job.Attempt < 3)
                     {
-                        await store.RetryAsync(job, stoppingToken);
+                        var retried = await store.RetryAsync(job, stoppingToken);
+                        logs?.Write("warning", retried ? "character_job_retry_scheduled" : "character_job_discarded",
+                            status: CharacterProviderFailure.Status(error), operationId: Guid.Parse(job.Id).ToString(), code: code, attempt: job.Attempt);
                         continue;
                     }
-                    await store.CompleteAsync(job, null,
-                        error is CharacterException character ? character.Code : "character_enrichment_failed", stoppingToken);
+                    var failed = await store.CompleteAsync(job, null, code, stoppingToken);
+                    logs?.Write("warning", failed ? "character_job_failed" : "character_job_discarded",
+                        status: CharacterProviderFailure.Status(error), operationId: Guid.Parse(job.Id).ToString(), code: code, attempt: job.Attempt);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }

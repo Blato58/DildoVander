@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Kufr.Backend.Features.Conversations;
 using Kufr.Backend.Features.Customers;
+using Kufr.Backend.Features.Diagnostics;
 using Kufr.Backend.Features.GptLive;
 using Kufr.Backend.Features.Keepsakes;
 using Kufr.Backend.Features.Memory;
@@ -29,6 +30,7 @@ internal sealed class TestingResources : IDisposable
     private readonly SemaphoreSlim generation = new(1, 1);
     private readonly IKeepsakeProvider? providerOverride;
     private readonly ICharacterEnrichmentProvider? characterOverride;
+    private readonly ServerLogStore? logs;
     internal IConfiguration Configuration { get; }
     internal string Root { get; }
     internal TestingSessionStore SessionsStore => sessionStore;
@@ -48,15 +50,16 @@ internal sealed class TestingResources : IDisposable
     }
     internal Action<string, string, int, string>? ObserveDuelRound { get; set; }
 
-    public TestingResources(IConfiguration configuration, TimeProvider clock)
-        : this(configuration, clock, null, null, null, null) { }
+    public TestingResources(IConfiguration configuration, TimeProvider clock, ServerLogStore? logs = null)
+        : this(configuration, clock, null, null, null, null, logs) { }
 
     // This overload is for controlled offline integration tests only. Application
     // DI registers the two-argument constructor and cannot choose a fake provider.
     internal TestingResources(IConfiguration configuration, TimeProvider clock,
         IWandGenerationProvider? wandOverride, IKeepsakeProvider? keepsakeOverride,
-        ICharacterEnrichmentProvider? enrichmentOverride, WandDecisionService? decisionsOverride)
+        ICharacterEnrichmentProvider? enrichmentOverride, WandDecisionService? decisionsOverride, ServerLogStore? logs = null)
     {
+        this.logs = logs;
         providerOverride = keepsakeOverride;
         characterOverride = enrichmentOverride;
         Root = Path.GetFullPath((configuration["Backend:DatabasePath"]
@@ -119,6 +122,28 @@ internal sealed class TestingResources : IDisposable
         });
     }
 
+    internal string? TraceCharacterRequest(string owner, TestingCharacter character, string traceId)
+    {
+        try
+        {
+            var profile = character.Profile;
+            var storedJobId = Profiles(owner, character.Id).JobIdForRevision(owner, profile.ProfileId, profile.Revision);
+            var jobId = Guid.TryParse(storedJobId, out var id) ? id.ToString() : null;
+            if (jobId is not null)
+            {
+                logs?.Write("info", "testing_character_job_requested", traceId, operationId: jobId);
+            }
+            return jobId;
+        }
+        catch (Exception error) when (error is Microsoft.Data.Sqlite.SqliteException or IOException)
+        {
+            // A correlation lookup must not turn an already-saved action into
+            // an apparent failure that encourages the client to repeat it.
+            logs?.Write("warning", "testing_character_correlation_failed", traceId);
+            return null;
+        }
+    }
+
     internal async Task<bool> ProcessNextCharacterEnrichmentAsync(CancellationToken token)
     {
         var charactersRoot = Path.Combine(Root, "characters");
@@ -131,18 +156,20 @@ internal sealed class TestingResources : IDisposable
             var store = profileStoresByPath.GetOrAdd(directory, path => new CharacterProfileStore(path));
             var job = await store.ClaimAsync(token);
             if (job is null) continue;
+            logs?.Write("info", "testing_character_job_started", operationId: Guid.Parse(job.Id).ToString(), attempt: job.Attempt);
 
             if (job.Attempt > 3)
             {
                 await store.CompleteAsync(job, null, "character_job_interrupted", token);
+                logs?.Write("warning", "testing_character_job_failed", operationId: Guid.Parse(job.Id).ToString(), code: "character_job_interrupted", attempt: job.Attempt);
                 return true;
             }
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromSeconds(45));
-            using var provider = characterOverride is null ? new OpenAiCharacterEnrichmentProvider(Configuration, store) : null;
             try
             {
+                using var provider = characterOverride is null ? new OpenAiCharacterEnrichmentProvider(Configuration, store) : null;
                 if (!await store.CanDispatchAsync(job, timeout.Token)) return true;
                 Task<CharacterEnrichment>? pending = null;
                 var dispatched = sessionStore.TryStartUnlessFenced(job.AccountId,
@@ -159,7 +186,9 @@ internal sealed class TestingResources : IDisposable
                     await store.FenceAccountDeletionAsync(job.AccountId, CancellationToken.None);
                     return true;
                 }
-                await store.CompleteAsync(job, enrichment, null, timeout.Token);
+                var completed = await store.CompleteAsync(job, enrichment, null, timeout.Token);
+                logs?.Write("info", completed ? "testing_character_job_completed" : "testing_character_job_discarded",
+                    operationId: Guid.Parse(job.Id).ToString(), attempt: job.Attempt);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -167,18 +196,18 @@ internal sealed class TestingResources : IDisposable
             }
             catch (Exception error) when (error is not OutOfMemoryException)
             {
-                var transient = error is HttpRequestException or OperationCanceledException
-                    || error is ClientResultException response && (response.Status is 408 or 429 || response.Status >= 500);
-                if (transient && job.Attempt < 3)
+                var code = CharacterProviderFailure.Code(error);
+                if (CharacterProviderFailure.IsTransient(error) && job.Attempt < 3)
                 {
-                    await store.RetryAsync(job, token);
+                    var retried = await store.RetryAsync(job, token);
+                    logs?.Write("warning", retried ? "testing_character_job_retry_scheduled" : "testing_character_job_discarded",
+                        status: CharacterProviderFailure.Status(error), operationId: Guid.Parse(job.Id).ToString(), code: code, attempt: job.Attempt);
                 }
                 else
                 {
-                    var code = error is CharacterException character ? character.Code
-                        : error is OperationCanceledException ? "character_provider_timeout"
-                        : ProviderErrorCode(error, "character_provider_error");
-                    await store.CompleteAsync(job, null, code, token);
+                    var completed = await store.CompleteAsync(job, null, code, token);
+                    logs?.Write("warning", completed ? "testing_character_job_failed" : "testing_character_job_discarded",
+                        status: CharacterProviderFailure.Status(error), operationId: Guid.Parse(job.Id).ToString(), code: code, attempt: job.Attempt);
                 }
             }
 

@@ -244,7 +244,7 @@ public final class KufrIdentityPlugin: CAPPlugin, CAPBridgedPlugin,
             try acceptAccountDeletion(path: path, method: method, status: http.statusCode, body: result.0, origin: origin)
             if !priority { try persistAccountCookie(origin: origin) }
             var headers: [String: String] = [:]
-            for name in ["Content-Type", "X-Twin-Media-Accepted-Bytes", "Retry-After"] {
+            for name in ["Content-Type", "X-Twin-Media-Accepted-Bytes", "Retry-After", "X-Request-Id"] {
                 if let value = http.value(forHTTPHeaderField: name) { headers[name.lowercased()] = value }
             }
             call.resolve(["status": http.statusCode, "headers": headers, "bodyBase64": result.0.base64EncodedString()])

@@ -177,6 +177,9 @@ internal static class CustomerProfileTests
             new("Wizard", "Fiction"), null, "private-lease", 1, OpenAiConsent: true);
         var request = OpenAiCharacterEnrichmentProvider.BuildRequest(job, "server-model", true);
         Check(!request.Contains("private-account") && !request.Contains("private-profile"), "provider receives fictional fields only");
+        using var requestDocument = JsonDocument.Parse(request);
+        Check(requestDocument.RootElement.GetProperty("include")[0].GetString() == "web_search_call.action.sources",
+            "structured character research requests provider-returned source evidence");
         var source = new CharacterSource("Official fiction source", "https://example.com/character");
         var result = Result(job) with
         {
@@ -208,6 +211,43 @@ internal static class CustomerProfileTests
         var parsed = OpenAiCharacterEnrichmentProvider.Parse(response, 3, "requested-model");
         Check(parsed.Sources.Single().Url == source.Url && parsed.Model == "actual-model" && parsed.InputTokens == 10,
             "source citations and actual model/usage provenance parsed from provider response");
+        var searched = System.Text.Json.Nodes.JsonNode.Parse(response.GetRawText())!;
+        var outputs = searched["output"]!.AsArray();
+        outputs[0]!["content"]![0]!["annotations"] = new System.Text.Json.Nodes.JsonArray();
+        outputs.Insert(0, JsonSerializer.SerializeToNode(new
+        {
+            type = "web_search_call", action = new
+            {
+                type = "search", sources = Enumerable.Range(0, 10)
+                    .Select(index => new { type = "url", url = "https://example.com/other-" + index })
+                    .Append(new { type = "url", url = source.Url }).ToArray()
+            }
+        }));
+        var fromSearch = OpenAiCharacterEnrichmentProvider.Parse(JsonSerializer.SerializeToElement(searched), 3, "requested-model");
+        Check(fromSearch.Sources.Length <= 8 && fromSearch.Sources.Any(item => item.Url == source.Url),
+            "structured facts use provider search sources without annotations and prioritize referenced URLs over the source display cap");
+        outputs.RemoveAt(0);
+        ExpectProviderCode(JsonSerializer.SerializeToElement(searched), "character_provider_invalid_response");
+        ExpectProviderCode(JsonSerializer.SerializeToElement(new
+        {
+            status = "incomplete", incomplete_details = new { reason = "max_output_tokens" }
+        }), "character_provider_output_limit");
+        ExpectProviderCode(JsonSerializer.SerializeToElement(new { status = "incomplete" }), "character_provider_incomplete");
+        ExpectProviderCode(JsonSerializer.SerializeToElement(new { status = "completed", output = new[]
+        {
+            new { type = "message", content = new[] { new { type = "refusal", refusal = "private-provider-text" } } }
+        } }), "character_provider_refused");
+        ExpectProviderCode(JsonSerializer.SerializeToElement(new { status = "completed" }), "character_provider_invalid_response");
+    }
+
+    private static void ExpectProviderCode(JsonElement response, string code)
+    {
+        try
+        {
+            OpenAiCharacterEnrichmentProvider.Parse(response, 3, "requested-model");
+            throw new InvalidOperationException("Invalid provider response accepted.");
+        }
+        catch (CharacterException error) when (error.Code == code && error.Status == 502) { }
     }
 
     private static CharacterEnrichment Result(CharacterJob job) => new(job.UserInput.Name, job.UserInput.World,

@@ -124,7 +124,7 @@ def project(path, value):
         fail()
     entries = []
     entry_keys = ('id', 'timestamp', 'level', 'eventCode', 'traceId', 'route', 'method', 'status',
-                  'durationMs', 'operationId', 'conversationId', 'code')
+                  'durationMs', 'operationId', 'conversationId', 'code', 'attempt')
     previous = 0
     for entry in value['entries']:
         if not isinstance(entry, dict):
@@ -145,9 +145,10 @@ def project(path, value):
                 fail()
         route, code, method = entry.get('route'), entry.get('code'), entry.get('method')
         if (route is not None and (not isinstance(route, str) or len(route) > 200 or not re.fullmatch(r'[A-Za-z0-9/{}_.(): -]+', route))
-                or code is not None and (not isinstance(code, str) or not re.fullmatch(r'[a-z_]{1,80}', code))
+                or code is not None and (not isinstance(code, str) or not re.fullmatch(r'[a-z_][a-z0-9_]{0,79}', code))
                 or method is not None and method not in ('GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'OTHER')
                 or entry.get('status') is not None and not integer(entry['status'], 100, 599)
+                or entry.get('attempt') is not None and not integer(entry['attempt'], 1, 1000)
                 or entry.get('durationMs') is not None and (type(entry['durationMs']) not in (int, float)
                     or not math.isfinite(entry['durationMs']) or entry['durationMs'] < 0)):
             fail()

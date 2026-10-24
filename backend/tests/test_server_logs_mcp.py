@@ -27,6 +27,18 @@ STATUS = {'revision': PAGE['storeId'], 'engines': capabilities(False),
 
 
 class MCPTests(unittest.TestCase):
+    def test_provider_job_projection_preserves_safe_attempt_and_http_code(self):
+        page = {**PAGE, 'entries': [{**PAGE['entries'][0], 'eventCode': 'testing_character_job_failed',
+                                   'code': 'openai_http_429', 'status': 429, 'attempt': 3,
+                                   'operationId': PAGE['storeId']}]}
+        projected = mcp.project('/v1/admin/logs', page)['entries'][0]
+        self.assertEqual(projected['attempt'], 3)
+        self.assertEqual(projected['code'], 'openai_http_429')
+        self.assertNotIn('private-secret', json.dumps(projected))
+        for invalid in [True, 0, -1, 1001, 'private-attempt']:
+            with self.subTest(attempt=invalid), self.assertRaises(mcp.DiagnosticError):
+                mcp.project('/v1/admin/logs', {**page, 'entries': [{**page['entries'][0], 'attempt': invalid}]})
+
     def test_status_projects_only_the_two_retained_engine_contracts(self):
         source = {**STATUS, 'engines': capabilities(False), 'privateGuest': 'private-secret'}
         source['engines']['engines'][0]['providerRaw'] = 'private-secret'

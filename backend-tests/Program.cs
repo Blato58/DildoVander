@@ -16,6 +16,8 @@ if (args is ["--testing-session-http"]) { await AccountIdentityTests.RunTestingS
 if (args is ["--testing-sessions"]) { await TestingSessionsTests.RunAsync(); return; }
 if (args is ["--testing-enrichment-queue"]) { await TestingSessionsTests.RunOptionalEnrichmentAsync(); return; }
 if (args is ["--testing-character-race"]) { await TestingCharacterRaceTests.RunAsync(); return; }
+if (args is ["--testing-diagnostics"]) { await TestingDiagnosticsTests.RunAsync(); return; }
+if (args is ["--server-logs"]) { ServerLogTests.Run(); return; }
 if (args is ["--wand-artwork"]) { await WandArtworkTests.RunAsync(); return; }
 if (args is ["--generated-wands"]) { await WandGenerationTests.RunAsync(); await GeneratedWandFlowTests.RunAsync(); await WandArtworkTests.RunAsync(); return; }
 if (args is ["--customer-data-browser-fixture"]) { await AccountIdentityTests.RunCustomerDataBrowserFixtureAsync(); return; }

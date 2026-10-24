@@ -19,20 +19,22 @@ const browser=await chromium.launch(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? {ex
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});page=await context.newPage();page.setDefaultTimeout(10000);
  await context.addInitScript(()=>{window.microphoneRequests=0;Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:()=>{window.microphoneRequests++;throw new Error('No microphone in text-only test');}}});});
- page.on('pageerror',e=>failures.push(e.message));page.on('websocket',socket=>socketUrls.push(socket.url()));page.on('console',message=>{if(message.type()==='error' && !message.text().includes('status of 504'))failures.push(message.text());});
+ page.on('pageerror',e=>failures.push(e.message));page.on('websocket',socket=>socketUrls.push(socket.url()));page.on('console',message=>{if(message.type()==='error' && !/status of (503|504)/.test(message.text()))failures.push(message.text());});
  const owner={id:'tester-browser',displayName:'Testovací účet',roles:['Tester']};const createdAt='2026-10-24T11:00:00Z';
- let characters=[];let list=[];let detail=null;let rejectProvider=false;let chatRequests=0;let socketTurns=0;let textSocketTicket=false;
+ let characters=[];let list=[];let detail=null;let rejectProvider=false;let rejectStatus=false;let chatRequests=0;let socketTurns=0;let textSocketTicket=false;
  const hardware=()=>({connected:true,ready:true,state:'ready',compartments:Array.from({length:6},(_,index)=>({slot:index+1,state:'retracted',wandName:null})),selectedCompartment:null,currentAction:'idle',ledPattern:'idle',servoCommand:null,vibrationCommand:null,cameraAvailable:true,events:[]});
  const conversation=id=>({id,ownerId:owner.id,label:'Hardware-free browser test',engine:'gpt-live-1',scenarioId:'first-visit',fixtureId:'empty',platform:'web',createdAt,endedAt:null,status:'open',recordContent:true,config:{id:'baseline',name:'Production baseline',engine:'gpt-live-1',voice:'cedar'},turns:[],events:[]});
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==origin){await route.abort();return;}const p=url.pathname,m=request.method();calls.push({path:p,method:m});const json=(value,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(value)});const body=()=>request.postDataJSON();
   if(p==='/app/v1/session')return json({enabled:true,account:owner,csrfToken:'fixture-csrf'});
   if(p==='/app/v1/account')return json({sessions:[],grants:[],associations:[],passkeys:[],devices:[]});
+  if(p==='/app/v1/archive/collection')return json({schemaVersion:1,items:[],nextCursor:null});
   if(p==='/app/v1/testing-sessions/catalog')return json({engines:['gpt-live-1','gpt-realtime-2.1'],capabilities:{text:true,voice:true,hybrid:true}});
   if(p==='/app/v1/testing-sessions/characters'){
     if(m==='POST'){const input=body();const c={id:`character-${characters.length+1}`,longTermConsent:input.longTermConsent,profile:{profileId:`profile-${characters.length+1}`,revision:1,userInput:input.userInput,status:'ready',enrichment:{recognizedName:input.userInput.name,summary:'Řízená syntetická odpověď integračního testu.',model:'controlled-provider-double',evidenceKind:'fixture',conversationIdeas:[],ambiguities:[]}}};characters.push(c);return json(c);}return json(characters);
   }
   if(p==='/app/v1/testing-sessions'){
+    if(m==='GET' && rejectStatus)return json({code:'testing_request_failed',traceId:'01234567-89ab-4cde-8f01-23456789abcd'},503);
     if(m==='POST'){const input=body();assert.equal(input.engine,'gpt-live-1');assert.equal(input.inputMode,'text');assert.equal(input.openAiConsent,true);const s={id:`session-${list.length+1}`,ownerId:owner.id,virtualDeviceId:`test-${list.length+1}`,labSessionId:`lab-${list.length+1}`,engine:input.engine,inputMode:input.inputMode,status:'open',characterId:null,createdAt,endedAt:null,revision:1};list.push(s);detail={session:s,conversation:conversation(s.labSessionId),character:null,hardware:hardware(),wand:null,keepsakes:[],memory:{status:'empty',records:[]}};return json(s);}return json(list);
   }
   if(p==='/app/v1/testing-sessions/session-1')return json(detail);
@@ -69,6 +71,20 @@ try{
  await page.locator('.testing-setup input[type=checkbox]').check();await page.getByRole('button',{name:'Založit test a vybrat postavu',exact:true}).click();await page.locator('#testing-character-name').waitFor();
  assert.equal(await page.locator('.testing-conversation').isVisible(),false);
  await page.locator('#testing-character-name').fill('Alena');await page.locator('#testing-character-world').fill('Knihovna měsíce');await page.getByRole('button',{name:'Uložit a dohledat postavu'}).click();await page.getByRole('heading',{name:'Alena',exact:true}).waitFor();assert.equal(characters[0].profile.userInput.description,'');
+ // A failed list poll must retain the selected character and recover through
+ // reads alone. Use the canonical GUID shape emitted by server middleware.
+ const mutationsBeforeRecovery=calls.filter(call=>call.method!=='GET').length;
+ rejectStatus=true;
+ await page.getByText('ID požadavku: 01234567-89ab-4cde-8f01-23456789abcd',{exact:true}).first().waitFor();
+ await page.getByRole('heading',{name:'Alena',exact:true}).waitFor();
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:path.join(captures,'mobile-status-failure.png'),fullPage:true});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ rejectStatus=false;
+ await page.getByRole('button',{name:'Obnovit stav',exact:true}).first().click();
+ await page.locator('.aw-notice--danger').first().waitFor({state:'hidden'});
+ assert.equal(calls.filter(call=>call.method!=='GET').length,mutationsBeforeRecovery);
+ await page.setViewportSize({width:1440,height:1000});
  await page.getByRole('button',{name:'Pokračovat k rozhovoru'}).click();await page.locator('#testing-message').waitFor();assert.equal(await page.locator('.testing-character').isVisible(),false);
  await page.locator('#testing-message').fill('Jsem knihovnice a hledám svou hůlku.');await page.getByRole('button',{name:'Odeslat skutečnému AI'}).click();await page.getByText('Odpověď poskytovatelského dvojníka pro Alena.',{exact:true}).waitFor();assert.equal(chatRequests,1);assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
  await page.locator('#testing-message').fill('A také chráním své přátele.');await page.getByRole('button',{name:'Odeslat skutečnému AI'}).click();await page.waitForFunction(()=>document.querySelectorAll('.testing-chat li').length===4);assert.equal(chatRequests,2);
@@ -82,5 +98,17 @@ try{
  await page.locator('.testing-steps button').nth(0).click();await page.locator('#testing-input').selectOption('text');await page.locator('.testing-steps button').nth(2).click();await page.locator('#testing-message').waitFor();
  rejectProvider=true;await page.locator('#testing-message').fill('Ověř chybu poskytovatele.');await page.getByRole('button',{name:'Odeslat skutečnému AI'}).click();await page.locator('.aw-notice--danger').filter({hasText:'lab_provider_no_reply'}).waitFor();assert.equal(await page.locator('.testing-chat li').count(),4);
  rejectProvider=false;await page.locator('.testing-conversation .testing-consent input').check();await page.locator('#testing-message').fill('Odpověz nahlas, mikrofon nemám.');await page.getByRole('button',{name:'Odeslat skutečnému AI'}).click();await page.getByText('Řízená skutečně přenesená PCM odpověď bez mikrofonu.',{exact:true}).waitFor();assert.equal(socketTurns,1);assert.equal(textSocketTicket,true);assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
- assert(!calls.some(call=>/start-tickets|hardware-ticket|\/devices\//.test(call.path)));assert.deepEqual(failures,[]);console.log(JSON.stringify({passed:true,checks:['create_without_hardware','character_real_contract','typed_backend_adapter_no_microphone','accepted_virtual_event','dynamic_wand','resume_no_duplicate_turn','modality_switch','provider_failure_no_fake_reply','desktop_mobile_320px','keyboard_focus','typed_spoken_pcm_no_microphone'],screenshots:captures,provider:'controlled double; no paid calls',physicalAcceptance:false},null,2));
+ await page.locator('a[href="/settings"]').first().click();
+ await page.getByText('Diagnostika připojení',{exact:true}).click();
+ await page.getByRole('button',{name:'Připravit diagnostiku',exact:true}).click();
+ const diagnosticLink=page.getByRole('link',{name:'Stáhnout diagnostiku',exact:true});
+ const downloadReady=page.waitForEvent('download');await diagnosticLink.click();
+ const diagnosticFile=await downloadReady;
+ const diagnosticPayload=JSON.parse(await readFile(await diagnosticFile.path(),'utf8'));
+ assert(diagnosticPayload.requests.some(entry=>entry.outcome==='http_error'));
+ assert(!JSON.stringify(diagnosticPayload).includes('fixture-csrf'));
+ assert(!JSON.stringify(diagnosticPayload).includes('Odpověď poskytovatelského'));
+ assert(diagnosticPayload.requests.every(entry=>!entry.action.includes('session-1')&&!entry.action.includes('lab-1')));
+ await page.screenshot({path:path.join(captures,'mobile-diagnostics.png'),fullPage:true});
+ assert(!calls.some(call=>/start-tickets|hardware-ticket|\/devices\//.test(call.path)));assert.deepEqual(failures,[]);console.log(JSON.stringify({passed:true,checks:['create_without_hardware','character_real_contract','partial_status_failure_trace_recovery_no_replay','safe_support_export','typed_backend_adapter_no_microphone','accepted_virtual_event','dynamic_wand','resume_no_duplicate_turn','modality_switch','provider_failure_no_fake_reply','desktop_mobile_320px','keyboard_focus','typed_spoken_pcm_no_microphone'],screenshots:captures,provider:'controlled double; no paid calls',physicalAcceptance:false},null,2));
 }catch(error){console.error('Synthetic browser failure:',await page?.locator('.aw-notice').allTextContents(),calls.filter(call=>call.path.includes('ticket')),socketUrls,failures);throw error;}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
